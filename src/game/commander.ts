@@ -13,6 +13,8 @@ export interface Equipment {
   ecm: boolean;
   laser: LaserType;
   rearLaser: boolean;
+  leftLaser: boolean;
+  rightLaser: boolean;
   scoops: boolean;
   escapePod: boolean;
   energyUnit: boolean;
@@ -29,6 +31,8 @@ export function defaultEquipment(): Equipment {
     ecm: false,
     laser: 'pulse',
     rearLaser: false,
+    leftLaser: false,
+    rightLaser: false,
     scoops: false,
     escapePod: false,
     energyUnit: false,
@@ -64,6 +68,8 @@ export const EQUIPMENT_CATALOGUE: EquipItem[] = [
   { id: 'largeBay', name: 'Large Cargo Bay (35t)', price: 4000, minTL: 1 },
   { id: 'ecm', name: 'E.C.M. System', price: 6000, minTL: 2 },
   { id: 'rearLaser', name: 'Rear Pulse Laser', price: 4000, minTL: 3 },
+  { id: 'leftLaser', name: 'Left Pulse Laser', price: 4000, minTL: 3 },
+  { id: 'rightLaser', name: 'Right Pulse Laser', price: 4000, minTL: 3 },
   { id: 'beam', name: 'Beam Laser', price: 10000, minTL: 4 },
   { id: 'scoops', name: 'Fuel Scoops', price: 5250, minTL: 5 },
   { id: 'escapePod', name: 'Escape Pod', price: 10000, minTL: 6 },
@@ -83,6 +89,8 @@ export function equipmentOwned(id: string, c: CommanderData): boolean {
     case 'largeBay': return e.largeBay;
     case 'ecm': return e.ecm;
     case 'rearLaser': return e.rearLaser;
+    case 'leftLaser': return e.leftLaser;
+    case 'rightLaser': return e.rightLaser;
     case 'beam': return e.laser !== 'pulse';
     case 'scoops': return e.scoops;
     case 'escapePod': return e.escapePod;

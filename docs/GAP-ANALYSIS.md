@@ -32,7 +32,7 @@ Status as of 2026-07-25.
 > (Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Worm, Thargoid,
 > Thargon, Constrictor), rear view + rear laser and 4-view switching,
 > witch-space Thargoid ambushes, Dodo stations (TL10+), the two Navy
-> missions, and chart type-to-find. Remaining: side laser mounts, gamepad /
+> missions, and chart type-to-find. Remaining: gamepad /
 > mouse flight, and the living-galaxy layer (see AI-TRAINING.md).
 
 ### Quick wins

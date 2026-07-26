@@ -567,14 +567,19 @@ export class Game {
   }
 
   private fireLaser(): void {
-    // front mount carries the fitted laser; rear is a pulse if purchased.
-    // Simplification vs the original: both mounts share one cooldown/heat.
+    // front mount carries the fitted laser; rear/left/right are pulse
+    // lasers if purchased. Simplification vs the original: all mounts share
+    // one cooldown/heat.
     let laser = LASERS[this.commander.equipment.laser];
     if (this.view === 1) {
       if (!this.commander.equipment.rearLaser) return;
       laser = LASERS.pulse;
-    } else if (this.view >= 2) {
-      return; // no side mounts
+    } else if (this.view === 2) {
+      if (!this.commander.equipment.leftLaser) return;
+      laser = LASERS.pulse;
+    } else if (this.view === 3) {
+      if (!this.commander.equipment.rightLaser) return;
+      laser = LASERS.pulse;
     }
     if (this.laserCooldown > 0 || this.laserTemp >= 0.98) return;
     this.laserCooldown = laser.cooldown;
@@ -1616,6 +1621,8 @@ export class Game {
       case 'largeBay': c.equipment.largeBay = true; break;
       case 'ecm': c.equipment.ecm = true; break;
       case 'rearLaser': c.equipment.rearLaser = true; break;
+      case 'leftLaser': c.equipment.leftLaser = true; break;
+      case 'rightLaser': c.equipment.rightLaser = true; break;
       case 'beam':
         c.credits += 4000; // pulse laser refunded, as per the manual
         c.equipment.laser = 'beam';
@@ -1686,7 +1693,12 @@ export class Game {
         }
       }
     }
-    const hasLaser = this.view === 0 || (this.view === 1 && this.commander.equipment.rearLaser);
+    const e = this.commander.equipment;
+    const hasLaser =
+      this.view === 0 ||
+      (this.view === 1 && e.rearLaser) ||
+      (this.view === 2 && e.leftLaser) ||
+      (this.view === 3 && e.rightLaser);
 
     // docking aid: shown approaching the slot side within 3km
     let dockAid: import('../hud/hud').HudState['dockAid'] = null;
