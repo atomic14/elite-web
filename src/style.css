@@ -308,3 +308,14 @@ html, body {
 #help .help-grid td:last-child { text-align: left; }
 #help .help-grid table { border-spacing: 0 2px; font-size: 12px; }
 #help > p { font-size: 10px; opacity: 0.8; margin-top: 12px; line-height: 1.7; }
+
+#shipid {
+  position: absolute;
+  left: 50%; top: 46%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--hud-amber);
+  opacity: 0.9;
+  pointer-events: none;
+}

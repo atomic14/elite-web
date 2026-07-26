@@ -46,6 +46,10 @@ export interface HudState {
   credits: number;
   /** 0 front, 1 rear, 2 left, 3 right. */
   view: number;
+  /** current view has a laser mount → show the crosshair */
+  hasLaser: boolean;
+  /** name + range of the ship under the crosshair ('' when none) */
+  shipId: string;
 }
 
 const VIEW_NAMES = ['', 'REAR VIEW', 'LEFT VIEW', 'RIGHT VIEW'];
@@ -63,6 +67,8 @@ export class Hud {
   private readonly altEl = byId('g-alt');
   private readonly cabinEl = byId('g-cabin');
   private readonly viewEl = byId('viewlabel');
+  private readonly shipIdEl = byId('shipid');
+  private readonly crosshairEl = byId('crosshair');
   private readonly energySegs: HTMLElement[];
   private readonly missileEls: HTMLElement[];
   private readonly lockEl = byId('lock');
@@ -122,6 +128,8 @@ export class Hud {
     this.cabinEl.style.width = `${Math.min(100, state.cabinTemp * 100)}%`;
     this.cabinEl.style.background = state.cabinTemp > 0.72 ? '#ff4d4d' : '';
     this.viewEl.textContent = VIEW_NAMES[state.view] ?? '';
+    this.crosshairEl.style.display = state.hasLaser ? '' : 'none';
+    this.shipIdEl.textContent = state.shipId;
     this.energySegs.forEach((seg, i) => {
       seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, state.energy - i))));
     });

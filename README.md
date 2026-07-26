@@ -44,6 +44,7 @@ Progress saves automatically every time you dock.
 | T / M / U | missile lock / fire / unarm |
 | E / TAB | E.C.M. / energy bomb (if fitted) |
 | J | torus jump drive (8×, disengages when mass-locked) |
+| P | pause |
 | C | docking computer (if fitted, within range) |
 | N / G / I | local chart / galactic chart / commander status |
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |

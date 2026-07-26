@@ -108,6 +108,7 @@ export class Game {
   private energyLowTimer = 0;
   private policeScanned = false;
   private chartFind: string | null = null;
+  private paused = false;
 
   private foreShield = 1;
   private aftShield = 1;
@@ -872,6 +873,16 @@ export class Game {
   // --- per-frame -----------------------------------------------------------
 
   private update(dt: number, elapsed: number): void {
+    // pause (flight only — everything else is inherently paused)
+    if (this.mode === 'flight' && this.input.pressed('KeyP')) this.paused = !this.paused;
+    if (this.mode !== 'flight') this.paused = false;
+    if (this.paused) {
+      this.hud.showMessage('PAUSED — P TO RESUME', 0.4);
+      this.composer.render();
+      this.renderHud(dt);
+      this.input.endFrame();
+      return;
+    }
     if (!this.tunnel.active) this.handleInput(dt);
     else this.input.endFrame();
     this.tunnel.update(dt);
@@ -1527,10 +1538,32 @@ export class Game {
       ? this.npcs.find((n) => n.alive && !n.inert && (n.role === 'thargoid' || n.role === 'thargon'))
           ?.object.position
       : undefined;
+    const sunDistNow = this.player.position.distanceTo(this.world.sun.group.position);
     const compassTarget = nearestHostile ??
-      (this.player.position.distanceTo(this.world.station.position) < this.world.planetRadius * 3
-        ? this.world.station.position
-        : this.world.planet.mesh.position);
+      (sunDistNow < 130000 && !this.witchspace
+        ? this.world.sun.group.position // sun-skimming: navigate the heat by compass
+        : this.player.position.distanceTo(this.world.station.position) < this.world.planetRadius * 3
+          ? this.world.station.position
+          : this.world.planet.mesh.position);
+
+    // auto ship-ID: name the ship nearest the current view axis
+    let shipId = '';
+    if (this.mode === 'flight') {
+      const dir = this.viewDir(this.tmp);
+      let bestAngle = 0.06;
+      for (const npc of this.npcs) {
+        if (!npc.alive) continue;
+        const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
+        const dist = to.length();
+        if (dist > 4500) continue;
+        const angle = dir.angleTo(to.normalize());
+        if (angle < bestAngle) {
+          bestAngle = angle;
+          shipId = `${(npc.object.name || 'ASTEROID').toUpperCase()} ${(dist / 1000).toFixed(1)}KM`;
+        }
+      }
+    }
+    const hasLaser = this.view === 0 || (this.view === 1 && this.commander.equipment.rearLaser);
 
     this.hud.render(
       dt,
@@ -1550,6 +1583,8 @@ export class Game {
         condition,
         credits: this.commander.credits,
         view: this.view,
+        hasLaser,
+        shipId,
       },
       this.player.position,
       this.player.quaternion,
