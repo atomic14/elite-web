@@ -28,7 +28,7 @@ import {
 } from './commander';
 import {
   hideScreen, renderDockedMenu, renderMarket, renderStatus, renderChart, drawChart,
-  renderLocalChart, drawLocalChart, renderEquip, equipRows,
+  renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
   renderGameOver, nearestSystem, distanceTenths, type ChartState,
 } from '../ui/screens';
 
@@ -109,6 +109,7 @@ export class Game {
   private policeScanned = false;
   private chartFind: string | null = null;
   private paused = false;
+  private chartEstimate = false;
 
   private foreShield = 1;
   private aftShield = 1;
@@ -891,7 +892,7 @@ export class Game {
       this.updateFlight(dt, elapsed);
     }
 
-    if ((this.mode === 'chart' || this.mode === 'local') && this.chartFind === null) {
+    if ((this.mode === 'chart' || this.mode === 'local') && this.chartFind === null && !this.chartEstimate) {
       this.updateChartCursor(dt);
     }
 
@@ -1236,8 +1237,24 @@ export class Game {
 
       case 'chart':
       case 'local':
+        if (this.chartEstimate) {
+          if (i.pressed('Escape') || i.pressed('KeyM')) {
+            this.chartEstimate = false;
+            if (this.mode === 'local') renderLocalChart(this.systems, this.commander, this.chart);
+            else renderChart(this.systems, this.commander, this.chart);
+          }
+          break;
+        }
         if (this.chartFind !== null) {
           this.handleChartFind();
+          break;
+        }
+        if (i.pressed('KeyM')) {
+          const near = nearestSystem(this.systems, this.chart.cursorX, this.chart.cursorY);
+          if (near) {
+            this.chartEstimate = true;
+            renderMarketEstimate(near, this.commander);
+          }
           break;
         }
         if (i.pressed('KeyF')) {
@@ -1304,6 +1321,7 @@ export class Game {
     this.mode = 'chart';
     this.returnMode = from;
     this.chartFind = null;
+    this.chartEstimate = false;
     const cur = this.system;
     this.chart.cursorX = cur.x;
     this.chart.cursorY = cur.y;
@@ -1314,6 +1332,7 @@ export class Game {
     this.mode = 'local';
     this.returnMode = from;
     this.chartFind = null;
+    this.chartEstimate = false;
     const cur = this.system;
     this.chart.cursorX = cur.x;
     this.chart.cursorY = cur.y;

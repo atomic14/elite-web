@@ -205,7 +205,7 @@ export function renderChart(
     <div class="rule"></div>
     <canvas id="chart-canvas" width="780" height="400"></canvas>
     <div class="keyline" id="chart-info"></div>
-    <div class="keyline">ARROWS MOVE &middot; ENTER SET TARGET &middot; ESC EXIT</div>
+    <div class="keyline">ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
   `);
   drawChart(systems, c, chart);
 }
@@ -296,7 +296,7 @@ export function renderLocalChart(
     <div class="rule"></div>
     <canvas id="local-canvas" width="780" height="380"></canvas>
     <div class="info" id="local-info" style="text-align:center; min-height:76px"></div>
-    <div class="keyline">ARROWS MOVE &middot; ENTER SET TARGET &middot; ESC EXIT</div>
+    <div class="keyline">ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
   `);
   drawLocalChart(systems, c, chart);
 }
@@ -387,6 +387,35 @@ export function drawLocalChart(
       info.textContent = ' ';
     }
   }
+}
+
+/**
+ * Market estimate for a system you haven't visited: expected prices/stock
+ * (mean over the fluctuation byte). Opened from the charts with M.
+ */
+export function renderMarketEstimate(sys: StarSystem, c: CommanderData): void {
+  const rows = COMMODITIES.map((cm, i) => {
+    const price = ((cm.basePrice + cm.mask / 2 + sys.economy * cm.gradient) & 0xff) * 0.4;
+    let qty = (cm.baseQuantity + cm.mask / 2 - sys.economy * cm.gradient) & 0xff;
+    if (qty & 0x80) qty = 0;
+    qty &= 0x3f;
+    const inHold = c.cargo[i] > 0 ? `${c.cargo[i]}${cm.unit}` : '-';
+    return `<tr><td>${cm.name.toUpperCase()}</td><td class="num">~${price.toFixed(1)}</td>` +
+      `<td class="num">~${qty}${cm.unit}</td><td class="num">${inHold}</td></tr>`;
+  }).join('');
+  show(`
+    <h2>${sys.name.toUpperCase()} — MARKET ESTIMATE</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center">
+      ${ECONOMY_NAMES[sys.economy]} &middot; ${GOVERNMENT_NAMES[sys.government]} &middot;
+      expected values; actual prices fluctuate per visit
+    </div>
+    <table>
+      <tr><th>PRODUCT</th><th class="num">EST. PRICE (Cr)</th><th class="num">EST. STOCK</th><th class="num">IN HOLD</th></tr>
+      ${rows}
+    </table>
+    <div class="keyline">ESC BACK TO CHART</div>
+  `);
 }
 
 export function renderGameOver(c: CommanderData): void {

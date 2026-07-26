@@ -67,7 +67,8 @@ to WASD+arrows (the BBC used S/X and `<` `>`), fire is F (was A), views are
 ↑↓ select · B buy · V sell · ESC exit
 
 ### Chart
-Arrows move cursor · ENTER set target · ESC exit
+Arrows move cursor · ENTER set target · M market estimate for the
+highlighted system · F find by name · ESC exit
 
 ## Game systems
 
