@@ -328,13 +328,16 @@ export class Game {
 
     if (situation === 'arrival') {
       const pirates = Math.max(0, Math.round((7 - sys.government) / 2 + Math.random() * 2 - 1));
-      const route = home.clone().sub(this.player.position).normalize();
+      const toStation = home.clone().sub(this.player.position);
+      const routeLen = toStation.length();
+      const route = toStation.normalize();
       for (let i = 0; i < pirates; i++) {
-        const along = 3000 + Math.random() * 9000;
+        // scattered along the whole witchpoint→station corridor
+        const along = routeLen * (0.1 + Math.random() * 0.75);
         const pos = this.player.position
           .clone()
           .addScaledVector(route, along)
-          .add(rnd(1800));
+          .add(rnd(2500));
         this.spawnNpc('pirate', pos, i + sys.index * 3);
       }
     }
@@ -572,13 +575,14 @@ export class Game {
   private arriveInSystem(): void {
     this.witchspace = false; // any arrival leaves witch-space (incl. galactic jump)
     this.buildWorld();
-    // Arrive well out, nose toward the planet — biased to the station's side
-    // of it (within a ~30° cone) so the planet never blocks the run in.
+    // Arrive at the witchpoint, well out — the classic long torus cruise in.
+    // Bearing is biased to the station's side of the planet (~30° cone) so
+    // the planet never blocks the run.
     const stationDir = this.world.station.position.clone().normalize();
     const dir = stationDir
       .add(new THREE.Vector3().randomDirection().multiplyScalar(0.5))
       .normalize();
-    this.player.position.copy(dir.multiplyScalar(this.world.planetRadius * 3.5));
+    this.player.position.copy(dir.multiplyScalar(this.world.planetRadius * 12));
     this.lookAlong(this.tmp.copy(this.player.position).negate());
     this.player.speed = 250;
     this.policeScanned = false;
