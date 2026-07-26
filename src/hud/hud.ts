@@ -1,0 +1,226 @@
+import * as THREE from 'three';
+import type { StarSystem } from '../galaxy/galaxy';
+import { describeSystem } from '../galaxy/galaxy';
+import { formatCredits } from '../game/commander';
+
+// The classic console: elliptical 3D scanner (dot + vertical stick per
+// contact), station compass, gauge bars, and the message line.
+
+const SCANNER_RANGE = 6000;
+const GREEN = '#4dff5c';
+const DIM = '#1d6b26';
+const AMBER = '#ffb444';
+
+export type ContactKind =
+  'station' | 'ship' | 'hostile' | 'asteroid' | 'missile' | 'cargo' | 'thargoid';
+
+export interface ScannerContact {
+  position: THREE.Vector3;
+  kind: ContactKind;
+}
+
+const CONTACT_COLORS: Record<ContactKind, string> = {
+  station: '#4dff5c',
+  ship: '#ffd24d',
+  hostile: '#ff5c4d',
+  asteroid: '#b9b9a5',
+  missile: '#ff9a3c',
+  cargo: '#8ad0ff',
+  thargoid: '#d05cff',
+};
+
+export interface HudState {
+  speedFrac: number;
+  rollFrac: number; // -1..1
+  pitchFrac: number; // -1..1
+  foreShield: number; // 0..1
+  aftShield: number; // 0..1
+  energy: number; // 0..4
+  fuelFrac: number;
+  laserTemp: number; // 0..1
+  altitudeFrac: number;
+  cabinTemp: number; // 0..1
+  missiles: number;
+  locked: boolean;
+  condition: 'GREEN' | 'YELLOW' | 'RED';
+  credits: number;
+  /** 0 front, 1 rear, 2 left, 3 right. */
+  view: number;
+}
+
+const VIEW_NAMES = ['', 'REAR VIEW', 'LEFT VIEW', 'RIGHT VIEW'];
+
+export class Hud {
+  private readonly scanner: CanvasRenderingContext2D;
+  private readonly compass: CanvasRenderingContext2D;
+  private readonly speedEl = byId('g-speed');
+  private readonly rollEl = byId('g-roll');
+  private readonly pitchEl = byId('g-pitch');
+  private readonly foreEl = byId('g-fore');
+  private readonly aftEl = byId('g-aft');
+  private readonly fuelEl = byId('g-fuel');
+  private readonly laserEl = byId('g-laser');
+  private readonly altEl = byId('g-alt');
+  private readonly cabinEl = byId('g-cabin');
+  private readonly viewEl = byId('viewlabel');
+  private readonly energySegs: HTMLElement[];
+  private readonly missileEls: HTMLElement[];
+  private readonly lockEl = byId('lock');
+  private readonly conditionEl = byId('condition');
+  private readonly creditsEl = byId('credits-display');
+  private readonly messageEl = byId('message');
+  private readonly flashEl = byId('damage-flash');
+
+  private messageTimer = 0;
+
+  private readonly local = new THREE.Vector3();
+  private readonly invQ = new THREE.Quaternion();
+
+  constructor() {
+    this.scanner = (byId('scanner') as HTMLCanvasElement).getContext('2d')!;
+    this.compass = (byId('compass') as HTMLCanvasElement).getContext('2d')!;
+    this.energySegs = Array.from(byId('g-energy').querySelectorAll('i'));
+    this.missileEls = Array.from(byId('missiles').querySelectorAll('span'));
+  }
+
+  setSystem(system: StarSystem): void {
+    byId('system-name').textContent = describeSystem(system);
+  }
+
+  showMessage(text: string, seconds = 3): void {
+    this.messageEl.textContent = text;
+    this.messageTimer = seconds;
+  }
+
+  flashDamage(): void {
+    this.flashEl.classList.add('hit');
+    // force reflow so re-adding restarts the fade
+    void this.flashEl.offsetWidth;
+    this.flashEl.classList.remove('hit');
+  }
+
+  render(
+    dt: number,
+    state: HudState,
+    playerPos: THREE.Vector3,
+    playerQuat: THREE.Quaternion,
+    contacts: ScannerContact[],
+    compassTarget: THREE.Vector3,
+  ): void {
+    this.messageTimer -= dt;
+    if (this.messageTimer <= 0 && this.messageEl.textContent) this.messageEl.textContent = '';
+
+    this.speedEl.style.width = `${state.speedFrac * 100}%`;
+    this.rollEl.style.left = `${50 + state.rollFrac * 45}%`;
+    this.pitchEl.style.left = `${50 + state.pitchFrac * 45}%`;
+    this.foreEl.style.width = `${state.foreShield * 100}%`;
+    this.aftEl.style.width = `${state.aftShield * 100}%`;
+    this.fuelEl.style.width = `${state.fuelFrac * 100}%`;
+    this.laserEl.style.width = `${state.laserTemp * 100}%`;
+    this.laserEl.style.background = state.laserTemp > 0.8 ? '#ff4d4d' : '';
+    this.altEl.style.width = `${Math.min(100, state.altitudeFrac * 100)}%`;
+    this.cabinEl.style.width = `${Math.min(100, state.cabinTemp * 100)}%`;
+    this.cabinEl.style.background = state.cabinTemp > 0.72 ? '#ff4d4d' : '';
+    this.viewEl.textContent = VIEW_NAMES[state.view] ?? '';
+    this.energySegs.forEach((seg, i) => {
+      seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, state.energy - i))));
+    });
+    this.missileEls.forEach((m, i) => {
+      m.classList.toggle('spent', i >= state.missiles);
+      m.classList.toggle('locked', state.locked && i === state.missiles - 1);
+    });
+    this.lockEl.textContent = state.locked ? 'TARGET LOCKED' : '';
+    this.conditionEl.textContent = `CONDITION: ${state.condition}`;
+    this.conditionEl.style.color = state.condition === 'RED' ? '#ff4d4d' : '';
+    this.creditsEl.textContent = formatCredits(state.credits);
+
+    this.drawScanner(playerPos, playerQuat, contacts);
+    this.drawCompass(playerPos, playerQuat, compassTarget);
+  }
+
+  private drawScanner(
+    playerPos: THREE.Vector3,
+    playerQuat: THREE.Quaternion,
+    contacts: ScannerContact[],
+  ): void {
+    const ctx = this.scanner;
+    const w = ctx.canvas.width;
+    const h = ctx.canvas.height;
+    const cx = w / 2;
+    const cy = h / 2;
+    const rx = w / 2 - 6;
+    const ry = h / 2 - 10;
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.strokeStyle = DIM;
+    ctx.lineWidth = 1;
+    for (const f of [1, 0.66, 0.33]) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx * f, ry * f, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx - rx, cy); ctx.lineTo(cx + rx, cy);
+    ctx.moveTo(cx, cy - ry); ctx.lineTo(cx, cy + ry);
+    ctx.stroke();
+    ctx.strokeStyle = GREEN;
+    ctx.strokeRect(cx - 1.5, cy - 1.5, 3, 3); // us
+
+    this.invQ.copy(playerQuat).invert();
+    for (const c of contacts) {
+      this.local.copy(c.position).sub(playerPos).applyQuaternion(this.invQ);
+      if (this.local.length() > SCANNER_RANGE) continue;
+      // Ship-local frame: x right, y up, -z ahead. Ahead maps to the top.
+      const px = cx + (this.local.x / SCANNER_RANGE) * rx;
+      const py = cy + (this.local.z / SCANNER_RANGE) * ry;
+      const stickTop = py - (this.local.y / SCANNER_RANGE) * ry * 1.4;
+      const color = CONTACT_COLORS[c.kind];
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px, stickTop);
+      ctx.stroke();
+      if (c.kind === 'station') {
+        ctx.fillRect(px - 2.5, stickTop - 2.5, 5, 5);
+      } else {
+        ctx.beginPath();
+        ctx.arc(px, stickTop, c.kind === 'missile' ? 1.4 : 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillRect(px - 1.5, py - 0.5, 3, 1);
+    }
+  }
+
+  private drawCompass(
+    playerPos: THREE.Vector3,
+    playerQuat: THREE.Quaternion,
+    target: THREE.Vector3,
+  ): void {
+    const ctx = this.compass;
+    const s = ctx.canvas.width;
+    const c = s / 2;
+    const r = c - 3;
+    ctx.clearRect(0, 0, s, s);
+    ctx.strokeStyle = DIM;
+    ctx.beginPath();
+    ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    this.invQ.copy(playerQuat).invert();
+    this.local.copy(target).sub(playerPos).applyQuaternion(this.invQ).normalize();
+    const px = c + this.local.x * (r - 5);
+    const py = c - this.local.y * (r - 5);
+    const ahead = this.local.z < 0;
+    ctx.strokeStyle = AMBER;
+    ctx.fillStyle = AMBER;
+    ctx.beginPath();
+    ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+    if (ahead) ctx.fill();
+    else ctx.stroke();
+  }
+}
+
+function byId(id: string): HTMLElement {
+  return document.getElementById(id)!;
+}

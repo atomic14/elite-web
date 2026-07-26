@@ -1,0 +1,209 @@
+// Evaluation tournament: HOW WE TELL THE TRAINING WORKED.
+//
+//   node --experimental-strip-types train/evaluate.ts
+//
+// Three principles:
+//  1. HELD-OUT SEEDS — training uses seeds derived from gen*977+e*131+7
+//     (max ≈ 400k). Evaluation uses seeds starting at 10,000,019, which the
+//     optimiser has never seen. Good scores here mean the policy generalises,
+//     not that it memorised its training episodes.
+//  2. BASELINES — every trained policy is scored alongside the scripted AI
+//     and an untrained random policy on the SAME seeds. The interesting
+//     number is the gap.
+//  3. BEHAVIOUR METRICS, not just fitness — kill rate, time-to-kill,
+//     accuracy, survival, pirate losses, and for packs the mean angular
+//     spread of attackers at the moments shots land (the flanking measure).
+
+import { readFileSync } from 'node:fs';
+import { Episode, type Controller, type ShotEvent } from '../src/sim/scenario.ts';
+import { randomBrain, brainFromFile, type Brain, type BrainFile } from '../src/sim/policy.ts';
+import { makeRng, vSub, vNorm, vDot, type SimShip } from '../src/sim/core.ts';
+
+const BRAINS_DIR = new URL('../src/sim/brains/', import.meta.url).pathname;
+const N = Number(process.argv[2] ?? 60); // episodes per matchup
+const HOLD_OUT_BASE = 10_000_019;
+const DT = 1 / 15;
+
+function tryLoad(name: string): Brain | null {
+  try {
+    return brainFromFile(JSON.parse(readFileSync(`${BRAINS_DIR}${name}.json`, 'utf8')) as BrainFile);
+  } catch {
+    return null;
+  }
+}
+
+const brains: Record<string, Brain | null> = {
+  'pirate-attack': tryLoad('pirate-attack'),
+  'pirate-attack-r2': tryLoad('pirate-attack-r2'),
+  'trader-evade': tryLoad('trader-evade'),
+  'trader-evade-r2': tryLoad('trader-evade-r2'),
+  'pirate-pack': tryLoad('pirate-pack'),
+  'jameson-defend': tryLoad('jameson-defend'),
+};
+const rng = makeRng(0xdead);
+const randomPirate = randomBrain(rng);
+
+interface Metrics {
+  episodes: number;
+  killRate: number; // % episodes the trader died
+  meanTimeToKill: number; // seconds, killed episodes only
+  accuracy: number; // pirate shot accuracy %
+  piratesLost: number; // mean per episode
+  traderSurvivalTime: number; // mean seconds trader stayed alive
+  flankSpread: number; // mean pairwise angular separation (deg) at hit moments (packs)
+}
+
+function runMatchup(
+  makePirates: () => Controller[],
+  trader: Controller,
+  traderArmed: boolean,
+  maxTime: number,
+): Metrics {
+  let kills = 0;
+  let ttk = 0;
+  let shots = 0;
+  let hits = 0;
+  let lost = 0;
+  let survival = 0;
+  let spreadSum = 0;
+  let spreadCount = 0;
+
+  for (let e = 0; e < N; e++) {
+    const ep = new Episode({
+      seed: HOLD_OUT_BASE + e * 7919,
+      pirates: makePirates(),
+      trader,
+      traderArmed,
+      maxTime,
+    });
+    let traderDeathTime = maxTime;
+    while (!ep.done) {
+      const events = ep.step(DT);
+      for (const ev of events) {
+        if (ev.hit && ev.to === ep.trader) {
+          const spread = pairwiseSpread(ep.pirates, ep.trader);
+          if (spread !== null) {
+            spreadSum += spread;
+            spreadCount += 1;
+          }
+        }
+      }
+      if (!ep.trader.alive && traderDeathTime === maxTime) traderDeathTime = ep.t;
+    }
+    if (!ep.trader.alive) {
+      kills += 1;
+      ttk += traderDeathTime;
+    }
+    survival += traderDeathTime;
+    for (const p of ep.pirates) {
+      shots += p.shotsFired;
+      hits += p.shotsHit;
+      if (!p.alive) lost += 1;
+    }
+  }
+  return {
+    episodes: N,
+    killRate: (100 * kills) / N,
+    meanTimeToKill: kills ? ttk / kills : NaN,
+    accuracy: shots ? (100 * hits) / shots : 0,
+    piratesLost: lost / N,
+    traderSurvivalTime: survival / N,
+    flankSpread: spreadCount ? spreadSum / spreadCount : NaN,
+  };
+}
+
+/** Mean pairwise angle (deg) between attacker bearings as seen from the trader. */
+function pairwiseSpread(pirates: SimShip[], trader: SimShip): number | null {
+  const dirs = pirates.filter((p) => p.alive).map((p) => vNorm(vSub(p.pos, trader.pos)));
+  if (dirs.length < 2) return null;
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < dirs.length; i++) {
+    for (let j = i + 1; j < dirs.length; j++) {
+      sum += (Math.acos(Math.max(-1, Math.min(1, vDot(dirs[i], dirs[j])))) * 180) / Math.PI;
+      n += 1;
+    }
+  }
+  return sum / n;
+}
+
+function row(name: string, m: Metrics): string {
+  const f = (x: number, d = 1) => (Number.isNaN(x) ? '—' : x.toFixed(d));
+  return `| ${name.padEnd(34)} | ${f(m.killRate, 0).padStart(4)}% | ${f(m.meanTimeToKill).padStart(6)}s | ` +
+    `${f(m.accuracy, 0).padStart(4)}% | ${f(m.traderSurvivalTime).padStart(6)}s | ` +
+    `${f(m.piratesLost, 2).padStart(5)} | ${f(m.flankSpread, 0).padStart(5)} |`;
+}
+
+const header =
+  '| matchup                            | kill | t-kill | acc  | t-surv | lost  | sprd° |\n' +
+  '| --- | --- | --- | --- | --- | --- | --- |';
+
+console.log(`\nEvaluation tournament — ${N} held-out episodes per matchup (seed base ${HOLD_OUT_BASE})\n`);
+
+// --- 1v1: pirates vs scripted trader ---------------------------------------
+console.log('## 1v1 vs scripted trader\n');
+console.log(header);
+console.log(row('scripted pirate (baseline)', runMatchup(() => [{ kind: 'scripted' }], { kind: 'scripted' }, false, 45)));
+console.log(row('random policy (baseline)', runMatchup(() => [{ kind: 'policy', brain: randomPirate }], { kind: 'scripted' }, false, 45)));
+if (brains['pirate-attack']) {
+  console.log(row('trained pirate r1', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack']! }], { kind: 'scripted' }, false, 45)));
+}
+if (brains['pirate-attack-r2']) {
+  console.log(row('trained pirate r2 (league)', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r2']! }], { kind: 'scripted' }, false, 45)));
+}
+
+// --- 1v1 vs trained evader ---------------------------------------------------
+if (brains['trader-evade']) {
+  const evader: Controller = { kind: 'policy', brain: brains['trader-evade']! };
+  console.log('\n## 1v1 vs trained evader\n');
+  console.log(header);
+  console.log(row('scripted pirate vs evader', runMatchup(() => [{ kind: 'scripted' }], evader, false, 45)));
+  if (brains['pirate-attack']) {
+    console.log(row('trained pirate r1 vs evader', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack']! }], evader, false, 45)));
+  }
+  if (brains['pirate-attack-r2']) {
+    console.log(row('trained pirate r2 vs evader', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r2']! }], evader, false, 45)));
+  }
+}
+
+// --- packs vs armed trader ---------------------------------------------------
+console.log('\n## pack of 3 vs armed scripted trader\n');
+console.log(header);
+console.log(row('3x scripted pirates', runMatchup(
+  () => [{ kind: 'scripted' }, { kind: 'scripted' }, { kind: 'scripted' }], { kind: 'scripted' }, true, 60)));
+if (brains['pirate-attack']) {
+  const solo = brains['pirate-attack']!;
+  console.log(row('3x solo brains (no pack obs)', runMatchup(
+    () => [
+      { kind: 'policy', brain: solo },
+      { kind: 'policy', brain: solo },
+      { kind: 'policy', brain: solo },
+    ], { kind: 'scripted' }, true, 60)));
+}
+if (brains['pirate-pack']) {
+  const pack = brains['pirate-pack']!;
+  console.log(row('pack-trained (shared reward)', runMatchup(
+    () => [
+      { kind: 'policy', brain: pack },
+      { kind: 'policy', brain: pack },
+      { kind: 'policy', brain: pack },
+    ], { kind: 'scripted' }, true, 60)));
+}
+// --- Commander Jameson: armed trader vs 2x shipped pirates -------------------
+if (brains['pirate-attack-r2']) {
+  const r2 = brains['pirate-attack-r2']!;
+  const twoPirates = () => [
+    { kind: 'policy', brain: r2 } as Controller,
+    { kind: 'policy', brain: r2 } as Controller,
+  ];
+  console.log('\n## Commander Jameson: armed trader vs 2x pirate-r2\n');
+  console.log(header);
+  console.log(row('scripted armed trader (baseline)', runMatchup(twoPirates, { kind: 'scripted' }, true, 45)));
+  if (brains['jameson-defend']) {
+    console.log(row('JAMESON defence policy', runMatchup(twoPirates, { kind: 'policy', brain: brains['jameson-defend']! }, true, 45)));
+  }
+  console.log('(here "kill"/"t-surv" describe the TRADER: low kill% + high t-surv = Jameson wins)');
+}
+
+console.log('\nkill = trader destroyed · t-kill = mean time to kill · acc = pirate accuracy');
+console.log('t-surv = trader survival · lost = pirates lost/episode · sprd° = attacker spread at hits');

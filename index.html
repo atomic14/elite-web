@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ELITE</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <div id="crosshair"></div>
+      <div id="lock"></div>
+      <div id="viewlabel"></div>
+      <div id="bomb-flash"></div>
+      <div id="topbar">
+        <span id="system-name">SYSTEM: ----</span>
+        <span id="credits-display"></span>
+        <span id="condition">CONDITION: GREEN</span>
+      </div>
+      <div id="message"></div>
+      <div id="damage-flash"></div>
+      <div id="hud">
+        <div class="hud-panel hud-left">
+          <div class="gauge"><label>FWD SPEED</label><div class="bar"><div id="g-speed" class="fill"></div></div></div>
+          <div class="gauge"><label>ROLL</label><div class="bar centered"><div id="g-roll" class="marker"></div></div></div>
+          <div class="gauge"><label>PITCH</label><div class="bar centered"><div id="g-pitch" class="marker"></div></div></div>
+          <div class="gauge"><label>FORE SHLD</label><div class="bar"><div id="g-fore" class="fill"></div></div></div>
+          <div class="gauge"><label>AFT SHLD</label><div class="bar"><div id="g-aft" class="fill"></div></div></div>
+          <div class="gauge"><label>ENERGY</label><div class="segs" id="g-energy"><i></i><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="hud-panel hud-center">
+          <canvas id="scanner" width="300" height="176"></canvas>
+        </div>
+        <div class="hud-panel hud-right">
+          <div class="gauge"><label>FUEL</label><div class="bar"><div id="g-fuel" class="fill"></div></div></div>
+          <div class="gauge"><label>LASER TEMP</label><div class="bar"><div id="g-laser" class="fill"></div></div></div>
+          <div class="gauge"><label>ALTITUDE</label><div class="bar"><div id="g-alt" class="fill"></div></div></div>
+          <div class="gauge"><label>CABIN TEMP</label><div class="bar"><div id="g-cabin" class="fill"></div></div></div>
+          <div class="compass-row">
+            <div class="missiles" id="missiles"><span></span><span></span><span></span><span></span></div>
+            <canvas id="compass" width="60" height="60"></canvas>
+          </div>
+        </div>
+      </div>
+      <div id="screen" class="hidden"></div>
+      <div id="help" class="hidden">
+        <h1>ELITE &mdash; CONTROLS</h1>
+        <div class="help-grid">
+          <div>
+            <h3>FLIGHT</h3>
+            <table>
+              <tr><td>W / S &middot; &uarr; / &darr;</td><td>pitch (&darr; pulls up)</td></tr>
+              <tr><td>A / D &middot; &larr; / &rarr; &middot; , / .</td><td>roll</td></tr>
+              <tr><td>SPACE</td><td>accelerate</td></tr>
+              <tr><td>X or /</td><td>decelerate</td></tr>
+              <tr><td>J</td><td>torus jump drive (8&times;)</td></tr>
+              <tr><td>1 2 3 4</td><td>front / rear / left / right view</td></tr>
+            </table>
+            <h3>COMBAT</h3>
+            <table>
+              <tr><td>F</td><td>fire laser</td></tr>
+              <tr><td>T</td><td>missile target lock</td></tr>
+              <tr><td>M</td><td>fire missile</td></tr>
+              <tr><td>U</td><td>unarm missile</td></tr>
+              <tr><td>E</td><td>E.C.M. <i>(if fitted)</i></td></tr>
+              <tr><td>TAB</td><td>energy bomb <i>(if fitted)</i></td></tr>
+            </table>
+          </div>
+          <div>
+            <h3>NAVIGATION</h3>
+            <table>
+              <tr><td>N</td><td>short range chart</td></tr>
+              <tr><td>G</td><td>galactic chart</td></tr>
+              <tr><td>H</td><td>hyperspace to target</td></tr>
+              <tr><td>&#8679;H</td><td>galactic hyperdrive <i>(if fitted)</i></td></tr>
+              <tr><td>C</td><td>docking computer <i>(if fitted)</i></td></tr>
+              <tr><td>I</td><td>commander status</td></tr>
+            </table>
+            <h3>DOCKED</h3>
+            <table>
+              <tr><td>L</td><td>launch</td></tr>
+              <tr><td>M</td><td>market prices</td></tr>
+              <tr><td>E</td><td>equip ship</td></tr>
+              <tr><td>N / G / I</td><td>charts &middot; status</td></tr>
+            </table>
+            <h3>IN SCREENS</h3>
+            <table>
+              <tr><td>&uarr; &darr;</td><td>select item</td></tr>
+              <tr><td>B / V</td><td>buy / sell (market)</td></tr>
+              <tr><td>ARROWS + ENTER</td><td>chart cursor &middot; set target</td></tr>
+              <tr><td>F</td><td>find system by name (charts)</td></tr>
+              <tr><td>ESC</td><td>back</td></tr>
+            </table>
+          </div>
+        </div>
+        <p>? TOGGLES THIS GUIDE &middot; CLASSIC 1984 KEYS KEPT: SPACE &middot; , . &middot; / &middot; T M U &middot; E &middot; TAB &middot; J &middot; C &middot; H<br/>
+        DELIBERATELY MODERNISED: WASD+ARROWS FLIGHT (WAS S/X), F FIRE (WAS A), 1-4 VIEWS (WAS F0-F3)</p>
+      </div>
+      <canvas id="tunnel"></canvas>
+      <div id="scanlines"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

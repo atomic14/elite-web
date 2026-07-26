@@ -1,0 +1,14 @@
+# dependencies & build output
+node_modules/
+dist/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# local scratch (training logs in train/logs/ ARE committed —
+# they're the recorded evidence for docs/TRAINING-LOG.md)
+*.local
