@@ -52,17 +52,16 @@
           <div>
             <h3>FLIGHT</h3>
             <table>
-              <tr><td>W / S &middot; &uarr; / &darr;</td><td>pitch (&darr; pulls up)</td></tr>
-              <tr><td>A / D &middot; &larr; / &rarr; &middot; , / .</td><td>roll</td></tr>
-              <tr><td>SPACE</td><td>accelerate</td></tr>
-              <tr><td>X or /</td><td>decelerate</td></tr>
+              <tr><td id="help-pitch">S / X &middot; &uarr; / &darr;</td><td id="help-pitch-desc">dive / climb (1984 style)</td></tr>
+              <tr><td id="help-roll">, / . &middot; &larr; / &rarr;</td><td>roll</td></tr>
+              <tr><td id="help-decel">SPACE &middot; /</td><td>accelerate &middot; decelerate</td></tr>
               <tr><td>J</td><td>torus jump drive (8&times;)</td></tr>
               <tr><td>P</td><td>pause</td></tr>
               <tr><td>1 2 3 4</td><td>front / rear / left / right view</td></tr>
             </table>
             <h3>COMBAT</h3>
             <table>
-              <tr><td>F</td><td>fire laser</td></tr>
+              <tr><td id="help-fire">A (or F)</td><td>fire laser</td></tr>
               <tr><td>T</td><td>missile target lock</td></tr>
               <tr><td>M</td><td>fire missile</td></tr>
               <tr><td>U</td><td>unarm missile</td></tr>
@@ -98,8 +97,8 @@
             </table>
           </div>
         </div>
-        <p>? TOGGLES THIS GUIDE &middot; CLASSIC 1984 KEYS KEPT: SPACE &middot; , . &middot; / &middot; T M U &middot; E &middot; TAB &middot; J &middot; C &middot; H<br/>
-        DELIBERATELY MODERNISED: WASD+ARROWS FLIGHT (WAS S/X), F FIRE (WAS A), 1-4 VIEWS (WAS F0-F3)</p>
+        <p><span id="help-layout">ACTIVE LAYOUT: CLASSIC — toggle with B when docked</span><br/>
+        VIEWS ON 1-4 (WERE F0-F3) AND SCREENS ON LETTERS (WERE F4-F9) IN BOTH LAYOUTS</p>
       </div>
       <canvas id="tunnel"></canvas>
       <div id="scanlines"></div>

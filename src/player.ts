@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Input } from './engine/input';
+import { keymap } from './engine/keymap';
 
 // Elite-style flight: no inertia sliding, the ship goes where the nose
 // points. Roll/pitch rates ramp while a key is held and decay when released,
@@ -38,19 +39,20 @@ export class PlayerShip {
   }
 
   update(dt: number, input: Input): void {
-    // roll: WASD/arrows, plus the classic 1984 < > keys
+    const keys = keymap(); // classic (1984) by default, modern as a toggle
     const rollIn =
-      (input.held('KeyA', 'ArrowLeft', 'Comma') ? 1 : 0) -
-      (input.held('KeyD', 'ArrowRight', 'Period') ? 1 : 0);
-    const pitchIn = (input.held('KeyS', 'ArrowDown') ? 1 : 0) - (input.held('KeyW', 'ArrowUp') ? 1 : 0);
+      (input.held(...keys.rollLeft) ? 1 : 0) - (input.held(...keys.rollRight) ? 1 : 0);
+    const pitchIn =
+      (input.held(...keys.pitchUp) ? 1 : 0) - (input.held(...keys.pitchDown) ? 1 : 0);
 
     this.rollRate = ramp(this.rollRate, rollIn * MAX_ROLL, rollIn !== 0, dt);
     this.pitchRate = ramp(this.pitchRate, pitchIn * MAX_PITCH, pitchIn !== 0, dt);
 
-    if (input.held('Space')) this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt);
-    // decelerate: X, or the classic / (unshifted — ? opens the controls guide)
-    const slashDecel = input.held('Slash') && !input.held('ShiftLeft', 'ShiftRight');
-    if (input.held('KeyX') || slashDecel) this.speed = Math.max(0, this.speed - ACCEL * dt);
+    if (input.held(...keys.accel)) this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt);
+    // slash only decelerates unshifted — ? opens the controls guide
+    const decelHeld = keys.decel.some((k) =>
+      input.held(k) && (k !== 'Slash' || !input.held('ShiftLeft', 'ShiftRight')));
+    if (decelHeld) this.speed = Math.max(0, this.speed - ACCEL * dt);
 
     if (this.rollRate !== 0) {
       this.tmpQ.setFromAxisAngle(AXIS_Z, this.rollRate * dt);

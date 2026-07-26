@@ -46,13 +46,13 @@ Progress saves automatically every time you dock.
 
 ## Controls
 
-### Flight
+### Flight — CLASSIC layout (the 1984 default; press B when docked for modern WASD)
 | Key | Action |
 | --- | --- |
-| W / S or ↑ / ↓ | pitch (flight-style: ↓ pulls the nose up) |
-| A / D or ← / → or , / . | roll (comma/period are the classic 1984 keys) |
-| SPACE / X or / | accelerate / decelerate (slash is the classic key) |
-| F | fire laser (watch the temperature) |
+| S / X or ↑ / ↓ | dive / climb — the original's pitch keys |
+| , / . or ← / → | roll |
+| SPACE / `/` | accelerate / decelerate |
+| A (or F) | fire laser (watch the temperature) |
 | 1-4 | front / rear / left / right view |
 | T / M / U | missile lock / fire / unarm |
 | E / TAB | E.C.M. / energy bomb (if fitted) |
@@ -72,11 +72,11 @@ slot's rotation. Get it wrong and you'll bounce off with shield damage.
 L launch · M market · E equip ship · N local chart · G galactic chart ·
 I status · X export save (JSON download) · Z import save
 
-Press **?** anywhere for the full in-game controls guide. Layout policy: the
-classic 1984 keys are kept wherever they don't fight modern muscle memory
-(SPACE, `,` `.`, `/`, T/M/U missiles, E, TAB, J, C, H); flight is modernised
-to WASD+arrows (the BBC used S/X and `<` `>`), fire is F (was A), views are
-1-4 (were F0-F3), and the screens use letters instead of function keys.
+Press **?** anywhere for the full in-game controls guide (it always shows
+the active layout). The CLASSIC layout is the authentic 1984 set — S/X
+pitch, `<` `>` roll, A fire, SPACE//. Press **B** when docked to switch to
+a MODERN WASD scheme (persisted per browser). In both layouts views are 1-4
+(were F0-F3) and screens use letters (were F4-F9).
 
 ### Market
 ↑↓ select · B buy · V sell · ESC exit

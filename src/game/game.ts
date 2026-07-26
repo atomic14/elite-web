@@ -17,6 +17,7 @@ import { createStarfield, SpaceDust } from '../world/starfield';
 import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
 import { PlayerShip } from '../player';
 import { Input } from '../engine/input';
+import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap';
 import { Hud, type ScannerContact } from '../hud/hud';
 import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
@@ -179,7 +180,9 @@ export class Game {
     this.player = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
     this.buildWorld();
     this.enterDocked(true);
-    this.hud.showMessage('PRESS ? FOR THE CONTROLS GUIDE', 8);
+    refreshHelpPanel();
+    this.hud.showMessage(
+      `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
 
     // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
     // docs/JAMESON-TRIALS.md) drives the whole game through this
@@ -936,8 +939,7 @@ export class Game {
    * dynamics it trained in). Manual flight input disengages instantly.
    */
   private combatComputerStep(dt: number): void {
-    if (this.input.held('KeyW', 'KeyA', 'KeyS', 'KeyD',
-        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Comma', 'Period')) {
+    if (this.input.held(...manualFlightKeys())) {
       this.ccEngaged = false;
       this.hud.showMessage('MANUAL OVERRIDE', 2);
       return;
@@ -1164,7 +1166,7 @@ export class Game {
     });
 
     // laser + systems
-    if (this.input.held('KeyF')) this.fireLaser();
+    if (this.input.held(...keymap().fire)) this.fireLaser();
     this.laserCooldown -= dt;
     this.laserTemp = Math.max(0, this.laserTemp - 0.22 * dt);
     this.energy = Math.min(4, this.energy + (this.commander.equipment.energyUnit ? 0.2 : 0.1) * dt);
@@ -1376,6 +1378,11 @@ export class Game {
         else if (i.pressed('KeyI')) this.openStatus('docked');
         else if (i.pressed('KeyX')) this.exportSave();
         else if (i.pressed('KeyZ')) this.importSave();
+        else if (i.pressed('KeyB')) {
+          const layout = toggleLayout();
+          this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
+          renderDockedMenu(this.system, this.commander, this.missionText());
+        }
         break;
 
       case 'market':

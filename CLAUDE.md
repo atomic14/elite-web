@@ -40,8 +40,10 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 4. **Ship defs use +Z nose**; buildShip() mirrors Z (three.js forward is −Z).
    Hulls must stay left/right symmetric or the mirror becomes visible.
 5. **Money is integer tenths of a credit; fuel is tenths of a LY (max 70).**
-6. **Key bindings live in three places**: the code, the `?` help panel in
-   index.html, and the README table. Change all three together.
+6. **Key bindings live in four places**: src/engine/keymap.ts (flight keys,
+   classic 1984 default + modern toggle), command keys in game.ts, the `?`
+   help panel (flight rows are rewritten by keymap.refreshHelpPanel), and
+   the README table. Change them together.
 7. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
    import at build time. `git checkout src/sim/brains` restores shipped
    weights. Shipped-in-game: `pirate-attack-r2` (pirates), `jameson-defend`

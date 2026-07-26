@@ -86,5 +86,6 @@ Status as of 2026-07-25.
 - Docking computer is instant rather than an animated autopilot.
 - Galactic hyperdrive on ⇧H instead of the manual's "G then H" chord
   (G opens the chart here; U is missile unarm, as in the original).
-- Modernised key layout (the BBC original used A=fire, S/X=pitch, etc.).
+- Classic 1984 flight keys are now the DEFAULT layout (S/X, < >, A fire);
+  a modern WASD layout is a persisted toggle (B when docked).
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).

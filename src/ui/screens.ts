@@ -38,7 +38,7 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       <div><b>G</b> GALACTIC CHART</div>
       <div><b>I</b> COMMANDER STATUS</div>
     </div>
-    <div class="keyline">? CONTROLS GUIDE &middot; X EXPORT SAVE &middot; Z IMPORT SAVE</div>
+    <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; X EXPORT SAVE &middot; Z IMPORT SAVE</div>
   `);
 }
 
