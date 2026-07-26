@@ -127,6 +127,9 @@ export class Game {
   hermitCooldown = false;
   genShipSeen = false;
   trumbleTimer = 20;
+  /** seconds until a rescue answers the distress beacon (-1 = not sent) */
+  beaconTimer = -1;
+  private strandedHintTimer = 2;
   contractOffers: Contract[] = [];
   contractSelected = 0;
   private chartFind: string | null = null;
@@ -462,6 +465,7 @@ export class Game {
     this.view = 0;
     this.cabinTemp = 0;
     this.witchspace = false;
+    this.beaconTimer = -1;
     this.clearCanisters();
     this.checkMissionAtDock();
     this.hermitTrading = false;
@@ -1335,6 +1339,47 @@ export class Game {
     if (c.fire) this.fireLaser();
   }
 
+  /**
+   * Stranded in witch-space without the fuel to jump clear used to be a
+   * slow, unrecoverable death — the autonomous playtest agent found it by
+   * getting stuck there. GalCop will come for you, at a price: your cargo
+   * pays the salvage fee.
+   */
+  sendDistressBeacon(): void {
+    if (!this.witchspace) {
+      this.hud.showMessage('DISTRESS BEACON IS FOR EMERGENCIES ONLY', 3);
+      sfx.beep(220);
+      return;
+    }
+    if (this.beaconTimer >= 0) {
+      this.hud.showMessage('BEACON ALREADY BROADCASTING', 2);
+      return;
+    }
+    this.beaconTimer = 20;
+    this.hud.showMessage('DISTRESS BEACON BROADCAST — HOLD ON, COMMANDER', 6);
+    sfx.beep(500, 0.4);
+  }
+
+  private completeRescue(): void {
+    const c = this.commander;
+    const salvage = c.cargo.reduce((s, q) => s + q, 0);
+    c.cargo = c.cargo.map(() => 0);
+    c.fuel = Math.max(c.fuel, 10); // enough for one jump clear
+    this.beaconTimer = -1;
+    // dumped at the nearest system to where the mis-jump left us
+    const target = this.chart.targetIndex ?? c.systemIndex;
+    c.systemIndex = target;
+    c.day += 3; // the tow takes a while
+    this.chart.targetIndex = null;
+    this.witchspace = false;
+    this.arriveInSystem();
+    this.hud.showMessage(
+      salvage > 0
+        ? `RESCUED — ${salvage}t OF CARGO TAKEN AS SALVAGE`
+        : 'RESCUED — NOTHING ABOARD WORTH TAKING',
+      6);
+  }
+
   /** One-shot jump to the next galaxy; lands at the nearest system to our coords. */
   private galacticJump(): void {
     if (!this.commander.equipment.galacticDrive) {
@@ -1536,6 +1581,17 @@ export class Game {
 
     if (this.ecmDetectedTimer > 0) this.ecmDetectedTimer -= dt;
     this.updateTrumbles(dt);
+
+    if (this.beaconTimer > 0) {
+      this.beaconTimer -= dt;
+      if (this.beaconTimer <= 0) this.completeRescue();
+    } else if (this.witchspace && this.commander.fuel < 10 && this.beaconTimer < 0) {
+      this.strandedHintTimer -= dt;
+      if (this.strandedHintTimer <= 0) {
+        this.strandedHintTimer = 8;
+        this.hud.showMessage('NO FUEL TO JUMP — PRESS B FOR THE DISTRESS BEACON', 5);
+      }
+    }
 
     // flashing low-energy warning
     if (this.energy < 1) {
@@ -1908,6 +1964,7 @@ export class Game {
           if (i.held('ShiftLeft', 'ShiftRight')) this.galacticJump();
           else this.startHyperspace();
         }
+        else if (i.pressed('KeyB')) this.sendDistressBeacon();
         else if (i.pressed('KeyJ')) {
           if (this.massLocked()) {
             this.hud.showMessage('MASS LOCKED', 2);

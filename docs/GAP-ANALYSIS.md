@@ -15,7 +15,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Market & trading | Original 17-commodity price/quantity model, per-visit fluctuation, buy/sell, 20t/35t hold, kg/g exemption. Market estimates for any charted system (M on the charts). |
 | Charts | Galactic chart + Short Range Chart with names, 7 LY fuel circle, keyboard or click targeting, type-to-find, market estimates, and the full DATA ON SYSTEM page. |
 | Hyperspace | Real chart distances, fuel cost, 5-second countdown, break-pattern tunnel. Witchpoint arrivals 12 planet-radii out on the station's side. Galactic Hyperdrive (one-shot, TL10). |
-| Witch-space | Mis-jumps (9%, 22% on the courier mission) drop you among Thargoids with Thargon drones; 1.0 LY escape jump; stranding is possible. |
+| Witch-space | Mis-jumps (9%, 22% on the courier mission) drop you among Thargoids with Thargon drones; 1.0 LY escape jump; strand yourself without fuel and a distress beacon (B) buys a tow at the cost of your cargo. |
 | Stations | Rotating Coriolis with docking slot; dodecahedral Dodo stations at TL10+; manual docking with roll alignment + on-screen alignment aid; docking computer (C, TL9); launch/dock tunnel effect; policed safety zone. |
 | Flight | Elite-style nose-steering with keyboard-analogue rates; classic 1984 key layout by default (modern WASD toggle); torus drive (J) with mass-lock; four views (1-4); pause. |
 | Combat | Pulse/beam/military lasers with heat, four laser mounts (front/rear/left/right), the original's missile arm→lock sequence (yellow then red pylon), ECM, energy bomb, tracer bolts, hit flashes, explosion debris, collisions, bounties. On-screen target brackets with range, hull bar and a lead marker. |
@@ -38,9 +38,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
    between all 256 systems and materialises in yours, with prices nudged by
    simulated trade and pirate risk migrating to rich, lawless routes.
    Design in [AI-TRAINING.md](AI-TRAINING.md).
-2. **Witch-space rescue** — stranding is currently a slow death with no
-   counterplay; a distress beacon (at a price) would make it a story.
-3. **AI round 3** — pack-phase retrain with the reward fixes noted in the
+2. **AI round 3** — pack-phase retrain with the reward fixes noted in the
    training log, and a third league round.
 4. **Contract variety** — the bulletin board covers cargo, courier and
    bounty work; passenger berths and smuggling runs would widen it.

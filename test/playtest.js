@@ -313,8 +313,20 @@
       this.step(170);
       for (let tries = 0; g.witchspace && tries < 3; tries++) {
         this.note('encounter:witchspace');
+        if (g.commander.fuel < 10) break; // no fuel to jump clear
         g.startHyperspace();
         for (let i = 0; i < 220 && g.mode === 'flight'; i++) {
+          const t = this.nearestHostile(6000);
+          if (t) this.combatStep(t, 1 / 30);
+          g.update(1 / 30, performance.now() / 1000 + i / 30);
+        }
+        this.checkInvariants();
+      }
+      // stranded: call for the tow rather than drifting forever
+      if (g.witchspace) {
+        this.note('encounter:distress-beacon');
+        g.sendDistressBeacon();
+        for (let i = 0; i < 2000 && g.witchspace && g.mode === 'flight'; i++) {
           const t = this.nearestHostile(6000);
           if (t) this.combatStep(t, 1 / 30);
           g.update(1 / 30, performance.now() / 1000 + i / 30);

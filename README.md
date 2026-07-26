@@ -92,6 +92,7 @@ joystick the original supported.
 | K | combat computer — the trained defence AI flies your ship (if fitted) |
 | N / G | short range chart / galactic chart |
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |
+| B | distress beacon — GalCop tows you out of witch-space, for your cargo |
 | I | commander status |
 | P | pause |
 | V | mouse flight — pointer-locked analogue stick, left button fires |
@@ -151,7 +152,9 @@ detected — as on the original's dashboard.
 - **A living system** — traders warp in, do business at the station and jump
   out; pirates hunt them for cargo you can scoop; police hunt the pirates.
 - **Witch-space** — mis-jumps drop you among Thargoids and their Thargon
-  drones. High bounties, if you live.
+  drones. High bounties, if you live. Out of fuel out there? Broadcast a
+  distress beacon and GalCop will tow you clear — they'll take your cargo
+  as the salvage fee.
 - **Mining & scooping** — blast asteroids (mining laser drops ore canisters)
   and scoop drifting cargo with fuel scoops; sun-skim to refuel, watching the
   cabin temperature.
