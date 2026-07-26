@@ -69,7 +69,8 @@ Manual docking: fly into the station's slot with your wings matched to the
 slot's rotation. Get it wrong and you'll bounce off with shield damage.
 
 ### Docked
-L launch · M market · E equip ship · N local chart · G galactic chart · I status
+L launch · M market · E equip ship · N local chart · G galactic chart ·
+I status · X export save (JSON download) · Z import save
 
 Press **?** anywhere for the full in-game controls guide. Layout policy: the
 classic 1984 keys are kept wherever they don't fight modern muscle memory

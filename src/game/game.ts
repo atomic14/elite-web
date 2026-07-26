@@ -400,6 +400,40 @@ export class Game {
     renderDockedMenu(this.system, this.commander, this.missionText());
   }
 
+  /** Download the commander as a JSON file (portable saves, bug reports). */
+  private exportSave(): void {
+    const blob = new Blob([JSON.stringify(this.commander, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `elite-commander-${this.system.name.toLowerCase()}-${formatCredits(this.commander.credits).replace(' ', '')}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    this.hud.showMessage('COMMANDER EXPORTED', 3);
+  }
+
+  /** Load a commander from a JSON file (replaces the current save). */
+  private importSave(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text()) as Partial<CommanderData>;
+        if (typeof parsed.credits !== 'number' || typeof parsed.systemIndex !== 'number') {
+          throw new Error('not a commander file');
+        }
+        localStorage.setItem('elite-web-commander', JSON.stringify(parsed));
+        location.reload(); // boot cleanly from the imported save
+      } catch {
+        this.hud.showMessage('IMPORT FAILED — NOT A COMMANDER FILE', 4);
+        sfx.beep(220);
+      }
+    };
+    input.click();
+  }
+
   private launch(): void {
     const n = this.slotNormal();
     this.player.position.copy(this.world.station.position).addScaledVector(n, 450);
@@ -1332,6 +1366,8 @@ export class Game {
         } else if (i.pressed('KeyN')) this.openLocalChart('docked');
         else if (i.pressed('KeyG')) this.openChart('docked');
         else if (i.pressed('KeyI')) this.openStatus('docked');
+        else if (i.pressed('KeyX')) this.exportSave();
+        else if (i.pressed('KeyZ')) this.importSave();
         break;
 
       case 'market':
