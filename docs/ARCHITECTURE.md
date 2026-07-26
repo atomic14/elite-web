@@ -17,6 +17,7 @@ src/
                               explosions, tracers
     commander.ts              persistent player state, equipment catalogue, saves
   galaxy/galaxy.ts            the 1984 procedural universe + market model
+  galaxy/goatsoup.ts          the original's recursive planet-description grammar
   world/                      per-system scenery: shader sun/planet, stations,
                               starfield, space dust
   ships/geometry.ts           every hull as vertex/edge/face tables; wireframe builder

@@ -11,9 +11,9 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 
 | Area | Notes |
 | --- | --- |
-| Galaxy generation | Byte-accurate: 8 galaxies × 256 systems; names, economy, government, tech level, population, productivity, radius, species. Galaxy 1 is identical to the original (Lave at system 7) — asserted by `npm test`. |
+| Galaxy generation | Byte-accurate: 8 galaxies × 256 systems; names, economy, government, tech level, population, productivity, radius, species, and the original's "goat soup" planet descriptions (Lave's canonical line is asserted by `npm test`). |
 | Market & trading | Original 17-commodity price/quantity model, per-visit fluctuation, buy/sell, 20t/35t hold, kg/g exemption. Market estimates for any charted system (M on the charts). |
-| Charts | Galactic chart + Short Range Chart with names, 7 LY fuel circle, cursor targeting, Data-on-System panel, type-to-find by name. |
+| Charts | Galactic chart + Short Range Chart with names, 7 LY fuel circle, keyboard or click targeting, type-to-find, market estimates, and the full DATA ON SYSTEM page. |
 | Hyperspace | Real chart distances, fuel cost, 5-second countdown, break-pattern tunnel. Witchpoint arrivals 12 planet-radii out on the station's side. Galactic Hyperdrive (one-shot, TL10). |
 | Witch-space | Mis-jumps (9%, 22% on the courier mission) drop you among Thargoids with Thargon drones; 1.0 LY escape jump; stranding is possible. |
 | Stations | Rotating Coriolis with docking slot; dodecahedral Dodo stations at TL10+; manual docking with roll alignment + on-screen alignment aid; docking computer (C, TL9); launch/dock tunnel effect; policed safety zone. |
@@ -33,18 +33,17 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 
 ## Remaining
 
-1. **Pointer-lock mouse flight** — in progress; the original supported
-   joysticks and analogue control is the one input mode we lack.
-2. **Gamepad support** — same rationale, via the Gamepad API.
-3. **The living galaxy** — a two-level simulation where traffic flows
+1. **Gamepad support** — via the Gamepad API; the original supported
+   joysticks, and mouse flight (V) already covers analogue control.
+2. **The living galaxy** — a two-level simulation where traffic flows
    between all 256 systems and materialises in yours, with prices nudged by
    simulated trade and pirate risk migrating to rich, lawless routes.
    Design in [AI-TRAINING.md](AI-TRAINING.md).
-4. **Rare encounters** — generation ships, asteroid hermits, and Trumbles
+3. **Rare encounters** — generation ships, asteroid hermits, and Trumbles
    (the tribble infestation).
-5. **Witch-space rescue** — stranding is currently a slow death with no
+4. **Witch-space rescue** — stranding is currently a slow death with no
    counterplay; a distress beacon (at a price) would make it a story.
-6. **AI round 3** — pack-phase retrain with the reward fixes noted in the
+5. **AI round 3** — pack-phase retrain with the reward fixes noted in the
    training log, and a third league round.
 
 ## Deliberate deviations

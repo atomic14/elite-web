@@ -97,7 +97,8 @@ because browsers claim the function keys.
 ### Docked
 
 L launch · M market · E equip ship · N local chart · G galactic chart ·
-I status · B switch keyboard layout · X export save · Z import save
+D data on system · I status · B switch keyboard layout · X export save ·
+Z import save
 
 ### Market
 
@@ -106,8 +107,9 @@ I status · B switch keyboard layout · X export save · Z import save
 ### Charts
 
 **Click a system to target it** · arrows move the cursor · ENTER set
-hyperspace target · M market estimate for the highlighted system · F find a
-system by name · ESC exit
+hyperspace target · **D data on system** (the full statistics page with the
+original's procedurally generated planet description) · M market estimate ·
+F find a system by name · ESC exit
 
 ### Docking and the console
 

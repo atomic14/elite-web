@@ -1,6 +1,7 @@
 import {
   type StarSystem, type MarketEntry, ECONOMY_NAMES, GOVERNMENT_NAMES, COMMODITIES, speciesName,
 } from '../galaxy/galaxy';
+import { planetDescription } from '../galaxy/goatsoup';
 import {
   type CommanderData, rating, cargoTonnes, formatCredits, cargoCapacity, MAX_FUEL,
   EQUIPMENT_CATALOGUE, equipmentOwned,
@@ -36,6 +37,7 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       <div><b>E</b> EQUIP SHIP</div>
       <div><b>N</b> LOCAL CHART</div>
       <div><b>G</b> GALACTIC CHART</div>
+      <div><b>D</b> DATA ON SYSTEM</div>
       <div><b>I</b> COMMANDER STATUS</div>
     </div>
     <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; X EXPORT SAVE &middot; Z IMPORT SAVE</div>
@@ -214,7 +216,7 @@ export function renderChart(
     <div class="rule"></div>
     <canvas id="chart-canvas" width="780" height="400"></canvas>
     <div class="keyline" id="chart-info"></div>
-    <div class="keyline">CLICK A SYSTEM TO TARGET IT &middot; ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
+    <div class="keyline">CLICK A SYSTEM TO TARGET IT &middot; ARROWS MOVE &middot; ENTER TARGET &middot; D DATA ON SYSTEM &middot; M MARKET &middot; F FIND &middot; ESC EXIT</div>
   `);
   drawChart(systems, c, chart);
 }
@@ -305,7 +307,7 @@ export function renderLocalChart(
     <div class="rule"></div>
     <canvas id="local-canvas" width="780" height="380"></canvas>
     <div class="info" id="local-info" style="text-align:center; min-height:76px"></div>
-    <div class="keyline">CLICK A SYSTEM TO TARGET IT &middot; ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
+    <div class="keyline">CLICK A SYSTEM TO TARGET IT &middot; ARROWS MOVE &middot; ENTER TARGET &middot; D DATA ON SYSTEM &middot; M MARKET &middot; F FIND &middot; ESC EXIT</div>
   `);
   drawLocalChart(systems, c, chart);
 }
@@ -456,6 +458,31 @@ export function localCoordsFromClick(
     x: current.x + (px - canvas.width / 2) / LOCAL_SCALE,
     y: current.y + ((py - canvas.height / 2) / LOCAL_SCALE) * 2,
   };
+}
+
+/**
+ * The original's "DATA ON <SYSTEM>" page: the full statistics block plus
+ * the procedurally generated planet description.
+ */
+export function renderSystemData(sys: StarSystem, current: StarSystem): void {
+  const d = distanceTenths(current, sys);
+  show(`
+    <h2>DATA ON ${sys.name.toUpperCase()}</h2>
+    <div class="rule"></div>
+    <table class="sysdata">
+      <tr><td>Distance:</td><td>${(d / 10).toFixed(1)} Light Years</td></tr>
+      <tr><td>Economy:</td><td>${ECONOMY_NAMES[sys.economy]}</td></tr>
+      <tr><td>Government:</td><td>${GOVERNMENT_NAMES[sys.government]}</td></tr>
+      <tr><td>Tech Level:</td><td>${sys.techLevel + 1}</td></tr>
+      <tr><td>Population:</td><td>${(sys.population / 10).toFixed(1)} Billion<br/>
+        <span style="opacity:0.85">(${speciesName(sys)})</span></td></tr>
+      <tr><td>Gross Productivity:</td><td>${sys.productivity} M CR</td></tr>
+      <tr><td>Average Radius:</td><td>${sys.radius} km</td></tr>
+    </table>
+    <div class="rule"></div>
+    <div class="info sysdesc">${planetDescription(sys)}</div>
+    <div class="keyline">ESC BACK</div>
+  `);
 }
 
 export function renderGameOver(c: CommanderData): void {

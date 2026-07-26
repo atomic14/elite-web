@@ -31,11 +31,11 @@ import {
 import {
   hideScreen, renderDockedMenu, renderMarket, renderStatus, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
-  renderGameOver, nearestSystem, distanceTenths, chartCoordsFromClick,
+  renderGameOver, renderSystemData, nearestSystem, distanceTenths, chartCoordsFromClick,
   localCoordsFromClick, LOCAL_SCALE, type ChartState,
 } from '../ui/screens';
 
-type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'dead';
+type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'dead';
 
 const LASER_RANGE = 3500;
 const LASERS: Record<LaserType, { damage: number; cooldown: number; heat: number }> = {
@@ -115,6 +115,8 @@ export class Game {
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
+  /** where ESC returns to from the DATA ON screen */
+  private dataReturn: 'docked' | 'chart' | 'local' = 'docked';
   private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
   private ccEngaged = false;
@@ -1427,6 +1429,11 @@ export class Game {
           }
           break;
         }
+        if (i.pressed('KeyD')) {
+          const near = nearestSystem(this.systems, this.chart.cursorX, this.chart.cursorY);
+          if (near) this.openSystemData(near, this.mode === 'local' ? 'local' : 'chart');
+          break;
+        }
         if (i.pressed('KeyF')) {
           this.chartFind = '';
           this.redrawChart();
@@ -1445,6 +1452,17 @@ export class Game {
 
       case 'status':
         if (i.pressed('Escape')) this.closeOverlay();
+        break;
+
+      case 'data':
+        if (i.pressed('Escape') || i.pressed('KeyD')) {
+          if (this.dataReturn === 'chart') this.openChart(this.returnMode);
+          else if (this.dataReturn === 'local') this.openLocalChart(this.returnMode);
+          else {
+            this.mode = 'docked';
+            renderDockedMenu(this.system, this.commander, this.missionText());
+          }
+        }
         break;
 
       case 'flight':
@@ -1593,6 +1611,12 @@ export class Game {
       }
     }
     if (changed) this.redrawChart();
+  }
+
+  private openSystemData(sys: StarSystem, from: 'docked' | 'chart' | 'local'): void {
+    this.dataReturn = from;
+    this.mode = 'data';
+    renderSystemData(sys, this.system);
   }
 
   private openStatus(from: 'docked' | 'flight'): void {

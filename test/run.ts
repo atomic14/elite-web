@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
 } from '../src/galaxy/galaxy.ts';
+import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { Episode } from '../src/sim/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/sim/policy.ts';
 import { makeRng } from '../src/sim/core.ts';
@@ -53,6 +54,22 @@ check('all 8 galaxies generate 256 named systems',
     return g.length === 256 && g.every((s) => s.name.length > 0);
   }));
 check('galaxy 2 differs from galaxy 1', generateGalaxy(2)[7].name !== g1[7].name);
+
+// --- planet descriptions (goat soup) ----------------------------------------
+
+console.log('\nplanet descriptions');
+eq("Lave's canonical description",
+  planetDescription(g1[7]),
+  'Lave is most famous for its vast rain forests and the Lavian tree grub.');
+check('descriptions are deterministic',
+  planetDescription(g1[42]) === planetDescription(g1[42]));
+check('every system in galaxy 1 gets a sentence',
+  g1.every((s) => {
+    const d = planetDescription(s);
+    return d.length > 12 && d.endsWith('.') && !d.includes('undefined');
+  }));
+check('descriptions vary across systems',
+  new Set(g1.slice(0, 40).map(planetDescription)).size > 25);
 
 // --- market model -----------------------------------------------------------
 

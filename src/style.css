@@ -353,3 +353,13 @@ html, body {
 .missiles { padding-left: 8px; }
 
 #chart-canvas, #local-canvas { cursor: crosshair; }
+
+#screen table.sysdata { width: auto; margin: 0 auto; font-size: 13px; line-height: 1.9; }
+#screen table.sysdata td:first-child { color: var(--hud-amber); text-align: right; padding-right: 18px; }
+#screen .sysdesc {
+  max-width: 34em;
+  margin: 10px auto 0;
+  text-align: center;
+  line-height: 1.8;
+  color: var(--hud-green);
+}
