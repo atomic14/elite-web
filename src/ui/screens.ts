@@ -32,13 +32,13 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       ${missionText ? `<br/><span style="color:var(--hud-amber)">${missionText}</span>` : ''}
     </div>
     <div class="menu">
-      <div><b>L</b> LAUNCH</div>
-      <div><b>M</b> MARKET PRICES</div>
-      <div><b>E</b> EQUIP SHIP</div>
-      <div><b>N</b> LOCAL CHART</div>
-      <div><b>G</b> GALACTIC CHART</div>
-      <div><b>D</b> DATA ON SYSTEM</div>
-      <div><b>I</b> COMMANDER STATUS</div>
+      <div data-key="KeyL"><b>L</b> LAUNCH</div>
+      <div data-key="KeyM"><b>M</b> MARKET PRICES</div>
+      <div data-key="KeyE"><b>E</b> EQUIP SHIP</div>
+      <div data-key="KeyN"><b>N</b> LOCAL CHART</div>
+      <div data-key="KeyG"><b>G</b> GALACTIC CHART</div>
+      <div data-key="KeyD"><b>D</b> DATA ON SYSTEM</div>
+      <div data-key="KeyI"><b>I</b> COMMANDER STATUS</div>
     </div>
     <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; X EXPORT SAVE &middot; Z IMPORT SAVE</div>
   `);
@@ -52,7 +52,7 @@ export function renderMarket(
 ): void {
   const rows = market
     .map((m, i) => `
-      <tr class="${i === selected ? 'sel' : ''}">
+      <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}">
         <td>${m.name.toUpperCase()}</td>
         <td class="num">${m.price.toFixed(1)}</td>
         <td class="num">${m.quantity}${m.unit}</td>
@@ -66,9 +66,16 @@ export function renderMarket(
       <tr><th>PRODUCT</th><th class="num">PRICE (Cr)</th><th class="num">FOR SALE</th><th class="num">IN HOLD</th></tr>
       ${rows}
     </table>
+    <div class="buttons">
+      <button data-key="KeyB">BUY 1</button>
+      <button data-key="VirtBuyMax">BUY MAX</button>
+      <button data-key="KeyV">SELL 1</button>
+      <button data-key="VirtSellAll">SELL ALL</button>
+      <button data-key="Escape">DONE</button>
+    </div>
     <div class="keyline">
       CASH ${formatCredits(c.credits)} &middot; HOLD ${cargoTonnes(c)}/${cargoCapacity(c)}t
-      &nbsp;&mdash;&nbsp; &uarr;&darr; SELECT &middot; B BUY &middot; V SELL &middot; ESC EXIT
+      &nbsp;&mdash;&nbsp; CLICK A ROW &middot; &uarr;&darr; SELECT &middot; B BUY (&#8679;B MAX) &middot; V SELL (&#8679;V ALL) &middot; ESC EXIT
     </div>
   `);
 }
@@ -107,7 +114,7 @@ export function equipRows(sys: StarSystem, c: CommanderData): EquipRow[] {
 export function renderEquip(sys: StarSystem, c: CommanderData, selected: number): void {
   const rows = equipRows(sys, c)
     .map((r, i) => `
-      <tr class="${i === selected ? 'sel' : ''}">
+      <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}">
         <td>${r.label.toUpperCase()}</td>
         <td class="num">${r.price > 0 ? (r.price / 10).toFixed(1) : '-'}</td>
         <td class="num">${
@@ -124,9 +131,13 @@ export function renderEquip(sys: StarSystem, c: CommanderData, selected: number)
       <tr><th>ITEM</th><th class="num">PRICE (Cr)</th><th class="num"></th></tr>
       ${rows}
     </table>
+    <div class="buttons">
+      <button data-key="KeyB">BUY SELECTED</button>
+      <button data-key="Escape">DONE</button>
+    </div>
     <div class="keyline">
       CASH ${formatCredits(c.credits)} &middot; MISSILES ${c.missiles}
-      &nbsp;&mdash;&nbsp; &uarr;&darr; SELECT &middot; B / ENTER BUY &middot; ESC EXIT
+      &nbsp;&mdash;&nbsp; CLICK AN ITEM TO SELECT &middot; B / ENTER BUY &middot; ESC EXIT
     </div>
   `);
 }
@@ -161,7 +172,7 @@ export function renderStatus(
       Kills: ${c.kills}<br/>
       Rating: <span style="color:var(--hud-amber)">${rating(c.kills).toUpperCase()}</span>
     </div>
-    <div class="keyline">ESC EXIT</div>
+    <div class="buttons"><button data-key="Escape">BACK</button></div>
   `);
 }
 
@@ -425,7 +436,7 @@ export function renderMarketEstimate(sys: StarSystem, c: CommanderData): void {
       <tr><th>PRODUCT</th><th class="num">EST. PRICE (Cr)</th><th class="num">EST. STOCK</th><th class="num">IN HOLD</th></tr>
       ${rows}
     </table>
-    <div class="keyline">ESC BACK TO CHART</div>
+    <div class="buttons"><button data-key="Escape">BACK TO CHART</button></div>
   `);
 }
 
@@ -481,7 +492,7 @@ export function renderSystemData(sys: StarSystem, current: StarSystem): void {
     </table>
     <div class="rule"></div>
     <div class="info sysdesc">${planetDescription(sys)}</div>
-    <div class="keyline">ESC BACK</div>
+    <div class="buttons"><button data-key="Escape">BACK</button></div>
   `);
 }
 
@@ -492,6 +503,6 @@ export function renderGameOver(c: CommanderData): void {
     <div class="info" style="text-align:center">
       Final rating: ${rating(c.kills).toUpperCase()} &middot; ${c.kills} kills
     </div>
-    <div class="keyline">PRESS ENTER TO RELOAD LAST STATION SAVE</div>
+    <div class="buttons"><button data-key="Enter">RELOAD LAST STATION SAVE</button></div>
   `);
 }

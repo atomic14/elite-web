@@ -188,9 +188,9 @@ export class Game {
     this.hud.showMessage(
       `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
 
-    // charts accept mouse input; the listener lives on the persistent
+    // all screens accept mouse input; the listener lives on the persistent
     // overlay container, since screen contents are re-rendered wholesale
-    document.getElementById('screen')!.addEventListener('click', (e) => this.handleChartClick(e));
+    document.getElementById('screen')!.addEventListener('click', (e) => this.handleScreenClick(e));
 
     // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
     // docs/JAMESON-TRIALS.md) drives the whole game through this
@@ -1540,9 +1540,32 @@ export class Game {
   }
 
   /**
-   * Click a chart to move the cursor there; clicking on (or near) a system
-   * also sets it as the hyperspace target.
+   * Mouse input for the overlay screens. Buttons and menu rows carry a
+   * `data-key`, which is injected as a synthetic key press so clicks and
+   * the keyboard run through exactly the same handlers; table rows carry a
+   * `data-row` selection index; charts map clicks back to chart coordinates.
    */
+  private handleScreenClick(e: MouseEvent): void {
+    const el = (e.target as HTMLElement).closest('[data-key],[data-row]') as HTMLElement | null;
+    if (el) {
+      const key = el.dataset.key;
+      const row = el.dataset.row;
+      if (row !== undefined) {
+        const index = Number(row);
+        if (this.mode === 'market') {
+          this.marketSelected = index;
+          renderMarket(this.system, this.market, this.commander, this.marketSelected);
+        } else if (this.mode === 'equip') {
+          this.equipSelected = index;
+          renderEquip(this.system, this.commander, this.equipSelected);
+        }
+      }
+      if (key) this.input.injectPress(key);
+      return;
+    }
+    this.handleChartClick(e);
+  }
+
   private handleChartClick(e: MouseEvent): void {
     if (this.mode !== 'chart' && this.mode !== 'local') return;
     if (this.chartEstimate || this.chartFind !== null) return;
@@ -1666,6 +1689,7 @@ export class Game {
 
   private handleMarketInput(): void {
     const i = this.input;
+    const shift = i.held('ShiftLeft', 'ShiftRight');
     let changed = false;
     if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
       this.marketSelected = (this.marketSelected + this.market.length - 1) % this.market.length;
@@ -1675,38 +1699,58 @@ export class Game {
       this.marketSelected = (this.marketSelected + 1) % this.market.length;
       changed = true;
     }
-    if (i.pressed('KeyB')) {
-      const m = this.market[this.marketSelected];
-      const cost = Math.round(m.price * 10);
-      const isTonnes = m.unit === 't';
-      if (m.quantity <= 0) sfx.beep(220);
-      else if (this.commander.credits < cost) sfx.beep(220);
-      else if (isTonnes && cargoTonnes(this.commander) >= cargoCapacity(this.commander)) sfx.beep(220);
-      else {
-        m.quantity -= 1;
-        this.commander.cargo[this.marketSelected] += 1;
-        this.commander.credits -= cost;
-        sfx.beep(900, 0.05);
-      }
-      changed = true;
-    }
-    if (i.pressed('KeyV')) {
-      const m = this.market[this.marketSelected];
-      if (this.commander.cargo[this.marketSelected] > 0) {
-        this.commander.cargo[this.marketSelected] -= 1;
-        m.quantity += 1;
-        this.commander.credits += Math.round(m.price * 10);
-        sfx.beep(700, 0.05);
-      } else {
-        sfx.beep(220);
-      }
-      changed = true;
-    }
+    if (i.pressed('KeyB')) { this.buyCargo(shift ? Infinity : 1); changed = true; }
+    if (i.pressed('VirtBuyMax')) { this.buyCargo(Infinity); changed = true; }
+    if (i.pressed('KeyV')) { this.sellCargo(shift ? Infinity : 1); changed = true; }
+    if (i.pressed('VirtSellAll')) { this.sellCargo(Infinity); changed = true; }
     if (i.pressed('Escape')) {
       this.closeOverlay();
       return;
     }
     if (changed) renderMarket(this.system, this.market, this.commander, this.marketSelected);
+  }
+
+  /** Buy up to `want` units of the selected commodity (Infinity = fill up). */
+  private buyCargo(want: number): void {
+    const idx = this.marketSelected;
+    const m = this.market[idx];
+    const cost = Math.round(m.price * 10);
+    let bought = 0;
+    while (bought < want) {
+      if (m.quantity <= 0 || this.commander.credits < cost) break;
+      if (m.unit === 't' && cargoTonnes(this.commander) >= cargoCapacity(this.commander)) break;
+      m.quantity -= 1;
+      this.commander.cargo[idx] += 1;
+      this.commander.credits -= cost;
+      bought += 1;
+    }
+    if (bought > 0) {
+      sfx.beep(900, 0.05);
+      this.hud.showMessage(`BOUGHT ${bought}${m.unit} ${m.name.toUpperCase()}`, 2);
+    } else {
+      sfx.beep(220);
+    }
+  }
+
+  /** Sell up to `want` units of the selected commodity (Infinity = all). */
+  private sellCargo(want: number): void {
+    const idx = this.marketSelected;
+    const m = this.market[idx];
+    let sold = 0;
+    let revenue = 0;
+    while (sold < want && this.commander.cargo[idx] > 0) {
+      this.commander.cargo[idx] -= 1;
+      m.quantity += 1;
+      revenue += Math.round(m.price * 10);
+      sold += 1;
+    }
+    if (sold > 0) {
+      this.commander.credits += revenue;
+      sfx.beep(700, 0.05);
+      this.hud.showMessage(`SOLD ${sold}${m.unit} FOR ${formatCredits(revenue)}`, 2);
+    } else {
+      sfx.beep(220);
+    }
   }
 
   private handleEquipInput(): void {

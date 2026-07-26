@@ -363,3 +363,23 @@ html, body {
   line-height: 1.8;
   color: var(--hud-green);
 }
+
+/* clickable screen affordances */
+#screen .menu div[data-key] { cursor: pointer; padding: 0 8px; border-left: 2px solid transparent; }
+#screen .menu div[data-key]:hover { background: rgba(77, 255, 92, 0.14); border-left-color: var(--hud-green); }
+#screen tr.pick { cursor: pointer; }
+#screen tr.pick:hover td { background: rgba(77, 255, 92, 0.14); }
+#screen tr.sel.pick:hover td { background: var(--hud-green); }
+#screen .buttons { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+#screen .buttons button {
+  background: rgba(0, 30, 6, 0.9);
+  border: 1px solid var(--hud-dim);
+  color: var(--hud-green);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+#screen .buttons button:hover { border-color: var(--hud-green); background: rgba(77, 255, 92, 0.16); }
+#screen .buttons button:active { background: var(--hud-green); color: #001402; }

@@ -56,6 +56,15 @@ export class Input {
     window.addEventListener('blur', () => this.down.clear());
   }
 
+  /**
+   * Queue a press as though the key had been struck — lets clickable UI
+   * reuse exactly the same handlers as the keyboard (including virtual
+   * codes like 'VirtBuyMax' that no physical key produces).
+   */
+  injectPress(code: string): void {
+    this.tapped.set(code, (this.tapped.get(code) ?? 0) + 1);
+  }
+
   held(...codes: string[]): boolean {
     return codes.some((c) => this.down.has(c));
   }
