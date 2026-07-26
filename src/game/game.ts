@@ -1565,6 +1565,31 @@ export class Game {
     }
     const hasLaser = this.view === 0 || (this.view === 1 && this.commander.equipment.rearLaser);
 
+    // docking aid: shown approaching the slot side within 3km
+    let dockAid: import('../hud/hud').HudState['dockAid'] = null;
+    if (this.mode === 'flight' && !this.witchspace) {
+      const st = this.world.station;
+      const dist = this.player.position.distanceTo(st.position);
+      if (dist < 3000) {
+        const slotN = this.tmp.set(0, 0, -1).applyQuaternion(st.quaternion);
+        const onSlotSide = this.tmp2.copy(this.player.position).sub(st.position).dot(slotN) > 0;
+        if (onSlotSide) {
+          const local = this.tmp2.copy(this.player.position);
+          st.worldToLocal(local);
+          this.tmpQ.copy(st.quaternion).invert().multiply(this.player.quaternion);
+          const right = this.tmp.set(1, 0, 0).applyQuaternion(this.tmpQ);
+          const roll = Math.atan2(right.y, right.x);
+          dockAid = {
+            x: local.x,
+            y: local.y,
+            roll,
+            inSlot: Math.abs(local.x) < 62 && Math.abs(local.y) < 26,
+            rollOk: Math.atan2(Math.abs(right.y), Math.abs(right.x)) < 0.65,
+          };
+        }
+      }
+    }
+
     this.hud.render(
       dt,
       {
@@ -1585,6 +1610,7 @@ export class Game {
         view: this.view,
         hasLaser,
         shipId,
+        dockAid,
       },
       this.player.position,
       this.player.quaternion,

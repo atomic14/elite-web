@@ -319,3 +319,12 @@ html, body {
   opacity: 0.9;
   pointer-events: none;
 }
+
+#dockaid {
+  position: absolute;
+  left: 50%; top: 42%;
+  margin-left: 70px;
+  transform: translateY(-50%);
+  display: none;
+  pointer-events: none;
+}

@@ -50,6 +50,8 @@ export interface HudState {
   hasLaser: boolean;
   /** name + range of the ship under the crosshair ('' when none) */
   shipId: string;
+  /** docking aid: station-local lateral offset + signed roll error, or null */
+  dockAid: { x: number; y: number; roll: number; inSlot: boolean; rollOk: boolean } | null;
 }
 
 const VIEW_NAMES = ['', 'REAR VIEW', 'LEFT VIEW', 'RIGHT VIEW'];
@@ -69,6 +71,7 @@ export class Hud {
   private readonly viewEl = byId('viewlabel');
   private readonly shipIdEl = byId('shipid');
   private readonly crosshairEl = byId('crosshair');
+  private readonly dockAid: CanvasRenderingContext2D;
   private readonly energySegs: HTMLElement[];
   private readonly missileEls: HTMLElement[];
   private readonly lockEl = byId('lock');
@@ -84,6 +87,7 @@ export class Hud {
 
   constructor() {
     this.scanner = (byId('scanner') as HTMLCanvasElement).getContext('2d')!;
+    this.dockAid = (byId('dockaid') as HTMLCanvasElement).getContext('2d')!;
     this.compass = (byId('compass') as HTMLCanvasElement).getContext('2d')!;
     this.energySegs = Array.from(byId('g-energy').querySelectorAll('i'));
     this.missileEls = Array.from(byId('missiles').querySelectorAll('span'));
@@ -142,8 +146,45 @@ export class Hud {
     this.conditionEl.style.color = state.condition === 'RED' ? '#ff4d4d' : '';
     this.creditsEl.textContent = formatCredits(state.credits);
 
+    this.drawDockAid(state.dockAid);
     this.drawScanner(playerPos, playerQuat, contacts);
     this.drawCompass(playerPos, playerQuat, compassTarget);
+  }
+
+  /**
+   * Docking alignment aid: the slot aperture as a rectangle, your lateral
+   * offset as a dot (green when you'd fit through), and the slot's rotation
+   * as a bar (green when your roll matches within tolerance).
+   */
+  private drawDockAid(aid: HudState['dockAid']): void {
+    const canvas = this.dockAid.canvas;
+    if (!aid) {
+      canvas.style.display = 'none';
+      return;
+    }
+    canvas.style.display = 'block';
+    const ctx = this.dockAid;
+    const s = canvas.width;
+    const c = s / 2;
+    ctx.clearRect(0, 0, s, s);
+
+    // slot aperture (96x20 in station units, scaled)
+    const kx = 0.42;
+    ctx.strokeStyle = DIM;
+    ctx.strokeRect(c - 48 * kx, c - 10 * kx, 96 * kx, 20 * kx);
+    ctx.strokeStyle = aid.rollOk ? GREEN : AMBER;
+    ctx.beginPath();
+    // roll bar: where the slot's long axis currently is, relative to your wings
+    ctx.moveTo(c - Math.cos(aid.roll) * 40, c - Math.sin(aid.roll) * 40);
+    ctx.lineTo(c + Math.cos(aid.roll) * 40, c + Math.sin(aid.roll) * 40);
+    ctx.stroke();
+    // your lateral offset (clamped into view)
+    const px = c + Math.max(-42, Math.min(42, aid.x * kx));
+    const py = c - Math.max(-42, Math.min(42, aid.y * kx));
+    ctx.fillStyle = aid.inSlot ? GREEN : '#ff5c4d';
+    ctx.beginPath();
+    ctx.arc(px, py, 3, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   private drawScanner(
