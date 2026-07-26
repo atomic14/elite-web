@@ -68,7 +68,9 @@ interface Missile {
 
 interface Canister {
   object: THREE.Object3D;
+  /** commodity index for cargo; ignored for capsules */
   commodity: number;
+  kind: 'cargo' | 'capsule';
   velocity: THREE.Vector3;
   spinAxis: THREE.Vector3;
 }
@@ -114,6 +116,8 @@ export class Game {
   private pirateWaveTimer = 60;
   private energyLowTimer = 0;
   private policeScanned = false;
+  /** the station only scrambles its defence fleet once per visit */
+  private defenceLaunched = false;
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
@@ -300,12 +304,33 @@ export class Game {
       object.position.copy(at).add(new THREE.Vector3().randomDirection().multiplyScalar(20 + i * 15));
       this.canisters.push({
         object,
+        kind: 'cargo',
         commodity: commodities[Math.floor(Math.random() * commodities.length)],
         velocity: new THREE.Vector3().randomDirection().multiplyScalar(15 + Math.random() * 30),
         spinAxis: new THREE.Vector3().randomDirection(),
       });
       this.scene.add(object);
     }
+  }
+
+  /**
+   * "Most wily traders, and many pirates, have this device fitted" — a
+   * destroyed ship may eject its crew, leaving cargo and equipment behind.
+   * Scoop the capsule and the occupant becomes, regrettably, cargo.
+   */
+  private spawnEscapeCapsule(at: THREE.Vector3): void {
+    const object = buildShip(CANISTER, 0xffd24d);
+    object.scale.setScalar(0.8);
+    object.position.copy(at);
+    this.canisters.push({
+      object,
+      kind: 'capsule',
+      commodity: 3, // slaves
+      velocity: new THREE.Vector3().randomDirection().multiplyScalar(40 + Math.random() * 30),
+      spinAxis: new THREE.Vector3().randomDirection(),
+    });
+    this.scene.add(object);
+    this.hud.showMessage('ESCAPE CAPSULE LAUNCHED', 3);
   }
 
   /** A fresh trader warps in at the system edge and heads for the station. */
@@ -400,6 +425,7 @@ export class Game {
       this.hud.showMessage(`OFFENCE FINE PAID: ${formatCredits(fine)}`, 5);
     }
     this.policeScanned = false;
+    this.defenceLaunched = false;
     this.view = 0;
     this.cabinTemp = 0;
     this.witchspace = false;
@@ -622,6 +648,30 @@ export class Game {
       this.commander.legalStatus = level;
       this.hud.showMessage(`LEGAL STATUS: ${LEGAL_NAMES[level].toUpperCase()}`, 3);
     }
+    this.callStationDefence();
+  }
+
+  /**
+   * Stations keep "a small fleet of ships for their own defence, which they
+   * may risk to assist a trader if they see him attacked" — misbehave in
+   * sight of the station and Vipers launch from the slot.
+   */
+  private callStationDefence(): void {
+    if (this.witchspace || this.defenceLaunched) return;
+    const station = this.world.station;
+    if (this.player.position.distanceTo(station.position) > 9000) return;
+    this.defenceLaunched = true;
+    const slotN = this.tmp.set(0, 0, -1).applyQuaternion(station.quaternion);
+    const count = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < count; i++) {
+      const pos = station.position.clone()
+        .addScaledVector(slotN, 500 + i * 120)
+        .add(new THREE.Vector3().randomDirection().multiplyScalar(80));
+      const viper = this.spawnNpc('police', pos, i);
+      viper.provoked = true; // launched specifically for you
+    }
+    this.hud.showMessage('STATION DEFENCE LAUNCHED', 4);
+    sfx.beep(300, 0.18);
   }
 
   private fireLaser(): void {
@@ -695,6 +745,11 @@ export class Game {
     this.scene.remove(npc.object);
     this.npcs = this.npcs.filter((n) => n !== npc);
     if (this.targetLock === npc) this.targetLock = null;
+    // wily traders and many pirates punch out at the last moment
+    if (npc.role === 'trader' || npc.role === 'pirate' || npc.role === 'hunter') {
+      const chance = npc.role === 'trader' ? 0.45 : 0.2;
+      if (Math.random() < chance) this.spawnEscapeCapsule(npc.object.position.clone());
+    }
     if (npc.cargoDrop > 0) {
       this.spawnCanisters(
         npc.object.position,
@@ -1394,7 +1449,11 @@ export class Game {
       this.canisters = this.canisters.filter((x) => x !== c);
       if (this.commander.equipment.scoops) {
         if (cargoTonnes(this.commander) >= cargoCapacity(this.commander)) {
-          this.hud.showMessage('HOLD FULL — CANISTER LOST', 3);
+          this.hud.showMessage(c.kind === 'capsule' ? 'HOLD FULL — CAPSULE LOST' : 'HOLD FULL — CANISTER LOST', 3);
+        } else if (c.kind === 'capsule') {
+          this.commander.cargo[3] += 1; // the occupant, now inventory
+          this.hud.showMessage('CAPSULE ABOARD — SURVIVOR LOGGED AS CARGO', 4);
+          sfx.beep(600, 0.12);
         } else {
           this.commander.cargo[c.commodity] += 1;
           this.hud.showMessage(`SCOOPED 1t ${COMMODITIES[c.commodity].name.toUpperCase()}`, 3);
