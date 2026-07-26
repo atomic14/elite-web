@@ -12,7 +12,11 @@ npm run dev        # game at localhost:5173, viewer at /viewer.html
 npm run build      # tsc --noEmit (src/ AND train/) + vite build → dist/
 npm run train -- <attack|evade|pack|defend> [--gens N --pop N ...]
 npm run evaluate   # held-out tournament for the current brains
+npm test           # invariant + sim tests (test/run.ts, no framework)
 ```
+
+CI (.github/workflows/ci.yml) type-checks, builds and tests. Deployment is
+Cloudflare Pages, auto-deploying from the repo — no deploy workflow here.
 
 Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 
@@ -29,8 +33,8 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 
 1. **Galaxy fidelity**: `generateGalaxy(1)[7]` must be LAVE TL:5 Rich
    Agricultural Dictatorship. Never "fix" galaxy.ts math; it is byte-matched
-   to the 1984 algorithm. Quick check:
-   `node --experimental-strip-types -e "import('./src/galaxy/galaxy.ts').then(m=>console.log(m.describeSystem(m.generateGalaxy(1)[7])))"`
+   to the 1984 algorithm. `npm test` asserts this (plus the market model,
+   sim determinism, and that the shipped brains still beat their baselines).
 2. **Sim/game parity**: combat numbers (ship classes, laser damage/cooldown/
    heat, turn rates) exist twice — `src/game/{npc,game}.ts` and
    `src/sim/core.ts`. Change one → change the other, and note that trained

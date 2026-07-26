@@ -20,6 +20,7 @@ the [combat viewer](docs/TRAINING-LOG.md).*
 ![Trained pirates converging on a trader in the combat viewer](docs/images/combat-viewer.jpg)
 
 **Docs index:**
+[Development log](docs/DEVLOG.md) ·
 [Architecture tour](docs/ARCHITECTURE.md) ·
 [AI design](docs/AI-TRAINING.md) ·
 [Training runs & results](docs/TRAINING-LOG.md) ·
@@ -36,7 +37,11 @@ npm run dev     # http://localhost:5173  (game)
 npm run build   # type-check + production build to dist/
 npm run train -- attack --gens 400   # retrain the pirate AI (Node ≥ 22.6; see train/README.md)
 npm run evaluate                     # held-out tournament for the current brains
+npm test                             # invariant + simulation tests (no framework)
 ```
+
+CI type-checks, builds and runs the tests on every push; the live site
+deploys from Cloudflare Pages (build `npm run build`, output `dist`).
 
 > Retraining overwrites the committed neural weights in `src/sim/brains/`
 > that the game imports — `git checkout src/sim/brains` restores them.
@@ -46,49 +51,68 @@ Progress saves automatically every time you dock.
 
 ## Controls
 
-### Flight — CLASSIC layout (the 1984 default; press B when docked for modern WASD)
+Two flight layouts ship. **CLASSIC — the authentic 1984 keys — is the
+default**; press **B** when docked to switch to MODERN (WASD), which is
+remembered per browser. Press **?** any time for the in-game guide, which
+always shows the active layout.
+
+### Flight
+
+| CLASSIC (default) | MODERN | Action |
+| --- | --- | --- |
+| S / X | W / S | dive / climb — pitch (in both: ↓ arrow pulls up) |
+| `,` / `.` | A / D | roll (arrows work in both) |
+| SPACE | SPACE | accelerate |
+| `/` | X or `/` | decelerate |
+| A (or F) | F | fire laser (watch the temperature) |
+
+The original's `<` `>` roll and `/` slow-down are live in both layouts, so
+muscle memory from 1984 mostly survives either choice. Arrow keys always fly.
+
+### Commands (identical in both layouts)
+
 | Key | Action |
 | --- | --- |
-| S / X or ↑ / ↓ | dive / climb — the original's pitch keys |
-| , / . or ← / → | roll |
-| SPACE / `/` | accelerate / decelerate |
-| A (or F) | fire laser (watch the temperature) |
-| 1-4 | front / rear / left / right view |
-| T / M / U | missile lock / fire / unarm |
+| 1 2 3 4 | front / rear / left / right view |
+| T / M / U | missile target lock / fire / unarm |
 | E / TAB | E.C.M. / energy bomb (if fitted) |
-| J | torus jump drive (8×, disengages when mass-locked) |
-| P | pause |
+| J | torus jump drive (8×, cuts out when mass-locked) |
 | C | docking computer (if fitted, within range) |
 | K | combat computer — the trained defence AI flies your ship (if fitted) |
-| N / G / I | local chart / galactic chart / commander status |
+| N / G | short range chart / galactic chart |
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |
-| F (in charts) | type-to-find a system by name |
-| ? | in-game controls guide (all bindings, by category) |
+| I | commander status |
+| P | pause |
+| ? | controls guide |
 
-Manual docking: fly into the station's slot with your wings matched to the
-slot's rotation, using the alignment aid that appears as you line up. Get it
-wrong and you'll bounce off with shield damage.
+Views on 1-4 (the original used F0-F3) and screens on letters (were F4-F9),
+because browsers claim the function keys.
+
+### Docked
+
+L launch · M market · E equip ship · N local chart · G galactic chart ·
+I status · B switch keyboard layout · X export save · Z import save
+
+### Market
+
+↑↓ select · B buy · V sell · ESC exit
+
+### Charts
+
+Arrows move the cursor · ENTER set hyperspace target · M market estimate for
+the highlighted system · F find a system by name · ESC exit
+
+### Docking and the console
+
+Fly into the station's slot with your wings matched to the slot's rotation,
+using the alignment aid that appears as you line up: the dot shows your
+lateral offset (green when you'd fit through), the bar shows the slot's
+rotation (green when your roll matches). Get it wrong and you'll bounce off
+with shield damage — or buy the docking computer.
 
 The console lights an **S** while the station is in scanner range (its
 defences cover you there) and an **E** when an E.C.M. broadcast is
 detected — as on the original's dashboard.
-
-### Docked
-L launch · M market · E equip ship · N local chart · G galactic chart ·
-I status · X export save (JSON download) · Z import save
-
-Press **?** anywhere for the full in-game controls guide (it always shows
-the active layout). The CLASSIC layout is the authentic 1984 set — S/X
-pitch, `<` `>` roll, A fire, SPACE//. Press **B** when docked to switch to
-a MODERN WASD scheme (persisted per browser). In both layouts views are 1-4
-(were F0-F3) and screens use letters (were F4-F9).
-
-### Market
-↑↓ select · B buy · V sell · ESC exit
-
-### Chart
-Arrows move cursor · ENTER set target · M market estimate for the
-highlighted system · F find by name · ESC exit
 
 ## Game systems
 

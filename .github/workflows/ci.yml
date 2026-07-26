@@ -1,0 +1,25 @@
+# CI: type-check, build, and run the checks that guard the project's
+# invariants. Deployment is handled by Cloudflare Pages (auto-deploys from
+# the repo; build command `npm run build`, output directory `dist`).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type-check and build
+        run: npm run build
+      - name: Invariant + simulation tests
+        run: npm test
