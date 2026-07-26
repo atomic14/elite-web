@@ -25,6 +25,10 @@ export interface Equipment {
   combatComputer: boolean;
 }
 
+/** Trumbles: cute, cheap, and a catastrophe. Kept outside Equipment
+ *  because they are a quantity, not a fitting. */
+export const TRUMBLE_PURGE_TEMP = 0.55; // cabin heat that drives them out
+
 export function defaultEquipment(): Equipment {
   return {
     largeBay: false,
@@ -78,6 +82,7 @@ export const EQUIPMENT_CATALOGUE: EquipItem[] = [
   { id: 'dockingComputer', name: 'Docking Computer', price: 15000, minTL: 9 },
   { id: 'miningLaser', name: 'Mining Laser', price: 8000, minTL: 10 },
   { id: 'combatComputer', name: 'Combat Computer', price: 20000, minTL: 9 },
+  { id: 'trumble', name: 'Trumble (adorable, harmless*)', price: 20, minTL: 1 },
   { id: 'military', name: 'Military Laser', price: 60000, minTL: 10 },
   { id: 'galacticDrive', name: 'Galactic Hyperdrive', price: 50000, minTL: 10 },
 ];
@@ -99,6 +104,7 @@ export function equipmentOwned(id: string, c: CommanderData): boolean {
     case 'dockingComputer': return e.dockingComputer;
     case 'miningLaser': return e.miningLaser;
     case 'combatComputer': return e.combatComputer;
+    case 'trumble': return c.trumbles > 0;
     case 'military': return e.laser === 'military';
     case 'galacticDrive': return e.galacticDrive;
     default: return false;
@@ -134,6 +140,8 @@ export interface CommanderData {
   equipment: Equipment;
   legalStatus: number; // 0 clean, 1 offender, 2 fugitive
   mission: MissionState;
+  /** breeding stowaways; they eat cargo and hate heat */
+  trumbles: number;
 }
 
 const SAVE_KEY = 'elite-web-commander';
@@ -151,6 +159,7 @@ export function newCommander(): CommanderData {
     equipment: defaultEquipment(),
     legalStatus: 0,
     mission: { stage: 0, targetIndex: null },
+    trumbles: 0,
   };
 }
 

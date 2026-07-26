@@ -25,7 +25,7 @@ import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, DEFEND
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
-  cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS,
+  cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP,
   type CommanderData, type LaserType,
 } from './commander';
 import {
@@ -118,6 +118,13 @@ export class Game {
   private policeScanned = false;
   /** the station only scrambles its defence fleet once per visit */
   private defenceLaunched = false;
+  /** trading with a rock hermit rather than a station */
+  private hermitTrading = false;
+  private hermitMarket: MarketEntry[] = [];
+  /** true after leaving a hermit, until you fly clear of it */
+  private hermitCooldown = false;
+  private genShipSeen = false;
+  private trumbleTimer = 20;
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
@@ -386,6 +393,24 @@ export class Game {
       this.spawnNpc('hunter', home.clone().add(rnd(6000)), sys.index);
     }
 
+    // a rock hermit hides out among the asteroids (homage to Oolite):
+    // a hollowed-out rock that trades ore and asks no questions
+    if (Math.random() < 0.3) {
+      this.spawnNpc('hermit', home.clone().add(rnd(14000).addScaledVector(rnd(1), 2)), sys.index);
+    }
+
+    // very rarely, a generation ship crosses the system, still under way
+    // after centuries, its hull shedding cargo
+    if (situation === 'arrival' && Math.random() < 0.08) {
+      const pos = this.player.position.clone()
+        .add(new THREE.Vector3().randomDirection().multiplyScalar(14000 + Math.random() * 8000));
+      const gen = this.spawnNpc('generation', pos, 0);
+      gen.object.lookAt(home);
+      this.spawnCanisters(pos.clone().add(new THREE.Vector3().randomDirection().multiplyScalar(700)),
+        3 + Math.floor(Math.random() * 4), [0, 1, 4, 8, 9, 12]);
+      this.genShipSeen = false;
+    }
+
     // mission: the Constrictor lurks at its last-known system
     const m = this.commander.mission;
     if (situation === 'arrival' && m.stage === 1 && m.targetIndex === this.commander.systemIndex) {
@@ -431,6 +456,7 @@ export class Game {
     this.witchspace = false;
     this.clearCanisters();
     this.checkMissionAtDock();
+    this.hermitTrading = false;
     this.market = generateMarket(this.system, Math.floor(Math.random() * 256));
     saveCommander(this.commander);
     if (!booting) {
@@ -956,6 +982,45 @@ export class Game {
     if (this.energy <= 0) this.die('SHIP DESTROYED');
   }
 
+  /**
+   * Trumbles breed exponentially and eat the hold. Cabin heat drives them
+   * out — which means a sun-skim, the same manoeuvre that refuels you.
+   */
+  private updateTrumbles(dt: number): void {
+    const c = this.commander;
+    if (c.trumbles <= 0) return;
+
+    if (this.cabinTemp > TRUMBLE_PURGE_TEMP) {
+      this.trumbleTimer = 0;
+      const before = c.trumbles;
+      c.trumbles = Math.max(0, c.trumbles - Math.ceil(c.trumbles * dt));
+      if (c.trumbles === 0) {
+        this.hud.showMessage('THE LAST TRUMBLE FLEES THE HEAT. PEACE AT LAST.', 5);
+      } else if (before !== c.trumbles) {
+        this.hud.showMessage(`TRUMBLES FLEEING THE HEAT — ${c.trumbles} LEFT`, 1.5);
+      }
+      return;
+    }
+
+    this.trumbleTimer -= dt;
+    if (this.trumbleTimer > 0) return;
+    this.trumbleTimer = 20;
+    c.trumbles = Math.min(999, Math.round(c.trumbles * 1.6) + 1);
+    // they are always hungry
+    const carried = c.cargo.map((qty, i) => ({ qty, i })).filter((x) => x.qty > 0);
+    const appetite = Math.floor(c.trumbles / 8);
+    if (appetite > 0 && carried.length) {
+      const pick = carried[Math.floor(Math.random() * carried.length)];
+      const eaten = Math.min(pick.qty, appetite);
+      c.cargo[pick.i] -= eaten;
+      this.hud.showMessage(
+        `TRUMBLES (${c.trumbles}) ATE ${eaten}${COMMODITIES[pick.i].unit} ${COMMODITIES[pick.i].name.toUpperCase()}`, 4);
+      sfx.beep(500, 0.1);
+    } else if (c.trumbles > 4) {
+      this.hud.showMessage(`TRUMBLES ABOARD: ${c.trumbles}`, 2);
+    }
+  }
+
   /** A hull hit destroys a tonne of cargo, or knocks out a fitting. */
   private damageSomething(): void {
     const e = this.commander.equipment;
@@ -1273,6 +1338,7 @@ export class Game {
     }
 
     this.updateCanisters(dt);
+    this.updateEncounters();
 
     this.updateMissiles(dt);
     this.explosions = this.explosions.filter((e) => {
@@ -1313,6 +1379,7 @@ export class Game {
     }
 
     if (this.ecmDetectedTimer > 0) this.ecmDetectedTimer -= dt;
+    this.updateTrumbles(dt);
 
     // flashing low-energy warning
     if (this.energy < 1) {
@@ -1370,6 +1437,53 @@ export class Game {
 
     if (this.targetLock && !this.targetLock.alive) this.targetLock = null;
     this.updateMissileLock();
+  }
+
+  /** Rock hermits offer trade; generation ships offer only awe. */
+  private updateEncounters(): void {
+    for (const npc of this.npcs) {
+      if (!npc.alive) continue;
+      const dist = npc.object.position.distanceTo(this.player.position);
+      if (npc.role === 'hermit') {
+        // must leave and come back before trading again, or you'd be stuck
+        // in a docking loop while parked alongside
+        if (dist > 900) this.hermitCooldown = false;
+        if (dist < 900 && !this.hermitCooldown) {
+          this.hud.showMessage('ROCK HERMIT — SLOW TO 20 AND CLOSE TO TRADE', 2);
+        }
+        if (dist < 320 && this.player.speed < 40 && this.mode === 'flight' && !this.hermitCooldown) {
+          this.openHermitTrade();
+        }
+      } else if (npc.role === 'generation' && dist < 6000 && !this.genShipSeen) {
+        this.genShipSeen = true;
+        this.hud.showMessage('DERELICT GENERATION SHIP — NO LIFE SIGNS', 6);
+        sfx.beep(140, 0.5);
+      }
+    }
+  }
+
+  /**
+   * Hermits deal in ore and ask no questions — the one place to sell
+   * contraband without a police scan, at the cost of finding them.
+   */
+  private openHermitTrade(): void {
+    this.hermitTrading = true;
+    this.hermitMarket = generateMarket(this.system, Math.floor(Math.random() * 256))
+      .map((m, i) => {
+        // miners are flush with ore and pay over the odds for supplies
+        if (i === 12 || i === 13 || i === 14 || i === 15) {
+          return { ...m, quantity: m.quantity + 20, price: +(m.price * 0.75).toFixed(1) };
+        }
+        if (i === 0 || i === 4 || i === 8) return { ...m, price: +(m.price * 1.3).toFixed(1) };
+        return m;
+      });
+    this.market = this.hermitMarket;
+    this.marketSelected = 0;
+    this.mode = 'market';
+    this.returnMode = 'flight';
+    this.player.speed = 0;
+    sfx.dock();
+    renderMarket({ ...this.system, name: 'Rock Hermit' }, this.market, this.commander, this.marketSelected);
   }
 
   private assignNpcTargets(): void {
@@ -1821,10 +1935,19 @@ export class Game {
     if (i.pressed('KeyV')) { this.sellCargo(shift ? Infinity : 1); changed = true; }
     if (i.pressed('VirtSellAll')) { this.sellCargo(Infinity); changed = true; }
     if (i.pressed('Escape')) {
+      if (this.hermitTrading) {
+        this.hermitTrading = false;
+        this.hermitCooldown = true;
+        this.hud.showMessage('LEAVING THE HERMIT', 3);
+      }
       this.closeOverlay();
       return;
     }
-    if (changed) renderMarket(this.system, this.market, this.commander, this.marketSelected);
+    if (changed) {
+      renderMarket(
+        this.hermitTrading ? { ...this.system, name: 'Rock Hermit' } : this.system,
+        this.market, this.commander, this.marketSelected);
+    }
   }
 
   /** Buy up to `want` units of the selected commodity (Infinity = fill up). */
@@ -1929,6 +2052,10 @@ export class Game {
       case 'dockingComputer': c.equipment.dockingComputer = true; break;
       case 'miningLaser': c.equipment.miningLaser = true; break;
       case 'combatComputer': c.equipment.combatComputer = true; break;
+      case 'trumble':
+        c.trumbles = 1;
+        this.hud.showMessage('IT PURRS. WHAT COULD POSSIBLY GO WRONG?', 5);
+        break;
       case 'galacticDrive': c.equipment.galacticDrive = true; break;
     }
     saveCommander(c);

@@ -151,6 +151,12 @@ detected — as on the original's dashboard.
   cabin temperature.
 - **Navy missions** — prove yourself (16+ kills, galaxy 1) for the
   Constrictor hunt and the classified courier run.
+- **Encounters** — destroyed ships eject escape capsules (scoop one and the
+  survivor becomes, regrettably, cargo); stations scramble Vipers if you
+  misbehave in their sight; rock hermits hide among the asteroids, dealing
+  ore and asking no questions; derelict generation ships drift between the
+  stars; and someone will sell you a Trumble for 2 credits, which is one of
+  the worst decisions available to you.
 - **Trained ship AI** — pirates and armed traders fly neural policies
   trained by self-play (docs/TRAINING-LOG.md); watch them fight in the
   combat viewer.

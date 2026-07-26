@@ -26,6 +26,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Ship roster | 21 hulls: Cobra Mk III, Sidewinder, Viper, Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle, Transporter, Thargoid, Thargon, Constrictor, missile, cargo canister. |
 | NPC ecosystem | Traders arrive from deep space, work the station lane and jump out; pirates hunt the player and prey on traders; police hunt pirates; lone bounty hunters; NPC-vs-NPC combat. Piracy scales with government type, traffic with productivity. |
 | Missions | The Constrictor hunt and the classified courier run (16+ kills, galaxy 1). |
+| Encounters | Escape capsules from destroyed ships (scoopable, with consequences), station defence Vipers, rock hermits that trade ore and ask no questions, derelict generation ships, and Trumbles. |
 | Progression | Kills → Harmless … E L I T E; save-on-dock; save export/import. |
 | Console | Elliptical 3D scanner, compass, gauges, missile pylons, S (station in range) and E (ECM detected) indicator lights. |
 | Presentation | Wireframe hidden-line ships, shader sun and planets, phosphor HUD, WebAudio synth, in-game controls guide. Mouse throughout: pointer-lock flight, clickable menus/markets/equipment, click-to-target on the charts. |
@@ -33,18 +34,17 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 
 ## Remaining
 
-1. **Gamepad support** — via the Gamepad API; the original supported
-   joysticks, and mouse flight (V) already covers analogue control.
-2. **The living galaxy** — a two-level simulation where traffic flows
+1. **The living galaxy** — a two-level simulation where traffic flows
    between all 256 systems and materialises in yours, with prices nudged by
    simulated trade and pirate risk migrating to rich, lawless routes.
    Design in [AI-TRAINING.md](AI-TRAINING.md).
-3. **Rare encounters** — generation ships, asteroid hermits, and Trumbles
-   (the tribble infestation).
-4. **Witch-space rescue** — stranding is currently a slow death with no
+2. **Witch-space rescue** — stranding is currently a slow death with no
    counterplay; a distress beacon (at a price) would make it a story.
-5. **AI round 3** — pack-phase retrain with the reward fixes noted in the
+3. **AI round 3** — pack-phase retrain with the reward fixes noted in the
    training log, and a third league round.
+4. **Missions from the start** — the original made you earn your way to the
+   first mission; a ladder of small early contracts would give new
+   commanders direction (in design).
 
 ## Deliberate deviations
 
@@ -58,3 +58,8 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands
   your ship to the trained defence policy for as long as you hold a fight.
+- **Rock hermits** and **Trumbles** are affectionate borrowings from
+  [Oolite](https://wiki.alioth.net/index.php/Rock_Hermit_(Oolite)), not the
+  1984 game; **generation ships** come from the Elite fiction (Ian Bell
+  notes they were never coded). This project is a homage, not a museum
+  piece — see the deviations above.

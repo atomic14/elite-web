@@ -345,6 +345,10 @@ export const WORM: ShipDef = {
   ],
 };
 
+// A generation ship: enormous, slow, ancient. Built from rings so the hull
+// reads as a vast cylinder with a habitat drum amidships.
+export const GENERATION_SHIP_RINGS = true;
+
 /** Ring-based hull generator: rings of vertices plus optional nose/tail points. */
 function makeSpindle(
   name: string,
@@ -438,6 +442,18 @@ export const CONSTRICTOR: ShipDef = {
     [3, 5, 6, 4, 8, 7], [0, 1, 3, 7], [0, 2, 4, 8], [0, 7, 8],
   ],
 };
+
+export const GENERATION_SHIP = makeSpindle(
+  'Generation Ship', 1,
+  [
+    { z: 900, r: 90, sides: 8, rot: Math.PI / 8 },
+    { z: 400, r: 150, sides: 8, rot: Math.PI / 8 },
+    { z: 100, r: 340, sides: 8, rot: Math.PI / 8 },  // habitat drum
+    { z: -200, r: 340, sides: 8, rot: Math.PI / 8 },
+    { z: -500, r: 150, sides: 8, rot: Math.PI / 8 },
+    { z: -900, r: 110, sides: 8, rot: Math.PI / 8 },
+  ],
+);
 
 export const CANISTER = makeSpindle(
   'Cargo Canister', 1,

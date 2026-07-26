@@ -3,7 +3,7 @@ import {
   buildShip, buildAsteroid, type ShipDef,
   COBRA_MK3, SIDEWINDER, VIPER, ADDER, KRAIT, MAMBA, ASP, FER_DE_LANCE,
   PYTHON, ANACONDA, WORM, THARGOID, THARGON, CONSTRICTOR,
-  GECKO, MORAY, BOA, SHUTTLE, TRANSPORTER,
+  GECKO, MORAY, BOA, SHUTTLE, TRANSPORTER, GENERATION_SHIP,
 } from '../ships/geometry';
 import {
   observe, act, makeScratch, brainFromFile,
@@ -56,7 +56,8 @@ function brainsEnabled(): boolean {
 // thrusting along its nose, same as the player.
 
 export type NpcRole =
-  'trader' | 'pirate' | 'police' | 'hunter' | 'thargoid' | 'thargon' | 'asteroid';
+  'trader' | 'pirate' | 'police' | 'hunter' | 'thargoid' | 'thargon' | 'asteroid' |
+  'hermit' | 'generation';
 
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -127,6 +128,14 @@ const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
   ],
   thargon: [
     { def: THARGON, color: 0x9cffb0, hp: 0.2, maxSpeed: 350, turnRate: 1.8, bounty: 50, radius: 12 },
+  ],
+  // a hollowed asteroid trading post — inert, but you can dock with it
+  hermit: [
+    { def: null, color: 0x9a9a8a, hp: 4, maxSpeed: 0, turnRate: 0, bounty: 0, radius: 120 },
+  ],
+  // derelict colony vessel: vast, slow, defenceless
+  generation: [
+    { def: GENERATION_SHIP, color: 0xbfc8d8, hp: 8, maxSpeed: 25, turnRate: 0.05, bounty: 0, radius: 340, cargoDrop: 8 },
   ],
 };
 
@@ -208,6 +217,21 @@ export class NpcShip {
 
   constructor(role: NpcRole, position: THREE.Vector3, variantSeed: number, specOverride?: NpcSpec) {
     this.role = role;
+    if (role === 'hermit') {
+      this.object = buildAsteroid(120, variantSeed * 977 + 3, 0xb9b9a5);
+      this.radius = 120;
+      this.hp = this.maxHp = 4;
+      this.bounty = 0;
+      this.cargoDrop = 0;
+      this.maxSpeed = 0;
+      this.turnRate = 0;
+      this.speed = 0;
+      this.hasEcm = false;
+      this.armed = false;
+      this.object.position.copy(position);
+      this.object.quaternion.random();
+      return;
+    }
     if (role === 'asteroid') {
       const radius = 25 + (variantSeed % 45);
       this.object = buildAsteroid(radius, variantSeed * 131 + 7, 0x9a9a8a);
@@ -247,8 +271,15 @@ export class NpcShip {
   update(dt: number, player: PlayerRef, playerLegal: number, home: THREE.Vector3): FireEvent | null {
     if (!this.alive) return null;
 
-    if (this.role === 'asteroid') {
-      this.object.rotateOnAxis(this.tumbleAxis, dt * 0.4);
+    if (this.role === 'asteroid' || this.role === 'hermit') {
+      this.object.rotateOnAxis(this.tumbleAxis, dt * (this.role === 'hermit' ? 0.06 : 0.4));
+      return null;
+    }
+    if (this.role === 'generation') {
+      // ancient, blind, and utterly indifferent to you
+      this.object.rotateOnAxis(this.tumbleAxis, dt * 0.02);
+      this.speed = this.maxSpeed;
+      this.advance(dt);
       return null;
     }
     if (this.inert) {

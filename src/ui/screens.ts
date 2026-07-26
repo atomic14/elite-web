@@ -169,6 +169,7 @@ export function renderStatus(
       Missiles: ${c.missiles}<br/>
       Equipment: ${equipmentLines}<br/>
       Cargo: ${cargoLines}<br/>
+      ${c.trumbles > 0 ? `<span style="color:var(--hud-red)">Trumbles: ${c.trumbles}</span><br/>` : ''}
       Kills: ${c.kills}<br/>
       Rating: <span style="color:var(--hud-amber)">${rating(c.kills).toUpperCase()}</span>
     </div>
