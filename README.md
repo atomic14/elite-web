@@ -40,6 +40,12 @@ npm run evaluate                     # held-out tournament for the current brain
 npm test                             # invariant + simulation tests (no framework)
 ```
 
+There's also an **autonomous playtest agent** (`test/playtest.js`): paste it
+into the browser console with the game open and `await __playtest.run({
+legs: 8 })` sends a commander off to take contracts, trade, fight, jump and
+dock on its own, asserting invariants as it goes and printing a report of
+everything it exercised. It's how gameplay changes get regression-tested.
+
 CI type-checks, builds and runs the tests on every push; the live site
 deploys from Cloudflare Pages (build `npm run build`, output `dist`).
 

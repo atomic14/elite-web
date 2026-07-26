@@ -61,9 +61,16 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
   loop to simulate time (browser rAF throttles in background tabs — manual
   stepping is the reliable way in automation).
 - `window.__scriptedPirates = true` disables all NPC brains (A/B testing).
-- `train/jameson-autopilot.js` (paste into console) runs full autonomous
-  trade-run trials: `await __auto.runTrial('Lave','Leesti',6)`. It backs up
-  and restores the player's save.
+- `test/playtest.js` (paste into console, or `fetch('/test/playtest.js')`
+  then eval) is the **autonomous playtest agent**: it plays the real game —
+  contracts, trading, equipping, jumping, combat via the trained defence
+  brain, docking, hermits — while asserting invariants every 30 frames, and
+  prints a report of what it exercised plus any violations. Run it after
+  gameplay changes: `await __playtest.run({ legs: 8 })` (~4 min).
+  Inspect `__playtest.history` for the per-leg ledger.
+- `train/jameson-autopilot.js` is the narrower trade-run harness behind
+  docs/JAMESON-TRIALS.md: `await __auto.runTrial('Lave','Leesti',6)`.
+  Both back up and restore the player's save.
 - Browser automation gotchas: key taps can collapse into one frame — put
   waits between scripted keypresses, or drive via __game directly. The
   player's save is `localStorage['elite-web-commander']` — back it up before

@@ -75,41 +75,43 @@ interface Canister {
   spinAxis: THREE.Vector3;
 }
 
+// Fields the autonomous playtest agent (test/playtest.js) reads or drives
+// are public rather than private; they are otherwise internal.
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly composer: EffectComposer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(60, 1, 1, 1_000_000);
 
-  private systems: StarSystem[];
-  private commander: CommanderData;
-  private world!: SystemScene;
-  private npcs: NpcShip[] = [];
+  systems: StarSystem[];
+  commander: CommanderData;
+  world!: SystemScene;
+  npcs: NpcShip[] = [];
   private explosions: Explosion[] = [];
   private missiles: Missile[] = [];
 
-  private readonly player: PlayerShip;
-  private readonly input = new Input();
+  readonly player: PlayerShip;
+  readonly input = new Input();
   private readonly hud = new Hud();
   private readonly tunnel = new TunnelEffect();
 
-  private mode: Mode = 'docked';
+  mode: Mode = 'docked';
   private returnMode: 'docked' | 'flight' = 'docked';
-  private readonly chart: ChartState = { cursorX: 0, cursorY: 0, targetIndex: null };
-  private market: MarketEntry[] = [];
-  private marketSelected = 0;
+  readonly chart: ChartState = { cursorX: 0, cursorY: 0, targetIndex: null };
+  market: MarketEntry[] = [];
+  marketSelected = 0;
   private equipSelected = 0;
   private tracers: Tracer[] = [];
 
-  private targetLock: NpcShip | null = null;
+  targetLock: NpcShip | null = null;
   /** missile armed but not yet locked (the original's yellow pylon) */
-  private missileArmed = false;
+  missileArmed = false;
   private hyperCountdown = -1;
-  private torusEngaged = false;
-  private witchspace = false;
+  torusEngaged = false;
+  witchspace = false;
   private view = 0; // 0 front, 1 rear, 2 left, 3 right
-  private cabinTemp = 0;
-  private canisters: Canister[] = [];
+  cabinTemp = 0;
+  canisters: Canister[] = [];
   private thargonTimer = 0;
   private npcTargetTimer = 0;
   private traderSpawnTimer = 30;
@@ -117,16 +119,16 @@ export class Game {
   private energyLowTimer = 0;
   private policeScanned = false;
   /** the station only scrambles its defence fleet once per visit */
-  private defenceLaunched = false;
+  defenceLaunched = false;
   /** trading with a rock hermit rather than a station */
-  private hermitTrading = false;
+  hermitTrading = false;
   private hermitMarket: MarketEntry[] = [];
   /** true after leaving a hermit, until you fly clear of it */
-  private hermitCooldown = false;
-  private genShipSeen = false;
-  private trumbleTimer = 20;
-  private contractOffers: Contract[] = [];
-  private contractSelected = 0;
+  hermitCooldown = false;
+  genShipSeen = false;
+  trumbleTimer = 20;
+  contractOffers: Contract[] = [];
+  contractSelected = 0;
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
@@ -134,7 +136,7 @@ export class Game {
   private dataReturn: 'docked' | 'chart' | 'local' = 'docked';
   private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
-  private ccEngaged = false;
+  ccEngaged = false;
   private ccPitch = 0;
   private ccRoll = 0;
   private ccTimer = 0;
@@ -150,11 +152,11 @@ export class Game {
     cls: { maxSpeed: 300, turnRate: 1.1 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
   };
 
-  private foreShield = 1;
-  private aftShield = 1;
-  private energy = 4;
-  private laserTemp = 0;
-  private laserCooldown = 0;
+  foreShield = 1;
+  aftShield = 1;
+  energy = 4;
+  laserTemp = 0;
+  laserCooldown = 0;
   private beamTimer = 0;
   private readonly beams: THREE.LineSegments;
 
@@ -237,7 +239,8 @@ export class Game {
 
   // --- world lifecycle -----------------------------------------------------
 
-  private buildWorld(): void {
+  /** @internal — driven by test/playtest.js */
+  buildWorld(): void {
     if (this.world) {
       this.scene.remove(this.world.root);
       this.world.dispose();
@@ -263,7 +266,8 @@ export class Game {
    * Witch-space: mis-jump limbo. We reuse the system scene but banish the
    * planet, station and sun beyond reach — just stars, and Thargoids.
    */
-  private enterWitchspace(): void {
+  /** @internal — driven by test/playtest.js */
+  enterWitchspace(): void {
     this.witchspace = true;
     this.buildWorld();
     this.world.planet.mesh.position.set(1e8, 1e8, 0);
@@ -290,7 +294,8 @@ export class Game {
     this.targetLock = null;
   }
 
-  private spawnNpc(
+  /** @internal — driven by test/playtest.js */
+  spawnNpc(
     role: NpcRole,
     position: THREE.Vector3,
     seed: number,
@@ -432,7 +437,8 @@ export class Game {
 
   // --- mode transitions ----------------------------------------------------
 
-  private enterDocked(booting = false): void {
+  /** @internal — driven by test/playtest.js */
+  enterDocked(booting = false): void {
     this.mode = 'docked';
     this.returnMode = 'docked';
     this.clearNpcs();
@@ -510,7 +516,8 @@ export class Game {
     input.click();
   }
 
-  private launch(): void {
+  /** @internal — driven by test/playtest.js */
+  launch(): void {
     const n = this.slotNormal();
     this.player.position.copy(this.world.station.position).addScaledVector(n, 450);
     this.lookAlong(n);
@@ -526,7 +533,8 @@ export class Game {
     this.hud.showMessage(`LEAVING ${this.system.name.toUpperCase()} STATION`, 3);
   }
 
-  private lookAlong(dir: THREE.Vector3): void {
+  /** @internal — driven by test/playtest.js */
+  lookAlong(dir: THREE.Vector3): void {
     // Matrix4.lookAt uses camera convention: -Z (our nose) points at target.
     this.tmpM.lookAt(ZERO, dir, UP);
     this.player.quaternion.setFromRotationMatrix(this.tmpM);
@@ -554,7 +562,8 @@ export class Game {
     renderGameOver(this.commander);
   }
 
-  private respawn(): void {
+  /** @internal — driven by test/playtest.js */
+  respawn(): void {
     this.commander = loadCommander();
     this.chart.targetIndex = null;
     this.witchspace = false;
@@ -569,7 +578,8 @@ export class Game {
    * original, which gated every mission behind a high combat rating —
    * a new commander should always have somewhere to be.
    */
-  private generateContractOffers(): Contract[] {
+  /** @internal — driven by test/playtest.js */
+  generateContractOffers(): Contract[] {
     const sys = this.system;
     const reachable = this.systems.filter((s) => {
       const d = distanceTenths(sys, s);
@@ -622,7 +632,8 @@ export class Game {
     return offers;
   }
 
-  private acceptContract(): void {
+  /** @internal — driven by test/playtest.js */
+  acceptContract(): void {
     const k = this.contractOffers[this.contractSelected];
     if (!k) return;
     if (this.commander.contracts.length >= 3) {
@@ -646,7 +657,8 @@ export class Game {
   }
 
   /** Pay out anything delivered here; drop anything overdue. */
-  private settleContracts(): void {
+  /** @internal — driven by test/playtest.js */
+  settleContracts(): void {
     const c = this.commander;
     const kept: Contract[] = [];
     for (const k of c.contracts) {
@@ -728,7 +740,8 @@ export class Game {
     return candidates[Math.floor(Math.random() * candidates.length)].index;
   }
 
-  private startHyperspace(): void {
+  /** @internal — driven by test/playtest.js */
+  startHyperspace(): void {
     if (this.hyperCountdown >= 0) return;
     const t = this.chart.targetIndex;
     if (t === null || t === this.commander.systemIndex) {
@@ -768,7 +781,8 @@ export class Game {
     this.hud.showMessage(`ARRIVED: ${this.system.name.toUpperCase()}`, 4);
   }
 
-  private arriveInSystem(): void {
+  /** @internal — driven by test/playtest.js */
+  arriveInSystem(): void {
     this.witchspace = false; // any arrival leaves witch-space (incl. galactic jump)
     this.buildWorld();
     // Arrive at the witchpoint, well out — the classic long torus cruise in.
@@ -797,7 +811,8 @@ export class Game {
       .applyQuaternion(this.player.quaternion);
   }
 
-  private raiseLegal(level: number): void {
+  /** @internal — driven by test/playtest.js */
+  raiseLegal(level: number): void {
     if (this.commander.legalStatus < level) {
       this.commander.legalStatus = level;
       this.hud.showMessage(`LEGAL STATUS: ${LEGAL_NAMES[level].toUpperCase()}`, 3);
@@ -828,7 +843,8 @@ export class Game {
     sfx.beep(300, 0.18);
   }
 
-  private fireLaser(): void {
+  /** @internal — driven by test/playtest.js */
+  fireLaser(): void {
     // front mount carries the fitted laser; rear/left/right are pulse
     // lasers if purchased. Simplification vs the original: all mounts share
     // one cooldown/heat.
@@ -873,7 +889,8 @@ export class Game {
   }
 
   /** Destruction credited to the player (bounty, kills, legal, mission). */
-  private destroyNpc(npc: NpcShip): void {
+  /** @internal — driven by test/playtest.js */
+  destroyNpc(npc: NpcShip): void {
     this.wreckNpc(npc);
     if (npc.role !== 'asteroid') this.commander.kills += 1;
     if (npc.role === 'pirate') {
@@ -1094,7 +1111,8 @@ export class Game {
     sfx.missile();
   }
 
-  private applyPlayerDamage(amount: number, from: THREE.Vector3): void {
+  /** @internal — driven by test/playtest.js */
+  applyPlayerDamage(amount: number, from: THREE.Vector3): void {
     this.tmp.copy(from).sub(this.player.position).applyQuaternion(this.tmpQ.copy(this.player.quaternion).invert());
     const fromFront = this.tmp.z < 0;
     let remaining = amount;
@@ -1235,7 +1253,8 @@ export class Game {
     this.enterDocked();
   }
 
-  private toggleCombatComputer(): void {
+  /** @internal — driven by test/playtest.js */
+  toggleCombatComputer(): void {
     if (!this.commander.equipment.combatComputer) {
       this.hud.showMessage('NO COMBAT COMPUTER FITTED', 3);
       sfx.beep(220);
@@ -1347,7 +1366,8 @@ export class Game {
 
   // --- per-frame -----------------------------------------------------------
 
-  private update(dt: number, elapsed: number): void {
+  /** @internal — driven by test/playtest.js */
+  update(dt: number, elapsed: number): void {
     // pause (flight only — everything else is inherently paused)
     if (this.mode === 'flight' && this.input.pressed('KeyP')) this.paused = !this.paused;
     if (this.mode !== 'flight') this.paused = false;
@@ -1602,7 +1622,8 @@ export class Game {
    * Hermits deal in ore and ask no questions — the one place to sell
    * contraband without a police scan, at the cost of finding them.
    */
-  private openHermitTrade(): void {
+  /** @internal — driven by test/playtest.js */
+  openHermitTrade(): void {
     this.hermitTrading = true;
     this.hermitMarket = generateMarket(this.system, Math.floor(Math.random() * 256))
       .map((m, i) => {
@@ -1716,7 +1737,8 @@ export class Game {
     }
   }
 
-  private massLocked(): boolean {
+  /** @internal — driven by test/playtest.js */
+  massLocked(): boolean {
     if (this.player.position.distanceTo(this.world.station.position) < 5000) return true;
     if (this.player.position.distanceTo(this.world.planet.mesh.position) - this.world.planetRadius < 4000) return true;
     for (const npc of this.npcs) {
@@ -1904,7 +1926,8 @@ export class Game {
     }
   }
 
-  private openChart(from: 'docked' | 'flight'): void {
+  /** @internal — driven by test/playtest.js */
+  openChart(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
     this.mode = 'chart';
     this.returnMode = from;
@@ -1916,7 +1939,8 @@ export class Game {
     renderChart(this.systems, this.commander, this.chart);
   }
 
-  private openLocalChart(from: 'docked' | 'flight'): void {
+  /** @internal — driven by test/playtest.js */
+  openLocalChart(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
     this.mode = 'local';
     this.returnMode = from;
@@ -2028,7 +2052,8 @@ export class Game {
     if (changed) this.redrawChart();
   }
 
-  private openSystemData(sys: StarSystem, from: 'docked' | 'chart' | 'local'): void {
+  /** @internal — driven by test/playtest.js */
+  openSystemData(sys: StarSystem, from: 'docked' | 'chart' | 'local'): void {
     this.dataReturn = from;
     this.mode = 'data';
     renderSystemData(sys, this.system);
@@ -2112,7 +2137,8 @@ export class Game {
   }
 
   /** Buy up to `want` units of the selected commodity (Infinity = fill up). */
-  private buyCargo(want: number): void {
+  /** @internal — driven by test/playtest.js */
+  buyCargo(want: number): void {
     const idx = this.marketSelected;
     const m = this.market[idx];
     const cost = Math.round(m.price * 10);
@@ -2134,7 +2160,8 @@ export class Game {
   }
 
   /** Sell up to `want` units of the selected commodity (Infinity = all). */
-  private sellCargo(want: number): void {
+  /** @internal — driven by test/playtest.js */
+  sellCargo(want: number): void {
     const idx = this.marketSelected;
     const m = this.market[idx];
     let sold = 0;
@@ -2177,7 +2204,8 @@ export class Game {
     if (changed) renderEquip(this.system, this.commander, this.equipSelected);
   }
 
-  private buyEquipment(id: string): void {
+  /** @internal — driven by test/playtest.js */
+  buyEquipment(id: string): void {
     const c = this.commander;
     const row = equipRows(this.system, c).find((r) => r.id === id)!;
     if (row.status !== '' || (row.price <= 0 && id !== 'fuel')) {
