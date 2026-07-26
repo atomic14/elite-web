@@ -3,6 +3,7 @@ import {
   buildShip, buildAsteroid, type ShipDef,
   COBRA_MK3, SIDEWINDER, VIPER, ADDER, KRAIT, MAMBA, ASP, FER_DE_LANCE,
   PYTHON, ANACONDA, WORM, THARGOID, THARGON, CONSTRICTOR,
+  GECKO, MORAY, BOA, SHUTTLE, TRANSPORTER,
 } from '../ships/geometry';
 import {
   observe, act, makeScratch, brainFromFile,
@@ -102,11 +103,16 @@ const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
     { def: ANACONDA, color: 0xcfe0d8, hp: 2.6, maxSpeed: 120, turnRate: 0.25, bounty: 0, radius: 55, ecmChance: 0.7, cargoDrop: 6, armed: true },
     { def: ADDER, color: 0xffe28a, hp: 0.5, maxSpeed: 260, turnRate: 0.8, bounty: 0, radius: 18, cargoDrop: 1 },
     { def: WORM, color: 0xbfd8bf, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 0, radius: 14, cargoDrop: 1 },
+    { def: BOA, color: 0xd8d8c0, hp: 2.2, maxSpeed: 140, turnRate: 0.3, bounty: 0, radius: 44, ecmChance: 0.6, cargoDrop: 5, armed: true },
+    { def: SHUTTLE, color: 0xc8e8c8, hp: 0.45, maxSpeed: 180, turnRate: 0.7, bounty: 0, radius: 14, cargoDrop: 1 },
+    { def: TRANSPORTER, color: 0xc0d0e0, hp: 0.6, maxSpeed: 160, turnRate: 0.5, bounty: 0, radius: 20, cargoDrop: 2 },
   ],
   pirate: [
     { def: SIDEWINDER, color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
     { def: KRAIT, color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
     { def: MAMBA, color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
+    { def: GECKO, color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
+    { def: MORAY, color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
     { def: COBRA_MK3, color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
   ],
   police: [

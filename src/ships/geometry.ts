@@ -482,3 +482,74 @@ export function buildDodoStation(color: THREE.ColorRepresentation): {
   group.add(hull, edges, new THREE.LineSegments(slot, new THREE.LineBasicMaterial({ color })));
   return { group, dockZ };
 }
+
+export const GECKO: ShipDef = {
+  name: 'Gecko',
+  scale: 0.25,
+  vertices: [
+    [10, 4, 48], [-10, 4, 48],      // 0,1 nose edge
+    [64, 0, -12], [-64, 0, -12],    // 2,3 wingtips
+    [16, 10, -32], [-16, 10, -32],  // 4,5 rear top
+    [24, -8, -32], [-24, -8, -32],  // 6,7 rear bottom
+  ],
+  edges: [
+    [0, 1], [0, 2], [1, 3],
+    [0, 4], [1, 5], [4, 5],
+    [0, 6], [1, 7], [6, 7],
+    [2, 4], [2, 6], [3, 5], [3, 7], [4, 6], [5, 7],
+  ],
+  faces: [
+    [0, 1, 5, 4], [0, 1, 7, 6], [0, 4, 2], [0, 2, 6],
+    [1, 3, 5], [1, 7, 3], [2, 4, 6], [3, 5, 7], [4, 5, 7, 6],
+  ],
+};
+
+export const MORAY: ShipDef = {
+  name: 'Moray Starboat',
+  scale: 0.25,
+  vertices: [
+    [0, 0, 60],                       // 0 nose
+    [0, 18, -24],                     // 1 dorsal fin tip
+    [40, -8, -24], [-40, -8, -24],    // 2,3 lower fins
+    [0, -4, -32],                     // 4 tail centre
+  ],
+  edges: [
+    [0, 1], [0, 2], [0, 3],
+    [1, 2], [2, 3], [3, 1],
+    [1, 4], [2, 4], [3, 4],
+  ],
+  faces: [
+    [0, 1, 2], [0, 2, 3], [0, 3, 1],
+    [1, 2, 4], [2, 3, 4], [3, 1, 4],
+  ],
+};
+
+// Boa: triangular-section freighter — tapered 3-sided hull.
+export const BOA = makeSpindle(
+  'Boa', 0.25,
+  [
+    { z: 40, r: 20, sides: 3, rot: Math.PI / 2 },
+    { z: -30, r: 46, sides: 3, rot: Math.PI / 2 },
+    { z: -70, r: 34, sides: 3, rot: Math.PI / 2 },
+  ],
+  [0, 0, 96],
+);
+
+// Orbit shuttle: stubby square-section wedge.
+export const SHUTTLE = makeSpindle(
+  'Orbit Shuttle', 0.25,
+  [
+    { z: 26, r: 14, sides: 4, rot: Math.PI / 4 },
+    { z: -26, r: 26, sides: 4, rot: Math.PI / 4 },
+  ],
+  [0, 0, 52],
+);
+
+// Transporter: long, flat-sided workhorse.
+export const TRANSPORTER = makeSpindle(
+  'Transporter', 0.25,
+  [
+    { z: 50, r: 18, sides: 4, rot: Math.PI / 4, ry: 10 },
+    { z: -50, r: 24, sides: 4, rot: Math.PI / 4, ry: 14 },
+  ],
+);

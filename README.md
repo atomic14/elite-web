@@ -107,10 +107,10 @@ highlighted system · F find by name · ESC exit
   seed words generate all 256 systems per galaxy (names, economy, government,
   tech level, market). Galaxy 1 is byte-identical to the original — system 7
   is Lave.
-- `src/ships/` — 16 hulls as explicit vertex/edge/face tables in the style
+- `src/ships/` — 21 hulls as explicit vertex/edge/face tables in the style
   of the original BBC data (Cobra Mk III, Sidewinder, Viper, Adder, Krait,
-  Mamba, Asp, Fer-de-Lance, Python, Anaconda, Worm, Thargoid, Thargon,
-  Constrictor, missile, canister) plus the Coriolis and Dodo stations, drawn
+  Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm,
+  Shuttle, Transporter, Thargoid, Thargon, Constrictor, missile, canister) plus the Coriolis and Dodo stations, drawn
   as wireframe edges over a black occluding hull (classic hidden-line look).
 - `src/world/` — shader sun (animated fbm surface, limb darkening, corona),
   shader planet (coastline contours, graticule, terminator, atmosphere rim —
