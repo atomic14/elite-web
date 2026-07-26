@@ -77,8 +77,11 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
   FireEvents, the Game resolves all consequences. Don't give NPCs side
   effects.
 - Screens (`ui/screens.ts`) are pure render functions; HUD is a dumb painter.
-- Prices/behaviour should follow the original Elite unless Chris says
-  otherwise (docs/GAP-ANALYSIS.md records deliberate deviations).
+- This is a **homage, not a museum piece** (Chris's framing): it must stay
+  instantly recognisable to anyone who played the original — never "they've
+  ruined it" — but we apply what game design has learned since 1984.
+  Prices/behaviour follow the original unless there's a good reason;
+  docs/GAP-ANALYSIS.md records every deliberate deviation.
 - Commit per milestone with a descriptive message.
 
 ## Current state & direction

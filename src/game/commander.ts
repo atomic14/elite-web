@@ -54,6 +54,21 @@ export const LEGAL_NAMES = ['Clean', 'Offender', 'Fugitive'];
 /** Commodity indices the Galactic Government defines as illegal. */
 export const ILLEGAL_GOODS = [3, 6, 10]; // slaves, narcotics, firearms
 
+/**
+ * A job from a station's bulletin board. The original made you earn the
+ * first mission with 16 kills; these are available from your first landing
+ * so a new commander always has something to chase.
+ */
+export interface Contract {
+  kind: 'cargo' | 'bounty' | 'courier';
+  destination: number; // system index
+  commodity: number; // cargo runs only
+  qty: number;
+  reward: number; // tenths of a credit
+  deadlineDay: number;
+  progress: number; // bounty kills so far
+}
+
 export interface MissionState {
   /** 0 none · 1 constrictor hunt · 2 constrictor done · 3 courier run · 4 all done */
   stage: number;
@@ -142,6 +157,9 @@ export interface CommanderData {
   mission: MissionState;
   /** breeding stowaways; they eat cargo and hate heat */
   trumbles: number;
+  /** elapsed days — advanced by hyperspace jumps, used for deadlines */
+  day: number;
+  contracts: Contract[];
 }
 
 const SAVE_KEY = 'elite-web-commander';
@@ -160,6 +178,8 @@ export function newCommander(): CommanderData {
     legalStatus: 0,
     mission: { stage: 0, targetIndex: null },
     trumbles: 0,
+    day: 0,
+    contracts: [],
   };
 }
 
@@ -179,6 +199,9 @@ export function loadCommander(): CommanderData {
     const parsed = { ...newCommander(), ...stored };
     parsed.equipment = { ...defaultEquipment(), ...(stored.equipment ?? {}) };
     parsed.mission = { stage: 0, targetIndex: null, ...(stored.mission ?? {}) };
+    if (!Array.isArray(parsed.contracts)) parsed.contracts = [];
+    if (typeof parsed.day !== 'number') parsed.day = 0;
+    if (typeof parsed.trumbles !== 'number') parsed.trumbles = 0;
     if (!Array.isArray(parsed.cargo) || parsed.cargo.length !== COMMODITIES.length) {
       parsed.cargo = COMMODITIES.map(() => 0);
     }

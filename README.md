@@ -97,8 +97,8 @@ because browsers claim the function keys.
 ### Docked
 
 L launch · M market · E equip ship · N local chart · G galactic chart ·
-D data on system · I status · B switch keyboard layout · X export save ·
-Z import save
+C contracts · D data on system · I status · B switch keyboard layout ·
+X export save · Z import save
 
 ### Market
 
@@ -149,6 +149,11 @@ detected — as on the original's dashboard.
 - **Mining & scooping** — blast asteroids (mining laser drops ore canisters)
   and scoop drifting cargo with fuel scoops; sun-skim to refuel, watching the
   cabin temperature.
+- **Contracts** — every station runs a bulletin board with cargo runs,
+  courier jobs and pirate-clearing bounties, available from your very first
+  landing. Deadlines are measured in days, which pass as you jump. (The
+  original made you earn your first mission with 16 kills; a new commander
+  deserves somewhere to be.)
 - **Navy missions** — prove yourself (16+ kills, galaxy 1) for the
   Constrictor hunt and the classified courier run.
 - **Encounters** — destroyed ships eject escape capsules (scoop one and the

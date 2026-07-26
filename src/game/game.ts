@@ -26,16 +26,16 @@ import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP,
-  type CommanderData, type LaserType,
+  type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
   hideScreen, renderDockedMenu, renderMarket, renderStatus, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
-  renderGameOver, renderSystemData, nearestSystem, distanceTenths, chartCoordsFromClick,
-  localCoordsFromClick, LOCAL_SCALE, type ChartState,
+  renderGameOver, renderSystemData, renderContracts, describeContract, nearestSystem,
+  distanceTenths, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE, type ChartState,
 } from '../ui/screens';
 
-type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'dead';
+type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'dead';
 
 const LASER_RANGE = 3500;
 const LASERS: Record<LaserType, { damage: number; cooldown: number; heat: number }> = {
@@ -125,6 +125,8 @@ export class Game {
   private hermitCooldown = false;
   private genShipSeen = false;
   private trumbleTimer = 20;
+  private contractOffers: Contract[] = [];
+  private contractSelected = 0;
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
@@ -458,6 +460,9 @@ export class Game {
     this.checkMissionAtDock();
     this.hermitTrading = false;
     this.market = generateMarket(this.system, Math.floor(Math.random() * 256));
+    this.settleContracts();
+    this.contractOffers = this.generateContractOffers();
+    this.contractSelected = 0;
     saveCommander(this.commander);
     if (!booting) {
       sfx.dock();
@@ -557,9 +562,131 @@ export class Game {
     this.enterDocked(true);
   }
 
+  // --- contracts (station bulletin board) ----------------------------------
+
+  /**
+   * Work on offer here today. Deliberately generous compared to the
+   * original, which gated every mission behind a high combat rating —
+   * a new commander should always have somewhere to be.
+   */
+  private generateContractOffers(): Contract[] {
+    const sys = this.system;
+    const reachable = this.systems.filter((s) => {
+      const d = distanceTenths(sys, s);
+      return s.index !== sys.index && d > 0 && d <= 68;
+    });
+    if (!reachable.length) return [];
+
+    const offers: Contract[] = [];
+    const count = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const dest = reachable[Math.floor(Math.random() * reachable.length)];
+      const dist = distanceTenths(sys, dest);
+      const roll = Math.random();
+      if (roll < 0.55) {
+        // cargo run: they supply the goods, you supply the nerve
+        const commodity = [0, 1, 4, 8, 9, 12][Math.floor(Math.random() * 6)];
+        const qty = 3 + Math.floor(Math.random() * 8);
+        offers.push({
+          kind: 'cargo',
+          destination: dest.index,
+          commodity,
+          qty,
+          reward: Math.round(qty * (12 + dist * 0.9) + 40),
+          deadlineDay: this.commander.day + 4 + Math.ceil(dist / 12),
+          progress: 0,
+        });
+      } else if (roll < 0.8) {
+        offers.push({
+          kind: 'courier',
+          destination: dest.index,
+          commodity: 0,
+          qty: 0,
+          reward: Math.round(120 + dist * 3.2),
+          deadlineDay: this.commander.day + 3 + Math.ceil(dist / 16),
+          progress: 0,
+        });
+      } else {
+        const qty = 2 + Math.floor(Math.random() * 3);
+        offers.push({
+          kind: 'bounty',
+          destination: dest.index,
+          commodity: 0,
+          qty,
+          reward: Math.round(qty * 90 + dist * 2),
+          deadlineDay: this.commander.day + 6 + Math.ceil(dist / 10),
+          progress: 0,
+        });
+      }
+    }
+    return offers;
+  }
+
+  private acceptContract(): void {
+    const k = this.contractOffers[this.contractSelected];
+    if (!k) return;
+    if (this.commander.contracts.length >= 3) {
+      this.hud.showMessage('YOU ARE CARRYING ENOUGH WORK ALREADY', 3);
+      sfx.beep(220);
+      return;
+    }
+    if (k.kind === 'cargo') {
+      if (cargoTonnes(this.commander) + k.qty > cargoCapacity(this.commander)) {
+        this.hud.showMessage('NOT ENOUGH HOLD SPACE FOR THAT CONSIGNMENT', 3);
+        sfx.beep(220);
+        return;
+      }
+      this.commander.cargo[k.commodity] += k.qty;
+    }
+    this.commander.contracts.push(k);
+    this.contractOffers.splice(this.contractSelected, 1);
+    this.contractSelected = Math.max(0, this.contractSelected - 1);
+    this.hud.showMessage(`ACCEPTED: ${describeContract(k, this.systems).toUpperCase()}`, 4);
+    sfx.beep(900, 0.1);
+  }
+
+  /** Pay out anything delivered here; drop anything overdue. */
+  private settleContracts(): void {
+    const c = this.commander;
+    const kept: Contract[] = [];
+    for (const k of c.contracts) {
+      const here = k.destination === c.systemIndex;
+      const late = c.day > k.deadlineDay;
+      if (here && !late && (k.kind !== 'bounty' || k.progress >= k.qty)) {
+        if (k.kind === 'cargo') {
+          // the consignment must still be aboard
+          if (c.cargo[k.commodity] < k.qty) {
+            this.hud.showMessage('CONSIGNMENT INCOMPLETE — CONTRACT VOID', 5);
+            continue;
+          }
+          c.cargo[k.commodity] -= k.qty;
+        }
+        c.credits += k.reward;
+        this.hud.showMessage(`CONTRACT PAID: ${formatCredits(k.reward)}`, 5);
+        sfx.beep(1100, 0.15);
+        continue;
+      }
+      if (late) {
+        this.hud.showMessage('CONTRACT EXPIRED', 4);
+        sfx.beep(220, 0.2);
+        continue;
+      }
+      kept.push(k);
+    }
+    c.contracts = kept;
+  }
+
   // --- missions ------------------------------------------------------------
 
   private missionText(): string {
+    // contracts first — they're the everyday work
+    const k = this.commander.contracts[0];
+    if (k) {
+      const more = this.commander.contracts.length - 1;
+      return `${describeContract(k, this.systems).toUpperCase()}` +
+        ` — ${k.deadlineDay - this.commander.day} DAYS` +
+        (more > 0 ? ` (+${more} MORE)` : '');
+    }
     const m = this.commander.mission;
     if (m.stage === 1 && m.targetIndex !== null) {
       return `NAVY MISSION: DESTROY THE CONSTRICTOR — LAST SEEN AT ${this.systems[m.targetIndex].name.toUpperCase()}`;
@@ -634,6 +761,7 @@ export class Game {
         return;
       }
     }
+    this.commander.day += 1 + Math.ceil(distanceTenths(this.system, this.systems[t]) / 20);
     this.commander.systemIndex = t;
     this.chart.targetIndex = null;
     this.arriveInSystem();
@@ -748,6 +876,14 @@ export class Game {
   private destroyNpc(npc: NpcShip): void {
     this.wreckNpc(npc);
     if (npc.role !== 'asteroid') this.commander.kills += 1;
+    if (npc.role === 'pirate') {
+      for (const k of this.commander.contracts) {
+        if (k.kind === 'bounty' && k.destination === this.commander.systemIndex && k.progress < k.qty) {
+          k.progress += 1;
+          if (k.progress >= k.qty) this.hud.showMessage('BOUNTY CONTRACT COMPLETE — RETURN TO A STATION', 5);
+        }
+      }
+    }
     if (npc.role === 'police' || npc.role === 'trader' || npc.role === 'hunter') this.raiseLegal(2);
     if (npc.bounty > 0) {
       this.commander.credits += npc.bounty;
@@ -1613,6 +1749,10 @@ export class Game {
           this.mode = 'market';
           this.marketSelected = 0;
           renderMarket(this.system, this.market, this.commander, this.marketSelected);
+        } else if (i.pressed('KeyC')) {
+          this.mode = 'contracts';
+          this.contractSelected = 0;
+          renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
         } else if (i.pressed('KeyE')) {
           this.mode = 'equip';
           this.equipSelected = 0;
@@ -1636,6 +1776,24 @@ export class Game {
       case 'equip':
         this.handleEquipInput();
         break;
+
+      case 'contracts': {
+        let redraw = false;
+        if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
+          this.contractSelected = Math.max(0, this.contractSelected - 1);
+          redraw = true;
+        }
+        if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
+          this.contractSelected = Math.min(this.contractOffers.length - 1, this.contractSelected + 1);
+          redraw = true;
+        }
+        if (i.pressed('KeyA') || i.pressed('Enter')) { this.acceptContract(); redraw = true; }
+        if (i.pressed('Escape')) { this.closeOverlay(); break; }
+        if (redraw) {
+          renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
+        }
+        break;
+      }
 
       case 'chart':
       case 'local':
@@ -1789,6 +1947,9 @@ export class Game {
         } else if (this.mode === 'equip') {
           this.equipSelected = index;
           renderEquip(this.system, this.commander, this.equipSelected);
+        } else if (this.mode === 'contracts') {
+          this.contractSelected = index;
+          renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
         }
       }
       if (key) this.input.injectPress(key);

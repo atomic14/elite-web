@@ -3,8 +3,8 @@ import {
 } from '../galaxy/galaxy';
 import { planetDescription } from '../galaxy/goatsoup';
 import {
-  type CommanderData, rating, cargoTonnes, formatCredits, cargoCapacity, MAX_FUEL,
-  EQUIPMENT_CATALOGUE, equipmentOwned,
+  type CommanderData, type Contract, rating, cargoTonnes, formatCredits, cargoCapacity,
+  MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned,
 } from '../game/commander';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
@@ -34,6 +34,7 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
     <div class="menu">
       <div data-key="KeyL"><b>L</b> LAUNCH</div>
       <div data-key="KeyM"><b>M</b> MARKET PRICES</div>
+      <div data-key="KeyC"><b>C</b> CONTRACTS</div>
       <div data-key="KeyE"><b>E</b> EQUIP SHIP</div>
       <div data-key="KeyN"><b>N</b> LOCAL CHART</div>
       <div data-key="KeyG"><b>G</b> GALACTIC CHART</div>
@@ -494,6 +495,54 @@ export function renderSystemData(sys: StarSystem, current: StarSystem): void {
     <div class="rule"></div>
     <div class="info sysdesc">${planetDescription(sys)}</div>
     <div class="buttons"><button data-key="Escape">BACK</button></div>
+  `);
+}
+
+export function describeContract(k: Contract, systems: StarSystem[]): string {
+  const dest = systems[k.destination].name.toUpperCase();
+  if (k.kind === 'cargo') return `Deliver ${k.qty}t ${COMMODITIES[k.commodity].name} to ${dest}`;
+  if (k.kind === 'courier') return `Carry sealed data to ${dest}`;
+  return `Destroy ${k.qty} pirates around ${dest}`;
+}
+
+/** The station bulletin board: jobs on offer, and the ones you've taken. */
+export function renderContracts(
+  sys: StarSystem,
+  systems: StarSystem[],
+  c: CommanderData,
+  offers: Contract[],
+  selected: number,
+): void {
+  const rows = offers.map((k, i) => `
+    <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}">
+      <td>${describeContract(k, systems)}</td>
+      <td class="num">${(distanceTenths(sys, systems[k.destination]) / 10).toFixed(1)} LY</td>
+      <td class="num">${k.deadlineDay - c.day} days</td>
+      <td class="num">${formatCredits(k.reward)}</td>
+    </tr>`).join('') || '<tr><td colspan="4">No work on offer today.</td></tr>';
+
+  const taken = c.contracts.map((k) => `
+    <tr><td>${describeContract(k, systems)}${k.kind === 'bounty' ? ` (${k.progress}/${k.qty})` : ''}</td>
+      <td class="num">${k.deadlineDay - c.day} days left</td>
+      <td class="num">${formatCredits(k.reward)}</td></tr>`).join('');
+
+  show(`
+    <h2>${sys.name.toUpperCase()} BULLETIN BOARD</h2>
+    <div class="rule"></div>
+    <table>
+      <tr><th>WORK ON OFFER</th><th class="num">DISTANCE</th><th class="num">TIME</th><th class="num">PAYS</th></tr>
+      ${rows}
+    </table>
+    ${taken ? `<div class="rule"></div><table>
+      <tr><th>ACCEPTED</th><th class="num">DEADLINE</th><th class="num">PAYS</th></tr>${taken}</table>` : ''}
+    <div class="buttons">
+      <button data-key="KeyA">ACCEPT SELECTED</button>
+      <button data-key="Escape">DONE</button>
+    </div>
+    <div class="keyline">
+      DAY ${c.day} &middot; CASH ${formatCredits(c.credits)} &middot;
+      HOLD ${cargoTonnes(c)}/${cargoCapacity(c)}t &nbsp;&mdash;&nbsp; CLICK A JOB &middot; A ACCEPT &middot; ESC EXIT
+    </div>
   `);
 }
 

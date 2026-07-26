@@ -25,7 +25,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Legal system | CLEAN → OFFENDER → FUGITIVE; police contraband scans; bounty hunters stalk offenders; fines on docking; escape pod launders your record. |
 | Ship roster | 21 hulls: Cobra Mk III, Sidewinder, Viper, Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle, Transporter, Thargoid, Thargon, Constrictor, missile, cargo canister. |
 | NPC ecosystem | Traders arrive from deep space, work the station lane and jump out; pirates hunt the player and prey on traders; police hunt pirates; lone bounty hunters; NPC-vs-NPC combat. Piracy scales with government type, traffic with productivity. |
-| Missions | The Constrictor hunt and the classified courier run (16+ kills, galaxy 1). |
+| Missions | Station bulletin board (cargo, courier and bounty contracts with day-based deadlines) available from the first landing, plus the Constrictor hunt and the classified courier run (16+ kills, galaxy 1). |
 | Encounters | Escape capsules from destroyed ships (scoopable, with consequences), station defence Vipers, rock hermits that trade ore and ask no questions, derelict generation ships, and Trumbles. |
 | Progression | Kills → Harmless … E L I T E; save-on-dock; save export/import. |
 | Console | Elliptical 3D scanner, compass, gauges, missile pylons, S (station in range) and E (ECM detected) indicator lights. |
@@ -42,9 +42,8 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
    counterplay; a distress beacon (at a price) would make it a story.
 3. **AI round 3** — pack-phase retrain with the reward fixes noted in the
    training log, and a third league round.
-4. **Missions from the start** — the original made you earn your way to the
-   first mission; a ladder of small early contracts would give new
-   commanders direction (in design).
+4. **Contract variety** — the bulletin board covers cargo, courier and
+   bounty work; passenger berths and smuggling runs would widen it.
 
 ## Deliberate deviations
 
@@ -58,6 +57,9 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands
   your ship to the trained defence policy for as long as you hold a fight.
+- **Contracts from day one.** The original gated missions behind a high
+  combat rating; here a bulletin board gives every commander work from the
+  first landing. Recognisable, but kinder.
 - **Rock hermits** and **Trumbles** are affectionate borrowings from
   [Oolite](https://wiki.alioth.net/index.php/Rock_Hermit_(Oolite)), not the
   1984 game; **generation ships** come from the Elite fiction (Ian Bell
