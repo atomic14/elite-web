@@ -31,7 +31,8 @@ import {
 import {
   hideScreen, renderDockedMenu, renderMarket, renderStatus, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
-  renderGameOver, nearestSystem, distanceTenths, type ChartState,
+  renderGameOver, nearestSystem, distanceTenths, chartCoordsFromClick,
+  localCoordsFromClick, LOCAL_SCALE, type ChartState,
 } from '../ui/screens';
 
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'dead';
@@ -184,6 +185,10 @@ export class Game {
     refreshHelpPanel();
     this.hud.showMessage(
       `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
+
+    // charts accept mouse input; the listener lives on the persistent
+    // overlay container, since screen contents are re-rendered wholesale
+    document.getElementById('screen')!.addEventListener('click', (e) => this.handleChartClick(e));
 
     // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
     // docs/JAMESON-TRIALS.md) drives the whole game through this
@@ -1514,6 +1519,37 @@ export class Game {
     this.chart.cursorX = cur.x;
     this.chart.cursorY = cur.y;
     renderLocalChart(this.systems, this.commander, this.chart);
+  }
+
+  /**
+   * Click a chart to move the cursor there; clicking on (or near) a system
+   * also sets it as the hyperspace target.
+   */
+  private handleChartClick(e: MouseEvent): void {
+    if (this.mode !== 'chart' && this.mode !== 'local') return;
+    if (this.chartEstimate || this.chartFind !== null) return;
+    const canvas = e.target as HTMLElement;
+    if (!(canvas instanceof HTMLCanvasElement)) return;
+
+    const local = this.mode === 'local';
+    const coords = local
+      ? localCoordsFromClick(canvas, e.clientX, e.clientY, this.system)
+      : chartCoordsFromClick(canvas, e.clientX, e.clientY);
+    this.chart.cursorX = Math.max(0, Math.min(255, coords.x));
+    this.chart.cursorY = Math.max(0, Math.min(255, coords.y));
+
+    // snap radius of ~28 screen px on either chart, so clicking a star
+    // targets it while clicking empty sky just moves the cursor
+    const pxPerUnit = local ? LOCAL_SCALE : canvas.width / 256;
+    const near = nearestSystem(
+      this.systems, this.chart.cursorX, this.chart.cursorY, 28 / pxPerUnit);
+    if (near) {
+      this.chart.cursorX = near.x;
+      this.chart.cursorY = near.y;
+      this.chart.targetIndex = near.index;
+      sfx.beep(900, 0.1);
+    }
+    this.redrawChart();
   }
 
   private redrawChart(): void {

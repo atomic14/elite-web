@@ -180,9 +180,18 @@ export interface ChartState {
   targetIndex: number | null;
 }
 
-export function nearestSystem(systems: StarSystem[], x: number, y: number): StarSystem | null {
+/**
+ * Nearest system to a chart coordinate, within `radius` chart units
+ * (measured with the half-weight-y metric the charts are drawn in).
+ */
+export function nearestSystem(
+  systems: StarSystem[],
+  x: number,
+  y: number,
+  radius = 12,
+): StarSystem | null {
   let best: StarSystem | null = null;
-  let bestD = 12 * 12;
+  let bestD = radius * radius;
   for (const s of systems) {
     const dx = s.x - x;
     const dy = (s.y - y) / 2;
@@ -205,7 +214,7 @@ export function renderChart(
     <div class="rule"></div>
     <canvas id="chart-canvas" width="780" height="400"></canvas>
     <div class="keyline" id="chart-info"></div>
-    <div class="keyline">ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
+    <div class="keyline">CLICK A SYSTEM TO TARGET IT &middot; ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
   `);
   drawChart(systems, c, chart);
 }
@@ -284,7 +293,7 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
 
 // --- Short range (local) chart ---------------------------------------------
 
-const LOCAL_SCALE = 19; // canvas px per chart x-unit
+export const LOCAL_SCALE = 19; // canvas px per chart x-unit
 
 export function renderLocalChart(
   systems: StarSystem[],
@@ -296,7 +305,7 @@ export function renderLocalChart(
     <div class="rule"></div>
     <canvas id="local-canvas" width="780" height="380"></canvas>
     <div class="info" id="local-info" style="text-align:center; min-height:76px"></div>
-    <div class="keyline">ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
+    <div class="keyline">CLICK A SYSTEM TO TARGET IT &middot; ARROWS MOVE &middot; ENTER SET TARGET &middot; M MARKET ESTIMATE &middot; F FIND &middot; ESC EXIT</div>
   `);
   drawLocalChart(systems, c, chart);
 }
@@ -416,6 +425,37 @@ export function renderMarketEstimate(sys: StarSystem, c: CommanderData): void {
     </table>
     <div class="keyline">ESC BACK TO CHART</div>
   `);
+}
+
+/**
+ * Inverse of the galactic chart projection: a click on the canvas → chart
+ * coordinates. Accounts for CSS scaling of the canvas element.
+ */
+export function chartCoordsFromClick(
+  canvas: HTMLCanvasElement,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } {
+  const r = canvas.getBoundingClientRect();
+  const px = (clientX - r.left) * (canvas.width / r.width);
+  const py = (clientY - r.top) * (canvas.height / r.height);
+  return { x: px / (canvas.width / 256), y: (py / (canvas.height / 128)) * 2 };
+}
+
+/** Inverse of the short-range chart projection (centred on the current system). */
+export function localCoordsFromClick(
+  canvas: HTMLCanvasElement,
+  clientX: number,
+  clientY: number,
+  current: StarSystem,
+): { x: number; y: number } {
+  const r = canvas.getBoundingClientRect();
+  const px = (clientX - r.left) * (canvas.width / r.width);
+  const py = (clientY - r.top) * (canvas.height / r.height);
+  return {
+    x: current.x + (px - canvas.width / 2) / LOCAL_SCALE,
+    y: current.y + ((py - canvas.height / 2) / LOCAL_SCALE) * 2,
+  };
 }
 
 export function renderGameOver(c: CommanderData): void {

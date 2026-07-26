@@ -105,8 +105,9 @@ I status · B switch keyboard layout · X export save · Z import save
 
 ### Charts
 
-Arrows move the cursor · ENTER set hyperspace target · M market estimate for
-the highlighted system · F find a system by name · ESC exit
+**Click a system to target it** · arrows move the cursor · ENTER set
+hyperspace target · M market estimate for the highlighted system · F find a
+system by name · ESC exit
 
 ### Docking and the console
 

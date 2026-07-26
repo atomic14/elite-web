@@ -351,3 +351,5 @@ html, body {
   box-shadow: 0 0 8px var(--hud-amber);
 }
 .missiles { padding-left: 8px; }
+
+#chart-canvas, #local-canvas { cursor: crosshair; }
