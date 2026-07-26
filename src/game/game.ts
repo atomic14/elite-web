@@ -20,7 +20,8 @@ import { Input } from '../engine/input';
 import { Hud, type ScannerContact } from '../hud/hud';
 import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
-import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, type NpcRole, type FireEvent } from './npc';
+import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
+import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS,
@@ -49,6 +50,8 @@ const SUN_HEAT_MAX = 26_000;    // cabin temp reaches 1.0 (death follows)
 const SUN_KILL_DIST = 21_000;   // instant death
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+const AXIS_X_CC = new THREE.Vector3(1, 0, 0);
+const AXIS_Z_CC = new THREE.Vector3(0, 0, 1);
 
 // view quaternions: front, rear, left, right (yaw about ship Y)
 const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
@@ -110,6 +113,22 @@ export class Game {
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
+  // combat computer: the jameson-defend policy flying the player's ship
+  private ccEngaged = false;
+  private ccPitch = 0;
+  private ccRoll = 0;
+  private ccTimer = 0;
+  private ccControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;
+  private static readonly ccObs = new Float32Array(18);
+  private static readonly ccScratch = makeScratch();
+  private static readonly ccMe = {
+    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 0,
+    cls: { maxSpeed: 220, turnRate: 0.5 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
+  };
+  private static readonly ccTarget = {
+    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 280,
+    cls: { maxSpeed: 300, turnRate: 1.1 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
+  };
 
   private foreShield = 1;
   private aftShield = 1;
@@ -354,6 +373,7 @@ export class Game {
     this.laserTemp = 0;
     this.hyperCountdown = -1;
     this.torusEngaged = false;
+    this.ccEngaged = false;
     if (this.commander.legalStatus > 0) {
       const fine = Math.min(this.commander.credits, this.commander.legalStatus >= 2 ? 750 : 250);
       this.commander.credits -= fine;
@@ -842,6 +862,87 @@ export class Game {
     this.enterDocked();
   }
 
+  private toggleCombatComputer(): void {
+    if (!this.commander.equipment.combatComputer) {
+      this.hud.showMessage('NO COMBAT COMPUTER FITTED', 3);
+      sfx.beep(220);
+      return;
+    }
+    if (this.ccEngaged) {
+      this.ccEngaged = false;
+      this.hud.showMessage('COMBAT COMPUTER OFF', 2);
+      return;
+    }
+    if (!this.hostilesNear()) {
+      this.hud.showMessage('NO HOSTILES — COMBAT COMPUTER IDLE', 3);
+      sfx.beep(220);
+      return;
+    }
+    this.ccEngaged = true;
+    this.view = 0; // it aims the front laser
+    this.hud.showMessage('COMBAT COMPUTER ENGAGED — ANY FLIGHT KEY OVERRIDES', 4);
+    sfx.beep(1000, 0.12);
+  }
+
+  /**
+   * The jameson-defend policy flies the player's ship (at the trader-Cobra
+   * dynamics it trained in). Manual flight input disengages instantly.
+   */
+  private combatComputerStep(dt: number): void {
+    if (this.input.held('KeyW', 'KeyA', 'KeyS', 'KeyD',
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Comma', 'Period')) {
+      this.ccEngaged = false;
+      this.hud.showMessage('MANUAL OVERRIDE', 2);
+      return;
+    }
+    let threat: NpcShip | null = null;
+    let bestD = 6500;
+    for (const npc of this.npcs) {
+      if (!isHostileToPlayer(npc, this.commander.legalStatus)) continue;
+      const d = npc.object.position.distanceTo(this.player.position);
+      if (d < bestD) { bestD = d; threat = npc; }
+    }
+    if (!threat || !DEFEND_BRAIN) {
+      this.ccEngaged = false;
+      this.hud.showMessage('AREA CLEAR — COMBAT COMPUTER OFF', 3);
+      return;
+    }
+
+    this.ccTimer -= dt;
+    if (!this.ccControl || this.ccTimer <= 0) {
+      this.ccTimer = 0.1;
+      const me = Game.ccMe;
+      const tv = Game.ccTarget;
+      const p = this.player.position, q = this.player.quaternion;
+      me.pos.x = p.x; me.pos.y = p.y; me.pos.z = p.z;
+      me.quat.x = q.x; me.quat.y = q.y; me.quat.z = q.z; me.quat.w = q.w;
+      me.speed = this.player.speed;
+      me.laserTemp = this.laserTemp;
+      me.laserCooldown = this.laserCooldown;
+      me.pitchRate = this.ccPitch;
+      me.rollRate = this.ccRoll;
+      const tp = threat.object.position, tq = threat.object.quaternion;
+      tv.pos.x = tp.x; tv.pos.y = tp.y; tv.pos.z = tp.z;
+      tv.quat.x = tq.x; tv.quat.y = tq.y; tv.quat.z = tq.z; tv.quat.w = tq.w;
+      this.ccControl = act(DEFEND_BRAIN,
+        observe(me as ObservableShip, tv as ObservableShip, Game.ccObs), Game.ccScratch);
+    }
+    const c = this.ccControl;
+    const maxPitch = 0.5 * 1.4, maxRoll = 0.5 * 2.4; // trader-Cobra caps (training match)
+    const ramp = (cur: number, tgt: number, active: boolean): number => {
+      const r = active ? 4.0 : 5.0;
+      const nx = cur + (tgt - cur) * Math.min(1, r * dt);
+      return Math.abs(nx) < 0.001 && !active ? 0 : nx;
+    };
+    this.ccPitch = ramp(this.ccPitch, c.pitch * maxPitch, c.pitch !== 0);
+    this.ccRoll = ramp(this.ccRoll, c.roll * maxRoll, c.roll !== 0);
+    if (c.throttle > 0) this.player.speed = Math.min(220, this.player.speed + 100 * dt);
+    if (c.throttle < 0) this.player.speed = Math.max(0, this.player.speed - 100 * dt);
+    if (this.ccRoll !== 0) this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_Z_CC, this.ccRoll * dt));
+    if (this.ccPitch !== 0) this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_X_CC, this.ccPitch * dt));
+    if (c.fire) this.fireLaser();
+  }
+
   /** One-shot jump to the next galaxy; lands at the nearest system to our coords. */
   private galacticJump(): void {
     if (!this.commander.equipment.galacticDrive) {
@@ -907,6 +1008,7 @@ export class Game {
 
   private updateFlight(dt: number, elapsed: number): void {
     this.player.update(dt, this.input);
+    if (this.ccEngaged) this.combatComputerStep(dt);
 
     // torus drive
     if (this.torusEngaged) {
@@ -1293,6 +1395,7 @@ export class Game {
             sfx.beep(500, 0.06);
           }
         } else if (i.pressed('KeyE')) this.triggerEcm();
+        else if (i.pressed('KeyK')) this.toggleCombatComputer();
         else if (i.pressed('Tab')) this.detonateEnergyBomb();
         else if (i.pressed('KeyC')) this.dockingComputer();
         else if (i.pressed('KeyH')) {
@@ -1527,6 +1630,7 @@ export class Game {
       case 'energyUnit': c.equipment.energyUnit = true; break;
       case 'dockingComputer': c.equipment.dockingComputer = true; break;
       case 'miningLaser': c.equipment.miningLaser = true; break;
+      case 'combatComputer': c.equipment.combatComputer = true; break;
       case 'galacticDrive': c.equipment.galacticDrive = true; break;
     }
     saveCommander(c);
@@ -1630,6 +1734,7 @@ export class Game {
         hasLaser,
         shipId,
         dockAid,
+        assist: this.ccEngaged,
       },
       this.player.position,
       this.player.quaternion,

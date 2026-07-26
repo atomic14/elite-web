@@ -46,6 +46,7 @@ Progress saves automatically every time you dock.
 | J | torus jump drive (8×, disengages when mass-locked) |
 | P | pause |
 | C | docking computer (if fitted, within range) |
+| K | combat computer — the trained defence AI flies your ship (if fitted) |
 | N / G / I | local chart / galactic chart / commander status |
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |
 | F (in charts) | type-to-find a system by name |

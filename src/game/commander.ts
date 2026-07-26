@@ -20,6 +20,7 @@ export interface Equipment {
   galacticDrive: boolean;
   energyBomb: boolean;
   miningLaser: boolean;
+  combatComputer: boolean;
 }
 
 export function defaultEquipment(): Equipment {
@@ -35,6 +36,7 @@ export function defaultEquipment(): Equipment {
     galacticDrive: false,
     energyBomb: false,
     miningLaser: false,
+    combatComputer: false,
   };
 }
 
@@ -69,6 +71,7 @@ export const EQUIPMENT_CATALOGUE: EquipItem[] = [
   { id: 'energyUnit', name: 'Extra Energy Unit', price: 15000, minTL: 8 },
   { id: 'dockingComputer', name: 'Docking Computer', price: 15000, minTL: 9 },
   { id: 'miningLaser', name: 'Mining Laser', price: 8000, minTL: 10 },
+  { id: 'combatComputer', name: 'Combat Computer', price: 20000, minTL: 9 },
   { id: 'military', name: 'Military Laser', price: 60000, minTL: 10 },
   { id: 'galacticDrive', name: 'Galactic Hyperdrive', price: 50000, minTL: 10 },
 ];
@@ -87,6 +90,7 @@ export function equipmentOwned(id: string, c: CommanderData): boolean {
     case 'energyUnit': return e.energyUnit;
     case 'dockingComputer': return e.dockingComputer;
     case 'miningLaser': return e.miningLaser;
+    case 'combatComputer': return e.combatComputer;
     case 'military': return e.laser === 'military';
     case 'galacticDrive': return e.galacticDrive;
     default: return false;

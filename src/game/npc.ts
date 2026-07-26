@@ -25,7 +25,7 @@ const PIRATE_BRAIN: Brain | null = (() => {
   }
 })();
 
-const DEFEND_BRAIN: Brain | null = (() => {
+export const DEFEND_BRAIN: Brain | null = (() => {
   try {
     return brainFromFile(defendBrainFile as unknown as BrainFile);
   } catch {

@@ -52,6 +52,8 @@ export interface HudState {
   shipId: string;
   /** docking aid: station-local lateral offset + signed roll error, or null */
   dockAid: { x: number; y: number; roll: number; inSlot: boolean; rollOk: boolean } | null;
+  /** combat computer engaged (shown in the view label slot) */
+  assist: boolean;
 }
 
 const VIEW_NAMES = ['', 'REAR VIEW', 'LEFT VIEW', 'RIGHT VIEW'];
@@ -131,7 +133,7 @@ export class Hud {
     this.altEl.style.width = `${Math.min(100, state.altitudeFrac * 100)}%`;
     this.cabinEl.style.width = `${Math.min(100, state.cabinTemp * 100)}%`;
     this.cabinEl.style.background = state.cabinTemp > 0.72 ? '#ff4d4d' : '';
-    this.viewEl.textContent = VIEW_NAMES[state.view] ?? '';
+    this.viewEl.textContent = state.assist ? '◆ COMBAT COMPUTER ◆' : (VIEW_NAMES[state.view] ?? '');
     this.crosshairEl.style.display = state.hasLaser ? '' : 'none';
     this.shipIdEl.textContent = state.shipId;
     this.energySegs.forEach((seg, i) => {
