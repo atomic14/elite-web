@@ -1751,12 +1751,17 @@ export class Game {
       (this.view === 2 && e.leftLaser) ||
       (this.view === 3 && e.rightLaser);
 
-    // docking aid: shown approaching the slot side within 3km
+    // docking aid: only while actually lining up — near the slot side AND
+    // flying toward the station (departures launch facing away, so the aid
+    // stays out of the way after lift-off)
     let dockAid: import('../hud/hud').HudState['dockAid'] = null;
     if (this.mode === 'flight' && !this.witchspace) {
       const st = this.world.station;
       const dist = this.player.position.distanceTo(st.position);
-      if (dist < 3000) {
+      const facingStation = this.player
+        .getForward(this.tmp)
+        .dot(this.tmp2.copy(st.position).sub(this.player.position).normalize()) > 0.35;
+      if (dist < 3000 && facingStation) {
         const slotN = this.tmp.set(0, 0, -1).applyQuaternion(st.quaternion);
         const onSlotSide = this.tmp2.copy(this.player.position).sub(st.position).dot(slotN) > 0;
         if (onSlotSide) {
