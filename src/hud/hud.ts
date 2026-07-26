@@ -61,6 +61,20 @@ export interface HudState {
   ecmDetected: boolean;
 }
 
+/** A ship to bracket on screen, in normalised device coords (-1..1). */
+export interface ScreenTarget {
+  x: number;
+  y: number;
+  /** on-screen size, 0..1 of half-height */
+  size: number;
+  hostile: boolean;
+  locked: boolean;
+  hp: number;
+  label: string;
+  /** where to aim to hit it, if it's worth leading */
+  lead?: { x: number; y: number };
+}
+
 const VIEW_NAMES = ['', 'REAR VIEW', 'LEFT VIEW', 'RIGHT VIEW'];
 
 export class Hud {
@@ -79,6 +93,7 @@ export class Hud {
   private readonly shipIdEl = byId('shipid');
   private readonly crosshairEl = byId('crosshair');
   private readonly dockAid: CanvasRenderingContext2D;
+  private readonly reticle: CanvasRenderingContext2D;
   private readonly energySegs: HTMLElement[];
   private readonly missileEls: HTMLElement[];
   private readonly lockEl = byId('lock');
@@ -97,6 +112,7 @@ export class Hud {
   constructor() {
     this.scanner = (byId('scanner') as HTMLCanvasElement).getContext('2d')!;
     this.dockAid = (byId('dockaid') as HTMLCanvasElement).getContext('2d')!;
+    this.reticle = (byId('reticle') as HTMLCanvasElement).getContext('2d')!;
     this.compass = (byId('compass') as HTMLCanvasElement).getContext('2d')!;
     this.energySegs = Array.from(byId('g-energy').querySelectorAll('i'));
     this.missileEls = Array.from(byId('missiles').querySelectorAll('span'));
@@ -152,7 +168,7 @@ export class Hud {
     });
     this.indS.classList.toggle('lit', state.stationInRange);
     this.indE.classList.toggle('lit-amber', state.ecmDetected);
-    this.lockEl.textContent = state.locked ? 'TARGET LOCKED' : '';
+    this.lockEl.textContent = ''; // lock is shown by the bracket + missile pylon
     this.conditionEl.textContent = `CONDITION: ${state.condition}`;
     this.conditionEl.style.color = state.condition === 'RED' ? '#ff4d4d' : '';
     this.creditsEl.textContent = formatCredits(state.credits);
@@ -160,6 +176,61 @@ export class Hud {
     this.drawDockAid(state.dockAid);
     this.drawScanner(playerPos, playerQuat, contacts);
     this.drawCompass(playerPos, playerQuat, compassTarget);
+  }
+
+  /**
+   * Brackets around nearby ships, with a lead marker showing where to aim
+   * at the locked target. Purely an aiming affordance — the laser still
+   * hits on its own cone test.
+   */
+  drawTargets(targets: ScreenTarget[]): void {
+    const ctx = this.reticle;
+    const w = ctx.canvas.width;
+    const h = ctx.canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    for (const t of targets) {
+      const x = (t.x * 0.5 + 0.5) * w;
+      const y = (-t.y * 0.5 + 0.5) * h;
+      const r = Math.max(14, Math.min(120, t.size * h * 0.5));
+      const colour = t.locked ? '#ff4d4d' : t.hostile ? '#ff9a5c' : DIM;
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = t.locked ? 2 : 1;
+      // corner brackets
+      const c = r * 0.4;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        ctx.beginPath();
+        ctx.moveTo(x + sx * r, y + sy * r - sy * c);
+        ctx.lineTo(x + sx * r, y + sy * r);
+        ctx.lineTo(x + sx * r - sx * c, y + sy * r);
+        ctx.stroke();
+      }
+      ctx.font = '10px Menlo, Consolas, monospace';
+      if (t.locked) {
+        ctx.fillStyle = colour;
+        ctx.fillText(t.label, x - r, y - r - 6);
+        // hull bar
+        ctx.fillStyle = '#ff4d4d';
+        ctx.fillRect(x - r, y + r + 5, 2 * r * Math.max(0, t.hp), 2);
+        ctx.strokeStyle = DIM;
+        ctx.strokeRect(x - r, y + r + 5, 2 * r, 2);
+      }
+      if (t.lead) {
+        const lx = (t.lead.x * 0.5 + 0.5) * w;
+        const ly = (-t.lead.y * 0.5 + 0.5) * h;
+        ctx.strokeStyle = '#ffe9a8';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 6, 0, Math.PI * 2);
+        ctx.moveTo(lx - 10, ly); ctx.lineTo(lx - 3, ly);
+        ctx.moveTo(lx + 3, ly); ctx.lineTo(lx + 10, ly);
+        ctx.stroke();
+      }
+    }
+  }
+
+  resizeOverlay(w: number, h: number): void {
+    this.reticle.canvas.width = w;
+    this.reticle.canvas.height = h;
   }
 
   /**

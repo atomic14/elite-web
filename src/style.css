@@ -311,7 +311,7 @@ html, body {
 
 #shipid {
   position: absolute;
-  left: 50%; top: 46%;
+  left: 50%; top: 56%;
   transform: translateX(-50%);
   font-size: 10px;
   letter-spacing: 2px;
@@ -383,3 +383,6 @@ html, body {
 }
 #screen .buttons button:hover { border-color: var(--hud-green); background: rgba(77, 255, 92, 0.16); }
 #screen .buttons button:active { background: var(--hud-green); color: #001402; }
+
+/* combat overlay: target bracket + lead reticle */
+#reticle { position: absolute; inset: 0; pointer-events: none; }
