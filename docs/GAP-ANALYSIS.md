@@ -18,8 +18,8 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Witch-space | Mis-jumps (9%, 22% on the courier mission) drop you among Thargoids with Thargon drones; 1.0 LY escape jump; stranding is possible. |
 | Stations | Rotating Coriolis with docking slot; dodecahedral Dodo stations at TL10+; manual docking with roll alignment + on-screen alignment aid; docking computer (C, TL9); launch/dock tunnel effect; policed safety zone. |
 | Flight | Elite-style nose-steering with keyboard-analogue rates; classic 1984 key layout by default (modern WASD toggle); torus drive (J) with mass-lock; four views (1-4); pause. |
-| Combat | Pulse/beam/military lasers with heat, four laser mounts (front/rear/left/right), missiles with lock/fire/unarm, ECM, energy bomb, tracer bolts, hit flashes, explosion debris, collisions, bounties. |
-| Damage model | Fore/aft shields, four energy banks with ENERGY LOW warning, cabin temperature (sun proximity), escape pod, death → reload last station save. |
+| Combat | Pulse/beam/military lasers with heat, four laser mounts (front/rear/left/right), the original's missile arm→lock sequence (yellow then red pylon), ECM, energy bomb, tracer bolts, hit flashes, explosion debris, collisions, bounties. On-screen target brackets with range, hull bar and a lead marker. |
+| Damage model | Fore/aft shields, four energy banks with ENERGY LOW warning, hull hits that destroy cargo or knock out fittings, cabin temperature (sun proximity), escape pod, death → reload last station save. |
 | Equipment | The manual's price/tech-level table: cargo bay, ECM, four laser mounts, beam/military lasers with old-laser refund, fuel scoops, escape pod, energy bomb, extra energy unit, docking computer, mining laser, galactic hyperdrive — plus a Combat Computer (see deviations). |
 | Mining & scooping | Mining laser fragments asteroids into ore canisters; fuel scoops collect cargo canisters and sun-skim for fuel. |
 | Legal system | CLEAN → OFFENDER → FUGITIVE; police contraband scans; bounty hunters stalk offenders; fines on docking; escape pod launders your record. |
@@ -28,7 +28,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Missions | The Constrictor hunt and the classified courier run (16+ kills, galaxy 1). |
 | Progression | Kills → Harmless … E L I T E; save-on-dock; save export/import. |
 | Console | Elliptical 3D scanner, compass, gauges, missile pylons, S (station in range) and E (ECM detected) indicator lights. |
-| Presentation | Wireframe hidden-line ships, shader sun and planets, phosphor HUD, WebAudio synth, in-game controls guide. |
+| Presentation | Wireframe hidden-line ships, shader sun and planets, phosphor HUD, WebAudio synth, in-game controls guide. Mouse throughout: pointer-lock flight, clickable menus/markets/equipment, click-to-target on the charts. |
 | Ship AI | Pirates and armed traders fly neural policies trained by self-play (see [TRAINING-LOG.md](TRAINING-LOG.md)); scripted AI remains as a runtime toggle. |
 
 ## Remaining

@@ -100,6 +100,8 @@ export class Game {
   private tracers: Tracer[] = [];
 
   private targetLock: NpcShip | null = null;
+  /** missile armed but not yet locked (the original's yellow pylon) */
+  private missileArmed = false;
   private hyperCountdown = -1;
   private torusEngaged = false;
   private witchspace = false;
@@ -389,6 +391,7 @@ export class Game {
     this.hyperCountdown = -1;
     this.torusEngaged = false;
     this.ccEngaged = false;
+    this.missileArmed = false;
     this.input.releaseMouseFlight();
     if (this.commander.legalStatus > 0) {
       const fine = Math.min(this.commander.credits, this.commander.legalStatus >= 2 ? 750 : 250);
@@ -717,10 +720,28 @@ export class Game {
     this.scene.add(e.object);
   }
 
-  private acquireLock(): void {
-    const forward = this.viewDir(this.tmp); // lockable from any view, as per the manual
+  /** T arms a missile; it locks itself when a target enters the sights. */
+  private armMissile(): void {
+    if (this.commander.missiles <= 0) {
+      this.hud.showMessage('NO MISSILES', 2);
+      sfx.beep(180);
+      return;
+    }
+    if (this.targetLock) {
+      this.hud.showMessage('ALREADY LOCKED — U TO UNARM', 2);
+      return;
+    }
+    this.missileArmed = !this.missileArmed;
+    this.hud.showMessage(this.missileArmed ? 'MISSILE ARMED' : 'MISSILE UNARMED', 2);
+    sfx.beep(this.missileArmed ? 700 : 400, 0.08);
+  }
+
+  /** While armed, lock onto whatever enters the crosshairs. */
+  private updateMissileLock(): void {
+    if (!this.missileArmed || this.targetLock) return;
+    const forward = this.viewDir(this.tmp);
     let best: NpcShip | null = null;
-    let bestAngle = 0.16;
+    let bestAngle = 0.09; // the crosshair region, tighter than the old snap
     for (const npc of this.npcs) {
       if (!npc.alive || npc.role === 'asteroid') continue;
       const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
@@ -731,12 +752,11 @@ export class Game {
         best = npc;
       }
     }
-    this.targetLock = best;
     if (best) {
+      this.targetLock = best;
+      this.missileArmed = false;
+      this.hud.showMessage('MISSILE LOCKED', 2);
       sfx.beep(1200, 0.12);
-    } else {
-      this.hud.showMessage('NO TARGET', 2);
-      sfx.beep(220);
     }
   }
 
@@ -870,10 +890,45 @@ export class Game {
       this.aftShield -= absorbed;
       remaining -= absorbed;
     }
-    this.energy -= remaining * 2;
+    if (remaining > 0) {
+      // shield was already down: energy takes it, and the hit may wreck
+      // cargo or a fitting — "the ship's computer will keep you informed"
+      this.energy -= remaining * 2;
+      if (Math.random() < 0.25) this.damageSomething();
+    }
     this.hud.flashDamage();
     sfx.damage();
     if (this.energy <= 0) this.die('SHIP DESTROYED');
+  }
+
+  /** A hull hit destroys a tonne of cargo, or knocks out a fitting. */
+  private damageSomething(): void {
+    const e = this.commander.equipment;
+    const carried = this.commander.cargo
+      .map((qty, i) => ({ qty, i }))
+      .filter((x) => x.qty > 0);
+    // equipment is rarer to lose than cargo
+    const fittings: { name: string; clear: () => void }[] = [];
+    if (e.ecm) fittings.push({ name: 'E.C.M. SYSTEM', clear: () => { e.ecm = false; } });
+    if (e.scoops) fittings.push({ name: 'FUEL SCOOPS', clear: () => { e.scoops = false; } });
+    if (e.rearLaser) fittings.push({ name: 'REAR LASER', clear: () => { e.rearLaser = false; } });
+    if (e.leftLaser) fittings.push({ name: 'LEFT LASER', clear: () => { e.leftLaser = false; } });
+    if (e.rightLaser) fittings.push({ name: 'RIGHT LASER', clear: () => { e.rightLaser = false; } });
+    if (e.dockingComputer) fittings.push({ name: 'DOCKING COMPUTER', clear: () => { e.dockingComputer = false; } });
+    if (e.combatComputer) fittings.push({ name: 'COMBAT COMPUTER', clear: () => { e.combatComputer = false; } });
+
+    if (carried.length && (!fittings.length || Math.random() < 0.7)) {
+      const pick = carried[Math.floor(Math.random() * carried.length)];
+      this.commander.cargo[pick.i] -= 1;
+      this.hud.showMessage(`CARGO LOST: 1${COMMODITIES[pick.i].unit} ${COMMODITIES[pick.i].name.toUpperCase()}`, 3);
+      sfx.beep(300, 0.12);
+    } else if (fittings.length) {
+      const pick = fittings[Math.floor(Math.random() * fittings.length)];
+      pick.clear();
+      if (this.ccEngaged) this.ccEngaged = false;
+      this.hud.showMessage(`${pick.name} DESTROYED`, 4);
+      sfx.beep(240, 0.2);
+    }
   }
 
   // --- docking -------------------------------------------------------------
@@ -1259,6 +1314,7 @@ export class Game {
     this.checkStation();
 
     if (this.targetLock && !this.targetLock.alive) this.targetLock = null;
+    this.updateMissileLock();
   }
 
   private assignNpcTargets(): void {
@@ -1473,11 +1529,12 @@ export class Game {
         if (i.pressed('KeyG')) this.openChart('flight');
         else if (i.pressed('KeyN')) this.openLocalChart('flight');
         else if (i.pressed('KeyI')) this.openStatus('flight');
-        else if (i.pressed('KeyT')) this.acquireLock();
+        else if (i.pressed('KeyT')) this.armMissile();
         else if (i.pressed('KeyM')) this.launchMissile();
         else if (i.pressed('KeyU')) {
-          if (this.targetLock) {
+          if (this.targetLock || this.missileArmed) {
             this.targetLock = null;
+            this.missileArmed = false;
             this.hud.showMessage('MISSILE DISARMED', 2);
             sfx.beep(500, 0.06);
           }
@@ -1965,6 +2022,7 @@ export class Game {
         shipId,
         dockAid,
         assist: this.ccEngaged,
+        armed: this.missileArmed,
         stationInRange:
           this.mode === 'flight' && !this.witchspace &&
           this.player.position.distanceTo(this.world.station.position) < SCANNER_RANGE,

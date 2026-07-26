@@ -79,7 +79,7 @@ joystick the original supported.
 | Key | Action |
 | --- | --- |
 | 1 2 3 4 | front / rear / left / right view |
-| T / M / U | missile target lock / fire / unarm |
+| T / M / U | arm missile (locks in your sights) / fire / unarm |
 | E / TAB | E.C.M. / energy bomb (if fitted) |
 | J | torus jump drive (8×, cuts out when mass-locked) |
 | C | docking computer (if fitted, within range) |
@@ -128,8 +128,10 @@ detected — as on the original's dashboard.
 - **Trading** — 17 commodities with the original price/quantity model;
   economies matter (buy food cheap at agriculturals, sell computers dear).
   20t hold; precious metals/gems don't take hold space.
-- **Combat** — pulse/beam/military lasers with heat, a rear mount, homing
-  missiles with target lock,
+- **Combat** — pulse/beam/military lasers with heat, four mounts, homing
+  missiles you arm and then lock by putting the target in your sights,
+  on-screen target brackets with a lead marker, hull hits that cost you
+  cargo and fittings,
   fore/aft shields and 4 energy banks, bounties, kill ratings from Harmless
   to E L I T E. Pirate numbers scale with the government type; shoot police
   or traders and you become a fugitive (police attack; fine on docking).

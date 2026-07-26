@@ -386,3 +386,5 @@ html, body {
 
 /* combat overlay: target bracket + lead reticle */
 #reticle { position: absolute; inset: 0; pointer-events: none; }
+
+.missiles span.armed { background: var(--hud-amber); box-shadow: 0 0 8px var(--hud-amber); }

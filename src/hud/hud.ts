@@ -55,6 +55,8 @@ export interface HudState {
   dockAid: { x: number; y: number; roll: number; inSlot: boolean; rollOk: boolean } | null;
   /** combat computer engaged (shown in the view label slot) */
   assist: boolean;
+  /** missile armed but not yet locked (yellow pylon) */
+  armed: boolean;
   /** console 'S': the space station is within scanner range */
   stationInRange: boolean;
   /** console 'E': an E.C.M. broadcast was detected recently */
@@ -163,8 +165,10 @@ export class Hud {
       seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, state.energy - i))));
     });
     this.missileEls.forEach((m, i) => {
+      const active = i === state.missiles - 1;
       m.classList.toggle('spent', i >= state.missiles);
-      m.classList.toggle('locked', state.locked && i === state.missiles - 1);
+      m.classList.toggle('armed', state.armed && active);
+      m.classList.toggle('locked', state.locked && active);
     });
     this.indS.classList.toggle('lit', state.stationInRange);
     this.indE.classList.toggle('lit-amber', state.ecmDetected);
