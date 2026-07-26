@@ -18,7 +18,7 @@ Status as of 2026-07-25.
 | Damage model | ✅ | Fore/aft shields, 4 energy banks, death, escape pod, respawn from save |
 | Equipment shop | ✅ | Manual's price/TL table: cargo bay, ECM, beam/military lasers, scoops, pod, energy unit, docking computer, galactic drive |
 | Progression | ✅ | Kills → Harmless…E L I T E ratings; save-on-dock (localStorage); fugitive flag + dock fines |
-| Fuel scoops | ◑ Partial | Sun-skimming works; no cargo-canister or ore scooping yet |
+| Fuel scoops | ✅ | Sun-skimming, cargo-canister scooping, and mining-laser ore drops |
 | Presentation | ✅+ | Wireframe hidden-line ships, shader sun/planets (deliberate modernisation), phosphor HUD, WebAudio synth |
 
 ## Gaps — from the manual & wiki
@@ -84,5 +84,7 @@ Status as of 2026-07-25.
 - Shader-rich sun and planets instead of flat 1984 circles (project goal).
 - Station collision damages + bounces instead of instant death (playability).
 - Docking computer is instant rather than an animated autopilot.
-- Single galactic-drive key (`U`) instead of the manual's "G then H" chord.
+- Galactic hyperdrive on ⇧H instead of the manual's "G then H" chord
+  (G opens the chart here; U is missile unarm, as in the original).
 - Modernised key layout (the BBC original used A=fire, S/X=pitch, etc.).
+- Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).

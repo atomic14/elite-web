@@ -11,20 +11,15 @@ import { buildShip, buildDodoStation, CORIOLIS } from '../ships/geometry';
 export interface SystemScene {
   root: THREE.Group;
   sun: Sun;
-  sunDir: THREE.Vector3;
   planet: Planet;
   planetRadius: number;
   station: THREE.Object3D;
   /** Distance from station centre to the slot face plane (local -Z). */
   stationDockZ: number;
-  /** Unit vector from planet centre to station. */
-  stationDir: THREE.Vector3;
   spawnPosition: THREE.Vector3;
   update(dt: number, elapsed: number): void;
   dispose(): void;
 }
-
-export const STATION_RADIUS = 160;
 
 export function buildSystemScene(sys: StarSystem): SystemScene {
   const root = new THREE.Group();
@@ -82,12 +77,10 @@ export function buildSystemScene(sys: StarSystem): SystemScene {
   return {
     root,
     sun,
-    sunDir,
     planet,
     planetRadius,
     station,
     stationDockZ,
-    stationDir,
     spawnPosition,
     update(dt, elapsed) {
       sun.update(elapsed);

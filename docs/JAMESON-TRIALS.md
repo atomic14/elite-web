@@ -113,8 +113,9 @@ the player's real laser). Six legs, Lave ↔ Leesti:
 | Lave → Leesti | 11t Liquor | +81.7 | quiet |
 | Leesti → Lave | 5t Computers | +82.5 | 1 pirate, 43s combat, 1 kill |
 
-**100.0 → 461.5 Cr. Five kills. Two witch-space ambushes survived. Hull
-never below 3.8/6. Legal status: Clean throughout. Zero deaths.**
+**100.0 → 461.5 Cr (trade P&L +318.5, the rest pirate bounties). Five
+kills. Two witch-space ambushes survived. Hull never below 3.8/6. Legal
+status: Clean throughout. Zero deaths.**
 
 The compounding curve is the story: per-leg profit *grew* from +45 to +82
 as capital converted into higher-value cargo (1 → 3 → 5 computers per

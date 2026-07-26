@@ -3,6 +3,11 @@
 //   npm run train -- attack [--opponent trader-evade] [--out pirate-attack-r2]
 //   npm run train -- evade  [--opponent pirate-attack-r2] [--out trader-evade-r2]
 //   npm run train -- pack   [--out pirate-pack]
+//   npm run train -- defend [--opponent pirate-attack-r2] [--out jameson-defend]
+//
+// WARNING: without --out, each phase writes over the committed brain in
+// src/sim/brains/ that the game/viewer import. `git checkout src/sim/brains`
+// restores the shipped ones.
 //
 // attack: a pirate policy learns to hunt a trader (scripted by default, or a
 //         trained evader via --opponent — that's league play).
@@ -24,7 +29,12 @@ import {
 import { makeRng } from '../src/sim/core.ts';
 
 const args = process.argv.slice(2);
-const phase = args[0] === 'evade' ? 'evade' : args[0] === 'pack' ? 'pack' : args[0] === 'defend' ? 'defend' : 'attack';
+const PHASES = ['attack', 'evade', 'pack', 'defend'];
+if (!PHASES.includes(args[0])) {
+  console.error(`usage: npm run train -- <${PHASES.join('|')}> [--gens N --pop N --eps N --elites N --opponent name --seed-brain name --out name]`);
+  process.exit(1);
+}
+const phase = args[0] as 'attack' | 'evade' | 'pack' | 'defend';
 const getArg = (name: string, def: number): number => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? Number(args[i + 1]) : def;
@@ -145,6 +155,9 @@ function scriptedReference(gen: number): number {
   return total / EPISODES;
 }
 
+// NOTE: defend intentionally left sharing attack's stream offset (0) — the
+// documented Run 5 was trained with this seed; changing it would make that
+// run non-reproducible.
 const rng = makeRng(0xe11e + (phase === 'evade' ? 1 : phase === 'pack' ? 2 : 0));
 
 // seed the population: for league rounds, start from the previous best brain
@@ -213,5 +226,9 @@ const out: BrainFile = {
   weights: Array.from(best.weights).map((w) => +w.toFixed(5)),
 };
 const outPath = `${BRAINS_DIR}${OUT_NAME}.json`;
+try {
+  readFileSync(outPath);
+  console.log(`NOTE: overwriting existing brain ${OUT_NAME}.json (git checkout src/sim/brains restores shipped weights)`);
+} catch { /* new file */ }
 writeFileSync(outPath, JSON.stringify(out));
 console.log(`saved ${outPath} (fitness ${bestFitness.toFixed(2)}), log: ${logPath}`);

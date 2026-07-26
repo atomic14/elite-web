@@ -4,8 +4,8 @@
 // Erasable-TypeScript only — runs in Node via --experimental-strip-types.
 
 import {
-  CLASSES, LASER, makeShip, stepShip, fireLaser, steerToward, facingAngle,
-  forward, makeRng, randDir, vAdd, vSub, vScale, vLen, vNorm, v3, q4,
+  CLASSES, makeShip, stepShip, fireLaser, steerToward, facingAngle,
+  makeRng, randDir, vAdd, vSub, vScale, vLen, v3, q4,
   type SimShip, type Control, type V3,
 } from './core.ts';
 import { observe, observePack, act, makeScratch, PACK_OBS_SIZE, type Brain } from './policy.ts';
@@ -248,12 +248,10 @@ export class Episode {
 
   /** Fitness for a policy trader, evade phase. */
   fitnessEvade(): number {
-    const survived = this.trader.alive ? this.t : this.t; // time survived either way
+    const survived = this.t; // episode ends at death, so t IS time survived
     const distBonus = this.trader.alive
       ? Math.min(2, vLen(vSub(this.trader.pos, (this.nearestPirate() ?? this.pirates[0]).pos)) / 3000)
       : 0;
     return (survived / this.maxTime) * 10 + this.trader.hp * 5 + distBonus;
   }
 }
-
-export { LASER, forward, vNorm };

@@ -39,8 +39,6 @@ export function genomeSize(obsSize: number, hidden = HIDDEN): number {
   return obsSize * hidden + hidden + hidden * hidden + hidden + hidden * OUT_SIZE + OUT_SIZE;
 }
 
-export const GENOME_SIZE = genomeSize(OBS_SIZE);
-
 export interface Brain {
   weights: Float32Array;
   obsSize: number;
@@ -201,6 +199,3 @@ export function mutate(parent: Brain, rng: () => number, sigma: number): Brain {
   }
   return { weights, obsSize: parent.obsSize, hidden: parent.hidden };
 }
-
-// re-export a couple of core helpers viewers/trainers tend to want with policies
-export { v3 };

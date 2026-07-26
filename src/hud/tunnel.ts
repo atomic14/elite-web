@@ -27,6 +27,11 @@ export class TunnelEffect {
   update(dt: number): void {
     if (this.timer <= 0) return;
     this.timer -= dt;
+    // track window resizes mid-effect
+    if (this.canvas.width !== window.innerWidth || this.canvas.height !== window.innerHeight) {
+      this.canvas.width = window.innerWidth;
+      this.canvas.height = window.innerHeight;
+    }
     if (this.timer <= 0) {
       this.canvas.style.display = 'none';
       return;

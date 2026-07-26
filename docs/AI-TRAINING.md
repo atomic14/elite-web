@@ -16,7 +16,12 @@ Short answers: **yes, and it's very tractable for this game** — because our
 flight model is tiny and deterministic — and **yes**, with a two-level
 simulation. Design below.
 
-## Where we are today (scripted tier)
+## Where we started (the scripted tier — since superseded in two roles)
+
+> As shipped, pirates attacking the player fly the trained `pirate-attack-r2`
+> policy and armed traders defend with `jameson-defend` (TRAINING-LOG Runs
+> 4-5); the scripted logic below remains for every other behaviour and as
+> the `window.__scriptedPirates = true` fallback.
 
 `src/game/npc.ts` implements the behaviour matrix by hand:
 

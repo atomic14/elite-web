@@ -1,7 +1,18 @@
 # ELITE (web)
 
-A web remake of the classic 1984 Elite: authentic wireframe ships and the
-original procedural galaxy, with modern shader-driven suns and planets.
+A web remake of the classic 1984 Elite: authentic wireframe ships, the
+original byte-accurate procedural galaxy (Lave is system 7, as it should
+be), modern shader-driven suns and planets — and ship AI trained by
+neuroevolution self-play, flying both the pirates that hunt you and the
+traders that fight back.
+
+**Docs index:**
+[Architecture tour](docs/ARCHITECTURE.md) ·
+[AI design](docs/AI-TRAINING.md) ·
+[Training runs & results](docs/TRAINING-LOG.md) ·
+[Reproducing the training](train/README.md) ·
+[Gap analysis vs the 1984 original](docs/GAP-ANALYSIS.md) ·
+[The Jameson Trials](docs/JAMESON-TRIALS.md)
 
 ## Run
 
@@ -10,8 +21,12 @@ npm install
 npm run dev     # http://localhost:5173  (game)
                 # http://localhost:5173/viewer.html  (AI combat viewer)
 npm run build   # type-check + production build to dist/
-npm run train -- attack --gens 400   # retrain the pirate AI (see docs/TRAINING-LOG.md)
+npm run train -- attack --gens 400   # retrain the pirate AI (Node ≥ 22.6; see train/README.md)
+npm run evaluate                     # held-out tournament for the current brains
 ```
+
+> Retraining overwrites the committed neural weights in `src/sim/brains/`
+> that the game imports — `git checkout src/sim/brains` restores them.
 
 You start docked at Lave Station with 100.0 Cr, a full tank and 3 missiles.
 Progress saves automatically every time you dock.
@@ -58,7 +73,8 @@ Arrows move cursor · ENTER set target · ESC exit
 - **Trading** — 17 commodities with the original price/quantity model;
   economies matter (buy food cheap at agriculturals, sell computers dear).
   20t hold; precious metals/gems don't take hold space.
-- **Combat** — pulse laser with heat, homing missiles with target lock,
+- **Combat** — pulse/beam/military lasers with heat, a rear mount, homing
+  missiles with target lock,
   fore/aft shields and 4 energy banks, bounties, kill ratings from Harmless
   to E L I T E. Pirate numbers scale with the government type; shoot police
   or traders and you become a fugitive (police attack; fine on docking).
@@ -73,8 +89,14 @@ Arrows move cursor · ENTER set target · ESC exit
   out; pirates hunt them for cargo you can scoop; police hunt the pirates.
 - **Witch-space** — mis-jumps drop you among Thargoids and their Thargon
   drones. High bounties, if you live.
-- **Navy missions** — prove yourself (16+ kills) for the Constrictor hunt
-  and the classified courier run.
+- **Mining & scooping** — blast asteroids (mining laser drops ore canisters)
+  and scoop drifting cargo with fuel scoops; sun-skim to refuel, watching the
+  cabin temperature.
+- **Navy missions** — prove yourself (16+ kills, galaxy 1) for the
+  Constrictor hunt and the classified courier run.
+- **Trained ship AI** — pirates and armed traders fly neural policies
+  trained by self-play (docs/TRAINING-LOG.md); watch them fight in the
+  combat viewer.
 
 ## Architecture
 
@@ -82,10 +104,11 @@ Arrows move cursor · ENTER set target · ESC exit
   seed words generate all 256 systems per galaxy (names, economy, government,
   tech level, market). Galaxy 1 is byte-identical to the original — system 7
   is Lave.
-- `src/ships/` — ships as explicit vertex/edge lists in the style of the
-  original BBC data (Cobra Mk III, Sidewinder, Viper, Coriolis, missile),
-  drawn as wireframe edges over a black occluding hull (classic hidden-line
-  look).
+- `src/ships/` — 16 hulls as explicit vertex/edge/face tables in the style
+  of the original BBC data (Cobra Mk III, Sidewinder, Viper, Adder, Krait,
+  Mamba, Asp, Fer-de-Lance, Python, Anaconda, Worm, Thargoid, Thargon,
+  Constrictor, missile, canister) plus the Coriolis and Dodo stations, drawn
+  as wireframe edges over a black occluding hull (classic hidden-line look).
 - `src/world/` — shader sun (animated fbm surface, limb darkening, corona),
   shader planet (coastline contours, graticule, terminator, atmosphere rim —
   seeded per system), starfield, space dust, per-system scene assembly.
@@ -101,10 +124,21 @@ Arrows move cursor · ENTER set target · ESC exit
   See `docs/AI-TRAINING.md` and `docs/TRAINING-LOG.md`.
 - Rendering: three.js + UnrealBloom for the phosphor glow.
 
+## Acknowledgements & legal
+
+This is a non-commercial fan homage, released under the MIT license (see
+LICENSE). Elite (1984) was created by Ian Bell and David Braben and published
+by Acornsoft; the "Elite" trademark belongs to Frontier Developments plc.
+This project is affiliated with none of them. The galaxy generator follows
+the long-published descriptions of the original algorithm; ship silhouettes
+are freshly-made approximations in the spirit of the originals.
+
 ## Roadmap
 
-See [docs/GAP-ANALYSIS.md](docs/GAP-ANALYSIS.md) for a full feature-by-feature
-comparison against the original manual. Headlines: cabin temperature +
-sun-skimming risk, cargo scooping & mining, CLEAN/OFFENDER/FUGITIVE legal
-tiers, the wider ship roster (Python, Anaconda, Fer-de-Lance…), rear/side
-views and laser mounts, Thargoids in witch-space, Dodo stations, missions.
+[docs/GAP-ANALYSIS.md](docs/GAP-ANALYSIS.md) tracks feature-by-feature parity
+with the original manual — almost all of it is now implemented. Remaining:
+side laser mounts, gamepad / pointer-lock mouse flight, and the two-level
+"living galaxy" simulation sketched in
+[docs/AI-TRAINING.md](docs/AI-TRAINING.md). AI-wise: pack-phase round 3
+(reward shaping ideas in docs/TRAINING-LOG.md) and putting the defence brain
+behind a purchasable in-game "combat computer".

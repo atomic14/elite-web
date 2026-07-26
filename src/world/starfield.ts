@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-/** Distant static stars on a huge sphere; follows the camera so it never parallaxes. */
+/** Distant static stars on a sphere so large (400k) that parallax is imperceptible. */
 export function createStarfield(count = 2600, radius = 400000): THREE.Points {
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);

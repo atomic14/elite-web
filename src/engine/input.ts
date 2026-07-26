@@ -1,3 +1,8 @@
+// Keyboard state with frame-oriented semantics:
+//  - held(codes): live keydown state (continuous controls)
+//  - pressed(code): consumes ONE tap; pressedCount/drainPresses consume all
+//  - endFrame(): Game.update calls this every frame so taps never leak
+//    across frames (multiple taps within one frame are counted, not lost)
 export class Input {
   private readonly down = new Set<string>();
   private readonly tapped = new Map<string, number>();

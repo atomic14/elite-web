@@ -8,7 +8,8 @@ import { createStarfield } from '../world/starfield';
 import { Episode, type ShotEvent } from '../sim/scenario';
 import { brainFromFile, randomBrain, type BrainFile } from '../sim/policy';
 import { makeRng, type SimShip } from '../sim/core';
-import pirateBrainFile from '../sim/brains/pirate-attack.json';
+import pirateR1BrainFile from '../sim/brains/pirate-attack.json';
+import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import traderBrainFile from '../sim/brains/trader-evade.json';
 import packBrainFile from '../sim/brains/pirate-pack.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
@@ -16,7 +17,10 @@ import defendBrainFile from '../sim/brains/jameson-defend.json';
 // Combat viewer: replays the training environment with the real wireframe
 // ships, so trained behaviour can be watched (and compared to baselines).
 
+// 'trained pirate' scenarios use the SHIPPED r2 league brain (what the game
+// flies); the pack trio uses r1 solo brains to match the tournament rows.
 const pirateBrain = brainFromFile(pirateBrainFile as BrainFile);
+const pirateR1Brain = brainFromFile(pirateR1BrainFile as BrainFile);
 const traderBrain = brainFromFile(traderBrainFile as BrainFile);
 const packBrain = brainFromFile(packBrainFile as BrainFile);
 const defendBrain = brainFromFile(defendBrainFile as BrainFile);
@@ -40,9 +44,9 @@ function makeEpisode(id: ScenarioId, seed: number): Episode {
       return new Episode({
         seed,
         pirates: [
-          { kind: 'policy', brain: pirateBrain },
-          { kind: 'policy', brain: pirateBrain },
-          { kind: 'policy', brain: pirateBrain },
+          { kind: 'policy', brain: pirateR1Brain },
+          { kind: 'policy', brain: pirateR1Brain },
+          { kind: 'policy', brain: pirateR1Brain },
         ],
         trader: { kind: 'scripted' },
         traderArmed: true,

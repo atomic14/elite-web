@@ -88,7 +88,8 @@ function makeSystem(index: number, s: Seed): StarSystem {
 
   return {
     index, x, y, economy, government, techLevel, population, productivity, radius, seed,
-    name: name[0] + name.slice(1).toLowerCase(),
+    // the canonical 8 galaxies never produce an empty name, but be safe
+    name: name ? name[0] + name.slice(1).toLowerCase() : 'Unknown',
   };
 }
 

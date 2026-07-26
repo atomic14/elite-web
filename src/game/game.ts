@@ -1,3 +1,11 @@
+// The orchestrator. Game owns the mode state machine (docked | flight |
+// market | chart | local | equip | status | dead), routes input per mode,
+// steps the world and every NPC, and resolves all consequences: NPCs *ask*
+// to fire (FireEvent) and this file rolls the dice, draws tracers, applies
+// damage, pays bounties and escalates legal status. Screens (ui/screens.ts)
+// and the HUD (hud/hud.ts) are pure renderers fed from here.
+// `window.__game` exposes the instance for the autopilot test harness
+// (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -12,7 +20,7 @@ import { Input } from '../engine/input';
 import { Hud, type ScannerContact } from '../hud/hud';
 import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
-import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, type NpcRole, type FireEvent } from './npc';
+import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, type NpcRole, type FireEvent } from './npc';
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS,
@@ -33,6 +41,12 @@ const LASERS: Record<LaserType, { damage: number; cooldown: number; heat: number
   military: { damage: 0.25, cooldown: 0.09, heat: 0.03 },
 };
 const MISSILE_SPEED = 700;
+// Sun proximity tuning (ordered: heat starts < scooping < temp maxes < death).
+// The sun itself orbits ~320k out (world/system-scene.ts).
+const SUN_HEAT_START = 110_000; // cabin temp begins to climb
+const SUN_SCOOP_RANGE = 80_000; // fuel scoops gather inside this
+const SUN_HEAT_MAX = 26_000;    // cabin temp reaches 1.0 (death follows)
+const SUN_KILL_DIST = 21_000;   // instant death
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -146,7 +160,8 @@ export class Game {
     this.enterDocked(true);
     this.hud.showMessage('PRESS ? FOR THE CONTROLS GUIDE', 8);
 
-    // debug/testing handle
+    // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
+    // docs/JAMESON-TRIALS.md) drives the whole game through this
     (window as unknown as Record<string, unknown>).__game = this;
 
     let last = performance.now();
@@ -269,7 +284,7 @@ export class Game {
 
   /**
    * Station space is policed: launching only meets legitimate traffic.
-   * Arriving from hyperspace drops pirates along the corridor to the planet.
+   * Arriving from hyperspace drops pirates along the corridor to the station.
    */
   private populateSystem(situation: 'launch' | 'arrival'): void {
     const sys = this.system;
@@ -311,7 +326,8 @@ export class Game {
     // mission: the Constrictor lurks at its last-known system
     const m = this.commander.mission;
     if (situation === 'arrival' && m.stage === 1 && m.targetIndex === this.commander.systemIndex) {
-      const pos = this.player.position.clone().add(rnd(5000).addScalar(1500));
+      const pos = this.player.position.clone().add(
+        new THREE.Vector3().randomDirection().multiplyScalar(4000 + Math.random() * 4000));
       const constrictor = this.spawnNpc('pirate', pos, 0, CONSTRICTOR_SPEC);
       constrictor.isMissionTarget = true;
       this.hud.showMessage('SCANNER: UNREGISTERED PROTOTYPE DETECTED', 5);
@@ -483,7 +499,6 @@ export class Game {
     if (this.witchspace) {
       // escaping the mis-jump costs a flat 1.0 LY
       this.commander.fuel -= Math.min(this.commander.fuel, 10);
-      this.witchspace = false;
     } else {
       this.commander.fuel -= distanceTenths(this.system, this.systems[t]);
       const witchChance = this.commander.mission.stage === 3 ? 0.22 : 0.09;
@@ -499,6 +514,7 @@ export class Game {
   }
 
   private arriveInSystem(): void {
+    this.witchspace = false; // any arrival leaves witch-space (incl. galactic jump)
     this.buildWorld();
     // arrive well away from the planet, nose toward it
     const dir = new THREE.Vector3().randomDirection();
@@ -529,7 +545,8 @@ export class Game {
   }
 
   private fireLaser(): void {
-    // front mount carries the fitted laser; rear is a pulse if purchased
+    // front mount carries the fitted laser; rear is a pulse if purchased.
+    // Simplification vs the original: both mounts share one cooldown/heat.
     let laser = LASERS[this.commander.equipment.laser];
     if (this.view === 1) {
       if (!this.commander.equipment.rearLaser) return;
@@ -783,9 +800,11 @@ export class Game {
     const box = dockZ + 45;
     const local = this.tmp.copy(this.player.position);
     station.worldToLocal(local);
+    // deliberately cheap: an axis-aligned cube, slightly larger than the hull
     if (Math.abs(local.x) > box || Math.abs(local.y) > box || Math.abs(local.z) > box) return;
 
-    // slot channel: front face is local z = -dockZ, slot is 96x20 around centre
+    // slot channel on the local -Z face; the visual slot is 96x20 but the
+    // test is padded (124x52) as tolerance for the player's hull size
     const inSlot = local.z < -(dockZ - 60) && Math.abs(local.x) < 62 && Math.abs(local.y) < 26;
     if (inSlot) {
       // roll alignment: our wings vs the slot's long axis
@@ -835,6 +854,7 @@ export class Game {
     let best = 0;
     let bestD = Infinity;
     for (const s of this.systems) {
+      // same half-weight-y chart metric as ui/screens.ts distanceTenths
       const dx = s.x - from.x;
       const dy = (s.y - from.y) / 2;
       const d = dx * dx + dy * dy;
@@ -995,13 +1015,13 @@ export class Game {
     // cabin temperature: the sun cooks you gradually — and sun-skimming
     // with scoops means riding the hot zone on purpose
     const sunDist = this.player.position.distanceTo(this.world.sun.group.position);
-    const targetTemp = Math.max(0, Math.min(1, (110000 - sunDist) / (110000 - 26000)));
+    const targetTemp = Math.max(0, Math.min(1, (SUN_HEAT_START - sunDist) / (SUN_HEAT_START - SUN_HEAT_MAX)));
     this.cabinTemp += (targetTemp - this.cabinTemp) * Math.min(1, dt * 1.2);
     if (this.cabinTemp >= 0.99) {
       this.die('CABIN TEMPERATURE CRITICAL');
       return;
     }
-    if (this.commander.equipment.scoops && this.commander.fuel < MAX_FUEL && sunDist < 80000) {
+    if (this.commander.equipment.scoops && this.commander.fuel < MAX_FUEL && sunDist < SUN_SCOOP_RANGE) {
       this.commander.fuel = Math.min(MAX_FUEL, this.commander.fuel + 5 * dt);
       this.hud.showMessage('FUEL SCOOPING', 0.4);
     }
@@ -1054,7 +1074,7 @@ export class Game {
       this.die('CRASHED INTO THE PLANET');
       return;
     }
-    if (sunDist < 21000) {
+    if (sunDist < SUN_KILL_DIST) {
       this.die('FLEW INTO THE SUN');
       return;
     }
@@ -1079,6 +1099,14 @@ export class Game {
       }
       return best;
     };
+    // prune stale attacker links (dead pirates, or ones that retargeted)
+    for (const npc of this.npcs) {
+      if (npc.attackers.length) {
+        const live = npc.attackers.filter((a) => a.alive && a.npcTarget === npc);
+        npc.attackers.length = 0;
+        npc.attackers.push(...live);
+      }
+    }
     for (const npc of this.npcs) {
       if (!npc.alive || (npc.npcTarget && npc.npcTarget.alive)) continue;
       if (npc.role === 'pirate' && playerFar(npc)) {
@@ -1156,15 +1184,9 @@ export class Game {
   }
 
   private hostilesNear(): boolean {
-    for (const npc of this.npcs) {
-      if (!npc.alive) continue;
-      const hostile =
-        npc.role === 'pirate' || npc.role === 'thargoid' || npc.role === 'thargon' ||
-        (npc.role === 'police' && (this.commander.legalStatus >= 2 || npc.provoked)) ||
-        (npc.role === 'hunter' && (this.commander.legalStatus >= 1 || npc.provoked));
-      if (hostile && npc.object.position.distanceTo(this.player.position) < 9000) return true;
-    }
-    return false;
+    return this.npcs.some((npc) =>
+      isHostileToPlayer(npc, this.commander.legalStatus) &&
+      npc.object.position.distanceTo(this.player.position) < 9000);
   }
 
   // --- input ---------------------------------------------------------------
@@ -1490,9 +1512,7 @@ export class Game {
       const kind =
         npc.role === 'asteroid' ? 'asteroid'
         : npc.role === 'thargoid' || npc.role === 'thargon' ? 'thargoid'
-        : npc.role === 'pirate' ||
-          (npc.role === 'police' && (this.commander.legalStatus >= 2 || npc.provoked)) ||
-          (npc.role === 'hunter' && (this.commander.legalStatus >= 1 || npc.provoked)) ? 'hostile'
+        : isHostileToPlayer(npc, this.commander.legalStatus) ? 'hostile'
         : 'ship';
       contacts.push({ position: npc.object.position, kind });
     }
@@ -1504,7 +1524,8 @@ export class Game {
     const condition = this.mode !== 'flight' ? 'GREEN' : this.hostilesNear() ? 'RED' : 'YELLOW';
     // in witch-space the compass tracks the nearest Thargoid instead
     const nearestHostile = this.witchspace
-      ? this.npcs.find((n) => n.alive && n.role === 'thargoid')?.object.position
+      ? this.npcs.find((n) => n.alive && !n.inert && (n.role === 'thargoid' || n.role === 'thargon'))
+          ?.object.position
       : undefined;
     const compassTarget = nearestHostile ??
       (this.player.position.distanceTo(this.world.station.position) < this.world.planetRadius * 3

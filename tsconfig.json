@@ -17,9 +17,13 @@
     "useDefineForClassFields": true,
     "noEmit": true,
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node"
+    ]
   },
   "include": [
-    "src"
+    "src",
+    "train"
   ]
 }

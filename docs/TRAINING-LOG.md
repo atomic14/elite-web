@@ -1,8 +1,13 @@
 # AI Training Log
 
-Every training run, its setup, and what came out. Reproduce any run with the
-command shown (results vary slightly — mutation noise uses the wall-clock-free
-seeded RNG, but per-generation seeds are deterministic given the CLI args).
+Every training run, its setup, and what came out. Requires Node ≥ 22.6.
+Reproduce any run with the command shown. The whole trainer path is seeded
+(mulberry32, single-threaded, no Math.random) — a rerun with identical CLI
+args is bit-identical **on the same Node build/platform**; across platforms
+expect tiny drift (Math.tanh/acos are not correctly-rounded by spec).
+League/defend rounds load their frozen opponents from `src/sim/brains/` —
+rerun them against the **committed** round-1 brains (or archived copies),
+because retraining a phase overwrites its committed brain file.
 
 ## Infrastructure
 
@@ -67,28 +72,27 @@ cone. Accuracy typically 60-80%.
 
 ## Artefacts
 
-- `src/sim/brains/pirate-attack.json` — weights + meta (fitness, date,
-  hyperparams)
-- `src/sim/brains/trader-evade.json` — same for the evader
+- `src/sim/brains/*.json` — six brains, each with meta (fitness, date,
+  hyperparams): `pirate-attack`, `pirate-attack-r2` (shipped, pirates),
+  `trader-evade`, `trader-evade-r2`, `pirate-pack`, `jameson-defend`
+  (shipped, armed traders)
 - `train/logs/*.jsonl` — per-generation best/mean/worst fitness curves
+- `train/logs/tournament-final.txt` — the held-out tournament table
 
 ## Watching the results
 
-`npm run dev` → http://localhost:5173/viewer.html — scenarios:
-trained pirate vs trader · scripted pirate (old AI) · random policy
-(untrained baseline) · trained vs trained · pack of 3 vs armed trader.
+`npm run dev` → http://localhost:5173/viewer.html — scenarios: shipped
+pirate (r2) vs trader · scripted pirate (old AI) · random policy (untrained
+baseline) · r2 vs trained evader · pack of 3 solo-brains vs armed trader ·
+pack-trained vs armed trader · Commander Jameson (defence AI) vs 2 pirates.
 Orbit/chase cameras, pause, 0.25×/1×/4× speed, auto-restart with a new seed.
 
-## Next runs (planned)
+## Follow-ups — all three since completed
 
-- **Pack phase**: 3 shared-policy pirates vs armed trader, shared reward —
-  looking for emergent spreading/flanking (packOffset inputs already exist
-  in-game; add pack-relative observations to the sim).
-- **League play**: alternate attack/evade phases against frozen checkpoints
-  to keep the arms race going without forgetting.
-- **In-game integration**: `NpcShip.brain` toggle so trained pirates fly in
-  the real game (10 Hz decision rate, keyboard-model controls are already
-  identical).
+- ✅ **Pack phase** — Run 4 below (honest result: underperforms solo brains).
+- ✅ **League play** — Run 4 below (r2 pirate: 0% → 98% vs the evader).
+- ✅ **In-game integration** — pirates fly `pirate-attack-r2`, armed traders
+  fly `jameson-defend` (Run 5); toggle with `window.__scriptedPirates`.
 
 ## Run 3 — evaluation methodology (how we tell it works)
 

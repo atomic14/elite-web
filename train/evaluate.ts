@@ -15,7 +15,7 @@
 //     spread of attackers at the moments shots land (the flanking measure).
 
 import { readFileSync } from 'node:fs';
-import { Episode, type Controller, type ShotEvent } from '../src/sim/scenario.ts';
+import { Episode, type Controller } from '../src/sim/scenario.ts';
 import { randomBrain, brainFromFile, type Brain, type BrainFile } from '../src/sim/policy.ts';
 import { makeRng, vSub, vNorm, vDot, type SimShip } from '../src/sim/core.ts';
 

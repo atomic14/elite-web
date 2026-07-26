@@ -67,6 +67,20 @@ export interface PlayerRef {
 
 export type FireEvent = { at: 'player' } | { at: NpcShip };
 
+/**
+ * The single source of truth for "does this ship attack the player?" —
+ * used both by the NPC's own decision loop and by the game's condition/HUD
+ * logic. legalStatus: 0 clean, 1 offender, 2 fugitive.
+ */
+export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
+  if (!npc.alive || npc.inert) return false;
+  return (
+    npc.role === 'pirate' || npc.role === 'thargoid' || npc.role === 'thargon' ||
+    (npc.role === 'police' && (legalStatus >= 2 || npc.provoked)) ||
+    (npc.role === 'hunter' && (legalStatus >= 1 || npc.provoked))
+  );
+}
+
 interface NpcSpec {
   def: ShipDef | null; // null → asteroid
   color: number;
@@ -139,6 +153,8 @@ export class NpcShip {
 
   /** Pack spread so groups attack from different bearings. */
   readonly packOffset = new THREE.Vector3();
+  /** Pirates currently targeting this ship; maintained (and pruned) by the game loop. */
+  readonly attackers: NpcShip[] = [];
   /** NPC-vs-NPC target, assigned by the game (pirate→trader, police→pirate). */
   npcTarget: NpcShip | null = null;
   /** Where the last attack came from; traders flee this. */
@@ -170,6 +186,7 @@ export class NpcShip {
   private brainControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;
   private brainPitchRate = 0;
   private brainRollRate = 0;
+  // sized for PACK_OBS_SIZE (18); solo brains only read the first 14 slots
   private static readonly obsBuf = new Float32Array(18);
   private static readonly scratch = makeScratch();
   private static readonly meView = {
@@ -236,11 +253,7 @@ export class NpcShip {
     const toPlayer = this.tmpDir.copy(player.position).sub(this.object.position);
     const distPlayer = toPlayer.length();
 
-    const aggressiveToPlayer =
-      ((this.role === 'pirate' || this.role === 'thargoid' || this.role === 'thargon') ||
-       (this.role === 'police' && (playerLegal >= 2 || this.provoked)) ||
-       (this.role === 'hunter' && (playerLegal >= 1 || this.provoked))) &&
-      distPlayer < 9000;
+    const aggressiveToPlayer = isHostileToPlayer(this, playerLegal) && distPlayer < 9000;
 
     if (aggressiveToPlayer) {
       if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()) {
@@ -314,7 +327,8 @@ export class NpcShip {
         this.waypointTimer -= dt;
         if (this.waypointTimer <= 0) {
           this.waypointTimer = 10 + Math.random() * 12;
-          // work the lane between station and planet
+          // work the lane between station and planet (the planet sits at
+          // the world origin, so scaling `home` walks that line)
           this.waypoint
             .copy(home)
             .multiplyScalar(0.35 + Math.random() * 0.65)
@@ -326,7 +340,7 @@ export class NpcShip {
           this.traderPhase = 'departing';
           this.waypoint
             .copy(home)
-            .add(new THREE.Vector3().randomDirection().setY(Math.random() * 0.6).normalize().multiplyScalar(30000));
+            .add(new THREE.Vector3().randomDirection().multiplyScalar(30000));
         }
         break;
       }
@@ -345,12 +359,12 @@ export class NpcShip {
     // whoever is hunting us (pirates with us as their target) — game assigns
     return this.attackers.find((a) => a.alive) ?? null;
   }
-  /** Pirates currently targeting this ship; maintained by the game loop. */
-  readonly attackers: NpcShip[] = [];
 
   /**
    * Fly with a trained policy: refresh the discrete control at 10 Hz, then
    * integrate it exactly like the sim (and the player's keyboard model).
+   * targetSpeed and targetView.cls are approximations (the policies were
+   * trained against fixed opponent classes, so precise values matter little).
    */
   private brainFly(
     brain: Brain,

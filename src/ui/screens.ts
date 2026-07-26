@@ -163,6 +163,11 @@ export function renderStatus(
   `);
 }
 
+/**
+ * Chart distance in tenths of a light-year, after the original's asymmetric
+ * metric: y counts half (the chart is drawn half-height), scaled so max fuel
+ * 70 = the classic 7.0 LY range.
+ */
 export function distanceTenths(a: StarSystem, b: StarSystem): number {
   const dx = a.x - b.x;
   const dy = (a.y - b.y) / 2;
