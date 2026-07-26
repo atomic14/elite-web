@@ -7,7 +7,39 @@ export class Input {
   private readonly down = new Set<string>();
   private readonly tapped = new Map<string, number>();
 
+  /**
+   * Mouse flight (pointer lock). The pointer's accumulated offset from
+   * centre acts like a self-centring joystick: -1..1 on each axis, decaying
+   * when the mouse is still so the ship settles rather than drifting.
+   */
+  mouseFlight = false;
+  mouseX = 0;
+  mouseY = 0;
+  mouseFire = false;
+  private readonly canvas: HTMLElement | null;
+
   constructor() {
+    this.canvas = document.getElementById('scene');
+    document.addEventListener('pointerlockchange', () => {
+      this.mouseFlight = document.pointerLockElement === this.canvas;
+      if (!this.mouseFlight) {
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.mouseFire = false;
+      }
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!this.mouseFlight) return;
+      // ~450px of travel = full deflection
+      this.mouseX = Math.max(-1, Math.min(1, this.mouseX + e.movementX / 450));
+      this.mouseY = Math.max(-1, Math.min(1, this.mouseY + e.movementY / 450));
+    });
+    document.addEventListener('mousedown', (e) => {
+      if (this.mouseFlight && e.button === 0) this.mouseFire = true;
+    });
+    document.addEventListener('mouseup', (e) => {
+      if (this.mouseFlight && e.button === 0) this.mouseFire = false;
+    });
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       // '?' gets its own virtual code so shift+/ works even when the shift
@@ -51,6 +83,22 @@ export class Input {
     }
     this.tapped.clear();
     return codes;
+  }
+
+  /** Ask the browser for pointer lock (must be inside a user gesture). */
+  requestMouseFlight(): void {
+    this.canvas?.requestPointerLock();
+  }
+
+  releaseMouseFlight(): void {
+    if (this.mouseFlight) document.exitPointerLock();
+  }
+
+  /** Self-centring: without input the virtual stick eases back to neutral. */
+  decayMouse(dt: number): void {
+    const k = Math.max(0, 1 - dt * 1.5);
+    this.mouseX *= k;
+    this.mouseY *= k;
   }
 
   endFrame(): void {

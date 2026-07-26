@@ -40,10 +40,17 @@ export class PlayerShip {
 
   update(dt: number, input: Input): void {
     const keys = keymap(); // classic (1984) by default, modern as a toggle
-    const rollIn =
+    let rollIn =
       (input.held(...keys.rollLeft) ? 1 : 0) - (input.held(...keys.rollRight) ? 1 : 0);
-    const pitchIn =
+    let pitchIn =
       (input.held(...keys.pitchUp) ? 1 : 0) - (input.held(...keys.pitchDown) ? 1 : 0);
+
+    // mouse flight: analogue axes, keyboard still overrides when touched
+    if (input.mouseFlight) {
+      if (rollIn === 0) rollIn = -input.mouseX;
+      if (pitchIn === 0) pitchIn = input.mouseY;
+      input.decayMouse(dt);
+    }
 
     this.rollRate = ramp(this.rollRate, rollIn * MAX_ROLL, rollIn !== 0, dt);
     this.pitchRate = ramp(this.pitchRate, pitchIn * MAX_PITCH, pitchIn !== 0, dt);

@@ -69,6 +69,11 @@ always shows the active layout.
 The original's `<` `>` roll and `/` slow-down are live in both layouts, so
 muscle memory from 1984 mostly survives either choice. Arrow keys always fly.
 
+**Mouse flight**: press **V** in flight to pointer-lock the mouse into a
+self-centring analogue stick (left button fires). Touching the keyboard
+overrides it; ESC or V releases. This is the closest thing to the
+joystick the original supported.
+
 ### Commands (identical in both layouts)
 
 | Key | Action |
@@ -83,6 +88,7 @@ muscle memory from 1984 mostly survives either choice. Arrow keys always fly.
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |
 | I | commander status |
 | P | pause |
+| V | mouse flight — pointer-locked analogue stick, left button fires |
 | ? | controls guide |
 
 Views on 1-4 (the original used F0-F3) and screens on letters (were F4-F9),

@@ -381,6 +381,7 @@ export class Game {
     this.hyperCountdown = -1;
     this.torusEngaged = false;
     this.ccEngaged = false;
+    this.input.releaseMouseFlight();
     if (this.commander.legalStatus > 0) {
       const fine = Math.min(this.commander.credits, this.commander.legalStatus >= 2 ? 750 : 250);
       this.commander.credits -= fine;
@@ -942,7 +943,8 @@ export class Game {
    * dynamics it trained in). Manual flight input disengages instantly.
    */
   private combatComputerStep(dt: number): void {
-    if (this.input.held(...manualFlightKeys())) {
+    if (this.input.held(...manualFlightKeys()) ||
+        Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15) {
       this.ccEngaged = false;
       this.hud.showMessage('MANUAL OVERRIDE', 2);
       return;
@@ -1169,7 +1171,7 @@ export class Game {
     });
 
     // laser + systems
-    if (this.input.held(...keymap().fire)) this.fireLaser();
+    if (this.input.held(...keymap().fire) || this.input.mouseFire) this.fireLaser();
     this.laserCooldown -= dt;
     this.laserTemp = Math.max(0, this.laserTemp - 0.22 * dt);
     this.energy = Math.min(4, this.energy + (this.commander.equipment.energyUnit ? 0.2 : 0.1) * dt);
@@ -1457,6 +1459,15 @@ export class Game {
           }
         } else if (i.pressed('KeyE')) this.triggerEcm();
         else if (i.pressed('KeyK')) this.toggleCombatComputer();
+        else if (i.pressed('KeyV')) {
+          if (this.input.mouseFlight) {
+            this.input.releaseMouseFlight();
+            this.hud.showMessage('MOUSE FLIGHT OFF', 2);
+          } else {
+            this.input.requestMouseFlight();
+            this.hud.showMessage('MOUSE FLIGHT — ESC OR V TO RELEASE', 4);
+          }
+        }
         else if (i.pressed('Tab')) this.detonateEnergyBomb();
         else if (i.pressed('KeyC')) this.dockingComputer();
         else if (i.pressed('KeyH')) {
@@ -1482,6 +1493,7 @@ export class Game {
   }
 
   private openChart(from: 'docked' | 'flight'): void {
+    this.input.releaseMouseFlight();
     this.mode = 'chart';
     this.returnMode = from;
     this.chartFind = null;
@@ -1493,6 +1505,7 @@ export class Game {
   }
 
   private openLocalChart(from: 'docked' | 'flight'): void {
+    this.input.releaseMouseFlight();
     this.mode = 'local';
     this.returnMode = from;
     this.chartFind = null;
@@ -1547,6 +1560,7 @@ export class Game {
   }
 
   private openStatus(from: 'docked' | 'flight'): void {
+    this.input.releaseMouseFlight();
     this.mode = 'status';
     this.returnMode = from;
     renderStatus(this.systems, this.commander, this.chart.targetIndex, LEGAL_NAMES[this.commander.legalStatus]);
