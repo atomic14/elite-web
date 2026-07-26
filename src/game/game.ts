@@ -572,8 +572,12 @@ export class Game {
   private arriveInSystem(): void {
     this.witchspace = false; // any arrival leaves witch-space (incl. galactic jump)
     this.buildWorld();
-    // arrive well away from the planet, nose toward it
-    const dir = new THREE.Vector3().randomDirection();
+    // Arrive well out, nose toward the planet — biased to the station's side
+    // of it (within a ~30° cone) so the planet never blocks the run in.
+    const stationDir = this.world.station.position.clone().normalize();
+    const dir = stationDir
+      .add(new THREE.Vector3().randomDirection().multiplyScalar(0.5))
+      .normalize();
     this.player.position.copy(dir.multiplyScalar(this.world.planetRadius * 3.5));
     this.lookAlong(this.tmp.copy(this.player.position).negate());
     this.player.speed = 250;
