@@ -268,3 +268,99 @@ themselves to fly, in a simulator built from the game's own physics, using
 nothing but the keys you have.
 
 *Right on, Commander.*
+
+---
+
+## 11. Second wave: from recreation to homage
+
+Some time after "it works", the brief sharpened: *treat this as a homage
+rather than an exact recreation — it must be recognisable to anyone who
+played the original, never "they've ruined it", but we've learned a lot
+about game design since 1984.*
+
+That reframing unlocked the most valuable changes in the project.
+
+### The play guide settles some arguments
+
+Fetching the original Players' Guide alongside the manual answered
+questions no amount of reasoning could. Two mechanics we'd missed were
+pure canon and went straight in:
+
+- **Missiles arm before they lock.** T arms one (amber pylon); it locks by
+  itself when a target enters your crosshairs (red pylon, beep). The old
+  behaviour — press T, instantly locked — was both wrong and less fun,
+  because it removed the act of *flying the shot*.
+- **Hull hits cost you things.** "Once a shield is depleted... may destroy
+  items of cargo or ship fittings." Losing your combat computer mid-fight
+  is a genuinely alarming moment.
+
+The guide also settled provenance on the "rare encounters" list. Ian Bell's
+own preface notes that **generation ships were never coded** — they're
+fiction from The Dark Wheel. Rock hermits and Trumbles are
+[Oolite](https://wiki.alioth.net/index.php/Rock_Hermit_(Oolite))
+inventions, [Trumbles arriving in 2005](https://wiki.alioth.net/index.php/Trumble).
+So they went in as clearly-labelled homage, each given a *reason to exist*
+rather than being decoration: hermits deal ore and ask no questions (the
+place to fence contraband, if you can find one), and Trumbles can only be
+purged by taking the cabin temperature up on a sun-skim — tying the joke
+to an existing mechanic instead of bolting on a cure.
+
+### The mission problem
+
+The sharpest design note in the whole project: *"One thing that really
+frustrated me in the original was that you didn't get any missions until
+you were way up the skill level."*
+
+That is exactly right, and it's the kind of thing 1984 couldn't afford to
+fix. So every station now runs a **bulletin board** — cargo runs, courier
+jobs, pirate-clearing bounties, with deadlines measured in days that pass
+as you jump. Available from your first landing at Lave. The Constrictor
+hunt and the Navy courier run still sit at the top of the ladder, so the
+original's structure survives; there's simply a bottom rung now.
+
+A commander with 100 credits used to have no direction at all. Now they
+have three or four concrete reasons to pick a destination.
+
+### Modern hands, modern affordances
+
+"We're on much more modern systems now with mouse pointers" turned into:
+
+- **The whole UI is clickable** — menus, market rows, equipment, contracts,
+  action buttons — implemented by having clicks *inject synthetic key
+  presses*, so mouse and keyboard run through identical handlers.
+- **BUY MAX / SELL ALL.** Filling a hold used to take twenty keypresses.
+- **Click a star on either chart** to target it (projections inverted, snap
+  radius measured in screen pixels so it feels identical at both zooms).
+- **Pointer-lock mouse flight** (V) — a self-centring analogue stick, the
+  nearest thing to the joystick the original supported.
+- **Target brackets with a lead marker** — the single biggest
+  fun-per-line-of-code change in the project. Dogfighting went from spray-
+  and-hope to something you can get good at.
+
+And yet the default flight keys are now the *authentic* 1984 set — S/X
+dive-climb, `<` `>` roll, A to fire — with WASD available on a toggle.
+Recognisable first, accessible second.
+
+### Teaching the AI to playtest the game
+
+The unit tests guard the maths. Nothing guarded *gameplay* — until the
+combat AI got repurposed into an **autonomous playtest agent**
+(`test/playtest.js`): a commander that takes contracts, trades, equips,
+jumps, fights (flown by the trained defence brain), docks, detours to
+hermits, and asserts invariants every 30 frames — finite positions,
+non-negative credits, hold within capacity, valid modes, no screen showing
+without a mode behind it.
+
+Its first run found a real defect in two of eight legs: the agent got stuck
+in unending dogfights, because the defence policy is trained to *evade*,
+and against a pirate it can't kill, the fight simply never ends. A human
+would break off and run for the station; now the agent does too.
+
+Its second run came back clean — six legs, four systems, seventeen in-game
+days, thirty-six seconds of wall clock — and produced something better than
+a pass: **balance telemetry.** Successful legs netted +28 to +55 credits,
+with the agent reinvesting everything in cargo, and in six legs it never
+accumulated the 400 credits for its first upgrade.
+
+That is the original's grind, measured rather than guessed. Which meant the
+next change could be made against evidence instead of vibes.

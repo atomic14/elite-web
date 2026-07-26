@@ -602,7 +602,7 @@ export class Game {
           destination: dest.index,
           commodity,
           qty,
-          reward: Math.round(qty * (12 + dist * 0.9) + 40),
+          reward: Math.round(qty * (22 + dist * 1.6) + 90),
           deadlineDay: this.commander.day + 4 + Math.ceil(dist / 12),
           progress: 0,
         });
@@ -612,7 +612,7 @@ export class Game {
           destination: dest.index,
           commodity: 0,
           qty: 0,
-          reward: Math.round(120 + dist * 3.2),
+          reward: Math.round(240 + dist * 6.0),
           deadlineDay: this.commander.day + 3 + Math.ceil(dist / 16),
           progress: 0,
         });
@@ -623,7 +623,7 @@ export class Game {
           destination: dest.index,
           commodity: 0,
           qty,
-          reward: Math.round(qty * 90 + dist * 2),
+          reward: Math.round(qty * 170 + dist * 4),
           deadlineDay: this.commander.day + 6 + Math.ceil(dist / 10),
           progress: 0,
         });

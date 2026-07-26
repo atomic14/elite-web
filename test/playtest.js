@@ -203,11 +203,9 @@
       const wanted = ['fuel', 'missile', 'largeBay', 'ecm', 'scoops', 'beam',
         'escapePod', 'dockingComputer', 'combatComputer'];
       for (const id of wanted) {
-        const rows = g.constructor === Object ? [] : null; // (kept simple below)
-        void rows;
         const before = JSON.stringify(c.equipment) + c.missiles;
         // leave a working float so we never strand ourselves
-        if (c.credits < 2000) break;
+        if (c.credits < 1200) break; // always keep a trading float
         g.buyEquipment(id);
         if (JSON.stringify(c.equipment) + c.missiles !== before) this.note(`bought:${id}`);
       }
