@@ -328,3 +328,26 @@ html, body {
   display: none;
   pointer-events: none;
 }
+
+/* console indicators, after the original: S = station in range, E = ECM detected */
+.indicators { display: flex; gap: 4px; }
+.indicators span {
+  width: 15px; height: 15px;
+  border: 1px solid var(--hud-dim);
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+  color: var(--hud-dim);
+  transition: color 0.1s, background 0.1s;
+}
+.indicators span.lit {
+  color: #001402;
+  background: var(--hud-green);
+  box-shadow: 0 0 8px var(--hud-green);
+}
+.indicators span.lit-amber {
+  color: #1a0e00;
+  background: var(--hud-amber);
+  box-shadow: 0 0 8px var(--hud-amber);
+}
+.missiles { padding-left: 8px; }

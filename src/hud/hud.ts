@@ -6,7 +6,8 @@ import { formatCredits } from '../game/commander';
 // The classic console: elliptical 3D scanner (dot + vertical stick per
 // contact), station compass, gauge bars, and the message line.
 
-const SCANNER_RANGE = 6000;
+/** Scanner range — also the distance at which the console's 'S' lights. */
+export const SCANNER_RANGE = 6000;
 const GREEN = '#4dff5c';
 const DIM = '#1d6b26';
 const AMBER = '#ffb444';
@@ -54,6 +55,10 @@ export interface HudState {
   dockAid: { x: number; y: number; roll: number; inSlot: boolean; rollOk: boolean } | null;
   /** combat computer engaged (shown in the view label slot) */
   assist: boolean;
+  /** console 'S': the space station is within scanner range */
+  stationInRange: boolean;
+  /** console 'E': an E.C.M. broadcast was detected recently */
+  ecmDetected: boolean;
 }
 
 const VIEW_NAMES = ['', 'REAR VIEW', 'LEFT VIEW', 'RIGHT VIEW'];
@@ -77,6 +82,8 @@ export class Hud {
   private readonly energySegs: HTMLElement[];
   private readonly missileEls: HTMLElement[];
   private readonly lockEl = byId('lock');
+  private readonly indS = byId('ind-s');
+  private readonly indE = byId('ind-e');
   private readonly conditionEl = byId('condition');
   private readonly creditsEl = byId('credits-display');
   private readonly messageEl = byId('message');
@@ -143,6 +150,8 @@ export class Hud {
       m.classList.toggle('spent', i >= state.missiles);
       m.classList.toggle('locked', state.locked && i === state.missiles - 1);
     });
+    this.indS.classList.toggle('lit', state.stationInRange);
+    this.indE.classList.toggle('lit-amber', state.ecmDetected);
     this.lockEl.textContent = state.locked ? 'TARGET LOCKED' : '';
     this.conditionEl.textContent = `CONDITION: ${state.condition}`;
     this.conditionEl.style.color = state.condition === 'RED' ? '#ff4d4d' : '';

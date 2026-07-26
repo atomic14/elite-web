@@ -18,7 +18,7 @@ import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
 import { PlayerShip } from '../player';
 import { Input } from '../engine/input';
 import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap';
-import { Hud, type ScannerContact } from '../hud/hud';
+import { Hud, SCANNER_RANGE, type ScannerContact } from '../hud/hud';
 import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
@@ -114,6 +114,7 @@ export class Game {
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
+  private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
   private ccEngaged = false;
   private ccPitch = 0;
@@ -764,6 +765,7 @@ export class Game {
       // ECM-equipped targets can fry an incoming missile
       if (m.target && m.target.hasEcm && dist < 2800 && Math.random() < dt * 0.45) {
         this.removeMissile(m, true);
+        this.ecmDetectedTimer = 2;
         this.hud.showMessage('TARGET E.C.M. — MISSILE DESTROYED', 3);
         sfx.ecm();
         continue;
@@ -807,6 +809,7 @@ export class Game {
     }
     this.energy -= 1;
     for (const m of [...this.missiles]) this.removeMissile(m, true);
+    this.ecmDetectedTimer = 2;
     this.hud.showMessage('E.C.M. ACTIVATED', 2);
     sfx.ecm();
   }
@@ -1188,6 +1191,8 @@ export class Game {
       this.commander.fuel = Math.min(MAX_FUEL, this.commander.fuel + 5 * dt);
       this.hud.showMessage('FUEL SCOOPING', 0.4);
     }
+
+    if (this.ecmDetectedTimer > 0) this.ecmDetectedTimer -= dt;
 
     // flashing low-energy warning
     if (this.energy < 1) {
@@ -1803,6 +1808,10 @@ export class Game {
         shipId,
         dockAid,
         assist: this.ccEngaged,
+        stationInRange:
+          this.mode === 'flight' && !this.witchspace &&
+          this.player.position.distanceTo(this.world.station.position) < SCANNER_RANGE,
+        ecmDetected: this.ecmDetectedTimer > 0,
       },
       this.player.position,
       this.player.quaternion,

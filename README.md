@@ -66,7 +66,12 @@ Progress saves automatically every time you dock.
 | ? | in-game controls guide (all bindings, by category) |
 
 Manual docking: fly into the station's slot with your wings matched to the
-slot's rotation. Get it wrong and you'll bounce off with shield damage.
+slot's rotation, using the alignment aid that appears as you line up. Get it
+wrong and you'll bounce off with shield damage.
+
+The console lights an **S** while the station is in scanner range (its
+defences cover you there) and an **E** when an E.C.M. broadcast is
+detected — as on the original's dashboard.
 
 ### Docked
 L launch · M market · E equip ship · N local chart · G galactic chart ·

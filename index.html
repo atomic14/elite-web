@@ -40,6 +40,10 @@
           <div class="gauge"><label>ALTITUDE</label><div class="bar"><div id="g-alt" class="fill"></div></div></div>
           <div class="gauge"><label>CABIN TEMP</label><div class="bar"><div id="g-cabin" class="fill"></div></div></div>
           <div class="compass-row">
+            <div class="indicators">
+              <span id="ind-s" title="space station in range">S</span>
+              <span id="ind-e" title="E.C.M. broadcast detected">E</span>
+            </div>
             <div class="missiles" id="missiles"><span></span><span></span><span></span><span></span></div>
             <canvas id="compass" width="60" height="60"></canvas>
           </div>
@@ -86,6 +90,11 @@
               <tr><td>M</td><td>market prices</td></tr>
               <tr><td>E</td><td>equip ship</td></tr>
               <tr><td>N / G / I</td><td>charts &middot; status</td></tr>
+            </table>
+            <h3>CONSOLE LIGHTS</h3>
+            <table>
+              <tr><td>S</td><td>station within scanner range</td></tr>
+              <tr><td>E</td><td>E.C.M. broadcast detected</td></tr>
             </table>
             <h3>IN SCREENS</h3>
             <table>
