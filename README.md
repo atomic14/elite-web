@@ -6,6 +6,19 @@ be), modern shader-driven suns and planets — and ship AI trained by
 neuroevolution self-play, flying both the pirates that hunt you and the
 traders that fight back.
 
+![Approaching a Coriolis station with the docking aid live](docs/images/station-docking.jpg)
+
+| | |
+| --- | --- |
+| ![A seeded shader planet](docs/images/planet.jpg) | ![The Short Range Chart](docs/images/short-range-chart.jpg) |
+
+*Every planet is generated from the 1984 seeds — Diso's violet coastlines
+above, "Population: 4.1 Billion (Black Furry Felines)", exactly as the
+original's data tables intend. Below: three trained pirates converging in
+the [combat viewer](docs/TRAINING-LOG.md).*
+
+![Trained pirates converging on a trader in the combat viewer](docs/images/combat-viewer.jpg)
+
 **Docs index:**
 [Architecture tour](docs/ARCHITECTURE.md) ·
 [AI design](docs/AI-TRAINING.md) ·
