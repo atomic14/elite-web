@@ -364,3 +364,141 @@ accumulated the 400 credits for its first upgrade.
 
 That is the original's grind, measured rather than guessed. Which meant the
 next change could be made against evidence instead of vibes.
+
+---
+
+## 12. The galaxy that trades without you
+
+The last big idea had been on the list since the first session: *"I'm
+wondering if we could simulate a whole environment of ships doing their own
+thing flying between systems."*
+
+The naive reading of that is expensive — 256 systems of NPCs, ticking
+forever, 255 of them unwatched. The version that actually shipped is a
+**two-level simulation**, and the split is the whole trick:
+
+- **Level 1** (`src/galaxy/living.ts`) is *records, not objects.* A convoy
+  is `{from, to, commodity, qty, arrivesOn}` — nine numbers. Time only
+  advances when the player's clock does, and it advances in **whole days**,
+  because a jump costs days anyway. A year of galactic trade is a few
+  hundred integer updates.
+- **Level 2** is the NPC spawner that already existed. When you arrive
+  somewhere, `populateSystem` asks the living galaxy what's due in — and
+  materialises those records as real wireframe ships flying real physics.
+
+So the galaxy is cheap everywhere and expensive only where you're looking.
+Convoys depart in proportion to productivity, are lost to piracy in
+proportion to lawlessness, and on arrival nudge the destination's prices.
+The 1984 seeded economy stays the **baseline** underneath; this layer only
+ever stores deltas, caps them at ±25%, and decays them back toward zero when
+trade stops. The save grew by about 26 KB.
+
+### Two bugs that only a simulation could have
+
+The first was invisible until the numbers were printed: **danger never
+accumulated.** Systems gained 0.1 danger per convoy lost and decayed 0.08
+per day, so within a day of any incident the galaxy forgot it happened.
+Nothing crashed; the feature simply didn't exist. Slowing the decay to
+0.015/day gave piracy a memory — a reputation for danger should outlast a
+single ambush.
+
+The second was funnier and much worse. With danger fixed, the report came
+back with **Lave as the most dangerous system in the galaxy.** Which is
+absurd: Lave is the tutorial. But the code was doing exactly what it was
+told — danger was accumulating with *traffic*, and Lave is the busiest
+system in human space, so the safest place in Elite had become its worst
+pirate haven.
+
+The fix is a one-line reweighting, and it's the sort of thing that only
+looks obvious afterwards: piracy scales with **lawlessness**, not volume.
+
+```ts
+const lawlessness = (7 - this.systems[c.to].government) / 7;
+dest.danger = Math.min(1, dest.danger + 0.22 * lawlessness);
+```
+
+…with decay scaled the other way, by how much government there is to do the
+policing. After a simulated year: anarchies average 0.143 danger, corporate
+states 0.000, and Lave sits at 0.000 with 242 convoys in flight across 51
+systems that carry any risk at all. Hotspots now *emerge* along genuinely
+lawless routes instead of being scripted — which was the point of building
+the layer rather than hand-placing pirates.
+
+One more thing had to change for it to feel like a galaxy. Trade partners
+were originally drawn at random from all 256 systems, which produced a
+uniform smear of nothing. Restricting each system's partners to its ten
+nearest neighbours **within jump range** — because a 7 LY drive means trade
+is inherently local — made lanes appear. Trade routes are an emergent
+property of the fuel tank.
+
+### A career simulator, because eight legs isn't a sample
+
+The autonomous browser agent (chapter 11) plays the real game, which is its
+strength and its limit: it takes four minutes to play eight legs. Balance
+questions need hundreds of careers.
+
+So `npm run campaign` runs the game's **actual economic code** headlessly —
+the real galaxy generator, the real market model, the real living galaxy,
+the real contract rules — with only *flight* abstracted into a dice roll.
+That constraint is what makes it trustworthy, and it's why the contract and
+market logic was extracted into `src/game/contracts.ts` in the first place:
+so there is exactly one copy of the rules, and the simulator can't drift
+from the game by construction.
+
+Forty commanders, sixty legs each, in **0.4 seconds**:
+
+```
+WEALTH   median net worth 3661.5 Cr, from a 100.0 Cr start
+SURVIVAL 32/40 never went broke · 1.4 deaths per career
+PACE     median day 136 after 60 legs · first upgrade at leg 7
+CONTRACT 22.0 completed · 14.2 failed per career
+RATING   median Mostly Harmless
+GALAXY   living prices ranged 0.75x..1.25x · mean system danger 0.050
+```
+
+It asserts those invariants and fails the build if the economy stops
+working. Its first verdict was that contracts paid too little to be worth
+the deadline risk — rewards went up about 1.9×, on evidence. The equipment
+progression line is the one I find most satisfying: everyone finishes with a
+large cargo bay, three quarters have fuel scoops, and only 5% ever afford an
+extra energy unit. That's a difficulty curve, printed as a fact.
+
+### AI round 3: two hypotheses, two refutations
+
+Meanwhile the AI got a third round, and it failed twice — which is worth
+writing down properly.
+
+**Hypothesis 1: the pack's reward was wrong.** Run 4's pack learned an
+all-in alpha strike; the theory was that reshaping the reward toward
+sustained pressure would teach coordination. Result: 68% kills against r2's
+70%, with accuracy *falling* from 9% to 3%. The reshaping moved the training
+score without moving the behaviour. **The bottleneck is not the reward
+function** — it's that the policy can't see its mates.
+
+**Hypothesis 2: train the attacker against the best evader.** Seed from r2,
+train against `trader-evade-r2`, get a better pirate. Training fitness went
+*up* — 18.40, the highest of any run. Kill rate went to **3%**. Textbook
+self-play collapse: the r2 evader is so good at running away that the
+fitness landscape rewarded closing behaviour that scores points without ever
+landing a shot. The number went up and the ship got worse.
+
+Both r3 brains are committed, unshipped, purely as evidence. The game still
+flies r2. The evaluation harness caught this in one command — which is, for
+the third time in this project, the actual lesson: **training fitness is a
+proxy, and proxies lie.** The held-out tournament is the product.
+
+### What this chapter taught
+
+- **Cheap simulation beats no simulation.** Records-not-objects made a
+  living galaxy affordable enough to ship; the fidelity you skip is the
+  fidelity nobody can observe.
+- **A feature that silently does nothing is worse than one that crashes.**
+  Danger decayed faster than it accumulated for a whole development cycle.
+  Print the aggregate; look at it.
+- **Correlate with the right variable.** Danger-follows-traffic and
+  danger-follows-lawlessness are the same amount of code and produce
+  opposite games.
+- **Share the rules, don't copy them.** The campaign simulator is only
+  evidence because it imports the same `contracts.ts` the game does.
+- **Publish the refutations.** Round 3 is two failures and no shipped
+  artefact, and it's the most informative run in the log.
