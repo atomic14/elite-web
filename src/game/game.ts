@@ -1088,7 +1088,8 @@ export class Game {
   private enemyLaunchMissile(npc: NpcShip): void {
     npc.missiles -= 1;
     const obj = buildShip(MISSILE, 0xff9a8a);
-    obj.position.copy(npc.object.position);
+    npc.nosePosition(this.tmp);
+    obj.position.copy(this.tmp);
     obj.quaternion.copy(npc.object.quaternion);
     this.scene.add(obj);
     this.missiles.push({ object: obj, target: null, life: 30 });
@@ -1734,13 +1735,16 @@ export class Game {
         ? this.player.position.clone()
         : this.player.position.clone().add(
             new THREE.Vector3().randomDirection().multiplyScalar(80 + Math.random() * 140));
-      this.addTracer(npc.object.position.clone(), to, npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
+      this.addTracer(
+        npc.nosePosition(this.tmp).clone(), to,
+        npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
       if (hit) this.applyPlayerDamage(0.1 + Math.random() * 0.12, npc.object.position);
       return;
     }
     // NPC shooting NPC
     const target = event.at;
-    this.addTracer(npc.object.position.clone(), target.object.position.clone(), 0xffaa55, 0.18);
+    this.addTracer(
+      npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
     if (Math.random() < 0.5) {
       if (target.takeDamage(0.11, npc.object.position)) {
         this.wreckNpc(target); // no player credit

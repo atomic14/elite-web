@@ -498,6 +498,20 @@ export class NpcShip {
     this.object.position.addScaledVector(this.tmpDir, this.speed * dt);
   }
 
+  /**
+   * The muzzle: where a bolt or missile should visually leave this ship.
+   * Lasers are nose-mounted, so this is the hull's front, not its centre —
+   * without it a big hull (Anaconda 55, Thargoid 60) appears to fire from
+   * inside itself.
+   */
+  nosePosition(out: THREE.Vector3): THREE.Vector3 {
+    return out
+      .set(0, 0, -1)
+      .applyQuaternion(this.object.quaternion)
+      .multiplyScalar(this.radius * 0.9)
+      .add(this.object.position);
+  }
+
   /** Angle (radians) between our nose and the direction to a point. */
   facing(point: THREE.Vector3): number {
     const forward = this.tmpDir.set(0, 0, -1).applyQuaternion(this.object.quaternion);
