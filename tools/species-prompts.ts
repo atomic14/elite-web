@@ -107,13 +107,22 @@ export type Style = 'crt' | 'lit' | 'ink' | 'boxart' | 'pixel' | 'plain';
 const STYLES: Record<Style, { look: string[]; negative: string[] }> = {
   // Ask for the finished article: green phosphor on black. If the model can
   // do this well, post-processing drops to a palette snap.
+  // Describes the IMAGE, never the device. The first version said "CRT monitor
+  // image ... retro computer terminal readout" and the model did exactly as
+  // asked: it rendered a photograph of a television set, bezel, curved glass
+  // and all, with the portrait shrunk inside it. Naming a display in a prompt
+  // gets you a picture of the display. So: the qualities of phosphor, and an
+  // explicit negative against the hardware.
   crt: {
     look: [
-      'monochrome green phosphor CRT monitor image, glowing bright green on a pure black background',
+      'monochrome green image, glowing bright green on a pure black background',
       'strong key light on the face, deep black shadows, sharp visible facial features',
-      'high contrast retro computer terminal readout, faint scanlines',
+      'high contrast, subject fills the frame edge to edge',
     ],
-    negative: ['white background, grey backdrop, studio lighting, full colour, washed out, flat lighting'],
+    negative: [
+      'television set, monitor, screen, bezel, frame, border, device, photograph of a screen',
+      'white background, grey backdrop, studio lighting, full colour, washed out, flat lighting',
+    ],
   },
   // The safe big win: keep the model's photoreal strength, just light it the
   // way a CRT works — subject lit out of darkness rather than pasted on a wall.
