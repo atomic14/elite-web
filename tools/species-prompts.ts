@@ -411,21 +411,31 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
   // "female"/"male" as adjectives rather than "a woman"/"a man" deliberately:
   // the 108 non-human worlds carry "man, woman, ordinary person" in their
   // negative to stop the species being replaced by a human, and asking for a
-  // woman while forbidding one is the contradiction this file already has a
-  // check for.
+  // woman while forbidding one is the contradiction this file has a check for.
+  //
+  // Applied ONLY to human-shaped subjects, which is the second time this
+  // exact trap has been sprung. Adding "female" to "a single anthropomorphic
+  // harmless slimy lobster creature" turned Tibedied back into a person: the
+  // word is so strongly associated with human women that it beat the species,
+  // just as "a grimy factory hand" did. Sex reads on a human and does not read
+  // on a lobster, so there is nothing to win and a species to lose.
+  //
+  // Humanoids keep it — they are human-shaped by definition, so it reads —
+  // and they already carry the strongest anti-human negative of any world.
+  const sexed = human || humanoid;
   const sex = pickVariant(sys, 3, ['female', 'male'] as const);
   const creature = humanoid
     ? alienise(singular(species.toLowerCase()))
     : singular(species.toLowerCase());
   const subject = human
     ? `a single ${sex} human colonist`
-    : `a single ${sex} ${humanoid ? 'alien' : 'anthropomorphic'} ${creature} creature`;
+    : `a single ${sexed ? `${sex} ` : ''}${humanoid ? 'alien' : 'anthropomorphic'} ${creature} creature`;
 
   const prompt = [
     `head and shoulders portrait of ${subject}, one individual alone`,
     ...(human ? [] : humanoid
       ? [`clearly an alien species, non-human anatomy and facial structure`]
-      : [`clearly a ${sex} ${creature}, animal head and face`]),
+      : [`clearly a ${creature}, animal head and face`]),
     `an inhabitant of ${sys.name}, ${article(ECONOMY_NAMES[sys.economy])} ` +
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
     HEROES[sys.name] ?? environmentPhrase(sys),
