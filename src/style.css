@@ -224,7 +224,12 @@ html, body {
 
 #screen {
   position: absolute;
-  left: 50%; top: 46%;
+  /*
+   * Centred in the space you can actually see, not the canvas: the cockpit
+   * console owns the bottom ~21%, so 50% leaves a big void above the panel
+   * and almost nothing below it. Same reasoning as SIGHT_Y in game.ts.
+   */
+  left: 50%; top: 40%;
   transform: translate(-50%, -50%);
   min-width: 640px;
   max-width: 860px;

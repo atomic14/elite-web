@@ -201,6 +201,9 @@ detected — as on the original's dashboard.
   deserves somewhere to be.)
 - **Navy missions** — prove yourself (16+ kills, galaxy 1) for the
   Constrictor hunt and the classified courier run.
+- **Don't shoot the station.** Its hull shrugs off a laser, but GalCop
+  notices: you're marked an offender and the station scrambles Vipers from
+  the slot. Shooting *those* is how you become a fugitive.
 - **Encounters** — destroyed ships eject escape capsules (scoop one and the
   survivor becomes, regrettably, cargo); stations scramble Vipers if you
   misbehave in their sight; rock hermits hide among the asteroids, dealing

@@ -955,9 +955,25 @@ export class Game {
       }
     }
 
+    // The station is solid too. Shooting it is a serious offence — GalCop
+    // does not take kindly to it — and previously did nothing at all because
+    // fireLaser only ever tested NPCs.
+    let hitStation = false;
+    if (!this.witchspace) {
+      const st = this.world.station;
+      st.updateMatrixWorld(true);
+      for (const h of this.shotRay.intersectObject(st, true)) {
+        if (h.distance < bestDist) {
+          bestDist = h.distance;
+          best = null;
+          hitStation = true;
+        }
+      }
+    }
+
     // 2. grazing shots: the beam has width, so a near-miss that clips the
     //    silhouette still counts. Only consulted if the ray missed everything.
-    if (!best) {
+    if (!best && !hitStation) {
       for (const npc of this.npcs) {
         if (!npc.alive) continue;
         const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
@@ -969,6 +985,19 @@ export class Game {
           bestDist = dist;
         }
       }
+    }
+    if (hitStation) {
+      sfx.hit();
+      // sparks off the hull, but the station itself shrugs it off
+      const impact = this.player.position.clone().addScaledVector(forward, bestDist);
+      this.addExplosion(impact, 0xd8ffcc, { count: 10, speed: 60, duration: 0.4 });
+      this.hud.showMessage('STATION HULL HIT — DEFENCES SCRAMBLING', 3);
+      // Offender, not fugitive: a stray shot while lining up a dock is easy to
+      // make, and fugitive means every police ship in the galaxy hunts you
+      // forever. The Vipers are the real punishment — and shooting *them*
+      // escalates you to fugitive the normal way. raiseLegal launches them.
+      this.raiseLegal(1);
+      return;
     }
     if (best) {
       sfx.hit();
