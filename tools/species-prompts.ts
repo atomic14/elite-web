@@ -130,7 +130,12 @@ const STYLES: Record<Style, { look: string[]; negative: string[] }> = {
   ink: {
     look: [
       'black and white engraved illustration, bold confident linework and crosshatching',
-      'woodcut print style, strong dark outlines, clear silhouette against plain background',
+      // NOT "clear silhouette against plain background", which is what this
+      // said first: every style also negative-prompts "silhouette", because a
+      // flat black shape is the exact failure mode here. Asking for one and
+      // forbidding it in the same breath leaves the model to split the
+      // difference, and it splits it badly.
+      'woodcut print style, strong dark outlines, clean separation from a plain background',
       'sharply defined facial features',
     ],
     negative: ['photograph, soft focus, gradient shading, colour'],
