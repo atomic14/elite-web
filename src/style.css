@@ -22,7 +22,14 @@ html, body {
 
 #crosshair {
   position: absolute;
-  left: 50%; top: 42%;
+  /*
+   * MUST be the exact centre of the canvas: the laser fires along the camera
+   * axis, which projects to dead centre. This was 42%, so the sight sat ~60px
+   * (about 4.6 degrees) above where the shot actually went — you could put the
+   * crosshair squarely on a target and miss underneath it. That, not the hit
+   * cone or ship agility, was why combat felt broken.
+   */
+  left: 50%; top: 50%;
   width: 0; height: 0;
   pointer-events: none;
 }
@@ -322,7 +329,7 @@ html, body {
 
 #dockaid {
   position: absolute;
-  left: 50%; top: 42%;
+  left: 50%; top: 50%; /* follows the crosshair */
   margin-left: 70px;
   transform: translateY(-50%);
   display: none;
