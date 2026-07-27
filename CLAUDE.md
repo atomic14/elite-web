@@ -14,6 +14,8 @@ npm run train -- <attack|evade|pack|defend> [--gens N --pop N ...]
 npm run evaluate   # held-out tournament for the current brains
 npm test           # invariant + sim tests (test/run.ts, no framework)
 npm run campaign   # headless balance playtest (test/campaign.ts)
+                   # `-- <commanders> <legs> <trader|hunter|privateer|both|all>`
+                   # `-- 4 45000 all` runs full careers to E L I T E (~70s)
 ```
 
 CI (.github/workflows/ci.yml) type-checks, builds and tests. Deployment is

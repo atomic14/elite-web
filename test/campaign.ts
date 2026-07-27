@@ -28,6 +28,20 @@ import { makeRng } from '../src/sim/core.ts';
 
 const COMMANDERS = Number(process.argv[2] ?? 40);
 const LEGS = Number(process.argv[3] ?? 60);
+/**
+ * How the commander plays. `trader` hauls cargo and fights when jumped;
+ * `hunter` travels light, chooses lawless destinations and goes looking.
+ * `both` runs a cohort of each and prints them side by side.
+ */
+const STRATEGY = (process.argv[4] ?? 'trader') as Strategy | 'both' | 'all';
+/**
+ * `trader`    hauls cargo, fights only when jumped.
+ * `hunter`    flies light, picks lawless destinations, goes looking.
+ * `privateer` trades until it can afford guns, then keeps trading — but now
+ *             the cargo is *bait*: it makes you worth robbing, and you want
+ *             to be robbed. The strategy the pirate economics actually reward.
+ */
+type Strategy = 'trader' | 'hunter' | 'privateer';
 const ILLEGAL = [3, 6, 10];
 const GRADIENTS = COMMODITIES.map((c) => c.gradient);
 
@@ -58,7 +72,7 @@ interface CareerResult {
   milestones: { rank: string; leg: number; day: number }[];
 }
 
-function runCareer(seed: number, systems: StarSystem[]): CareerResult {
+function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'trader'): CareerResult {
   const rng = makeRng(seed);
   const living = new LivingGalaxy(systems);
   const c: CommanderData = newCommander();
@@ -85,6 +99,12 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
 
   for (let leg = 0; leg < LEGS; leg++) {
     const here = systems[c.systemIndex];
+    // A privateer serves its apprenticeship as a trader: you cannot pick
+    // fights with a pulse laser. Once it has a real gun it flips to hunting,
+    // but keeps buying cargo — which is now bait rather than income.
+    const armed = c.equipment.laser === 'military' || c.equipment.laser === 'beam';
+    const hunts = strategy === 'hunter' || (strategy === 'privateer' && armed);
+    const carriesCargo = strategy !== 'hunter';
     const market = applyMarketPressure(
       generateMarket(here, Math.floor(rng() * 256)),
       (i) => {
@@ -143,11 +163,22 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     }
 
     // --- equip, keeping a trading float ---
-    for (const item of EQUIPMENT_CATALOGUE) {
+    // A hunter's shopping list is not a trader's: guns and survivability
+    // first, and it needs a far smaller float because it isn't buying cargo.
+    const COMBAT_KIT = ['beam', 'military', 'energyUnit', 'escapePod', 'ecm',
+      'combatComputer', 'rearLaser', 'missile'];
+    const shoppingList = strategy !== 'trader'
+      ? [...EQUIPMENT_CATALOGUE].sort((a, b) => {
+        const ai = COMBAT_KIT.indexOf(a.id), bi = COMBAT_KIT.indexOf(b.id);
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      })
+      : EQUIPMENT_CATALOGUE;
+    const float = strategy === 'hunter' ? 300 : 1500; // privateers still need a trading float
+    for (const item of shoppingList) {
       if (item.id === 'trumble') continue; // a trap, not an upgrade
       if (equipmentOwned(item.id, c)) continue;
       if (here.techLevel + 1 < item.minTL) continue;
-      if (c.credits - item.price < 1500) continue;
+      if (c.credits - item.price < float) continue;
       c.credits -= item.price;
       applyEquipment(c, item.id);
       if (firstUpgradeLeg === null && item.id !== 'missile') firstUpgradeLeg = leg;
@@ -165,6 +196,9 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     });
     for (const k of sorted) {
       if (c.contracts.length >= 2) break;
+      // a hunter takes bounty work and leaves the freight to traders
+      if (strategy === 'hunter' && k.kind !== 'bounty') continue;
+      // a privateer takes anything: freight pays, and it doubles as bait
       const reach = chartDistanceTenths(here, systems[k.destination]);
       if (reach > MAX_FUEL) continue; // could never get there
       if (anchor && chartDistanceTenths(anchor, systems[k.destination]) > 50) continue;
@@ -174,12 +208,15 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     }
 
     // --- choose a destination: a contract, else the best trade ---
-    const dest = pickDestination(c, systems, market, rng);
+    const dest = pickDestination(c, systems, market, rng, hunts ? 'hunter' : 'trader', living);
     if (dest === null) break;
     const destSys = systems[dest];
 
     // --- buy cargo for it ---
-    buyBestCargo(c, market, destSys);
+    // The hunter flies light. Note the irony this creates under the pirate
+    // economics: an empty hold makes it a *poor* target, so its fights have
+    // to come from lawless space rather than from looking worth robbing.
+    if (carriesCargo) buyBestCargo(c, market, destSys);
 
     // --- fly the leg ---
     const dist = chartDistanceTenths(here, destSys);
@@ -200,7 +237,7 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     appealCount += 1;
     const pirates = threat.count;
     for (let p = 0; p < pirates; p++) {
-      const outcome = resolveEncounter(c, rng, memberTier(threat.tier, p));
+      const outcome = resolveEncounter(c, rng, memberTier(threat.tier, p), hunts ? 'hunter' : 'trader');
       if (outcome === 'escaped') continue;
       if (outcome === 'dead') {
         deaths += 1;
@@ -302,6 +339,7 @@ function resolveEncounter(
   c: CommanderData,
   rng: () => number,
   tier = 1,
+  strategy: 'trader' | 'hunter' = 'trader',
 ): 'escaped' | 'won' | 'killed-them' | 'robbed' | 'dead' {
   // Most contacts simply don't become fights — but a gang that organised for
   // you is much harder to leave behind than an opportunist in a Sidewinder.
@@ -312,7 +350,10 @@ function resolveEncounter(
   // most commanders stay modest, softening the common case softens the whole
   // game, which is the opposite of the intent.
   const disengage = tier === 0 ? 0.60 : tier === 1 ? 0.50 : 0.32;
-  if (rng() < disengage) return 'escaped';
+  // A hunter is here for this. It closes instead of running for the station —
+  // which is most of why its kill rate differs from a trader's.
+  if (strategy !== 'hunter' && rng() < disengage) return 'escaped';
+  if (strategy === 'hunter' && rng() < disengage * 0.15) return 'escaped';
 
   // better hulls, better shooting: tier shifts the odds against you
   let strength = 0.48 - tier * 0.09;
@@ -326,7 +367,7 @@ function resolveEncounter(
   strength = Math.min(0.95, strength);
 
   const roll = rng();
-  if (roll < strength) return rng() < 0.6 ? 'killed-them' : 'won';
+  if (roll < strength) return rng() < (strategy === 'hunter' ? 0.9 : 0.6) ? 'killed-them' : 'won';
   if (roll < strength + 0.35) return 'robbed';
   // an escape pod turns a death into a survivable disaster
   if (c.equipment.escapePod && rng() < 0.7) {
@@ -341,11 +382,27 @@ function pickDestination(
   systems: StarSystem[],
   market: ReturnType<typeof generateMarket>,
   rng: () => number,
+  strategy: 'trader' | 'hunter' = 'trader',
+  living?: LivingGalaxy,
 ): number | null {
   const here = systems[c.systemIndex];
   const contract = c.contracts.find((k: Contract) =>
     chartDistanceTenths(here, systems[k.destination]) <= c.fuel);
   if (contract) return contract.destination;
+
+  if (strategy === 'hunter') {
+    // go where the pirates are: lawlessness first, then whatever reputation
+    // for piracy the living galaxy has actually recorded
+    let bestSys: number | null = null;
+    let bestScore = -Infinity;
+    for (const s of systems) {
+      const d = chartDistanceTenths(here, s);
+      if (s.index === c.systemIndex || d === 0 || d > c.fuel) continue;
+      const score = ((7 - s.government) + (living?.danger(s.index) ?? 0) * 6) * (0.8 + rng() * 0.4);
+      if (score > bestScore) { bestScore = score; bestSys = s.index; }
+    }
+    return bestSys;
+  }
 
   // otherwise: the reachable system with the best expected trade margin
   let best: number | null = null;
@@ -398,10 +455,15 @@ function buyBestCargo(
 // --- run the fleet ----------------------------------------------------------
 
 const systems = generateGalaxy(1);
-const careers: CareerResult[] = [];
 const started = Date.now();
-for (let i = 0; i < COMMANDERS; i++) {
-  careers.push(runCareer(1000 + i * 7919, systems));
+
+/** One cohort of commanders, all playing the same way, on the same seeds. */
+function runFleet(strategy: Strategy): CareerResult[] {
+  const out: CareerResult[] = [];
+  for (let i = 0; i < COMMANDERS; i++) {
+    out.push(runCareer(1000 + i * 7919, systems, strategy));
+  }
+  return out;
 }
 
 const num = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
@@ -411,108 +473,130 @@ const median = (xs: number[]) => {
 };
 const cr = (tenths: number) => (tenths / 10).toFixed(1);
 
-console.log(`\n=== CAMPAIGN SIMULATION: ${COMMANDERS} commanders × ${LEGS} legs ===`);
-console.log(`(real galaxy, market, living-galaxy and contract code; flight abstracted)\n`);
+let failures = 0;
 
-const credits = careers.map((r) => r.credits);
-const survivors = careers.filter((r) => r.bankruptAtLeg === null);
-const worth = careers.map((r) => r.netWorth);
-console.log(`WEALTH   median net worth ${cr(median(worth))} Cr (cash + fitted kit), ` +
-  `from a 100.0 Cr start`);
-console.log(`         cash in hand: median ${cr(median(credits))} Cr · ` +
-  `peak during career ${cr(median(careers.map((r) => r.peakCredits)))} Cr · ` +
-  `best career ${cr(Math.max(...worth))} Cr`);
-console.log(`SURVIVAL ${survivors.length}/${COMMANDERS} never went broke · ` +
-  `${num(careers.map((r) => r.deaths)).toFixed(1)} deaths per career`);
-console.log(`PACE     median day ${median(careers.map((r) => r.day))} after ${LEGS} legs · ` +
-  `first upgrade at leg ${median(careers.filter((r) => r.firstUpgradeLeg !== null)
-    .map((r) => r.firstUpgradeLeg!))}`);
-console.log(`CONTRACT ${num(careers.map((r) => r.contractsDone)).toFixed(1)} completed · ` +
-  `${num(careers.map((r) => r.contractsFailed)).toFixed(1)} failed per career`);
-console.log(`COMBAT   ${num(careers.map((r) => r.kills)).toFixed(1)} kills · ` +
-  `${num(careers.map((r) => r.cargoLost)).toFixed(1)}t cargo lost to pirates per career`);
-console.log(`RATING   median ${rating(Math.round(median(careers.map((r) => r.kills))))}`);
+/** Print one cohort's report and run the balance assertions over it. */
+function report(label: string, careers: CareerResult[], strategy: Strategy): void {
+  console.log(`\n=== ${label}: ${COMMANDERS} commanders × ${LEGS} legs ===`);
+  console.log(`(real galaxy, market, living-galaxy and contract code; flight abstracted)\n`);
 
-// equipment progression
-const kitCounts = new Map<string, number>();
-for (const r of careers) for (const e of r.equipment) kitCounts.set(e, (kitCounts.get(e) ?? 0) + 1);
-const kit = [...kitCounts.entries()].sort((a, b) => b[1] - a[1])
-  .map(([k, n]) => `${k} ${Math.round((100 * n) / COMMANDERS)}%`);
-console.log(`EQUIPMENT owned by end of career: ${kit.join(' · ') || 'none'}`);
-const lo = Math.min(...careers.map((r) => r.priceSpread[0]));
-const hi = Math.max(...careers.map((r) => r.priceSpread[1]));
-console.log(`GALAXY   living prices ranged ${lo.toFixed(2)}x..${hi.toFixed(2)}x baseline · ` +
-  `mean system danger ${num(careers.map((r) => r.dangerSeen)).toFixed(3)}`);
-const tiers = [0, 1, 2].map((t) => careers.reduce((a, r) => a + r.tierSeen[t], 0));
-const tierTotal = tiers.reduce((a, b) => a + b, 0) || 1;
-console.log(`PIRATES  reception by tier: opportunists ${Math.round(100 * tiers[0] / tierTotal)}% · ` +
-  `professionals ${Math.round(100 * tiers[1] / tierTotal)}% · ` +
-  `gangs ${Math.round(100 * tiers[2] / tierTotal)}% · ` +
-  `${(careers.reduce((a, r) => a + r.gangs, 0) / COMMANDERS).toFixed(1)} organised per career · ` +
-  `mean appeal ${num(careers.map((r) => r.appeal)).toFixed(2)}`);
+  const credits = careers.map((r) => r.credits);
+  const survivors = careers.filter((r) => r.bankruptAtLeg === null);
+  const worth = careers.map((r) => r.netWorth);
+  console.log(`WEALTH   median net worth ${cr(median(worth))} Cr (cash + fitted kit), ` +
+    `from a 100.0 Cr start`);
+  console.log(`         cash in hand: median ${cr(median(credits))} Cr · ` +
+    `peak during career ${cr(median(careers.map((r) => r.peakCredits)))} Cr · ` +
+    `best career ${cr(Math.max(...worth))} Cr`);
+  console.log(`SURVIVAL ${survivors.length}/${COMMANDERS} never went broke · ` +
+    `${num(careers.map((r) => r.deaths)).toFixed(1)} deaths per career`);
+  console.log(`PACE     median day ${median(careers.map((r) => r.day))} after ${LEGS} legs · ` +
+    `first upgrade at leg ${median(careers.filter((r) => r.firstUpgradeLeg !== null)
+      .map((r) => r.firstUpgradeLeg!))}`);
+  console.log(`CONTRACT ${num(careers.map((r) => r.contractsDone)).toFixed(1)} completed · ` +
+    `${num(careers.map((r) => r.contractsFailed)).toFixed(1)} failed per career`);
+  console.log(`COMBAT   ${num(careers.map((r) => r.kills)).toFixed(1)} kills · ` +
+    `${num(careers.map((r) => r.cargoLost)).toFixed(1)}t cargo lost to pirates per career`);
+  console.log(`RATING   median ${rating(Math.round(median(careers.map((r) => r.kills))))}`);
 
-// the combat ladder: how long does each rank actually take?
-{
-  const ranks = ['Mostly Harmless', 'Poor', 'Below Average', 'Average',
-    'Above Average', 'Competent', 'Dangerous', 'Deadly', 'E L I T E'];
-  const rows = ranks.map((rank) => {
-    const hits = careers
-      .map((r) => r.milestones.find((m) => m.rank === rank))
-      .filter((m): m is { rank: string; leg: number; day: number } => !!m);
-    return { rank, reached: hits.length, legs: num(hits.map((h) => h.leg)), day: num(hits.map((h) => h.day)) };
-  }).filter((r) => r.reached > 0);
-  if (rows.length) {
-    console.log('LADDER   median legs / in-game years to each combat rating:');
-    for (const r of rows) {
-      console.log(`         ${r.rank.padEnd(16)} ${String(Math.round(r.legs)).padStart(6)} legs · ` +
-        `${(r.day / 365).toFixed(1).padStart(6)} yr` +
-        (r.reached < careers.length ? `  (${r.reached}/${careers.length} commanders)` : ''));
+  // equipment progression
+  const kitCounts = new Map<string, number>();
+  for (const r of careers) for (const e of r.equipment) kitCounts.set(e, (kitCounts.get(e) ?? 0) + 1);
+  const kit = [...kitCounts.entries()].sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `${k} ${Math.round((100 * n) / COMMANDERS)}%`);
+  console.log(`EQUIPMENT owned by end of career: ${kit.join(' · ') || 'none'}`);
+  const lo = Math.min(...careers.map((r) => r.priceSpread[0]));
+  const hi = Math.max(...careers.map((r) => r.priceSpread[1]));
+  console.log(`GALAXY   living prices ranged ${lo.toFixed(2)}x..${hi.toFixed(2)}x baseline · ` +
+    `mean system danger ${num(careers.map((r) => r.dangerSeen)).toFixed(3)}`);
+  const tiers = [0, 1, 2].map((t) => careers.reduce((a, r) => a + r.tierSeen[t], 0));
+  const tierTotal = tiers.reduce((a, b) => a + b, 0) || 1;
+  console.log(`PIRATES  reception by tier: opportunists ${Math.round(100 * tiers[0] / tierTotal)}% · ` +
+    `professionals ${Math.round(100 * tiers[1] / tierTotal)}% · ` +
+    `gangs ${Math.round(100 * tiers[2] / tierTotal)}% · ` +
+    `${(careers.reduce((a, r) => a + r.gangs, 0) / COMMANDERS).toFixed(1)} organised per career · ` +
+    `mean appeal ${num(careers.map((r) => r.appeal)).toFixed(2)}`);
+
+  // the combat ladder: how long does each rank actually take?
+  {
+    const ranks = ['Mostly Harmless', 'Poor', 'Below Average', 'Average',
+      'Above Average', 'Competent', 'Dangerous', 'Deadly', 'E L I T E'];
+    const rows = ranks.map((rank) => {
+      const hits = careers
+        .map((r) => r.milestones.find((m) => m.rank === rank))
+        .filter((m): m is { rank: string; leg: number; day: number } => !!m);
+      return { rank, reached: hits.length, legs: num(hits.map((h) => h.leg)), day: num(hits.map((h) => h.day)) };
+    }).filter((r) => r.reached > 0);
+    if (rows.length) {
+      console.log('LADDER   median legs / in-game years to each combat rating:');
+      for (const r of rows) {
+        console.log(`         ${r.rank.padEnd(16)} ${String(Math.round(r.legs)).padStart(6)} legs · ` +
+          `${(r.day / 365).toFixed(1).padStart(6)} yr` +
+          (r.reached < careers.length ? `  (${r.reached}/${careers.length} commanders)` : ''));
+      }
     }
   }
-}
 
-// does the threat actually track wealth, or is it just noise?
-{
-  const sorted = [...careers].sort((a, b) => a.netWorth - b.netWorth);
-  const half = Math.floor(sorted.length / 2);
-  const poor = sorted.slice(0, half);
-  const rich = sorted.slice(-half);
-  const gangRate = (rs: typeof careers) => rs.reduce((a, r) => a + r.gangs, 0) / rs.length;
-  const upperTier = (rs: typeof careers) => {
-    const t = rs.reduce((a, r) => [a[0] + r.tierSeen[0], a[1] + r.tierSeen[1], a[2] + r.tierSeen[2]], [0, 0, 0]);
-    const tot = t[0] + t[1] + t[2] || 1;
-    return (100 * (t[1] + t[2])) / tot;
+  // does the threat actually track wealth, or is it just noise?
+  {
+    const sorted = [...careers].sort((a, b) => a.netWorth - b.netWorth);
+    const half = Math.floor(sorted.length / 2);
+    const poor = sorted.slice(0, half);
+    const rich = sorted.slice(-half);
+    const gangRate = (rs: typeof careers) => rs.reduce((a, r) => a + r.gangs, 0) / rs.length;
+    const upperTier = (rs: typeof careers) => {
+      const t = rs.reduce((a, r) => [a[0] + r.tierSeen[0], a[1] + r.tierSeen[1], a[2] + r.tierSeen[2]], [0, 0, 0]);
+      const tot = t[0] + t[1] + t[2] || 1;
+      return (100 * (t[1] + t[2])) / tot;
+    };
+    console.log(`SCALING  poorer half: appeal ${num(poor.map((r) => r.appeal)).toFixed(2)} · ` +
+      `${upperTier(poor).toFixed(0)}% tier1+ · ${gangRate(poor).toFixed(1)} gangs/career`);
+    console.log(`         richer half: appeal ${num(rich.map((r) => r.appeal)).toFixed(2)} · ` +
+      `${upperTier(rich).toFixed(0)}% tier1+ · ${gangRate(rich).toFixed(1)} gangs/career`);
+  }
+
+  // sanity assertions — this doubles as a regression test
+  let failures = 0;
+  const assert = (name: string, ok: boolean, detail = '') => {
+    if (!ok) { failures += 1; console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); }
   };
-  console.log(`SCALING  poorer half: appeal ${num(poor.map((r) => r.appeal)).toFixed(2)} · ` +
-    `${upperTier(poor).toFixed(0)}% tier1+ · ${gangRate(poor).toFixed(1)} gangs/career`);
-  console.log(`         richer half: appeal ${num(rich.map((r) => r.appeal)).toFixed(2)} · ` +
-    `${upperTier(rich).toFixed(0)}% tier1+ · ${gangRate(rich).toFixed(1)} gangs/career`);
+  console.log('');
+  // A hunter funds itself on bounties, not margins — it is expected to be much
+  // poorer than a trader. Floors are in tenths: 150 Cr is a "not starving" bar.
+  const wealthFloor = strategy === 'hunter' ? 1500 : 5000;
+  const upgradeBy = strategy === 'hunter' ? 60 : 20;
+  assert('a typical commander ends up much richer than they started',
+    median(worth) > wealthFloor, `median net worth ${cr(median(worth))} Cr vs 100.0 start`);
+  assert('most commanders avoid bankruptcy', survivors.length >= COMMANDERS * 0.6,
+    `${survivors.length}/${COMMANDERS}`);
+  // hunters buy guns, which cost more than a trader's first cargo bay
+  assert(`the first upgrade arrives within ${upgradeBy} legs`,
+    median(careers.filter((r) => r.firstUpgradeLeg !== null).map((r) => r.firstUpgradeLeg!))
+      <= upgradeBy);
+  assert('most contracts are completed rather than failed',
+    num(careers.map((r) => r.contractsDone)) > num(careers.map((r) => r.contractsFailed)));
+  assert('piracy costs cargo without ending most careers',
+    num(careers.map((r) => r.deaths)) < LEGS * 0.25);
+  // Calibrated for the default 60-leg run; a 45,000-leg career to Elite is
+  // legitimately worth millions, so the ceiling scales with the run length.
+  // The point is catching runaway/exponential wealth bugs, not long careers.
+  assert('nobody accumulates absurd wealth',
+    Math.max(...worth) < 50_000_000 * Math.max(1, LEGS / 60),
+    `best ${cr(Math.max(...worth))} Cr over ${LEGS} legs`);
+  assert('credits never go negative', credits.every((x) => x >= 0));
+  assert('the living galaxy actually moves prices', hi - lo > 0.05, `${lo.toFixed(2)}..${hi.toFixed(2)}`);
+
 }
 
-// sanity assertions — this doubles as a regression test
-let failures = 0;
-const assert = (name: string, ok: boolean, detail = '') => {
-  if (!ok) { failures += 1; console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); }
-};
-console.log('');
-assert('a typical commander ends up much richer than they started',
-  median(worth) > 5000, `median net worth ${cr(median(worth))} Cr vs 100.0 start`);
-assert('most commanders avoid bankruptcy', survivors.length >= COMMANDERS * 0.6,
-  `${survivors.length}/${COMMANDERS}`);
-assert('the first upgrade arrives within 20 legs',
-  median(careers.filter((r) => r.firstUpgradeLeg !== null).map((r) => r.firstUpgradeLeg!)) <= 20);
-assert('most contracts are completed rather than failed',
-  num(careers.map((r) => r.contractsDone)) > num(careers.map((r) => r.contractsFailed)));
-assert('piracy costs cargo without ending most careers',
-  num(careers.map((r) => r.deaths)) < LEGS * 0.25);
-// Calibrated for the default 60-leg run; a 45,000-leg career to Elite is
-// legitimately worth millions, so the ceiling scales with the run length.
-// The point is catching runaway/exponential wealth bugs, not long careers.
-assert('nobody accumulates absurd wealth',
-  Math.max(...worth) < 50_000_000 * Math.max(1, LEGS / 60),
-  `best ${cr(Math.max(...worth))} Cr over ${LEGS} legs`);
-assert('credits never go negative', credits.every((x) => x >= 0));
-assert('the living galaxy actually moves prices', hi - lo > 0.05, `${lo.toFixed(2)}..${hi.toFixed(2)}`);
+const COHORTS: [string, Strategy][] = [
+  ['TRADER', 'trader'], ['BOUNTY HUNTER', 'hunter'], ['PRIVATEER', 'privateer'],
+];
+if (STRATEGY === 'both' || STRATEGY === 'all') {
+  const wanted = STRATEGY === 'both' ? COHORTS.slice(0, 2) : COHORTS;
+  for (const [label, st] of wanted) report(label, runFleet(st), st);
+} else {
+  report(STRATEGY.toUpperCase(), runFleet(STRATEGY), STRATEGY);
+}
 
 console.log(failures === 0
   ? `\nall balance checks passed (${((Date.now() - started) / 1000).toFixed(1)}s)\n`
