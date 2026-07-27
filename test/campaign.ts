@@ -1,0 +1,423 @@
+// Headless campaign simulator — the balance playtest.
+//
+//   npm run campaign            # 40 commanders, 60 legs each
+//   npm run campaign -- 200 100 # 200 commanders, 100 legs each
+//
+// The browser playtest agent (test/playtest.js) proves the *game* works by
+// flying it; this proves the *economy* works by playing it thousands of
+// times. It runs the real modules — the actual galaxy generator, market
+// model, living-galaxy simulation, contract generator and equipment
+// catalogue — so its answers are about the shipped rules, not a model of
+// them. Only flight is abstracted: combat and docking become probabilities
+// derived from system danger and the commander's fit.
+//
+// Questions it answers: can a new commander make a living? how long to the
+// first upgrade, to a fully-equipped ship, to Elite? does the living galaxy
+// make routes matter? how lethal is lawless space?
+
+import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '../src/galaxy/galaxy.ts';
+import { LivingGalaxy } from '../src/galaxy/living.ts';
+import {
+  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateCount,
+} from '../src/game/contracts.ts';
+import {
+  newCommander, cargoCapacity, cargoTonnes, rating, EQUIPMENT_CATALOGUE,
+  equipmentOwned, MAX_FUEL, type CommanderData, type Contract,
+} from '../src/game/commander.ts';
+import { makeRng } from '../src/sim/core.ts';
+
+const COMMANDERS = Number(process.argv[2] ?? 40);
+const LEGS = Number(process.argv[3] ?? 60);
+const ILLEGAL = [3, 6, 10];
+const GRADIENTS = COMMODITIES.map((c) => c.gradient);
+
+interface CareerResult {
+  credits: number;
+  day: number;
+  legs: number;
+  deaths: number;
+  kills: number;
+  contractsDone: number;
+  contractsFailed: number;
+  cargoLost: number;
+  equipment: string[];
+  /** credits + what the fitted equipment cost — the honest wealth measure */
+  netWorth: number;
+  firstUpgradeLeg: number | null;
+  bankruptAtLeg: number | null;
+  peakCredits: number;
+  /** price multipliers actually seen, to show the living galaxy at work */
+  priceSpread: [number, number];
+  dangerSeen: number;
+}
+
+function runCareer(seed: number, systems: StarSystem[]): CareerResult {
+  const rng = makeRng(seed);
+  const living = new LivingGalaxy(systems);
+  const c: CommanderData = newCommander();
+  // give the galaxy a history before this commander launches
+  living.advance(30, GRADIENTS, rng);
+
+  let deaths = 0;
+  let contractsDone = 0;
+  let contractsFailed = 0;
+  let cargoLost = 0;
+  let firstUpgradeLeg: number | null = null;
+  let bankruptAtLeg: number | null = null;
+  let peakCredits = c.credits;
+  let legs = 0;
+  let minMult = 1;
+  let maxMult = 1;
+  let dangerSum = 0;
+
+  for (let leg = 0; leg < LEGS; leg++) {
+    const here = systems[c.systemIndex];
+    const market = applyMarketPressure(
+      generateMarket(here, Math.floor(rng() * 256)),
+      (i) => {
+        const m = living.priceMultiplier(c.systemIndex, i);
+        minMult = Math.min(minMult, m);
+        maxMult = Math.max(maxMult, m);
+        return m;
+      });
+    dangerSum += living.danger(c.systemIndex);
+
+    // --- settle contracts due here ---
+    c.contracts = c.contracts.filter((k) => {
+      if (k.destination !== c.systemIndex) {
+        if (c.day > k.deadlineDay) { contractsFailed += 1; return false; }
+        return true;
+      }
+      if (c.day > k.deadlineDay) { contractsFailed += 1; return false; }
+      if (k.kind === 'cargo') {
+        if (c.cargo[k.commodity] < k.qty) { contractsFailed += 1; return false; }
+        c.cargo[k.commodity] -= k.qty;
+      }
+      if (k.kind === 'bounty' && k.progress < k.qty) return true; // not finished yet
+      c.credits += k.reward;
+      contractsDone += 1;
+      return false;
+    });
+
+    // --- sell everything not promised to a contract ---
+    const committed = new Map<number, number>();
+    for (const k of c.contracts) {
+      if (k.kind === 'cargo') committed.set(k.commodity, (committed.get(k.commodity) ?? 0) + k.qty);
+    }
+    for (let i = 0; i < COMMODITIES.length; i++) {
+      const keep = committed.get(i) ?? 0;
+      while (c.cargo[i] > keep) {
+        c.cargo[i] -= 1;
+        c.credits += Math.round(market[i].price * 10);
+      }
+    }
+
+    // --- refuel ---
+    const need = MAX_FUEL - c.fuel;
+    if (need > 0) {
+      const cost = Math.round(need * 0.4);
+      if (c.credits >= cost) { c.credits -= cost; c.fuel = MAX_FUEL; }
+    }
+
+    // --- equip, keeping a trading float ---
+    for (const item of EQUIPMENT_CATALOGUE) {
+      if (item.id === 'trumble') continue; // a trap, not an upgrade
+      if (equipmentOwned(item.id, c)) continue;
+      if (here.techLevel + 1 < item.minTL) continue;
+      if (c.credits - item.price < 1500) continue;
+      c.credits -= item.price;
+      applyEquipment(c, item.id);
+      if (firstUpgradeLeg === null && item.id !== 'missile') firstUpgradeLeg = leg;
+    }
+
+    // --- take work ---
+    const offers = generateContractOffers(here, systems, c.day, rng);
+    // a commander takes work heading one way, not three jobs to three
+    // corners of the chart — so prefer offers near those already held
+    const anchor = c.contracts[0] ? systems[c.contracts[0].destination] : null;
+    const sorted = [...offers].sort((a, b) => {
+      const da = anchor ? chartDistanceTenths(anchor, systems[a.destination]) : 0;
+      const db = anchor ? chartDistanceTenths(anchor, systems[b.destination]) : 0;
+      return da - db;
+    });
+    for (const k of sorted) {
+      if (c.contracts.length >= 2) break;
+      const reach = chartDistanceTenths(here, systems[k.destination]);
+      if (reach > MAX_FUEL) continue; // could never get there
+      if (anchor && chartDistanceTenths(anchor, systems[k.destination]) > 50) continue;
+      if (k.kind === 'cargo' && cargoTonnes(c) + k.qty > cargoCapacity(c)) continue;
+      if (k.kind === 'cargo') c.cargo[k.commodity] += k.qty;
+      c.contracts.push(k);
+    }
+
+    // --- choose a destination: a contract, else the best trade ---
+    const dest = pickDestination(c, systems, market, rng);
+    if (dest === null) break;
+    const destSys = systems[dest];
+
+    // --- buy cargo for it ---
+    buyBestCargo(c, market, destSys);
+
+    // --- fly the leg ---
+    const dist = chartDistanceTenths(here, destSys);
+    if (dist > c.fuel) break; // shouldn't happen; pickDestination respects range
+    c.fuel -= dist;
+    const days = 1 + Math.ceil(dist / 20);
+    c.day += days;
+    living.advance(days, GRADIENTS, rng);
+    c.systemIndex = dest;
+    legs += 1;
+
+    // --- what happens on the way in ---
+    const danger = living.danger(dest);
+    const pirates = pirateCount(destSys, danger, rng);
+    for (let p = 0; p < pirates; p++) {
+      const outcome = resolveEncounter(c, rng);
+      if (outcome === 'escaped') continue;
+      if (outcome === 'dead') {
+        deaths += 1;
+        // reload the last station save: the original's rule
+        c.cargo = c.cargo.map(() => 0);
+        c.contracts = [];
+        c.credits = Math.round(c.credits * 0.6);
+        c.fuel = MAX_FUEL;
+        break;
+      }
+      if (outcome === 'robbed') {
+        const carried = c.cargo.map((q, i) => ({ q, i })).filter((x) => x.q > 0);
+        if (carried.length) {
+          const pick = carried[Math.floor(rng() * carried.length)];
+          const taken = Math.min(pick.q, 1 + Math.floor(rng() * 3));
+          c.cargo[pick.i] -= taken;
+          cargoLost += taken;
+        }
+      }
+      if (outcome === 'killed-them') {
+        c.kills += 1;
+        c.credits += 50 + Math.floor(rng() * 60);
+        for (const k of c.contracts) {
+          if (k.kind === 'bounty' && k.destination === c.systemIndex) k.progress += 1;
+        }
+      }
+    }
+
+    peakCredits = Math.max(peakCredits, c.credits);
+    if (c.credits < 20 && cargoTonnes(c) === 0 && bankruptAtLeg === null) bankruptAtLeg = leg;
+  }
+
+  const kitValue = EQUIPMENT_CATALOGUE
+    .filter((e) => e.id !== 'missile' && e.id !== 'trumble' && equipmentOwned(e.id, c))
+    .reduce((sum, e) => sum + e.price, 0);
+
+  return {
+    credits: c.credits,
+    netWorth: c.credits + kitValue,
+    priceSpread: [minMult, maxMult],
+    dangerSeen: dangerSum / Math.max(1, legs),
+    day: c.day,
+    legs,
+    deaths,
+    kills: c.kills,
+    contractsDone,
+    contractsFailed,
+    cargoLost,
+    equipment: EQUIPMENT_CATALOGUE
+      .filter((e) => e.id !== 'missile' && e.id !== 'trumble' && equipmentOwned(e.id, c))
+      .map((e) => e.id),
+    firstUpgradeLeg,
+    bankruptAtLeg,
+    peakCredits,
+  };
+}
+
+function applyEquipment(c: CommanderData, id: string): void {
+  const e = c.equipment;
+  switch (id) {
+    case 'missile': c.missiles = Math.min(4, c.missiles + 1); break;
+    case 'largeBay': e.largeBay = true; break;
+    case 'ecm': e.ecm = true; break;
+    case 'rearLaser': e.rearLaser = true; break;
+    case 'leftLaser': e.leftLaser = true; break;
+    case 'rightLaser': e.rightLaser = true; break;
+    case 'beam': c.credits += 4000; e.laser = 'beam'; break;
+    case 'military': c.credits += e.laser === 'beam' ? 10000 : 4000; e.laser = 'military'; break;
+    case 'scoops': e.scoops = true; break;
+    case 'escapePod': e.escapePod = true; break;
+    case 'energyBomb': e.energyBomb = true; break;
+    case 'energyUnit': e.energyUnit = true; break;
+    case 'dockingComputer': e.dockingComputer = true; break;
+    case 'miningLaser': e.miningLaser = true; break;
+    case 'combatComputer': e.combatComputer = true; break;
+    case 'galacticDrive': e.galacticDrive = true; break;
+  }
+}
+
+/**
+ * A pirate contact, resolved as probabilities from the commander's fit.
+ *
+ * Calibrated against the browser playtest agent's observed behaviour: most
+ * contacts end with the pirate left behind (the torus drive and the trained
+ * defence policy make disengaging easy), a minority become real fights, and
+ * death is rare for anyone who keeps flying toward the station.
+ */
+function resolveEncounter(
+  c: CommanderData,
+  rng: () => number,
+): 'escaped' | 'won' | 'killed-them' | 'robbed' | 'dead' {
+  // most contacts simply don't become fights
+  if (rng() < 0.55) return 'escaped';
+
+  let strength = 0.45;
+  if (c.equipment.laser === 'beam') strength += 0.18;
+  if (c.equipment.laser === 'military') strength += 0.3;
+  if (c.equipment.rearLaser) strength += 0.05;
+  if (c.equipment.ecm) strength += 0.05;
+  if (c.equipment.energyUnit) strength += 0.08;
+  if (c.equipment.combatComputer) strength += 0.2;
+  if (c.missiles > 0) strength += 0.05;
+  strength = Math.min(0.95, strength);
+
+  const roll = rng();
+  if (roll < strength) return rng() < 0.6 ? 'killed-them' : 'won';
+  if (roll < strength + 0.35) return 'robbed';
+  // an escape pod turns a death into a survivable disaster
+  if (c.equipment.escapePod && rng() < 0.7) {
+    c.equipment.escapePod = false;
+    return 'robbed';
+  }
+  return rng() < 0.3 ? 'dead' : 'robbed';
+}
+
+function pickDestination(
+  c: CommanderData,
+  systems: StarSystem[],
+  market: ReturnType<typeof generateMarket>,
+  rng: () => number,
+): number | null {
+  const here = systems[c.systemIndex];
+  const contract = c.contracts.find((k: Contract) =>
+    chartDistanceTenths(here, systems[k.destination]) <= c.fuel);
+  if (contract) return contract.destination;
+
+  // otherwise: the reachable system with the best expected trade margin
+  let best: number | null = null;
+  let bestScore = -Infinity;
+  for (const s of systems) {
+    const d = chartDistanceTenths(here, s);
+    if (s.index === c.systemIndex || d === 0 || d > c.fuel) continue;
+    let score = 0;
+    for (let i = 0; i < COMMODITIES.length; i++) {
+      if (ILLEGAL.includes(i) || COMMODITIES[i].unit !== 't') continue;
+      const expect = expectedPrice(s, i);
+      score = Math.max(score, expect - market[i].price);
+    }
+    score *= 0.8 + rng() * 0.4;
+    if (score > bestScore) { bestScore = score; best = s.index; }
+  }
+  return best;
+}
+
+function expectedPrice(sys: StarSystem, commodity: number): number {
+  const cm = COMMODITIES[commodity];
+  return ((cm.basePrice + cm.mask / 2 + sys.economy * cm.gradient) & 0xff) * 0.4;
+}
+
+function buyBestCargo(
+  c: CommanderData,
+  market: ReturnType<typeof generateMarket>,
+  dest: StarSystem,
+): void {
+  let best = -1;
+  let bestScore = 0.5;
+  for (let i = 0; i < COMMODITIES.length; i++) {
+    if (ILLEGAL.includes(i) || COMMODITIES[i].unit !== 't' || market[i].quantity <= 0) continue;
+    const margin = expectedPrice(dest, i) - market[i].price;
+    const cost = Math.round(market[i].price * 10);
+    if (cost <= 0) continue;
+    const units = Math.min(market[i].quantity, Math.floor(c.credits / cost),
+      cargoCapacity(c) - cargoTonnes(c));
+    if (units > 0 && units * margin > bestScore) { bestScore = units * margin; best = i; }
+  }
+  if (best < 0) return;
+  const cost = Math.round(market[best].price * 10);
+  while (market[best].quantity > 0 && cargoTonnes(c) < cargoCapacity(c) && c.credits >= cost) {
+    market[best].quantity -= 1;
+    c.cargo[best] += 1;
+    c.credits -= cost;
+  }
+}
+
+// --- run the fleet ----------------------------------------------------------
+
+const systems = generateGalaxy(1);
+const careers: CareerResult[] = [];
+const started = Date.now();
+for (let i = 0; i < COMMANDERS; i++) {
+  careers.push(runCareer(1000 + i * 7919, systems));
+}
+
+const num = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)] ?? 0;
+};
+const cr = (tenths: number) => (tenths / 10).toFixed(1);
+
+console.log(`\n=== CAMPAIGN SIMULATION: ${COMMANDERS} commanders × ${LEGS} legs ===`);
+console.log(`(real galaxy, market, living-galaxy and contract code; flight abstracted)\n`);
+
+const credits = careers.map((r) => r.credits);
+const survivors = careers.filter((r) => r.bankruptAtLeg === null);
+const worth = careers.map((r) => r.netWorth);
+console.log(`WEALTH   median net worth ${cr(median(worth))} Cr (cash + fitted kit), ` +
+  `from a 100.0 Cr start`);
+console.log(`         cash in hand: median ${cr(median(credits))} Cr · ` +
+  `peak during career ${cr(median(careers.map((r) => r.peakCredits)))} Cr · ` +
+  `best career ${cr(Math.max(...worth))} Cr`);
+console.log(`SURVIVAL ${survivors.length}/${COMMANDERS} never went broke · ` +
+  `${num(careers.map((r) => r.deaths)).toFixed(1)} deaths per career`);
+console.log(`PACE     median day ${median(careers.map((r) => r.day))} after ${LEGS} legs · ` +
+  `first upgrade at leg ${median(careers.filter((r) => r.firstUpgradeLeg !== null)
+    .map((r) => r.firstUpgradeLeg!))}`);
+console.log(`CONTRACT ${num(careers.map((r) => r.contractsDone)).toFixed(1)} completed · ` +
+  `${num(careers.map((r) => r.contractsFailed)).toFixed(1)} failed per career`);
+console.log(`COMBAT   ${num(careers.map((r) => r.kills)).toFixed(1)} kills · ` +
+  `${num(careers.map((r) => r.cargoLost)).toFixed(1)}t cargo lost to pirates per career`);
+console.log(`RATING   median ${rating(Math.round(median(careers.map((r) => r.kills))))}`);
+
+// equipment progression
+const kitCounts = new Map<string, number>();
+for (const r of careers) for (const e of r.equipment) kitCounts.set(e, (kitCounts.get(e) ?? 0) + 1);
+const kit = [...kitCounts.entries()].sort((a, b) => b[1] - a[1])
+  .map(([k, n]) => `${k} ${Math.round((100 * n) / COMMANDERS)}%`);
+console.log(`EQUIPMENT owned by end of career: ${kit.join(' · ') || 'none'}`);
+const lo = Math.min(...careers.map((r) => r.priceSpread[0]));
+const hi = Math.max(...careers.map((r) => r.priceSpread[1]));
+console.log(`GALAXY   living prices ranged ${lo.toFixed(2)}x..${hi.toFixed(2)}x baseline · ` +
+  `mean system danger ${num(careers.map((r) => r.dangerSeen)).toFixed(3)}`);
+
+// sanity assertions — this doubles as a regression test
+let failures = 0;
+const assert = (name: string, ok: boolean, detail = '') => {
+  if (!ok) { failures += 1; console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); }
+};
+console.log('');
+assert('a typical commander ends up much richer than they started',
+  median(worth) > 5000, `median net worth ${cr(median(worth))} Cr vs 100.0 start`);
+assert('most commanders avoid bankruptcy', survivors.length >= COMMANDERS * 0.6,
+  `${survivors.length}/${COMMANDERS}`);
+assert('the first upgrade arrives within 20 legs',
+  median(careers.filter((r) => r.firstUpgradeLeg !== null).map((r) => r.firstUpgradeLeg!)) <= 20);
+assert('most contracts are completed rather than failed',
+  num(careers.map((r) => r.contractsDone)) > num(careers.map((r) => r.contractsFailed)));
+assert('piracy costs cargo without ending most careers',
+  num(careers.map((r) => r.deaths)) < LEGS * 0.25);
+assert('nobody accumulates absurd wealth',
+  Math.max(...worth) < 50_000_000, `best ${cr(Math.max(...worth))} Cr`);
+assert('credits never go negative', credits.every((x) => x >= 0));
+assert('the living galaxy actually moves prices', hi - lo > 0.05, `${lo.toFixed(2)}..${hi.toFixed(2)}`);
+
+console.log(failures === 0
+  ? `\nall balance checks passed (${((Date.now() - started) / 1000).toFixed(1)}s)\n`
+  : `\n${failures} balance check(s) failed\n`);
+if (failures > 0) process.exit(1);

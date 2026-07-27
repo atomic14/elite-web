@@ -112,6 +112,21 @@ console.log('\nliving galaxy');
   check('save/load round-trips prices',
     Math.abs(restored.priceMultiplier(sample, 0) - living.priceMultiplier(sample, 0)) < 0.002);
 
+  // piracy must concentrate in lawless space, not merely busy space
+  const lawless = new LivingGalaxy(g1);
+  lawless.advance(365, gradients, makeRng(999));
+  const entries = [...lawless.states.entries()];
+  const risky = entries.filter(([, s]) => s.danger > 0.15);
+  const avgGovRisky = risky.reduce((sum, [i]) => sum + g1[i].government, 0) / (risky.length || 1);
+  check(`dangerous systems are lawless (mean government ${avgGovRisky.toFixed(2)} vs galaxy 3.50)`,
+    risky.length >= 5 && avgGovRisky < 2.5);
+  const anarchy = entries.filter(([i]) => g1[i].government === 0).map(([, s]) => s.danger);
+  const corporate = entries.filter(([i]) => g1[i].government === 7).map(([, s]) => s.danger);
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+  check('anarchies are more dangerous than corporate states',
+    mean(anarchy) > mean(corporate) + 0.05);
+  check('Lave stays safe for new commanders', lawless.danger(7) < 0.35);
+
   // pressure decays back toward baseline when trade stops
   const quiet = new LivingGalaxy(g1);
   const st = quiet.state(7);

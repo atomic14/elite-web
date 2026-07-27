@@ -1,7 +1,9 @@
-import { COMMODITIES } from '../galaxy/galaxy';
-import type { GalaxyStateSave } from '../galaxy/living';
+import { COMMODITIES } from '../galaxy/galaxy.ts';
+import type { GalaxyStateSave } from '../galaxy/living.ts';
 
-// Commander Jameson: everything that persists between sessions. Saved to
+// Commander Jameson: everything that persists between sessions.
+// Imports carry explicit .ts extensions because this module is also loaded
+// directly by Node for the headless campaign simulator (test/campaign.ts). Saved to
 // localStorage on every successful docking, classic "save at station" style.
 
 export const MAX_FUEL = 70; // tenths of a light year

@@ -65,9 +65,23 @@ export class LivingGalaxy {
   day = 0;
 
   private readonly systems: StarSystem[];
+  /**
+   * Each system's plausible trading partners, precomputed. Ships have a
+   * 7 LY jump range, so trade is inherently local — sampling uniformly
+   * across 256 systems would scatter convoys instead of forming the lanes
+   * that make some routes rich and others dangerous.
+   */
+  private readonly neighbours: number[][];
 
   constructor(systems: StarSystem[]) {
     this.systems = systems;
+    this.neighbours = systems.map((sys) =>
+      systems
+        .map((other) => ({ index: other.index, d: chartDistance(sys, other) }))
+        .filter((x) => x.index !== sys.index && x.d > 0 && x.d <= 70)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 10)
+        .map((x) => x.index));
   }
 
   state(index: number): SystemState {
@@ -122,10 +136,16 @@ export class LivingGalaxy {
           // the cargo never came: scarcity, and a nervous reputation
           dest.pressure[c.commodity] += 0.08 * c.tonnes / 10;
           dest.recentLosses += 1;
-          dest.danger = Math.min(1, dest.danger + 0.18);
+          // How much a loss damages a system's reputation depends on how
+          // well policed it is: an anarchy takes the full hit, a corporate
+          // state sends patrols and shrugs it off. Without this, busy
+          // well-governed hubs accumulate danger purely from traffic
+          // volume — Lave became the galaxy's worst pirate haven.
+          const lawlessness = (7 - this.systems[c.to].government) / 7;
+          dest.danger = Math.min(1, dest.danger + 0.22 * lawlessness);
           // raiders work a route, so the origin gets a milder reputation hit
           const src = this.state(c.from);
-          src.danger = Math.min(1, src.danger + 0.06);
+          src.danger = Math.min(1, src.danger + 0.08 * ((7 - this.systems[c.from].government) / 7));
         }
       }
       this.convoys = remaining;
@@ -156,12 +176,14 @@ export class LivingGalaxy {
       }
 
       // 3. everything decays back toward the 1984 baseline
-      for (const st of this.states.values()) {
+      for (const [index, st] of this.states) {
         for (let i = 0; i < COMMODITY_COUNT; i++) {
           st.pressure[i] *= 1 - PRESSURE_DECAY;
           if (Math.abs(st.pressure[i]) < 0.002) st.pressure[i] = 0;
         }
-        st.danger = Math.max(0, st.danger - DANGER_DECAY);
+        // well-policed systems recover their reputation faster
+        const order = (this.systems[index].government + 1) / 8;
+        st.danger = Math.max(0, st.danger - DANGER_DECAY * (0.5 + order * 1.5));
         st.recentArrivals = Math.max(0, st.recentArrivals - 0.5);
         st.recentLosses = Math.max(0, st.recentLosses - 0.5);
       }
@@ -171,18 +193,18 @@ export class LivingGalaxy {
     }
   }
 
-  /** A plausible partner: near, and wanting what we have. */
+  /** A plausible partner: within jump range, and wanting what we have. */
   private pickTradePartner(sys: StarSystem, rng: () => number): number | null {
+    const options = this.neighbours[sys.index];
+    if (!options.length) return null;
     let best: number | null = null;
     let bestScore = 0;
-    for (let attempt = 0; attempt < 6; attempt++) {
-      const cand = this.systems[Math.floor(rng() * this.systems.length)];
-      if (cand.index === sys.index) continue;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const cand = this.systems[options[Math.floor(rng() * options.length)]];
       const dist = chartDistance(sys, cand);
-      if (dist > 90) continue;
       // trade flows between unlike economies, and toward wealth
       const contrast = Math.abs(cand.economy - sys.economy) / 7;
-      const score = contrast * (cand.productivity / 40000) * (1 - dist / 120) * (0.6 + rng() * 0.8);
+      const score = contrast * (cand.productivity / 40000) * (1 - dist / 100) * (0.6 + rng() * 0.8);
       if (score > bestScore) {
         bestScore = score;
         best = cand.index;

@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "train": "node --experimental-strip-types --no-warnings train/evolve.ts",
     "evaluate": "node --experimental-strip-types --no-warnings train/evaluate.ts",
-    "test": "node --experimental-strip-types --no-warnings test/run.ts"
+    "test": "node --experimental-strip-types --no-warnings test/run.ts",
+    "campaign": "node --experimental-strip-types --no-warnings test/campaign.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

@@ -13,6 +13,7 @@ npm run build      # tsc --noEmit (src/ AND train/) + vite build → dist/
 npm run train -- <attack|evade|pack|defend> [--gens N --pop N ...]
 npm run evaluate   # held-out tournament for the current brains
 npm test           # invariant + sim tests (test/run.ts, no framework)
+npm run campaign   # headless balance playtest (test/campaign.ts)
 ```
 
 CI (.github/workflows/ci.yml) type-checks, builds and tests. Deployment is
@@ -48,7 +49,10 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
    classic 1984 default + modern toggle), command keys in game.ts, the `?`
    help panel (flight rows are rewritten by keymap.refreshHelpPanel), and
    the README table. Change them together.
-7. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
+7. **Contract/market rules live in `src/game/contracts.ts`**, not game.ts,
+   so the headless campaign simulator runs the *same* code the game does.
+   Keep new economic rules there.
+8. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
    import at build time. `git checkout src/sim/brains` restores shipped
    weights. Shipped-in-game: `pirate-attack-r2` (pirates), `jameson-defend`
    (armed traders + anything player-assist).
@@ -61,6 +65,11 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
   loop to simulate time (browser rAF throttles in background tabs — manual
   stepping is the reliable way in automation).
 - `window.__scriptedPirates = true` disables all NPC brains (A/B testing).
+- `npm run campaign` is the **balance playtest**: hundreds of full careers
+  through the real galaxy/market/living-galaxy/contract modules (only flight
+  is abstracted). Run it after touching prices, rewards, equipment or the
+  living galaxy — it asserts the economy still works and prints the wealth
+  curve, bankruptcy rate and equipment progression.
 - `test/playtest.js` (paste into console, or `fetch('/test/playtest.js')`
   then eval) is the **autonomous playtest agent**: it plays the real game —
   contracts, trading, equipping, jumping, combat via the trained defence

@@ -38,7 +38,14 @@ npm run build   # type-check + production build to dist/
 npm run train -- attack --gens 400   # retrain the pirate AI (Node ≥ 22.6; see train/README.md)
 npm run evaluate                     # held-out tournament for the current brains
 npm test                             # invariant + simulation tests (no framework)
+npm run campaign                     # headless balance playtest: 40 careers × 60 legs
 ```
+
+Two playtest harnesses back this up. `npm run campaign` plays hundreds of
+full commander careers headlessly — real galaxy, market, living-galaxy and
+contract code, with only flight abstracted — and reports whether the economy
+actually works (wealth curve, bankruptcy rate, time to first upgrade,
+equipment progression, piracy losses), failing the build if it doesn't.
 
 There's also an **autonomous playtest agent** (`test/playtest.js`): paste it
 into the browser console with the game open and `await __playtest.run({

@@ -32,6 +32,10 @@ src/
     scenario.ts               Episode: pirates vs trader, shared by trainer & viewer
     brains/*.json             trained weights, committed
   viewer/main.ts              three.js viewer for sim episodes
+test/
+  run.ts                      invariant + sim unit tests (npm test)
+  campaign.ts                 headless balance playtest (npm run campaign)
+  playtest.js                 autonomous in-browser play agent (console)
 train/
   evolve.ts                   neuroevolution trainer (Node, no deps)
   evaluate.ts                 held-out tournament — the validation gate

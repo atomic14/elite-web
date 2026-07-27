@@ -13,6 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy';
 import { LivingGalaxy } from '../galaxy/living';
+import { generateContractOffers, applyMarketPressure, pirateCount } from './contracts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene';
 import { createStarfield, SpaceDust } from '../world/starfield';
 import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
@@ -257,16 +258,9 @@ export class Game {
    * dearer. Baseline prices are untouched — this is a ±25% delta.
    */
   private localMarket(): MarketEntry[] {
-    const base = generateMarket(this.system, Math.floor(Math.random() * 256));
-    return base.map((m, i) => {
-      const mult = this.living.priceMultiplier(this.commander.systemIndex, i);
-      return {
-        ...m,
-        price: +(m.price * mult).toFixed(1),
-        // scarcity shows in stock as well as price
-        quantity: Math.max(0, Math.round(m.quantity * (2 - mult))),
-      };
-    });
+    return applyMarketPressure(
+      generateMarket(this.system, Math.floor(Math.random() * 256)),
+      (i) => this.living.priceMultiplier(this.commander.systemIndex, i));
   }
 
   // --- world lifecycle -----------------------------------------------------
@@ -416,9 +410,7 @@ export class Game {
     if (situation === 'arrival') {
       // pirate pressure: government lawlessness plus whatever the living
       // galaxy has recorded happening to convoys around here lately
-      const danger = this.living.danger(sys.index);
-      const pirates = Math.max(0,
-        Math.round((7 - sys.government) / 2 + danger * 3 + Math.random() * 2 - 1));
+      const pirates = pirateCount(sys, this.living.danger(sys.index));
       const toStation = home.clone().sub(this.player.position);
       const routeLen = toStation.length();
       const route = toStation.normalize();
@@ -620,56 +612,7 @@ export class Game {
    */
   /** @internal — driven by test/playtest.js */
   generateContractOffers(): Contract[] {
-    const sys = this.system;
-    const reachable = this.systems.filter((s) => {
-      const d = distanceTenths(sys, s);
-      return s.index !== sys.index && d > 0 && d <= 68;
-    });
-    if (!reachable.length) return [];
-
-    const offers: Contract[] = [];
-    const count = 2 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < count; i++) {
-      const dest = reachable[Math.floor(Math.random() * reachable.length)];
-      const dist = distanceTenths(sys, dest);
-      const roll = Math.random();
-      if (roll < 0.55) {
-        // cargo run: they supply the goods, you supply the nerve
-        const commodity = [0, 1, 4, 8, 9, 12][Math.floor(Math.random() * 6)];
-        const qty = 3 + Math.floor(Math.random() * 8);
-        offers.push({
-          kind: 'cargo',
-          destination: dest.index,
-          commodity,
-          qty,
-          reward: Math.round(qty * (22 + dist * 1.6) + 90),
-          deadlineDay: this.commander.day + 4 + Math.ceil(dist / 12),
-          progress: 0,
-        });
-      } else if (roll < 0.8) {
-        offers.push({
-          kind: 'courier',
-          destination: dest.index,
-          commodity: 0,
-          qty: 0,
-          reward: Math.round(240 + dist * 6.0),
-          deadlineDay: this.commander.day + 3 + Math.ceil(dist / 16),
-          progress: 0,
-        });
-      } else {
-        const qty = 2 + Math.floor(Math.random() * 3);
-        offers.push({
-          kind: 'bounty',
-          destination: dest.index,
-          commodity: 0,
-          qty,
-          reward: Math.round(qty * 170 + dist * 4),
-          deadlineDay: this.commander.day + 6 + Math.ceil(dist / 10),
-          progress: 0,
-        });
-      }
-    }
-    return offers;
+    return generateContractOffers(this.system, this.systems, this.commander.day);
   }
 
   /** @internal — driven by test/playtest.js */
