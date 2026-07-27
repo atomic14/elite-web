@@ -101,7 +101,7 @@ def main() -> int:
     # touching the GPU again. Not committed — see .gitignore.
     ap.add_argument("--raw-out", default="tools/species-raw",
                     help="where to keep the unposterised output ('' to skip)")
-    ap.add_argument("--size", type=int, default=192, help="output edge in pixels")
+    ap.add_argument("--size", type=int, default=256, help="output edge in pixels")
     ap.add_argument("--tones", type=int, default=4, help="how many phosphor levels")
     ap.add_argument("--dither", default="floyd", choices=["floyd", "bayer", "none"])
     # 256, not 512. The output is posterised down to 96px anyway, so asking
