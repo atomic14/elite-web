@@ -43,9 +43,24 @@ export interface SpeciesPrompt {
  * the variants would collapse back into three fixed outfits.
  */
 function pickVariant<T>(sys: StarSystem, slot: number, options: readonly T[]): T {
-  const h = (Math.imul(sys.seed[0], 0x9e3779b1) ^ Math.imul(sys.seed[1], 0x85ebca6b)
-    ^ Math.imul(sys.seed[2], 0xc2b2ae35) ^ Math.imul(slot + 1, 0x27d4eb2f)) >>> 0;
-  return options[h % options.length];
+  let h = Math.imul(sys.seed[0] ^ 0x9e3779b1, 0x85ebca6b);
+  h = Math.imul(h ^ sys.seed[1], 0xc2b2ae35);
+  h = Math.imul(h ^ sys.seed[2], 0x27d4eb2f);
+  h = Math.imul(h ^ (slot + 1), 0x165667b1);
+  // The murmur3 finalizer is not decoration. The first version xor-ed the
+  // multiplied words and took `% n` directly, which reads the LOW bits — and
+  // every multiplier here is odd, so the low bit of the hash was just the
+  // parity of the three seed words. The 1984 generator takes alternate
+  // iterations of its twist, which leaves a parity invariant across systems,
+  // so `% 2` returned the same answer for all 256 worlds: the galaxy came out
+  // 256 men and none women. Three-way splits looked fine and hid it. Avalanche
+  // the bits before reducing.
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return options[(h >>> 0) % options.length];
 }
 
 /**
@@ -233,6 +248,26 @@ const article = (word: string): string => (/^[AEIOU]/i.test(word) ? 'an' : 'a');
 const singular = (name: string): string =>
   (name.endsWith('s') && !name.endsWith('ss') ? name.slice(0, -1) : name);
 
+/**
+ * Colour words become minerals on humanoid worlds.
+ *
+ * The 1984 table offers Green, Red, Yellow, Blue and Black. On a lizard or a
+ * feline these are plainly an animal's colouring. On a humanoid — a
+ * human-shaped subject — "black" is read as an ethnicity, and paired with
+ * "fierce" the result is a caricature. Naming a mineral instead keeps the
+ * species description intact while making it unmistakably not a human one.
+ */
+const MINERAL: Record<string, string> = {
+  black: 'obsidian-skinned',
+  green: 'jade-skinned',
+  red: 'crimson-skinned',
+  blue: 'azure-skinned',
+  yellow: 'amber-skinned',
+};
+
+const alienise = (name: string): string =>
+  name.split(' ').map((w) => MINERAL[w.toLowerCase()] ?? w).join(' ');
+
 /** The goat-soup line, trimmed to the evocative clause. */
 function habitatPhrase(sys: StarSystem): string {
   const d = planetDescription(sys)
@@ -356,16 +391,41 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
   // overalls — so any human-shaped hint elsewhere in the prompt will win unless
   // the species is stated as the subject outright.
   const human = species === 'Human Colonials';
-  // "Humanoids" is excluded from the anti-human negative for the obvious
-  // reason: a humanoid is supposed to look like one.
+  // Humanoids get the alien treatment too, which reverses an earlier call.
+  //
+  // The reasoning then was that a humanoid should look like one, so it was
+  // exempted from the anti-human negative. The result is that the model draws
+  // a person — and the 1984 colour table then reads as an ethnicity rather
+  // than a skin. "Fierce Black Bony Humanoids" rendered as a human is a racial
+  // caricature, and there are 117 humanoid worlds across the eight galaxies,
+  // 26 of them with Black in the name.
+  //
+  // So humanoids are pushed firmly non-human, and their colour word is
+  // remapped to a mineral (below). The species NAME is untouched — galaxy.ts
+  // is byte-matched to 1984 and the game still shows what it always showed.
+  // This only changes what we ask the image model for.
   const humanoid = species.toLowerCase().includes('humanoid');
+  // Nothing said, so the model produced 256 men. Seeded like everything else,
+  // so it stays reproducible and a rerun does not reshuffle the galaxy.
+  //
+  // "female"/"male" as adjectives rather than "a woman"/"a man" deliberately:
+  // the 108 non-human worlds carry "man, woman, ordinary person" in their
+  // negative to stop the species being replaced by a human, and asking for a
+  // woman while forbidding one is the contradiction this file already has a
+  // check for.
+  const sex = pickVariant(sys, 3, ['female', 'male'] as const);
+  const creature = humanoid
+    ? alienise(singular(species.toLowerCase()))
+    : singular(species.toLowerCase());
   const subject = human
-    ? 'a single human colonist'
-    : `a single anthropomorphic ${singular(species.toLowerCase())} creature`;
+    ? `a single ${sex} human colonist`
+    : `a single ${sex} ${humanoid ? 'alien' : 'anthropomorphic'} ${creature} creature`;
 
   const prompt = [
     `head and shoulders portrait of ${subject}, one individual alone`,
-    ...(human || humanoid ? [] : [`clearly a ${singular(species.toLowerCase())}, animal head and face`]),
+    ...(human ? [] : humanoid
+      ? [`clearly an alien species, non-human anatomy and facial structure`]
+      : [`clearly a ${sex} ${creature}, animal head and face`]),
     `an inhabitant of ${sys.name}, ${article(ECONOMY_NAMES[sys.economy])} ` +
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
     HEROES[sys.name] ?? environmentPhrase(sys),
@@ -388,7 +448,8 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
       'silhouette, featureless, solid black shape, face in shadow',
       'text, watermark, signature, blurry, busy background, full body',
       'multiple figures, two people, group portrait, crowd, background characters',
-      ...(human || humanoid ? [] : ['human face, ordinary person, man, woman']),
+      ...(human ? [] : ['human face, ordinary person, man, woman']),
+      ...(humanoid ? ['human ethnicity, racial caricature, ordinary human skin'] : []),
       ...STYLES[style].negative,
     ].join(', '),
   };
