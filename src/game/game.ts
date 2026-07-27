@@ -560,6 +560,9 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   enterDocked(booting = false): void {
+    // whatever flew us in, we're down: drop the autopilot and cut the music
+    this.dcEngaged = false;
+    sfx.stopDockingMusic();
     this.mode = 'docked';
     this.returnMode = 'docked';
     this.clearNpcs();
@@ -594,6 +597,7 @@ export class Game {
     this.commander.galaxyState = this.living.save();
     saveCommander(this.commander);
     if (!booting) {
+      sfx.stopDockingMusic();
       sfx.dock();
       sfx.tunnel();
       this.tunnel.start(1.4, 'in'); // the bay shuts around you
@@ -1446,7 +1450,12 @@ export class Game {
     this.dockPlan.phase = 'gate'; // fresh approach each time it's engaged
     this.hud.showMessage(
       this.dcEngaged ? 'DOCKING COMPUTER ENGAGED' : 'DOCKING COMPUTER OFF', 2);
-    if (this.dcEngaged) sfx.beep(700, 0.12);
+    if (this.dcEngaged) {
+      sfx.beep(700, 0.12);
+      sfx.dockingMusic(); // the C64 tradition, synthesised — see audio.ts
+    } else {
+      sfx.stopDockingMusic();
+    }
   }
 
   /**
@@ -1459,6 +1468,7 @@ export class Game {
     if (this.input.held(...manualFlightKeys()) ||
         Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15) {
       this.dcEngaged = false;
+      sfx.stopDockingMusic();
       this.hud.showMessage('MANUAL OVERRIDE', 2);
       return;
     }

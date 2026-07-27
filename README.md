@@ -234,7 +234,11 @@ detected — as on the original's dashboard.
   NPC AI (traders/pirates/police), commander state + saves.
 - `src/hud/`, `src/ui/` — scanner/compass/gauges console and the full-page
   screens (station menu, market, chart, status).
-- `src/audio.ts` — WebAudio synth in the spirit of the BBC sound chip.
+- `src/audio.ts` — WebAudio synth in the spirit of the BBC sound chip,
+  including the docking waltz. The Commodore 64 Elite played *An der schönen
+  blauen Donau* while you docked; the tune is Strauss, 1866, and comfortably
+  public domain, so it is synthesised here from note data rather than shipping
+  audio from the original game — this repo contains no assets from Elite.
 - `src/sim/` + `train/` — render-free combat simulator, tiny MLP policies
   (1.9k params, keyboard-style discrete actions) and a neuroevolution
   self-play trainer; trained weights live in `src/sim/brains/`. The combat
