@@ -25,6 +25,7 @@ import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
+import { planDocking, makeDockPlan } from './docking';
 /**
  * Player gunnery: a real ray against the hull, plus a small graze tolerance.
  *
@@ -216,6 +217,9 @@ export class Game {
   private readonly tmp3 = new THREE.Vector3();
   /** reused for player gunnery — see LASER_GRAZE */
   private readonly shotRay = new THREE.Raycaster();
+  /** docking computer flying the ship in — see dockingComputerStep */
+  dcEngaged = false;
+  private readonly dockPlan = makeDockPlan();
   private readonly tmpQ = new THREE.Quaternion();
   private readonly tmpM = new THREE.Matrix4();
 
@@ -1425,8 +1429,36 @@ export class Game {
       sfx.beep(220);
       return;
     }
-    this.hud.showMessage('DOCKING COMPUTER ENGAGED', 2);
-    this.enterDocked();
+    // Fly it in, rather than teleporting. Uses the same primitive the traders
+    // do (game/docking.ts) — the hard part is roll, and it is the same problem
+    // for both. Press C again, or touch the controls, to take over.
+    this.dcEngaged = !this.dcEngaged;
+    this.dockPlan.phase = 'gate'; // fresh approach each time it's engaged
+    this.hud.showMessage(
+      this.dcEngaged ? 'DOCKING COMPUTER ENGAGED' : 'DOCKING COMPUTER OFF', 2);
+    if (this.dcEngaged) sfx.beep(700, 0.12);
+  }
+
+  /**
+   * One frame of the docking computer. Steers and throttles only — the actual
+   * docking is still decided by checkStation()'s slot and roll test, exactly
+   * as it is when you fly in by hand. The autopilot has to genuinely thread
+   * the letterbox; it gets no dispensation.
+   */
+  private dockingComputerStep(dt: number): void {
+    if (this.input.held(...manualFlightKeys()) ||
+        Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15) {
+      this.dcEngaged = false;
+      this.hud.showMessage('MANUAL OVERRIDE', 2);
+      return;
+    }
+    const station = this.world.station;
+    const plan = planDocking(
+      this.player.position, station, this.world.stationDockZ, this.player.maxSpeed, this.dockPlan);
+    this.tmpM.lookAt(ZERO, plan.heading, plan.up);
+    this.tmpQ.setFromRotationMatrix(this.tmpM);
+    this.player.quaternion.rotateTowards(this.tmpQ, 1.2 * dt);
+    this.player.speed += (plan.speed - this.player.speed) * Math.min(1, dt * 1.5);
   }
 
   /** @internal — driven by test/playtest.js */
@@ -1620,6 +1652,7 @@ export class Game {
   private updateFlight(dt: number, elapsed: number): void {
     this.player.update(dt, this.input);
     if (this.ccEngaged) this.combatComputerStep(dt);
+    if (this.dcEngaged) this.dockingComputerStep(dt);
 
     // torus drive
     if (this.torusEngaged) {
@@ -1653,12 +1686,19 @@ export class Game {
     // frame rather than shrinking underneath the loop.
     for (const npc of [...this.npcs]) {
       const event = npc.update(dt, this.player, this.commander.legalStatus,
-        this.world.station.position, this.npcs);
+        this.world.station, this.npcs);
       if (event) this.resolveNpcFire(npc, event);
 
       if (npc.wantsDespawn) {
-        // trader jumps out — witch-flash and gone
-        this.addExplosion(npc.object.position.clone(), 0x9adfff, { count: 10, speed: 120, duration: 0.7 });
+        // a trader that put in at the station slips into the slot; one that
+        // jumped out gets the witch-flash
+        this.addExplosion(
+          npc.object.position.clone(),
+          npc.docked ? 0xd8ffe0 : 0x9adfff,
+          npc.docked
+            ? { count: 5, speed: 35, duration: 0.4 }
+            : { count: 10, speed: 120, duration: 0.7 },
+        );
         this.scene.remove(npc.object);
         this.npcs = this.npcs.filter((n) => n !== npc);
         continue;
@@ -1726,6 +1766,7 @@ export class Game {
     const stBox = this.world.stationDockZ + 40;
     for (const npc of fleet) {
       if (!npc.alive || npc.inert || npc.role === 'hermit') continue;
+      if (npc.docking) continue; // a trader on final approach is *meant* to go in
       const local = this.tmp2.copy(npc.object.position);
       stn.worldToLocal(local);
       if (Math.abs(local.x) > stBox || Math.abs(local.y) > stBox || Math.abs(local.z) > stBox) continue;

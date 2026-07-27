@@ -10,6 +10,7 @@ import {
   type Brain, type BrainFile, type ObservableShip,
 } from '../sim/policy';
 import { TURN } from '../sim/core';
+import { planDocking, makeDockPlan, type DockPlan } from './docking';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
@@ -110,6 +111,9 @@ export type NpcRole =
   'hermit' | 'generation';
 
 const ZERO = new THREE.Vector3();
+/** scratch for the docking gate, module-level to keep update() allocation-free */
+/** station half-width; both hulls use 160 (world/system-scene.ts) */
+const DOCK_Z = 160;
 const UP = new THREE.Vector3(0, 1, 0);
 
 export interface PlayerRef {
@@ -232,7 +236,7 @@ export const CONSTRICTOR_SPEC: NpcSpec = {
   bounty: 2500, radius: 24, missiles: 2, ecmChance: 1,
 };
 
-export type TraderPhase = 'arriving' | 'trading' | 'departing';
+export type TraderPhase = 'arriving' | 'trading' | 'departing' | 'docking';
 
 export class NpcShip {
   readonly object: THREE.Object3D;
@@ -271,6 +275,13 @@ export class NpcShip {
   tradeTimer = 20 + Math.random() * 40;
   /** Set true when this ship has flown off / docked and should be removed. */
   wantsDespawn = false;
+  /** this trader put in at the station rather than jumping out */
+  docked = false;
+  /** on final approach into the slot — the station must not shove it away */
+  docking = false;
+  private readonly dockPlan: DockPlan = makeDockPlan();
+  /** decided at spawn: does this one have business at the station? */
+  readonly docksHere = Math.random() < 0.5;
   /**
    * Tier-2 gang member: flies the coordinated pack policy and doesn't scare
    * off. Set by the Game from pirateThreat() when the player looks worth
@@ -373,7 +384,7 @@ export class NpcShip {
     dt: number,
     player: PlayerRef,
     playerLegal: number,
-    home: THREE.Vector3,
+    station: THREE.Object3D,
     fleet: readonly NpcShip[] = [],
   ): FireEvent | null {
     if (!this.alive) return null;
@@ -440,7 +451,7 @@ export class NpcShip {
     }
 
     if (this.role === 'trader') {
-      this.updateTrader(dt, home);
+      this.updateTrader(dt, station);
       this.advance(dt);
       return null;
     }
@@ -450,7 +461,7 @@ export class NpcShip {
     if (this.waypointTimer <= 0) {
       this.waypointTimer = 12 + Math.random() * 15;
       this.waypoint
-        .copy(home)
+        .copy(station.position)
         .add(new THREE.Vector3().randomDirection().multiplyScalar(800 + Math.random() * 2500));
     }
     this.steerToward(this.waypoint, dt);
@@ -461,7 +472,8 @@ export class NpcShip {
   }
 
   /** Traders arrive from deep space, potter about the station, then leave. */
-  private updateTrader(dt: number, home: THREE.Vector3): void {
+  private updateTrader(dt: number, station: THREE.Object3D): void {
+    const home = station.position;
     switch (this.traderPhase) {
       case 'arriving': {
         this.steerToward(home, dt);
@@ -484,17 +496,39 @@ export class NpcShip {
           // they flew through it. 0.62 keeps the waypoint clear even when the
           // random offset below happens to point straight down.
           this.waypoint
-            .copy(home)
+            .copy(station.position)
             .multiplyScalar(0.62 + Math.random() * 0.38)
             .add(new THREE.Vector3().randomDirection().multiplyScalar(600 + Math.random() * 1200));
         }
         this.steerToward(this.waypoint, dt);
         this.speed = approach(this.speed, this.maxSpeed * 0.35, 60 * dt);
         if (this.tradeTimer <= 0) {
-          this.traderPhase = 'departing';
-          this.waypoint
-            .copy(home)
-            .add(new THREE.Vector3().randomDirection().multiplyScalar(30000));
+          // about half put in at the station; the rest jump out from here
+          if (this.docksHere) {
+            this.traderPhase = 'docking';
+          } else {
+            this.traderPhase = 'departing';
+            this.waypoint
+              .copy(station.position)
+              .add(new THREE.Vector3().randomDirection().multiplyScalar(30000));
+          }
+        }
+        break;
+      }
+      case 'docking': {
+        // Shared with the player's docking computer — see game/docking.ts.
+        const plan = planDocking(
+          this.object.position, station, DOCK_Z, this.maxSpeed, this.dockPlan);
+        this.docking = plan.phase === 'run';
+        this.speed = approach(this.speed, plan.speed, 90 * dt);
+        // orientation from the plan's heading AND the station's up, so the
+        // wings roll into line with the slot as it spins
+        this.tmpMat.lookAt(ZERO, plan.heading, plan.up);
+        this.tmpQ.setFromRotationMatrix(this.tmpMat);
+        this.object.quaternion.rotateTowards(this.tmpQ, this.turnRate * 2.2 * dt);
+        if (plan.arrived) {
+          this.docked = true;
+          this.wantsDespawn = true; // the Game plays the flash
         }
         break;
       }

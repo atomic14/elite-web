@@ -50,7 +50,10 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 - Shader-rich sun and planets instead of flat 1984 circles — the founding
   goal of the project.
 - Station collisions damage and bounce you rather than killing instantly.
-- The docking computer docks instantly rather than flying an animation.
+- **Traders dock.** In the original you saw ships use the station; here they
+  fly the slot properly, sharing the autopilot with your own docking computer
+  (src/game/docking.ts). About half of arriving traders put in; the rest
+  jump out as before.
 - Galactic hyperdrive on ⇧H instead of the manual's "G then H" chord (G
   opens the chart here; U is missile unarm, as in the original).
 - Views on 1-4 and screens on letters, because browsers claim F1-F12.

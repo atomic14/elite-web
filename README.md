@@ -101,7 +101,7 @@ joystick the original supported.
 | T / M / U | arm missile (locks in your sights) / fire / unarm |
 | E / TAB | E.C.M. / energy bomb (if fitted) |
 | J | torus jump drive (8×, stars streak; cuts out when mass-locked) |
-| C | docking computer (if fitted, within range) |
+| C | docking computer — flies you in; press again or touch the controls to take over |
 | K | combat computer — the trained defence AI flies your ship (if fitted) |
 | N / G | short range chart / galactic chart |
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |

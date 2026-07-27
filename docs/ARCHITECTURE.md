@@ -16,6 +16,8 @@ src/
     npc.ts                    NPC ships: scripted behaviours + trained-brain flight,
                               explosions, tracers
     commander.ts              persistent player state, equipment catalogue, saves
+    docking.ts                the slot approach, shared by traders and the
+                              player's docking computer
   galaxy/galaxy.ts            the 1984 procedural universe + market model
   galaxy/goatsoup.ts          the original's recursive planet-description grammar
   galaxy/living.ts            level-1 sim: convoys, prices, danger and your
