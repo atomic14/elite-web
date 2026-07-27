@@ -45,6 +45,15 @@ import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 const LASER_GRAZE = 0.35;
 
 /**
+ * Grazing radius for drifting cargo, in world units. Canisters are ~12 units
+ * across, so an exact ray needs 1.4 degrees of accuracy at 500m and they felt
+ * unhittable. They're not a skill target the way a fighter is — shooting one
+ * is a deliberate act — so they get a flat, generous tolerance instead of the
+ * silhouette-proportional one ships get.
+ */
+const CANISTER_GRAZE = 20;
+
+/**
  * Where the sight sits, as a fraction of canvas height. The cockpit console
  * covers the bottom ~22%, so the centre of what you can actually see is above
  * the middle of the canvas. The camera projection is shifted to match (see
@@ -955,6 +964,21 @@ export class Game {
       }
     }
 
+    // Drifting cargo is solid too, and was in the same blind spot as the
+    // station: canisters live in this.canisters, not this.npcs, so shots
+    // passed straight through them and nothing happened at all.
+    let hitCanister: (typeof this.canisters)[number] | null = null;
+    for (const c of this.canisters) {
+      c.object.updateMatrixWorld(true);
+      for (const h of this.shotRay.intersectObject(c.object, true)) {
+        if (h.distance < bestDist) {
+          bestDist = h.distance;
+          best = null;
+          hitCanister = c;
+        }
+      }
+    }
+
     // The station is solid too. Shooting it is a serious offence — GalCop
     // does not take kindly to it — and previously did nothing at all because
     // fireLaser only ever tested NPCs.
@@ -966,6 +990,7 @@ export class Game {
         if (h.distance < bestDist) {
           bestDist = h.distance;
           best = null;
+          hitCanister = null;
           hitStation = true;
         }
       }
@@ -973,7 +998,7 @@ export class Game {
 
     // 2. grazing shots: the beam has width, so a near-miss that clips the
     //    silhouette still counts. Only consulted if the ray missed everything.
-    if (!best && !hitStation) {
+    if (!best && !hitStation && !hitCanister) {
       for (const npc of this.npcs) {
         if (!npc.alive) continue;
         const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
@@ -985,6 +1010,32 @@ export class Game {
           bestDist = dist;
         }
       }
+      for (const c of this.canisters) {
+        const to = this.tmp2.copy(c.object.position).sub(this.player.position);
+        const dist = to.length();
+        if (dist > bestDist) continue;
+        const cone = Math.max(0.012, Math.atan(CANISTER_GRAZE / dist));
+        if (forward.angleTo(to.normalize()) < cone) {
+          best = null;
+          hitCanister = c;
+          bestDist = dist;
+        }
+      }
+    }
+    if (hitCanister) {
+      sfx.hit();
+      this.addExplosion(hitCanister.object.position.clone(), 0x8ad0ff,
+        { count: 10, speed: 55, duration: 0.4 });
+      this.scene.remove(hitCanister.object);
+      this.canisters = this.canisters.filter((x) => x !== hitCanister);
+      if (hitCanister.kind === 'capsule') {
+        // there is someone in that thing
+        this.hud.showMessage('ESCAPE CAPSULE DESTROYED', 3);
+        this.raiseLegal(2);
+      } else {
+        this.hud.showMessage('CARGO DESTROYED', 2);
+      }
+      return;
     }
     if (hitStation) {
       sfx.hit();
@@ -1628,11 +1679,15 @@ export class Game {
     // visibly fly through one another in a dogfight. Mirrors the sim's
     // pirate-vs-pirate rule (resolveCollision in sim/core.ts): symmetric,
     // because neither party has the player's shields.
-    for (let i = 0; i < this.npcs.length; i++) {
-      const a = this.npcs[i];
+    // Snapshot the list: wrecking a ship rebuilds this.npcs, and mutating it
+    // mid-loop would shift the indices we're iterating.
+    const fleet = this.npcs;
+    const wrecked: NpcShip[] = [];
+    for (let i = 0; i < fleet.length; i++) {
+      const a = fleet[i];
       if (!a.alive || a.inert || a.role === 'hermit' || a.role === 'generation') continue;
-      for (let j = i + 1; j < this.npcs.length; j++) {
-        const b = this.npcs[j];
+      for (let j = i + 1; j < fleet.length; j++) {
+        const b = fleet[j];
         if (!b.alive || b.inert || b.role === 'hermit' || b.role === 'generation') continue;
         const contact = a.radius + b.radius;
         const gap = a.object.position.distanceTo(b.object.position);
@@ -1648,10 +1703,17 @@ export class Game {
         a.speed *= 0.3;
         b.speed *= 0.3;
         const aPos = a.object.position.clone();
-        if (a.takeDamage(0.45, b.object.position, false)) this.destroyNpc(a);
-        if (b.takeDamage(0.45, aPos, false)) this.destroyNpc(b);
+        // wreckNpc, NOT destroyNpc: two NPCs colliding has nothing to do with
+        // the player. destroyNpc credits kills, pays the bounty and — the part
+        // that actually bit — calls raiseLegal(2) when the casualty is a
+        // trader, police or bounty hunter. Two ships in a dogfight bumping
+        // into each other was making the player a FUGITIVE and scrambling the
+        // station's Vipers at them, for something they had no part in.
+        if (a.takeDamage(0.45, b.object.position, false)) wrecked.push(a);
+        if (b.takeDamage(0.45, aPos, false)) wrecked.push(b);
       }
     }
+    for (const n of wrecked) this.wreckNpc(n);
 
     // occasional new trader arriving from deep space keeps the lanes alive —
     // busier at productive systems (the living-galaxy Level-1 hook)
