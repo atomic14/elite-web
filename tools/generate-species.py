@@ -1,8 +1,23 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "torch",
+#   "diffusers",
+#   "transformers",
+#   "accelerate",
+#   "pillow",
+# ]
+# ///
 """Generate inhabitant portraits for every system, then crush them to phosphor.
 
     node --experimental-strip-types tools/species-prompts.ts 1 --json > /tmp/g1.json
-    python3 tools/generate-species.py /tmp/g1.json --out public/species
+    uv run tools/generate-species.py /tmp/g1.json --out public/species
+
+uv reads the inline PEP 723 block above and fetches torch/diffusers into a
+throwaway environment, so there is no venv to create, no requirements file to
+drift, and nothing installed into the machine. The heavy dependencies exist
+only while this script runs.
 
 Python rather than TypeScript because that is where the model lives; nothing
 here runs at build time or in the browser. The game deploys as a static site,
@@ -36,9 +51,11 @@ PHOSPHOR = [
 def posterise(img, size: int, palette=PHOSPHOR):
     """Downsample, flatten to `palette`, and dither.
 
-    Ordered (Bayer) dithering rather than Floyd-Steinberg: the cross-hatch
-    artefacts read as scanline texture on a CRT, where diffusion noise just
-    looks like a dirty JPEG.
+    Floyd-Steinberg, which is what Pillow's quantize offers for a custom
+    palette. Ordered (Bayer) dithering would arguably read more like a CRT —
+    its cross-hatch looks like scanline texture where diffusion noise can look
+    like a dirty JPEG — but it needs hand-rolling. Worth trying if the output
+    looks too speckly at 96px.
     """
     from PIL import Image
 
@@ -51,7 +68,12 @@ def posterise(img, size: int, palette=PHOSPHOR):
 
     pal_img = Image.new("P", (1, 1))
     flat = [c for rgb in palette for c in rgb]
-    pal_img.putpalette(flat + [0] * (768 - len(flat)))
+    # Pad by REPEATING the darkest colour, not with zeros. A PIL palette holds
+    # 256 entries; zero-padding hands the quantiser 252 free pure-black slots
+    # and it happily uses them — 11% of a test image came out (0,0,0), which is
+    # not in the palette at all and reads as holes in the phosphor.
+    pad = list(palette[0]) * ((768 - len(flat)) // 3)
+    pal_img.putpalette(flat + pad)
 
     # quantize() with dithering, via an RGB round-trip so the palette applies
     rgb = Image.merge("RGB", (img, img, img))
@@ -84,8 +106,8 @@ def main() -> int:
         import torch
         from diffusers import DiffusionPipeline
     except ImportError:
-        print("needs torch + diffusers + pillow:\n"
-              "  pip install torch diffusers transformers accelerate pillow", file=sys.stderr)
+        print("run this with uv, which fetches the dependencies itself:\n"
+              "  uv run tools/generate-species.py <manifest.json>", file=sys.stderr)
         return 1
 
     device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
