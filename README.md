@@ -34,7 +34,7 @@ the [combat viewer](docs/TRAINING-LOG.md).*
 npm install
 npm run dev     # http://localhost:5173  (game)
                 # http://localhost:5173/viewer.html  (AI combat viewer)
-npm run build   # type-check + production build to dist/
+npm run build   # lint + tests (via prebuild), then production build to dist/
 npm run train -- attack --gens 400   # retrain the pirate AI (Node ≥ 22.6; see train/README.md)
 npm run evaluate                     # held-out tournament for the current brains
 npm test                             # invariant + simulation tests (no framework)
@@ -57,8 +57,10 @@ legs: 8 })` sends a commander off to take contracts, trade, fight, jump and
 dock on its own, asserting invariants as it goes and printing a report of
 everything it exercised. It's how gameplay changes get regression-tested.
 
-CI type-checks, builds and runs the tests on every push; the live site
-deploys from Cloudflare Pages (build `npm run build`, output `dist`).
+CI lints, tests, builds and runs the balance playtest on every push. The
+live site deploys from Cloudflare Pages (build `npm run build`, output
+`dist`) — and since npm runs `prebuild` before `build`, a commit that fails
+lint or tests fails the deploy build rather than shipping.
 
 > Retraining overwrites the committed neural weights in `src/sim/brains/`
 > that the game imports — `git checkout src/sim/brains` restores them.

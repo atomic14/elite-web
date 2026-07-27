@@ -1,7 +1,7 @@
 {
   "name": "elite-web",
   "version": "1.0.0",
-  "description": "A web remake of the classic 1984 Elite: byte-accurate procedural galaxy, wireframe ships, shader planets — and ship AI trained by neuroevolution self-play.",
+  "description": "A web remake of the classic 1984 Elite: byte-accurate procedural galaxy, wireframe ships, shader planets \u2014 and ship AI trained by neuroevolution self-play.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -10,7 +10,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "lint": "tsc --noEmit",
+    "check": "npm run lint && npm test",
+    "prebuild": "npm run check",
+    "build": "vite build",
     "preview": "vite preview",
     "train": "node --experimental-strip-types --no-warnings train/evolve.ts",
     "evaluate": "node --experimental-strip-types --no-warnings train/evaluate.ts",

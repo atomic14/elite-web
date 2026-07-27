@@ -1,6 +1,10 @@
-# CI: type-check, build, and run the checks that guard the project's
-# invariants. Deployment is handled by Cloudflare Pages (auto-deploys from
-# the repo; build command `npm run build`, output directory `dist`).
+# CI: lint, test, build.
+#
+# Deployment is Cloudflare Pages, auto-deploying from this repo with build
+# command `npm run build`. That command runs `prebuild` first (npm does this
+# automatically), which runs lint + tests — so a broken commit fails the
+# Cloudflare build and never reaches the live site. This workflow gives the
+# same signal on pull requests, where Cloudflare's result isn't visible.
 name: ci
 
 on:
@@ -19,7 +23,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Type-check and build
-        run: npm run build
+
+      # Run these separately from the build so a failure names itself in the
+      # checks list, rather than hiding inside a generic "build failed".
+      - name: Lint (strict type-check of src/, train/ and test/)
+        run: npm run lint
       - name: Invariant + simulation tests
         run: npm test
+
+      # Repeats lint/test via prebuild — cheap, and proves the exact command
+      # Cloudflare runs is green, which is what actually gates the deploy.
+      - name: Build (as Cloudflare runs it)
+        run: npm run build
+
+      - name: Headless balance playtest
+        run: npm run campaign

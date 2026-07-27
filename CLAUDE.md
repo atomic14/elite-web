@@ -9,7 +9,9 @@ framing intact.
 
 ```sh
 npm run dev        # game at localhost:5173, viewer at /viewer.html
-npm run build      # tsc --noEmit (src/ AND train/) + vite build → dist/
+npm run lint       # tsc --noEmit over src/, train/ and test/
+npm run check      # lint + tests — what `prebuild` runs
+npm run build      # prebuild (lint + test) then vite build → dist/
 npm run train -- <attack|evade|pack|defend> [--gens N --pop N ...]
 npm run evaluate   # held-out tournament for the current brains
 npm test           # invariant + sim tests (test/run.ts, no framework)
@@ -18,8 +20,12 @@ npm run campaign   # headless balance playtest (test/campaign.ts)
                    # `-- 4 45000 all` runs full careers to E L I T E (~70s)
 ```
 
-CI (.github/workflows/ci.yml) type-checks, builds and tests. Deployment is
-Cloudflare Pages, auto-deploying from the repo — no deploy workflow here.
+CI (.github/workflows/ci.yml) lints, tests, builds and runs the campaign.
+Deployment is Cloudflare Pages, auto-deploying from the repo with build
+command `npm run build` — and because npm runs `prebuild` first, a commit
+that fails lint or tests fails the Cloudflare build and never deploys.
+**Don't move lint/test out of `prebuild`**: that gate is the only thing
+stopping a broken commit reaching the live site.
 
 Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 
