@@ -2,23 +2,24 @@
 // docking, drawn on a full-screen overlay canvas.
 //
 // The rings alone used to simply stop — the overlay was hidden and the
-// universe appeared in a single frame. Instead the tube now finishes: an
-// aperture opens through the black (or closes over it, when docking), so you
-// fly out of the bay mouth into space rather than cutting to it.
+// universe appeared in a single frame. On the way OUT the tube now finishes:
+// an aperture opens through the black and the real scene shows through the bay
+// mouth as it sweeps past. On the way IN there is no aperture (see below); the
+// tube simply dims down into the dark of the bay.
 
 /** Which way you're going through the tube. */
 export type TunnelMode =
   /** launch / witch-space arrival: the mouth opens and reveals the universe */
   | 'out'
-  /** docking: the bay closes over you */
+  /** docking: the classic tube, ending in the dark of the bay */
   | 'in';
 
 /** Vertical squash — a circle read flat looks like a docking bay mouth. */
 const SQUASH = 0.62;
 /** Fraction of the effect spent rushing before the mouth starts to open. */
 const OPEN_AT = 0.42;
-/** Fraction by which the bay has fully closed on the way in. */
-const CLOSED_BY = 0.78;
+/** How much of the docking effect is spent fading down into the bay. */
+const BAY_FADE_FROM = 0.72;
 
 export class TunnelEffect {
   private readonly canvas: HTMLCanvasElement;
@@ -51,14 +52,20 @@ export class TunnelEffect {
    * nothing of the tube is left.
    */
   private aperture(p: number): number {
-    if (this.mode === 'out') {
-      if (p < OPEN_AT) return 0;
-      const k = (p - OPEN_AT) / (1 - OPEN_AT);
-      return Math.pow(k, 2.2) * 1.45; // accelerating, like clearing the slot
-    }
-    // docking: the mouth is wide as you enter and shuts around you
-    const k = Math.min(1, p / CLOSED_BY);
-    return (1 - Math.pow(k, 1.7)) * 1.45;
+    // Docking gets NO aperture. A closing iris seems obvious — the bay shutting
+    // around you — but it reads backwards: the only rings you can see are the
+    // ones outside the hole, so as it shrinks the visible ring edge sweeps
+    // INWARD, against the rings themselves. Each ring is still expanding (you
+    // are flying forward, so they must), but the reveal boundary is what the
+    // eye follows, and the effect looks like it is running in reverse.
+    //
+    // Forward motion looks the same going either way through a tube, which is
+    // why one effect served both originally. Only the *ending* differs: out
+    // into open space, or into the dark of the bay.
+    if (this.mode === 'in') return 0;
+    if (p < OPEN_AT) return 0;
+    const k = (p - OPEN_AT) / (1 - OPEN_AT);
+    return Math.pow(k, 2.2) * 1.45; // accelerating, like clearing the slot
   }
 
   update(dt: number): void {
@@ -96,7 +103,11 @@ export class TunnelEffect {
       const phase = (t * 1.15 + i / rings) % 1;
       const r = Math.pow(phase, 3) * maxR;
       if (r < 2) continue;
-      const bright = Math.min(1, phase * 2.2);
+      // on the way in, the tube lights fall away behind you as the bay closes
+      const bay = this.mode === 'in'
+        ? 1 - Math.max(0, (p - BAY_FADE_FROM) / (1 - BAY_FADE_FROM))
+        : 1;
+      const bright = Math.min(1, phase * 2.2) * bay;
       ctx.strokeStyle = `rgba(77, 255, 92, ${bright * 0.85})`;
       ctx.lineWidth = 1 + phase * 2;
       ctx.beginPath();
