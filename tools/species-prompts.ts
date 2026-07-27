@@ -117,10 +117,13 @@ const STYLES: Record<Style, { look: string[]; negative: string[] }> = {
     look: [
       'monochrome green image, glowing bright green on a pure black background',
       'strong key light on the face, deep black shadows, sharp visible facial features',
-      'high contrast, subject fills the frame edge to edge',
+      'high contrast, subject fills the whole image edge to edge',
     ],
     negative: [
-      'television set, monitor, screen, bezel, frame, border, device, photograph of a screen',
+      // Not "frame", "border" or "device": the prompt says the subject fills
+      // the frame, and the tech-level clause says "tools and simple devices".
+      // Negating a word the prompt relies on is the ink-style bug again.
+      'television set, monitor, screen, bezel, plastic casing, photograph of a screen',
       'white background, grey backdrop, studio lighting, full colour, washed out, flat lighting',
     ],
   },
@@ -235,6 +238,41 @@ if (!(style in STYLES)) {
   process.exit(1);
 }
 const systems = generateGalaxy(galaxy);
+
+/**
+ * A term must never appear in both a prompt and its own negative.
+ *
+ * Twice now this has been a real bug rather than a theoretical one: `ink`
+ * asked for a "clear silhouette" while negating "silhouette", and `crt`
+ * negated "frame" and "device" while the prompt said the subject fills the
+ * frame and the tech-level clause said "tools and simple devices". Both slip
+ * past a read-through, because the two halves are written far apart and the
+ * collision comes from a clause generated per system.
+ *
+ * So it is checked over every style against every system, which is cheap and
+ * exhaustive where spot-checking one world is neither.
+ */
+function checkNoContradictions(): void {
+  const bad: string[] = [];
+  for (const s of Object.keys(STYLES) as Style[]) {
+    for (const sys of systems) {
+      const p = buildPrompt(sys, s);
+      const positive = p.prompt.split(',').map((t) => t.trim().toLowerCase());
+      for (const term of p.negative.split(',').map((t) => t.trim().toLowerCase())) {
+        if (positive.some((t) => t.split(/\s+/).includes(term))) {
+          bad.push(`  ${s}/${sys.name}: negative "${term}" also appears in the prompt`);
+        }
+      }
+    }
+  }
+  if (bad.length) {
+    console.error('prompt contradicts its own negative:');
+    console.error([...new Set(bad)].slice(0, 10).join('\n'));
+    process.exit(1);
+  }
+}
+checkNoContradictions();
+
 const prompts = systems.map((s) => buildPrompt(s, style));
 
 if (asJson) {
