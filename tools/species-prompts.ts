@@ -102,7 +102,7 @@ function habitatPhrase(sys: StarSystem): string {
  * large tonal masses, which is exactly what survives 96px and four tones.
  * Restructure, never suppress.
  */
-export type Style = 'crt' | 'lit' | 'ink' | 'plain';
+export type Style = 'crt' | 'lit' | 'ink' | 'boxart' | 'pixel' | 'plain';
 
 const STYLES: Record<Style, { look: string[]; negative: string[] }> = {
   // Ask for the finished article: green phosphor on black. If the model can
@@ -139,6 +139,33 @@ const STYLES: Record<Style, { look: string[]; negative: string[] }> = {
       'sharply defined facial features',
     ],
     negative: ['photograph, soft focus, gradient shading, colour'],
+  },
+  // The visual world Elite actually shipped into: airbrushed science fiction
+  // cover illustration. Strong tonal modelling and theatrical lighting, which
+  // is precisely what survives sixteen tones — and it is period-correct
+  // without being a pastiche of the game's own graphics.
+  boxart: {
+    look: [
+      'airbrushed 1980s science fiction paperback cover illustration',
+      'dramatic theatrical lighting, bold modelled forms, strong rim light, deep shadow',
+      'painted poster art, confident brushwork, sharply detailed face and eyes',
+    ],
+    negative: ['photograph, snapshot, flat lighting, pixelation, colour photography'],
+  },
+  // The literal reading of "1980s video game", and the one to be sceptical
+  // about. Asked for chunky pixels, the model paints FAKE ones at whatever
+  // grid it fancies, at 512px — which we then downsample to 256 and quantise
+  // on our own grid. Two retro grids that do not align give moiré and mush,
+  // and we would be paying the model to imitate the thing posterise.py does
+  // exactly. Included because it should be settled by looking, not by me
+  // being confident in a comment.
+  pixel: {
+    look: [
+      'retro video game character portrait, chunky visible square pixels, limited palette',
+      'clean readable sprite art, strong dark outline, bold simple shading',
+      'clearly defined eyes and face',
+    ],
+    negative: ['photograph, soft focus, anti-aliasing, smooth gradients, blurry pixels'],
   },
   // Neutral: a good photograph and nothing else, leaving every decision to post.
   plain: {
