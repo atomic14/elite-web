@@ -104,6 +104,9 @@ export type FireEvent = { at: 'player' } | { at: NpcShip };
  */
 export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
   if (!npc.alive || npc.inert) return false;
+  // A pirate that has taken its payday stops caring about you: this is what
+  // makes jettisoning cargo a real escape rather than a donation.
+  if (npc.satisfied) return false;
   return (
     npc.role === 'pirate' || npc.role === 'thargoid' || npc.role === 'thargon' ||
     (npc.role === 'police' && (legalStatus >= 2 || npc.provoked)) ||
@@ -111,7 +114,7 @@ export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
   );
 }
 
-interface NpcSpec {
+export interface NpcSpec {
   def: ShipDef | null; // null → asteroid
   color: number;
   hp: number;
@@ -167,6 +170,41 @@ const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
   ],
 };
 
+/**
+ * Pirate hulls by threat tier (see pirateThreat() in contracts.ts). Tier is
+ * decided by how attractive a target the player looks — a poor Cobra full of
+ * food draws opportunists in Sidewinders; a fat, notorious one draws a gang in
+ * Fer-de-Lances. Passed to spawnNpc as a specOverride, so these stay ordinary
+ * pirates for every other purpose (bounty, legality, police response).
+ */
+const PIRATE_TIERS: NpcSpec[][] = [
+  // 0 — opportunists: cheap, fast, easily discouraged
+  [
+    { def: SIDEWINDER, color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
+    { def: GECKO, color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
+    { def: WORM, color: 0xffbb80, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40, radius: 14 },
+  ],
+  // 1 — professionals: the existing pirate mix
+  [
+    { def: KRAIT, color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
+    { def: MAMBA, color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
+    { def: MORAY, color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
+    { def: COBRA_MK3, color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
+  ],
+  // 2 — an organised gang: they brought the good ships, and missiles
+  [
+    { def: FER_DE_LANCE, color: 0xff7a4c, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, radius: 26, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
+    { def: ASP, color: 0xff8f5c, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 150, radius: 22, missiles: 1, ecmChance: 0.3, cargoDrop: 1 },
+    { def: PYTHON, color: 0xffa878, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, radius: 40, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
+  ],
+];
+
+/** Pick a hull for a pirate of the given threat tier. */
+export function pirateSpecForTier(tier: number, variantSeed: number): NpcSpec {
+  const tiers = PIRATE_TIERS[Math.max(0, Math.min(PIRATE_TIERS.length - 1, tier))];
+  return tiers[Math.abs(variantSeed) % tiers.length];
+}
+
 export const CONSTRICTOR_SPEC: NpcSpec = {
   def: CONSTRICTOR, color: 0xffd24d, hp: 3.2, maxSpeed: 370, turnRate: 1.2,
   bounty: 2500, radius: 24, missiles: 2, ecmChance: 1,
@@ -211,6 +249,14 @@ export class NpcShip {
   tradeTimer = 20 + Math.random() * 40;
   /** Set true when this ship has flown off / docked and should be removed. */
   wantsDespawn = false;
+  /**
+   * Tier-2 gang member: flies the coordinated pack policy and doesn't scare
+   * off. Set by the Game from pirateThreat() when the player looks worth
+   * organising against.
+   */
+  organised = false;
+  /** took the jettisoned cargo and lost interest — see isHostileToPlayer */
+  satisfied = false;
 
   private speed: number;
   private readonly maxSpeed: number;
@@ -330,7 +376,8 @@ export class NpcShip {
 
     if (aggressiveToPlayer) {
       if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()) {
-        const pack = PACK_BRAIN && packBrainEnabled();
+        // organised gangs fly the pack policy; opportunists fly solo
+        const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
         return this.brainFly(pack ? PACK_BRAIN : PIRATE_BRAIN, dt,
           player.position, player.quaternion, 300, distPlayer, 'player',
           pack ? fleet : null);

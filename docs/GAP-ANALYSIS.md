@@ -54,6 +54,18 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 - Galactic hyperdrive on ⇧H instead of the manual's "G then H" chord (G
   opens the chart here; U is missile unarm, as in the original).
 - Views on 1-4 and screens on letters, because browsers claim F1-F12.
+- **Pirates size you up before they commit.** The original scaled hostility
+  with your *combat rating*; here it scales with what you're visibly worth
+  (`pirateThreat` in src/game/contracts.ts) — cargo, hold size, fitted laser,
+  reputation, and regional notoriety from your recent sales. Poor commanders
+  meet opportunists in Sidewinders, rich ones meet organised gangs in
+  Fer-de-Lances flying the coordinated pack brain. Rationale: an economic
+  motive is explicable to the player and gives them levers (bank the money,
+  fly armed, lie low) where a hidden difficulty curve gives them none.
+  Threat grows deliberately sub-linearly with the prize so upgrades stay felt.
+- **Jettisoning cargo (Y) buys off pirates.** Not in the original, which had
+  no such out. They came for the goods; dumping a proportional share makes
+  them break off — turning an unwinnable fight into a decision.
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands
   your ship to the trained defence policy for as long as you hold a fight.

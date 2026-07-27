@@ -43,18 +43,30 @@ export interface SystemState {
   recentArrivals: number;
   /** convoys lost en route to here recently */
   recentLosses: number;
+  /**
+   * 0..1 — how loudly this region is talking about the player's cargo. Raised
+   * by landing big or contraband loads nearby, spread to jump-range
+   * neighbours, and decayed by lying low. Word of mouth, essentially.
+   */
+  heat: number;
 }
 
 export interface GalaxyStateSave {
   day: number;
   convoys: Convoy[];
   /** sparse: only systems that have drifted from baseline */
-  systems: Record<number, { pressure: number[]; danger: number; arrivals: number; losses: number }>;
+  systems: Record<number, { pressure: number[]; danger: number; arrivals: number; losses: number; heat?: number }>;
 }
 
 const COMMODITY_COUNT = 17;
 /** How fast pressure decays back toward the 1984 baseline, per day. */
 const PRESSURE_DECAY = 0.12;
+/**
+ * How fast talk about the player dies down, per day. Faster than DANGER_DECAY:
+ * a system's reputation for piracy should outlast one convoy, but nobody
+ * remembers one trader's cargo for a month.
+ */
+const HEAT_DECAY = 0.06;
 // Danger decays slowly: a system's reputation for piracy should outlast a
 // single convoy loss, so hotspots can build up along lawless trade routes.
 const DANGER_DECAY = 0.015;
@@ -92,6 +104,7 @@ export class LivingGalaxy {
         danger: 0,
         recentArrivals: 0,
         recentLosses: 0,
+        heat: 0,
       };
       this.states.set(index, s);
     }
@@ -186,6 +199,8 @@ export class LivingGalaxy {
         st.danger = Math.max(0, st.danger - DANGER_DECAY * (0.5 + order * 1.5));
         st.recentArrivals = Math.max(0, st.recentArrivals - 0.5);
         st.recentLosses = Math.max(0, st.recentLosses - 0.5);
+        // gossip fades faster than a reputation for piracy does
+        st.heat = Math.max(0, st.heat - HEAT_DECAY);
       }
 
       // keep the convoy list bounded however long the player plays
@@ -242,6 +257,28 @@ export class LivingGalaxy {
     return this.states.get(systemIndex)?.danger ?? 0;
   }
 
+  /** How loudly this region is talking about the player, 0..1. */
+  notoriety(systemIndex: number): number {
+    return this.states.get(systemIndex)?.heat ?? 0;
+  }
+
+  /**
+   * Word gets around. Landing a fat or dirty cargo raises the player's profile
+   * here and, more faintly, everywhere within a jump — which is why running
+   * contraband makes the *next* system's reception worse rather than this one's.
+   * Reuses the same jump-range neighbour lists as trade, so heat travels along
+   * the routes that actually connect systems.
+   */
+  addNotoriety(systemIndex: number, amount: number): void {
+    if (amount <= 0) return;
+    const here = this.state(systemIndex);
+    here.heat = Math.min(1, here.heat + amount);
+    for (const n of this.neighbours[systemIndex] ?? []) {
+      const st = this.state(n);
+      st.heat = Math.min(1, st.heat + amount * 0.35);
+    }
+  }
+
   /** Convoys due to arrive in this system within the next day or so. */
   imminentArrivals(systemIndex: number): Convoy[] {
     return this.convoys.filter((c) => c.to === systemIndex && c.intact && c.etaDay <= this.day + 1);
@@ -272,12 +309,13 @@ export class LivingGalaxy {
     const systems: GalaxyStateSave['systems'] = {};
     for (const [index, st] of this.states) {
       const pressure = Array.from(st.pressure).map((p) => +p.toFixed(3));
-      if (!pressure.some((p) => p !== 0) && st.danger === 0) continue;
+      if (!pressure.some((p) => p !== 0) && st.danger === 0 && st.heat === 0) continue;
       systems[index] = {
         pressure,
         danger: +st.danger.toFixed(3),
         arrivals: +st.recentArrivals.toFixed(1),
         losses: +st.recentLosses.toFixed(1),
+        heat: +st.heat.toFixed(3),
       };
     }
     return { day: this.day, convoys: this.convoys, systems };
@@ -294,6 +332,7 @@ export class LivingGalaxy {
       st.danger = s.danger ?? 0;
       st.recentArrivals = s.arrivals ?? 0;
       st.recentLosses = s.losses ?? 0;
+      st.heat = s.heat ?? 0; // absent in saves written before notoriety existed
     }
   }
 }

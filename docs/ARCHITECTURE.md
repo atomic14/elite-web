@@ -18,7 +18,8 @@ src/
     commander.ts              persistent player state, equipment catalogue, saves
   galaxy/galaxy.ts            the 1984 procedural universe + market model
   galaxy/goatsoup.ts          the original's recursive planet-description grammar
-  galaxy/living.ts            level-1 sim: convoys, prices and danger across all 256 systems
+  galaxy/living.ts            level-1 sim: convoys, prices, danger and your
+                              notoriety across all 256 systems
   world/                      per-system scenery: shader sun/planet, stations,
                               starfield, space dust
   ships/geometry.ts           every hull as vertex/edge/face tables; wireframe builder
@@ -117,7 +118,23 @@ them in sim/core.ts** (and ideally retrain). The policies' observation is
 ship-frame relative (`policy.ts` docstring) which is what makes them
 position/orientation invariant.
 
-### 6. The galaxy keeps trading while you're elsewhere
+### 6. Pirates are businesses, not a difficulty slider
+
+`pirateThreat()` in `game/contracts.ts` decides your reception from a **mark**
+— what a pirate can observe (cargo value, contraband, hold size, fitted laser,
+kills, regional notoriety). It returns a count, a *tier* (which hulls, via
+`pirateSpecForTier` in npc.ts) and whether they're *organised* (which flies the
+coordinated pack brain). Two rules keep it from rubber-banding: only visible
+things count — never credits in the bank — and threat grows sub-linearly with
+the prize, so the player outgrows the galaxy slowly rather than never.
+
+Because it lives in contracts.ts, `npm run campaign` scores the same function
+the game uses; it reports the tier mix and whether threat actually tracks
+wealth. The escape valve is `jettisonCargo()`: pirates came for cargo, so
+dumping enough of it satisfies them (`NpcShip.satisfied`, which
+`isHostileToPlayer` respects).
+
+### 7. The galaxy keeps trading while you're elsewhere
 
 `galaxy/living.ts` is a **level-1 simulation**: convoys between systems are
 *records*, not objects, advanced in whole days whenever the player's clock

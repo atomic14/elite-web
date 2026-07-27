@@ -13,6 +13,7 @@ import {
 } from '../src/galaxy/galaxy.ts';
 import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
+import { pirateThreat, markOf } from '../src/game/contracts.ts';
 import { Episode } from '../src/sim/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/sim/policy.ts';
 import { makeRng } from '../src/sim/core.ts';
@@ -133,6 +134,59 @@ console.log('\nliving galaxy');
   st.pressure[0] = 0.9;
   quiet.advance(40, gradients, () => 1); // rng()=1 → no new convoys
   check('pressure decays back toward the baseline', Math.abs(st.pressure[0]) < 0.01);
+}
+
+// --- who's worth robbing ----------------------------------------------------
+
+console.log('\npirate economics');
+{
+  const fixed = () => 0.5; // take the rng out of it
+  const mk = (cargo: Record<number, number>, kills = 0, laser = 'pulse', largeBay = false) => {
+    const c = new Array(17).fill(0);
+    for (const [i, q] of Object.entries(cargo)) c[+i] = q;
+    return { cargo: c, kills, equipment: { laser, largeBay } };
+  };
+  const lave = g1[7];
+  const at = (c: ReturnType<typeof mk>, noto = 0) =>
+    pirateThreat(lave, 0.1, markOf(c, noto), fixed);
+
+  const broke = at(mk({}));
+  const laden = at(mk({ 7: 35 }, 0, 'pulse', true)); // 35t computers, large bay
+  check(`an empty hold is not worth robbing (appeal ${broke.appeal.toFixed(2)})`,
+    broke.appeal < 0.1 && broke.tier === 0);
+  check(`a full hold of computers draws a gang (appeal ${laden.appeal.toFixed(2)})`,
+    laden.appeal > 0.8 && laden.tier === 2);
+  check('cheap cargo is not a prize',
+    at(mk({ 0: 20 })).tier === 0); // 20t of food
+
+  // the deterrence lever: looking dangerous makes you less worth the trouble
+  const armed = at(mk({ 7: 35 }, 150, 'military', true));
+  check(`a military laser and a reputation lower the tier (${laden.tier} → ${armed.tier})`,
+    armed.appeal < laden.appeal - 0.2 && armed.tier < laden.tier);
+
+  // contraband and notoriety both raise it
+  check('contraband is worth more than its price alone',
+    at(mk({ 6: 10 })).appeal > at(mk({ 5: 10 })).appeal * 0.9);
+  check('notoriety raises the reception',
+    at(mk({ 7: 10 }), 0.6).appeal > at(mk({ 7: 10 })).appeal + 0.2);
+
+  // the anti-rubber-band rule: threat must grow far slower than the player does
+  check(`threat is sub-linear in wealth (${broke.count} → ${laden.count} attackers)`,
+    laden.count <= broke.count + 2);
+  check('a gang needs the numbers to form',
+    !at(mk({ 7: 35 }, 0, 'pulse', true), 0).organised
+      || at(mk({ 7: 35 }, 0, 'pulse', true), 0).count >= 3);
+
+  // notoriety: spreads to jump-range neighbours, and fades
+  const heat = new LivingGalaxy(g1);
+  heat.addNotoriety(7, 0.8);
+  check('notoriety lands where you sold', heat.notoriety(7) > 0.7);
+  const neighbourHeat = [...heat.states.entries()].filter(([i]) => i !== 7 && heat.notoriety(i) > 0);
+  check(`word spreads to neighbours (${neighbourHeat.length} systems)`, neighbourHeat.length > 0);
+  check('but more faintly than at the source',
+    neighbourHeat.every(([, st]) => st.heat < heat.notoriety(7)));
+  heat.advance(30, COMMODITIES.map((c) => c.gradient), makeRng(4));
+  check('lying low cools you off', heat.notoriety(7) === 0);
 }
 
 // --- market model -----------------------------------------------------------

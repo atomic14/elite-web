@@ -13,7 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy';
 import { LivingGalaxy } from '../galaxy/living';
-import { generateContractOffers, applyMarketPressure, pirateCount } from './contracts';
+import { generateContractOffers, applyMarketPressure, pirateThreat, markOf, type PirateThreat } from './contracts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene';
 import { createStarfield, SpaceDust } from '../world/starfield';
 import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
@@ -23,7 +23,7 @@ import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } 
 import { Hud, SCANNER_RANGE, type ScannerContact, type ScreenTarget } from '../hud/hud';
 import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
-import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
+import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
@@ -128,6 +128,12 @@ export class Game {
   hermitTrading = false;
   private hermitMarket: MarketEntry[] = [];
   /** true after leaving a hermit, until you fly clear of it */
+  /** the reception the current system laid on — surfaced for the HUD/tests */
+  lastThreat: PirateThreat | null = null;
+  /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
+  jettisonedValue = 0;
+  /** what the hold was worth on arrival — sets what the pirates think they're owed */
+  arrivalCargoValue = 0;
   hermitCooldown = false;
   genShipSeen = false;
   trumbleTimer = 20;
@@ -410,7 +416,18 @@ export class Game {
     if (situation === 'arrival') {
       // pirate pressure: government lawlessness plus whatever the living
       // galaxy has recorded happening to convoys around here lately
-      const pirates = pirateCount(sys, this.living.danger(sys.index));
+      // Pirates are businesses: lawlessness and the living galaxy set how many
+      // are out here, but what you're visibly worth sets who they are and
+      // whether they bothered to organise.
+      const threat = pirateThreat(
+        sys,
+        this.living.danger(sys.index),
+        markOf(this.commander, this.living.notoriety(sys.index)),
+      );
+      this.lastThreat = threat;
+      this.jettisonedValue = 0;
+      this.arrivalCargoValue = markOf(this.commander).cargoValue;
+      const pirates = threat.count;
       const toStation = home.clone().sub(this.player.position);
       const routeLen = toStation.length();
       const route = toStation.normalize();
@@ -421,7 +438,9 @@ export class Game {
           .clone()
           .addScaledVector(route, along)
           .add(rnd(2500));
-        this.spawnNpc('pirate', pos, i + sys.index * 3);
+        const npc = this.spawnNpc('pirate', pos, i + sys.index * 3,
+          pirateSpecForTier(threat.tier, i + sys.index * 3));
+        npc.organised = threat.organised;
       }
     }
 
@@ -1952,6 +1971,7 @@ export class Game {
           else this.startHyperspace();
         }
         else if (i.pressed('KeyB')) this.sendDistressBeacon();
+        else if (i.pressed('KeyY')) this.jettisonCargo(i.held('ShiftLeft', 'ShiftRight') ? 5 : 1);
         else if (i.pressed('KeyJ')) {
           if (this.massLocked()) {
             this.hud.showMessage('MASS LOCKED', 2);
@@ -2221,8 +2241,76 @@ export class Game {
       this.commander.credits += revenue;
       sfx.beep(700, 0.05);
       this.hud.showMessage(`SOLD ${sold}${m.unit} FOR ${formatCredits(revenue)}`, 2);
+      // Word gets around. A big payday — or any quantity of contraband — makes
+      // you worth watching for, here and in the systems within a jump. This is
+      // why smuggling raises the temperature of your *next* arrival.
+      const contraband = idx === 3 || idx === 6 || idx === 10;
+      const notice = revenue / 40_000 + (contraband ? sold * 0.04 : 0);
+      this.living.addNotoriety(this.commander.systemIndex, Math.min(0.5, notice));
     } else {
       sfx.beep(220);
+    }
+  }
+
+  /**
+   * Dump a tonne over the side. Pirates came for cargo, not for you — give
+   * them enough of it and the opportunists break off and go collect, which
+   * turns "I can't win this fight" into a decision rather than a death.
+   * Organised gangs want considerably more convincing.
+   */
+  /** @internal — driven by test/playtest.js */
+  jettisonCargo(tonnes = 1): void {
+    if (this.mode !== 'flight') { sfx.beep(220); return; }
+    let dumped = 0;
+    let lastName = '';
+    for (let t = 0; t < tonnes; t++) {
+      // dump the most valuable thing aboard first — that's what buys you peace
+      let best = -1;
+      let bestValue = 0;
+      for (let i = 0; i < this.commander.cargo.length; i++) {
+        if (this.commander.cargo[i] <= 0) continue;
+        const value = COMMODITIES[i].basePrice;
+        if (value > bestValue) { bestValue = value; best = i; }
+      }
+      if (best < 0) break;
+      this.commander.cargo[best] -= 1;
+      this.jettisonedValue += bestValue * 4; // tenths of a credit, as markOf values it
+      this.spawnCanisters(this.player.position.clone(), 1, [best]);
+      lastName = COMMODITIES[best].name.toUpperCase();
+      dumped += 1;
+    }
+    if (dumped === 0) {
+      this.hud.showMessage('HOLD EMPTY', 1.5);
+      sfx.beep(220);
+      return;
+    }
+    sfx.beep(320, 0.08);
+
+    // Does it buy them off? They wanted a share of what you arrived carrying,
+    // so the demand scales with the prize rather than being a flat toll — and
+    // a gang that organised for you wants considerably more than an
+    // opportunist who happened to be passing.
+    let bought = 0;
+    let stillWant = Infinity;
+    for (const npc of this.npcs) {
+      if (!npc.alive || npc.role !== 'pirate') continue;
+      if (npc.satisfied) continue;
+      const share = npc.organised ? 0.3 : 0.12;
+      const appetite = Math.max(npc.organised ? 1_500 : 400, this.arrivalCargoValue * share);
+      if (this.jettisonedValue >= appetite) {
+        npc.satisfied = true;
+        bought += 1;
+      } else {
+        stillWant = Math.min(stillWant, appetite - this.jettisonedValue);
+      }
+    }
+    if (bought > 0) {
+      this.hud.showMessage(`${bought} ATTACKER${bought > 1 ? 'S' : ''} BREAKING OFF`, 3);
+    } else if (Number.isFinite(stillWant)) {
+      this.hud.showMessage(
+        `JETTISONED ${dumped}t ${lastName} — THEY WANT MORE (${formatCredits(Math.ceil(stillWant))})`, 3);
+    } else {
+      this.hud.showMessage(`JETTISONED ${dumped}t ${lastName}`, 2);
     }
   }
 

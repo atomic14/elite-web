@@ -100,6 +100,7 @@ joystick the original supported.
 | N / G | short range chart / galactic chart |
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |
 | B | distress beacon — GalCop tows you out of witch-space, for your cargo |
+| Y | jettison a tonne of cargo — pirates came for the goods, not for you |
 | I | commander status |
 | P | pause |
 | V | mouse flight — pointer-locked analogue stick, left button fires |
@@ -171,6 +172,18 @@ detected — as on the original's dashboard.
   pirate hotspots emerge along dangerous routes, and the system data screen
   reports the news. The 1984 economy stays the baseline underneath — this
   layer only ever nudges it ±25%.
+- **Pirates as businesses** — what waits for you on the way in depends on
+  what you're visibly worth. An empty Cobra draws a couple of opportunists in
+  Sidewinders; a full hold draws professionals; a fat, notorious one draws an
+  organised gang in Fer-de-Lances flying a coordinated attack policy. Only
+  what a pirate can *see* counts — cargo, hold size, fitted laser, your
+  reputation — never your bank balance, so banking the money and flying clean
+  is a real strategy. Threat grows far slower than your ship does, so upgrades
+  are felt rather than cancelled out. And since they came for the cargo,
+  **jettisoning it (Y) buys them off** — proportionally: opportunists want a
+  little, a gang that organised for you wants about a third of the prize.
+  Selling big or dirty loads raises your profile here and in neighbouring
+  systems, and it fades if you lie low.
 - **Contracts** — every station runs a bulletin board with cargo runs,
   courier jobs and pirate-clearing bounties, available from your very first
   landing. Deadlines are measured in days, which pass as you jump. (The

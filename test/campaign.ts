@@ -18,7 +18,7 @@
 import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '../src/galaxy/galaxy.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import {
-  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateCount,
+  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat, markOf,
 } from '../src/game/contracts.ts';
 import {
   newCommander, cargoCapacity, cargoTonnes, rating, EQUIPMENT_CATALOGUE,
@@ -49,6 +49,11 @@ interface CareerResult {
   /** price multipliers actually seen, to show the living galaxy at work */
   priceSpread: [number, number];
   dangerSeen: number;
+  /** encounters seen at each threat tier, and how many were organised gangs */
+  tierSeen: [number, number, number];
+  gangs: number;
+  /** mean "worth robbing" score across the career */
+  appeal: number;
 }
 
 function runCareer(seed: number, systems: StarSystem[]): CareerResult {
@@ -66,6 +71,10 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
   let bankruptAtLeg: number | null = null;
   let peakCredits = c.credits;
   let legs = 0;
+  const tierSeen: [number, number, number] = [0, 0, 0];
+  let gangs = 0;
+  let appealSum = 0;
+  let appealCount = 0;
   let minMult = 1;
   let maxMult = 1;
   let dangerSum = 0;
@@ -106,9 +115,19 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     }
     for (let i = 0; i < COMMODITIES.length; i++) {
       const keep = committed.get(i) ?? 0;
+      let sold = 0;
+      let revenue = 0;
       while (c.cargo[i] > keep) {
         c.cargo[i] -= 1;
-        c.credits += Math.round(market[i].price * 10);
+        revenue += Math.round(market[i].price * 10);
+        sold += 1;
+      }
+      c.credits += revenue;
+      if (sold > 0) {
+        // same rule as game.ts sellCargo: word gets around
+        const contraband = i === 3 || i === 6 || i === 10;
+        living.addNotoriety(c.systemIndex,
+          Math.min(0.5, revenue / 40_000 + (contraband ? sold * 0.04 : 0)));
       }
     }
 
@@ -170,9 +189,14 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
 
     // --- what happens on the way in ---
     const danger = living.danger(dest);
-    const pirates = pirateCount(destSys, danger, rng);
+    const threat = pirateThreat(destSys, danger, markOf(c, living.notoriety(dest)), rng);
+    tierSeen[threat.tier] += 1;
+    if (threat.organised) gangs += 1;
+    appealSum += threat.appeal;
+    appealCount += 1;
+    const pirates = threat.count;
     for (let p = 0; p < pirates; p++) {
-      const outcome = resolveEncounter(c, rng);
+      const outcome = resolveEncounter(c, rng, threat.tier);
       if (outcome === 'escaped') continue;
       if (outcome === 'dead') {
         deaths += 1;
@@ -214,6 +238,9 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     netWorth: c.credits + kitValue,
     priceSpread: [minMult, maxMult],
     dangerSeen: dangerSum / Math.max(1, legs),
+    tierSeen,
+    gangs,
+    appeal: appealSum / Math.max(1, appealCount),
     day: c.day,
     legs,
     deaths,
@@ -263,11 +290,21 @@ function applyEquipment(c: CommanderData, id: string): void {
 function resolveEncounter(
   c: CommanderData,
   rng: () => number,
+  tier = 1,
 ): 'escaped' | 'won' | 'killed-them' | 'robbed' | 'dead' {
-  // most contacts simply don't become fights
-  if (rng() < 0.55) return 'escaped';
+  // Most contacts simply don't become fights — but a gang that organised for
+  // you is much harder to leave behind than an opportunist in a Sidewinder.
+  //
+  // Tuned so the *average* danger matches the pre-tier baseline (0.55
+  // disengage, 0.45 strength) and only its distribution changes. Making tier 0
+  // markedly safer without this drops deaths per career from 1.4 to 0.3: since
+  // most commanders stay modest, softening the common case softens the whole
+  // game, which is the opposite of the intent.
+  const disengage = tier === 0 ? 0.60 : tier === 1 ? 0.50 : 0.32;
+  if (rng() < disengage) return 'escaped';
 
-  let strength = 0.45;
+  // better hulls, better shooting: tier shifts the odds against you
+  let strength = 0.48 - tier * 0.09;
   if (c.equipment.laser === 'beam') strength += 0.18;
   if (c.equipment.laser === 'military') strength += 0.3;
   if (c.equipment.rearLaser) strength += 0.05;
@@ -395,6 +432,31 @@ const lo = Math.min(...careers.map((r) => r.priceSpread[0]));
 const hi = Math.max(...careers.map((r) => r.priceSpread[1]));
 console.log(`GALAXY   living prices ranged ${lo.toFixed(2)}x..${hi.toFixed(2)}x baseline · ` +
   `mean system danger ${num(careers.map((r) => r.dangerSeen)).toFixed(3)}`);
+const tiers = [0, 1, 2].map((t) => careers.reduce((a, r) => a + r.tierSeen[t], 0));
+const tierTotal = tiers.reduce((a, b) => a + b, 0) || 1;
+console.log(`PIRATES  reception by tier: opportunists ${Math.round(100 * tiers[0] / tierTotal)}% · ` +
+  `professionals ${Math.round(100 * tiers[1] / tierTotal)}% · ` +
+  `gangs ${Math.round(100 * tiers[2] / tierTotal)}% · ` +
+  `${(careers.reduce((a, r) => a + r.gangs, 0) / COMMANDERS).toFixed(1)} organised per career · ` +
+  `mean appeal ${num(careers.map((r) => r.appeal)).toFixed(2)}`);
+
+// does the threat actually track wealth, or is it just noise?
+{
+  const sorted = [...careers].sort((a, b) => a.netWorth - b.netWorth);
+  const half = Math.floor(sorted.length / 2);
+  const poor = sorted.slice(0, half);
+  const rich = sorted.slice(-half);
+  const gangRate = (rs: typeof careers) => rs.reduce((a, r) => a + r.gangs, 0) / rs.length;
+  const upperTier = (rs: typeof careers) => {
+    const t = rs.reduce((a, r) => [a[0] + r.tierSeen[0], a[1] + r.tierSeen[1], a[2] + r.tierSeen[2]], [0, 0, 0]);
+    const tot = t[0] + t[1] + t[2] || 1;
+    return (100 * (t[1] + t[2])) / tot;
+  };
+  console.log(`SCALING  poorer half: appeal ${num(poor.map((r) => r.appeal)).toFixed(2)} · ` +
+    `${upperTier(poor).toFixed(0)}% tier1+ · ${gangRate(poor).toFixed(1)} gangs/career`);
+  console.log(`         richer half: appeal ${num(rich.map((r) => r.appeal)).toFixed(2)} · ` +
+    `${upperTier(rich).toFixed(0)}% tier1+ · ${gangRate(rich).toFixed(1)} gangs/career`);
+}
 
 // sanity assertions — this doubles as a regression test
 let failures = 0;
