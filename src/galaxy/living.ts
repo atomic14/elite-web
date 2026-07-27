@@ -55,7 +55,9 @@ export interface GalaxyStateSave {
 const COMMODITY_COUNT = 17;
 /** How fast pressure decays back toward the 1984 baseline, per day. */
 const PRESSURE_DECAY = 0.12;
-const DANGER_DECAY = 0.08;
+// Danger decays slowly: a system's reputation for piracy should outlast a
+// single convoy loss, so hotspots can build up along lawless trade routes.
+const DANGER_DECAY = 0.015;
 
 export class LivingGalaxy {
   readonly states = new Map<number, SystemState>();
@@ -120,7 +122,10 @@ export class LivingGalaxy {
           // the cargo never came: scarcity, and a nervous reputation
           dest.pressure[c.commodity] += 0.08 * c.tonnes / 10;
           dest.recentLosses += 1;
-          dest.danger = Math.min(1, dest.danger + 0.1);
+          dest.danger = Math.min(1, dest.danger + 0.18);
+          // raiders work a route, so the origin gets a milder reputation hit
+          const src = this.state(c.from);
+          src.danger = Math.min(1, src.danger + 0.06);
         }
       }
       this.convoys = remaining;

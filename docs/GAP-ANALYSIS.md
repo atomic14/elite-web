@@ -26,6 +26,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Ship roster | 21 hulls: Cobra Mk III, Sidewinder, Viper, Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle, Transporter, Thargoid, Thargon, Constrictor, missile, cargo canister. |
 | NPC ecosystem | Traders arrive from deep space, work the station lane and jump out; pirates hunt the player and prey on traders; police hunt pirates; lone bounty hunters; NPC-vs-NPC combat. Piracy scales with government type, traffic with productivity. |
 | Missions | Station bulletin board (cargo, courier and bounty contracts with day-based deadlines) available from the first landing, plus the Constrictor hunt and the classified courier run (16+ kills, galaxy 1). |
+| Living galaxy | A level-1 simulation runs trade between all 256 systems while you play: convoys depart on productivity, are lost to piracy in lawless space, and arrive as real traders in whatever system you're in. Prices drift ±25% from the 1984 baseline with supply, pirate hotspots emerge along lawless routes, and system news reports it. |
 | Encounters | Escape capsules from destroyed ships (scoopable, with consequences), station defence Vipers, rock hermits that trade ore and ask no questions, derelict generation ships, and Trumbles. |
 | Progression | Kills → Harmless … E L I T E; save-on-dock; save export/import. |
 | Console | Elliptical 3D scanner, compass, gauges, missile pylons, S (station in range) and E (ECM detected) indicator lights. |
@@ -34,10 +35,6 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 
 ## Remaining
 
-1. **The living galaxy** — a two-level simulation where traffic flows
-   between all 256 systems and materialises in yours, with prices nudged by
-   simulated trade and pirate risk migrating to rich, lawless routes.
-   Design in [AI-TRAINING.md](AI-TRAINING.md).
 2. **AI round 4** — round 3's reward reshaping and third league round both
    failed on held-out seeds (see TRAINING-LOG.md); the next attempt should
    widen pack observations and use opponent pools rather than single

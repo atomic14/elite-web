@@ -158,6 +158,12 @@ detected — as on the original's dashboard.
 - **Mining & scooping** — blast asteroids (mining laser drops ore canisters)
   and scoop drifting cargo with fuel scoops; sun-skim to refuel, watching the
   cabin temperature.
+- **A living galaxy** — trade runs between all 256 systems while you play.
+  Convoys depart from productive worlds, get taken by pirates in lawless
+  space, and arrive in your system as real ships. Prices drift with supply,
+  pirate hotspots emerge along dangerous routes, and the system data screen
+  reports the news. The 1984 economy stays the baseline underneath — this
+  layer only ever nudges it ±25%.
 - **Contracts** — every station runs a bulletin board with cargo runs,
   courier jobs and pirate-clearing bounties, available from your very first
   landing. Deadlines are measured in days, which pass as you jump. (The
