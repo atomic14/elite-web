@@ -100,7 +100,7 @@ joystick the original supported.
 | 1 2 3 4 | front / rear / left / right view |
 | T / M / U | arm missile (locks in your sights) / fire / unarm |
 | E / TAB | E.C.M. / energy bomb (if fitted) |
-| J | torus jump drive (8×, cuts out when mass-locked) |
+| J | torus jump drive (8×, stars streak; cuts out when mass-locked) |
 | C | docking computer (if fitted, within range) |
 | K | combat computer — the trained defence AI flies your ship (if fitted) |
 | N / G | short range chart / galactic chart |

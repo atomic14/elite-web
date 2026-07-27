@@ -233,7 +233,7 @@ export class Game {
     }
 
     this.scene.add(createStarfield());
-    this.scene.add(this.dust.points);
+    this.scene.add(this.dust.points, this.dust.streaks);
     this.scene.add(this.camera);
 
     // Cockpit laser beams, drawn in camera space. They converge ON THE CAMERA
@@ -1582,7 +1582,13 @@ export class Game {
     }
 
     this.world.update(dt, elapsed);
-    this.dust.update(this.player.position);
+    // hand the dust our actual velocity so it can streak — the torus drive
+    // multiplies our travel by 8, and that is what makes the stars smear
+    this.dust.update(
+      this.player.position,
+      this.player.getForward(this.tmp)
+        .multiplyScalar(this.player.speed * (this.torusEngaged && !this.massLocked() ? 8 : 1)),
+    );
 
     // periodic NPC-vs-NPC targeting: pirates prey on traders, the law hunts pirates
     this.npcTargetTimer -= dt;
