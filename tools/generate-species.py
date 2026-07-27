@@ -69,47 +69,16 @@ import json
 import pathlib
 import sys
 
-from PIL import Image, ImageOps
+from PIL import Image
 
-# The game's palette, from src/style.css.
-PHOSPHOR = [
-    (0x00, 0x08, 0x02),  # near-black, the CRT at rest
-    (0x1D, 0x6B, 0x26),  # --hud-dim
-    (0x35, 0xB0, 0x40),  # midtone, interpolated
-    (0x4D, 0xFF, 0x5C),  # --hud-green
-]
-
-
-def posterise(img, size: int, palette=PHOSPHOR):
-    """Downsample, flatten to `palette`, and dither.
-
-    Floyd-Steinberg, which is what Pillow's quantize offers for a custom
-    palette. Ordered (Bayer) dithering would arguably read more like a CRT —
-    its cross-hatch looks like scanline texture where diffusion noise can look
-    like a dirty JPEG — but it needs hand-rolling. Worth trying if the output
-    looks too speckly at 96px.
-    """
-    from PIL import Image
-
-    img = img.convert("L").resize((size, size), Image.LANCZOS)
-
-    # autocontrast first — the model's output is rarely using the full range,
-    # and without this most portraits collapse into two tones
-    from PIL import ImageOps
-    img = ImageOps.autocontrast(img, cutoff=2)
-
-    pal_img = Image.new("P", (1, 1))
-    flat = [c for rgb in palette for c in rgb]
-    # Pad by REPEATING the darkest colour, not with zeros. A PIL palette holds
-    # 256 entries; zero-padding hands the quantiser 252 free pure-black slots
-    # and it happily uses them — 11% of a test image came out (0,0,0), which is
-    # not in the palette at all and reads as holes in the phosphor.
-    pad = list(palette[0]) * ((768 - len(flat)) // 3)
-    pal_img.putpalette(flat + pad)
-
-    # quantize() with dithering, via an RGB round-trip so the palette applies
-    rgb = Image.merge("RGB", (img, img, img))
-    return rgb.quantize(palette=pal_img, dither=Image.FLOYDSTEINBERG).convert("RGB")
+# The look lives in tools/posterise.py — imported, not copied. This script used
+# to carry its own posterise() and its own copy of the palette, which is the
+# same shape as every other bug this project has had: two definitions of one
+# thing, drifting apart. It had already happened — that copy never gained the
+# invert step, so images crushed on the way out looked different from the same
+# images re-crushed later from the raws.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from posterise import posterise  # noqa: E402
 
 
 def looks_dead(img) -> bool:
@@ -132,7 +101,9 @@ def main() -> int:
     # touching the GPU again. Not committed — see .gitignore.
     ap.add_argument("--raw-out", default="tools/species-raw",
                     help="where to keep the unposterised output ('' to skip)")
-    ap.add_argument("--size", type=int, default=96, help="output edge in pixels")
+    ap.add_argument("--size", type=int, default=192, help="output edge in pixels")
+    ap.add_argument("--tones", type=int, default=4, help="how many phosphor levels")
+    ap.add_argument("--dither", default="floyd", choices=["floyd", "bayer", "none"])
     # 256, not 512. The output is posterised down to 96px anyway, so asking
     # for 512 spends four times the memory and time on detail that is thrown
     # away by the quantiser. This is the single biggest lever if you are
@@ -140,7 +111,7 @@ def main() -> int:
     # The posterised output only needs 96px, but this is also the resolution of
     # the raw you keep — so if you want the unposterised images to be worth
     # looking at, raise it. 512 is comfortable now that MPS runs in bfloat16.
-    ap.add_argument("--gen-size", type=int, default=256,
+    ap.add_argument("--gen-size", type=int, default=512,
                     help="model resolution; also the size of the kept raw (512 for nicer raws)")
     ap.add_argument("--steps", type=int, default=8, help="Z-Image-Turbo is a few-step model")
     ap.add_argument("--limit", type=int, default=0, help="stop after N (for a trial run)")
@@ -203,7 +174,7 @@ def main() -> int:
             return 2
         if raw_dest:
             image.save(raw_dest)
-        posterise(image, args.size).save(dest, optimize=True)
+        posterise(image, args.size, args.tones, args.dither).save(dest, optimize=True)
         print(f"[{i}/{len(prompts)}] {p['system']:<10} {p['species']}", file=sys.stderr)
 
     print(f"\nwrote to {out}" + (f" (raws in {raw_out})" if raw_out else ""), file=sys.stderr)

@@ -42,10 +42,11 @@ npm run campaign                     # headless balance playtest: 40 careers × 
 npm run campaign -- 4 45000 all      # three career strategies, all the way to E L I T E
 
 # inhabitant portraits (offline; images are committed, nothing runs in the browser)
-node --experimental-strip-types tools/species-prompts.ts 1 --json > /tmp/g1.json
+node --experimental-strip-types tools/species-prompts.ts 1 --style crt --json > /tmp/g1.json
+                                     # styles: crt, lit, ink, plain — the model does the look
 uv run tools/generate-species.py /tmp/g1.json --repo ../ultra-fast-image-gen --only Lave,Diso
                                      # ^ starts that repo's server.py and keeps the model resident
-uv run tools/posterise.py --dither bayer --tones 3   # re-crush the look, no GPU needed
+uv run tools/posterise.py --size 256 --tones 6        # re-crush, no GPU needed
 ```
 
 Two playtest harnesses back this up. `npm run campaign` plays hundreds of

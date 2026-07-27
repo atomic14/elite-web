@@ -1,6 +1,6 @@
 // Build image prompts for the inhabitants of every system.
 //
-//   node --experimental-strip-types tools/species-prompts.ts [galaxy] [--json]
+//   node --experimental-strip-types tools/species-prompts.ts [galaxy] [--style crt] [--json]
 //
 // Writes nothing by default — prints a sample so the prompts can be eyeballed
 // before anyone spends GPU time. With --json it emits the full manifest that
@@ -84,7 +84,68 @@ function habitatPhrase(sys: StarSystem): string {
   return d.length > 90 ? d.slice(0, 90) : d;
 }
 
-export function buildPrompt(sys: StarSystem): SpeciesPrompt {
+/**
+ * How much of the look to ask the model for.
+ *
+ * Z-Image is strong enough to render the era itself, so the honest split is
+ * not "model makes images, post makes the look" — it is: the model owns
+ * LIGHTING, BACKGROUND and RENDERING STYLE, and post owns only the palette
+ * lock and the resolution. Those last two cannot move: 256 portraits ship in
+ * a static site and must sit in the game's three greens exactly, which no
+ * generator will hit to the byte.
+ *
+ * The failed first attempt is still instructive, and the boundary it teaches
+ * is precise. Asking for "minimal detail, simple bold shapes" told the model
+ * to REMOVE information, and it obliged with a flat white silhouette — 2 grey
+ * levels against 210 for a lit bust. Asking for dramatic lighting or engraved
+ * linework instead RESTRUCTURES the information, putting it into edges and
+ * large tonal masses, which is exactly what survives 96px and four tones.
+ * Restructure, never suppress.
+ */
+export type Style = 'crt' | 'lit' | 'ink' | 'plain';
+
+const STYLES: Record<Style, { look: string[]; negative: string[] }> = {
+  // Ask for the finished article: green phosphor on black. If the model can
+  // do this well, post-processing drops to a palette snap.
+  crt: {
+    look: [
+      'monochrome green phosphor CRT monitor image, glowing bright green on a pure black background',
+      'strong key light on the face, deep black shadows, sharp visible facial features',
+      'high contrast retro computer terminal readout, faint scanlines',
+    ],
+    negative: ['white background, grey backdrop, studio lighting, full colour, washed out, flat lighting'],
+  },
+  // The safe big win: keep the model's photoreal strength, just light it the
+  // way a CRT works — subject lit out of darkness rather than pasted on a wall.
+  lit: {
+    look: [
+      'single dramatic key light from the front left, subject lit out of near-total darkness',
+      'black background, deep shadows, strong rim light along the jaw and shoulders',
+      'detailed, sharp focus, clearly visible eyes and facial features',
+    ],
+    negative: ['white background, grey backdrop, bright evenly lit room, flat lighting'],
+  },
+  // Linework survives a hard downsample better than fur does: it is already
+  // edges. Worth trying if photoreal texture keeps dithering into speckle.
+  ink: {
+    look: [
+      'black and white engraved illustration, bold confident linework and crosshatching',
+      'woodcut print style, strong dark outlines, clear silhouette against plain background',
+      'sharply defined facial features',
+    ],
+    negative: ['photograph, soft focus, gradient shading, colour'],
+  },
+  // Neutral: a good photograph and nothing else, leaving every decision to post.
+  plain: {
+    look: [
+      'detailed, sharp focus, clearly lit, natural full tonal range',
+      'plain uncluttered background, centred head and shoulders portrait',
+    ],
+    negative: [],
+  },
+};
+
+export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPrompt {
   const species = speciesName(sys);
   // "Human Colonials" describes a people, not a body — say so plainly rather
   // than asking for a creature.
@@ -98,19 +159,7 @@ export function buildPrompt(sys: StarSystem): SpeciesPrompt {
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
     environmentPhrase(sys),
     `homeworld ${habitatPhrase(sys)}`,
-    // NOTHING about style, palette, contrast or era. The model's only job is
-    // a good, clearly-lit, detailed image; every bit of the look is applied
-    // afterwards by tools/posterise.py, where it costs a second to change
-    // instead of an afternoon.
-    //
-    // This is not fastidiousness. The first version asked for "stark high
-    // contrast, simple bold shapes, minimal detail" so the output would
-    // survive the crush, and got a flat white silhouette — 2 distinct grey
-    // levels against 210 for a normally-lit portrait. There was nothing for
-    // four phosphor tones to dither into. Asking the generator to pre-empt
-    // the post-processing actively destroys what the post-processing needs.
-    'detailed, sharp focus, clearly lit, natural full tonal range',
-    'plain uncluttered background, centred head and shoulders portrait',
+    ...STYLES[style].look,
   ].join(', ');
 
   return {
@@ -123,9 +172,12 @@ export function buildPrompt(sys: StarSystem): SpeciesPrompt {
     seed: (sys.seed[0] ^ (sys.seed[1] << 3) ^ (sys.seed[2] << 7)) >>> 0,
     prompt,
     // "silhouette" and "backlit" earn their place: that is the exact failure
-    // the first prompt produced.
-    negative: 'silhouette, backlit, featureless, solid black shape, text, watermark, '
-      + 'signature, blurry, busy background, multiple figures, full body',
+    // the first prompt produced, and the crt/lit styles push towards it.
+    negative: [
+      'silhouette, featureless, solid black shape, face in shadow',
+      'text, watermark, signature, blurry, busy background, multiple figures, full body',
+      ...STYLES[style].negative,
+    ].join(', '),
   };
 }
 
@@ -133,11 +185,19 @@ export function buildPrompt(sys: StarSystem): SpeciesPrompt {
 
 const galaxy = Number(process.argv[2]) || 1;
 const asJson = process.argv.includes('--json');
+const styleArg = process.argv.find((a) => a.startsWith('--style'));
+const style = ((styleArg?.includes('=')
+  ? styleArg.split('=')[1]
+  : styleArg && process.argv[process.argv.indexOf(styleArg) + 1]) || 'crt') as Style;
+if (!(style in STYLES)) {
+  console.error(`unknown --style ${style}; try ${Object.keys(STYLES).join(', ')}`);
+  process.exit(1);
+}
 const systems = generateGalaxy(galaxy);
-const prompts = systems.map(buildPrompt);
+const prompts = systems.map((s) => buildPrompt(s, style));
 
 if (asJson) {
-  console.log(JSON.stringify({ galaxy, count: prompts.length, prompts }, null, 2));
+  console.log(JSON.stringify({ galaxy, style, count: prompts.length, prompts }, null, 2));
 } else {
   // a spread: the famous ones, plus the extremes of the environment axes
   const picks = [
@@ -154,5 +214,6 @@ if (asJson) {
     console.log(p.prompt);
   }
   console.log(`\n${prompts.length} systems in galaxy ${galaxy}; ` +
-    `${new Set(prompts.map((p) => p.species)).size} distinct species.`);
+    `${new Set(prompts.map((p) => p.species)).size} distinct species; style '${style}'.`);
+  console.log(`styles: ${Object.keys(STYLES).join(', ')} (--style ink)`);
 }

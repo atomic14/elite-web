@@ -7,22 +7,32 @@
 
     uv run tools/posterise.py                          # species-raw -> public/species
     uv run tools/posterise.py --tones 3 --dither bayer
-    uv run tools/posterise.py --gamma 0.7 --sharpen 2
+    uv run tools/posterise.py --size 256 --invert off
     uv run tools/posterise.py --contact-sheet /tmp/sheet.png --scale 2
 
-THIS is where the look lives. The generator is asked for nothing but a good,
-well-lit, detailed image — no palette, no contrast, no era. Everything that
-makes these look like they came off a phosphor CRT happens here.
+Where the line between model and post now sits: the MODEL owns lighting,
+background and rendering style (see the STYLES table in species-prompts.ts),
+because Z-Image is good enough to render the era itself and does it better
+than any filter. This step owns only the two things a generator cannot be
+trusted with — the exact palette, and the resolution. Both are hard
+requirements: 256 portraits ship in a static site and must land on the game's
+three greens to the byte.
 
-That division is not tidiness, it is the lesson from getting it wrong: when
-the prompt asked for "stark high contrast, simple bold shapes, minimal
-detail" so the output would survive the crush, the model returned a flat
-white silhouette. Two distinct grey levels against 210 for a normally-lit
-portrait — nothing for four phosphor tones to dither into. A generator told
-to pre-empt its post-processing destroys what the post-processing needs.
+Between those, one repair remains: --invert. A studio portrait is a dark
+subject on a bright wall, which crushes to a glowing rectangle with a hole in
+it, because a CRT means the opposite by "bright". Auto-detected per image
+rather than flagged, since the model is not consistent about it.
 
-It also means iteration is cheap: pillow and nothing else, so re-crushing 256
-portraits takes a second where regenerating them takes hours.
+The boundary was learned the hard way. An early prompt asked for "stark high
+contrast, simple bold shapes, minimal detail" so the output would survive the
+crush, and got a flat white silhouette — 2 distinct grey levels against 210
+for a normally-lit portrait, nothing for four tones to dither into. Telling a
+generator to REMOVE information destroys what the crush needs; telling it to
+RESTRUCTURE information (dramatic key light, engraved linework) puts that
+information into edges and tonal masses, which is exactly what survives.
+
+Iteration here is free — pillow and nothing else, so re-crushing 256 portraits
+takes a second where regenerating them takes hours. Tune the look here first.
 """
 
 from __future__ import annotations
@@ -65,6 +75,21 @@ def bayer_matrix(n: int = 4) -> list[list[float]]:
     return [[v / (size * size) for v in row] for row in m]
 
 
+def border_brighter(g: Image.Image) -> bool:
+    """True if the frame's edge is lighter than its middle — i.e. a lit backdrop.
+
+    Cheap, and it has to be automatic: the model is not consistent about this.
+    Of the first three raws, two came back as a dark subject on a bright studio
+    wall and one as a lit subject on black. A fixed --invert would have been
+    wrong for one of them either way.
+    """
+    from PIL import ImageStat
+    w, h = g.size
+    edge = ImageStat.Stat(g.crop((0, 0, w, h // 8))).mean[0]
+    middle = ImageStat.Stat(g.crop((w // 4, h // 4, 3 * w // 4, 3 * h // 4))).mean[0]
+    return edge > middle
+
+
 def posterise(
     img: Image.Image,
     size: int,
@@ -73,6 +98,7 @@ def posterise(
     gamma: float = 1.0,
     sharpen: float = 1.6,
     cutoff: int = 2,
+    invert: str = "auto",
 ) -> Image.Image:
     """All of the look lives here.
 
@@ -87,6 +113,20 @@ def posterise(
     """
     palette = ramp(tones)
     g = img.convert("L")
+
+    # A phosphor CRT is light drawn on darkness: bright means lit. A studio
+    # portrait is the opposite — a dark subject against a bright wall — and
+    # crushing that straight maps THE WALL to full phosphor, so the frame
+    # glows and the subject reads as a hole in it. Flipping it is the single
+    # biggest improvement available in post.
+    #
+    # It is a repair, not the ideal. Inverting also makes the darkest things
+    # brightest, so a black leather jerkin out-glows a lit face — tonally
+    # backwards. The real fix is a raw that is already lit-subject-on-black,
+    # which is what the `crt` and `lit` prompt styles ask for; on those this
+    # correctly does nothing.
+    if invert == "on" or (invert == "auto" and border_brighter(g)):
+        g = ImageOps.invert(g)
 
     if sharpen > 0:
         g = g.filter(ImageFilter.UnsharpMask(radius=2, percent=int(sharpen * 100), threshold=2))
@@ -125,7 +165,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", default="tools/species-raw")
     ap.add_argument("--out", default="public/species")
-    ap.add_argument("--size", type=int, default=96)
+    ap.add_argument("--size", type=int, default=192)
     ap.add_argument("--tones", type=int, default=4, help="how many phosphor levels")
     ap.add_argument("--dither", default="floyd", choices=["floyd", "bayer", "none"])
     ap.add_argument("--gamma", type=float, default=1.0,
@@ -133,6 +173,8 @@ def main() -> int:
     ap.add_argument("--sharpen", type=float, default=1.6,
                     help="unsharp before downsampling; 0 disables")
     ap.add_argument("--cutoff", type=int, default=2, help="autocontrast percentile clip")
+    ap.add_argument("--invert", default="auto", choices=["auto", "on", "off"],
+                    help="auto flips dark-subject-on-bright-wall raws; see border_brighter()")
     ap.add_argument("--contact-sheet", default="",
                     help="also write one image with every portrait, for judging the set")
     ap.add_argument("--scale", type=int, default=1, help="nearest-neighbour upscale of the output")
@@ -153,7 +195,7 @@ def main() -> int:
     done = []
     for f in files:
         img = posterise(Image.open(f), args.size, args.tones, args.dither,
-                        args.gamma, args.sharpen, args.cutoff)
+                        args.gamma, args.sharpen, args.cutoff, args.invert)
         if args.scale > 1:
             img = img.resize((args.size * args.scale,) * 2, Image.NEAREST)
         img.save(out / f.name, optimize=True)
