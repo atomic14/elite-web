@@ -98,12 +98,16 @@ export function buildPrompt(sys: StarSystem): SpeciesPrompt {
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
     environmentPhrase(sys),
     `homeworld ${habitatPhrase(sys)}`,
-    // The look is applied afterwards by posterising to the phosphor palette,
-    // but asking for it here means the model gives us shapes that survive the
-    // crush: strong silhouette, few tones, nothing fussy.
-    'stark high contrast, single strong light source, plain dark background',
-    'simple bold shapes, minimal detail, centred composition',
-    'retro science fiction cover art, 1980s',
+    // Ask for a NORMAL, well-lit, detailed portrait. The first version asked
+    // for "stark high contrast, simple bold shapes, minimal detail" on the
+    // theory that it would survive the crush — and the model obliged with a
+    // flat white silhouette on black. Exactly as requested, and useless: the
+    // posterise needs a tonal range to dither INTO, so the flattening has to
+    // be done by the palette afterwards, not by the model up front.
+    'detailed painted portrait, clear features, expressive face',
+    'soft directional lighting, full range of light and shade',
+    'plain uncluttered background, centred head and shoulders',
+    'retro science fiction paperback cover art, 1980s',
   ].join(', ');
 
   return {
@@ -115,7 +119,10 @@ export function buildPrompt(sys: StarSystem): SpeciesPrompt {
     techLevel: sys.techLevel + 1,
     seed: (sys.seed[0] ^ (sys.seed[1] << 3) ^ (sys.seed[2] << 7)) >>> 0,
     prompt,
-    negative: 'text, watermark, signature, blurry, low contrast, busy background, multiple figures',
+    // "silhouette" and "backlit" earn their place: that is the exact failure
+    // the first prompt produced.
+    negative: 'silhouette, backlit, featureless, solid black shape, text, watermark, '
+      + 'signature, blurry, busy background, multiple figures, full body',
   };
 }
 

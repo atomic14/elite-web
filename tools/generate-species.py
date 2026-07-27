@@ -1,23 +1,29 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = [
-#   "torch",
-#   "diffusers",
-#   "transformers",
-#   "accelerate",
-#   "pillow",
-# ]
+# dependencies = ["pillow"]
 # ///
 """Generate inhabitant portraits for every system, then crush them to phosphor.
 
     node --experimental-strip-types tools/species-prompts.ts 1 --json > /tmp/g1.json
-    uv run tools/generate-species.py /tmp/g1.json --out public/species
 
-uv reads the inline PEP 723 block above and fetches torch/diffusers into a
-throwaway environment, so there is no venv to create, no requirements file to
-drift, and nothing installed into the machine. The heavy dependencies exist
-only while this script runs.
+    # fast path: 4-bit quantised Z-Image via newideas99/ultra-fast-image-gen
+    uv run tools/generate-species.py /tmp/g1.json --repo ../ultra-fast-image-gen
+
+    # built-in path: full-precision diffusers, needs its own dependencies
+    uv run --with torch --with diffusers --with transformers --with accelerate \
+        tools/generate-species.py /tmp/g1.json --backend diffusers
+
+Two backends. `external` shells out to a separate clone that runs Z-Image
+Turbo quantised to 4 bits (~8 GB resident against ~30 GB for fp16, and far
+quicker) — that process owns its own environment, so this script needs
+nothing but pillow. `diffusers` keeps the original in-process path for when
+you want full precision or no second checkout.
+
+This script therefore declares only pillow. The heavy dependencies are passed
+on the command line for the backend that actually needs them, rather than
+making everyone install three gigabytes of torch to shell out to another
+process.
 
 Python rather than TypeScript because that is where the model lives; nothing
 here runs at build time or in the browser. The game deploys as a static site,
@@ -45,6 +51,8 @@ import argparse
 import json
 import pathlib
 import sys
+
+from PIL import Image, ImageOps
 
 # The game's palette, from src/style.css.
 PHOSPHOR = [
@@ -120,8 +128,14 @@ def main() -> int:
     ap.add_argument("--steps", type=int, default=8, help="Z-Image-Turbo is a few-step model")
     ap.add_argument("--limit", type=int, default=0, help="stop after N (for a trial run)")
     ap.add_argument("--only", default="", help="comma-separated system names, for a trial run")
+    ap.add_argument("--backend", default="external", choices=["external", "diffusers"],
+                    help="external = quantised, via a clone of ultra-fast-image-gen")
+    ap.add_argument("--repo", default="../ultra-fast-image-gen",
+                    help="that clone's path (external backend)")
+    ap.add_argument("--model", default="zimage-quant", help="model name to pass it")
+    ap.add_argument("--device", default="", help="mps / cuda / cpu (default: let the backend decide)")
     ap.add_argument("--dtype", default="auto", choices=["auto", "float16", "bfloat16", "float32"],
-                    help="auto = half precision on GPU, float32 on CPU")
+                    help="auto = half precision on GPU, float32 on CPU (diffusers backend)")
     ap.add_argument("--cpu-offload", action="store_true",
                     help="keep the model in system RAM and page it in — slow, but survives a small GPU")
     args = ap.parse_args()
@@ -140,48 +154,10 @@ def main() -> int:
     if raw_out:
         raw_out.mkdir(parents=True, exist_ok=True)
 
-    try:
-        import torch
-        from diffusers import DiffusionPipeline
-    except ImportError:
-        print("run this with uv, which fetches the dependencies itself:\n"
-              "  uv run tools/generate-species.py <manifest.json>", file=sys.stderr)
-        return 1
-
-    device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
-
-    # Half precision on GPU — float32 on MPS blows the memory ceiling, because
-    # MPS enforces a hard watermark rather than swapping.
-    #
-    # bfloat16 rather than float16 on MPS, deliberately. float16 overflows in
-    # this pipeline on Apple silicon and the result is NaN latents, which cast
-    # to a solid black PNG with only a RuntimeWarning to show for it. bfloat16
-    # has the same memory footprint and float32's exponent range, so it does
-    # not overflow.
-    if args.dtype == "auto":
-        dtype = {"cpu": torch.float32, "mps": torch.bfloat16, "cuda": torch.float16}[device]
+    if args.backend == "external":
+        gen_image = make_external_backend(args)
     else:
-        dtype = getattr(torch, args.dtype)
-
-    print(f"loading Z-Image-Turbo on {device} ({dtype}) ...", file=sys.stderr)
-    pipe = DiffusionPipeline.from_pretrained(
-        "Tongyi-MAI/Z-Image-Turbo",
-        torch_dtype=dtype,
-    )
-
-    if args.cpu_offload:
-        # weights live in system RAM and move to the GPU a module at a time
-        pipe.enable_sequential_cpu_offload()
-    else:
-        pipe = pipe.to(device)
-
-    # Trade a little speed for a much lower peak: attention over one head at a
-    # time, and the VAE decoding in slices. Both are no-ops if unsupported.
-    for opt in ("enable_attention_slicing", "enable_vae_slicing", "enable_vae_tiling"):
-        try:
-            getattr(pipe, opt)()
-        except (AttributeError, NotImplementedError):
-            pass
+        gen_image = make_diffusers_backend(args)
 
     for i, p in enumerate(prompts, 1):
         stem = f"{p['index']:03d}-{p['system'].lower()}.png"
@@ -192,41 +168,124 @@ def main() -> int:
         # silently produces no raws at all.
         if dest.exists() and (raw_dest is None or raw_dest.exists()):
             continue
-        # with sequential offload the modules are shuffled between CPU and GPU,
-        # so the generator has to live on the CPU to stay valid
-        gen_device = "cpu" if args.cpu_offload else device
-        gen = torch.Generator(device=gen_device).manual_seed(p["seed"] % (2**31))
-        image = pipe(
-            prompt=p["prompt"],
-            negative_prompt=p["negative"],
-            num_inference_steps=args.steps,
-            width=args.gen_size,
-            height=args.gen_size,
-            generator=gen,
-        ).images[0]
+
+        image = gen_image(p)
         if looks_dead(image):
-            print(
-                f"\n{p['system']}: the model returned an empty frame — almost always NaN\n"
-                f"latents from float16 overflow. Current dtype: {dtype}.\n"
-                f"  try:  --dtype bfloat16      (same memory, wider range)\n"
-                f"  or:   --dtype float32 --gen-size 192 --cpu-offload\n"
-                f"Nothing was written; fix the dtype and rerun.",
-                file=sys.stderr)
+            print(f"\n{p['system']}: the model returned an empty frame. With the "
+                  f"diffusers backend this is float16 overflow — try --dtype bfloat16. "
+                  f"Nothing was written.", file=sys.stderr)
             return 2
         if raw_dest:
             image.save(raw_dest)
         posterise(image, args.size).save(dest, optimize=True)
         print(f"[{i}/{len(prompts)}] {p['system']:<10} {p['species']}", file=sys.stderr)
-        # MPS in particular holds every allocation until told otherwise, so a
-        # long run creeps up on the watermark even when one image fits fine
-        del image
+
+    print(f"\nwrote to {out}" + (f" (raws in {raw_out})" if raw_out else ""), file=sys.stderr)
+    return 0
+
+
+def make_external_backend(args):
+    """Drive a clone of newideas99/ultra-fast-image-gen.
+
+    It runs Z-Image Turbo quantised to 4 bits, which is both far lighter and
+    much quicker than the full-precision path. Its CLI takes a seed and an
+    output path, so per-system reproducibility survives the switch.
+
+    It has no negative-prompt flag, so the manifest's negative is dropped here.
+    That is a real difference between the backends: expect slightly more
+    lettering and watermark-ish artefacts, which the posterise mostly eats.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+
+    repo = pathlib.Path(args.repo).expanduser().resolve()
+    if not (repo / "generate.py").is_file():
+        raise SystemExit(
+            f"no generate.py in {repo}\n"
+            f"  git clone https://github.com/newideas99/ultra-fast-image-gen\n"
+            f"then point --repo at it.")
+    if not shutil.which("uv"):
+        raise SystemExit("uv not found; it runs the other repo's dependencies")
+
+    tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="species-"))
+
+    def run(p):
+        target = tmpdir / "out.png"
+        if target.exists():
+            target.unlink()
+        cmd = [
+            "uv", "run", "--with-requirements", "requirements.txt",
+            "python", "generate.py", args.model, p["prompt"],
+            "--seed", str(p["seed"] % (2 ** 31)),
+            "--output", str(target),
+            "--width", str(args.gen_size), "--height", str(args.gen_size),
+            "--steps", str(args.steps),
+        ]
+        if args.device:
+            cmd += ["--device", args.device]
+        res = subprocess.run(cmd, cwd=repo, capture_output=True, text=True)
+        if res.returncode != 0 or not target.exists():
+            raise SystemExit(
+                f"{p['system']}: the external generator failed\n"
+                f"{res.stdout[-2000:]}\n{res.stderr[-2000:]}")
+        return Image.open(target).copy()
+
+    print(f"external backend: {args.model} via {repo}", file=sys.stderr)
+    return run
+
+
+def make_diffusers_backend(args):
+    """The original in-process path — full precision, no second checkout."""
+    try:
+        import torch
+        from diffusers import DiffusionPipeline
+    except ImportError:
+        raise SystemExit(
+            "the diffusers backend needs its own dependencies:\n"
+            "  uv run --with torch --with diffusers --with transformers --with accelerate \\\n"
+            "      tools/generate-species.py <manifest.json> --backend diffusers")
+
+    device = args.device or (
+        "cuda" if torch.cuda.is_available()
+        else "mps" if torch.backends.mps.is_available() else "cpu")
+
+    # bfloat16 rather than float16 on MPS: float16 overflows in this pipeline
+    # on Apple silicon and the NaN latents cast to a solid black PNG.
+    if args.dtype == "auto":
+        dtype = {"cpu": torch.float32, "mps": torch.bfloat16, "cuda": torch.float16}[device]
+    else:
+        dtype = getattr(torch, args.dtype)
+
+    print(f"loading Z-Image-Turbo on {device} ({dtype}) ...", file=sys.stderr)
+    pipe = DiffusionPipeline.from_pretrained("Tongyi-MAI/Z-Image-Turbo", torch_dtype=dtype)
+    if args.cpu_offload:
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe = pipe.to(device)
+    for opt in ("enable_attention_slicing", "enable_vae_slicing", "enable_vae_tiling"):
+        try:
+            getattr(pipe, opt)()
+        except (AttributeError, NotImplementedError):
+            pass
+
+    def run(p):
+        gen_device = "cpu" if args.cpu_offload else device
+        gen = torch.Generator(device=gen_device).manual_seed(p["seed"] % (2 ** 31))
+        image = pipe(
+            prompt=p["prompt"], negative_prompt=p["negative"],
+            num_inference_steps=args.steps,
+            width=args.gen_size, height=args.gen_size, generator=gen,
+        ).images[0]
+        # MPS holds every allocation until told, so a long run creeps up on the
+        # watermark even when any single image fits
         if device == "mps" and hasattr(torch, "mps"):
             torch.mps.empty_cache()
         elif device == "cuda":
             torch.cuda.empty_cache()
+        return image
 
-    print(f"\nwrote {len(prompts)} to {out}", file=sys.stderr)
-    return 0
+    return run
 
 
 if __name__ == "__main__":
