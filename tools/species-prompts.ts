@@ -30,6 +30,133 @@ export interface SpeciesPrompt {
 }
 
 /**
+ * Deterministic choice from a list, keyed on the system's own seed.
+ *
+ * Without this, every "poor agricultural anarchy" world got byte-identical
+ * wording: 256 systems produced only 175 distinct visual descriptions, and 124
+ * worlds shared theirs with at least one other — eight of them all reading
+ * "Human Colonials, Mainly Industrial, Feudal". The images still differed,
+ * because the generation seed is per-system, but the wardrobe did not.
+ *
+ * `slot` keeps the clauses from correlating: without it a world that drew the
+ * first economy phrase would always draw the first government phrase too, and
+ * the variants would collapse back into three fixed outfits.
+ */
+function pickVariant<T>(sys: StarSystem, slot: number, options: readonly T[]): T {
+  const h = (Math.imul(sys.seed[0], 0x9e3779b1) ^ Math.imul(sys.seed[1], 0x85ebca6b)
+    ^ Math.imul(sys.seed[2], 0xc2b2ae35) ^ Math.imul(slot + 1, 0x27d4eb2f)) >>> 0;
+  return options[h % options.length];
+}
+
+/**
+ * Clothing, never a noun for the wearer.
+ *
+ * This is load-bearing, not style. When these read "a grimy factory hand in
+ * worn overalls", Tibedied — Harmless Slimy Lobsters — came back as a
+ * photograph of a man in overalls: the human noun competed with the species
+ * for the subject and won, being much the more ordinary request. Describe the
+ * clothes and the species keeps the subject uncontested.
+ */
+const ECONOMY_DRESS: Record<string, readonly string[]> = {
+  richAgri: [
+    'wearing heavy woven farm clothing, prosperous and well fed',
+    'wearing thick embroidered harvest robes, comfortable and well kept',
+    'wearing a quilted coat of good cloth over clean farm dress',
+  ],
+  poorAgri: [
+    'wearing patched sun-worn farm clothing, weathered by subsistence work',
+    'wearing threadbare field clothing, sun-bleached and much mended',
+    'wearing a frayed work smock over dust-stained cloth',
+  ],
+  agri: [
+    'wearing practical homespun work clothing',
+    'wearing simple undyed cloth and a heavy leather work apron',
+    'wearing sturdy plain farm dress, clean but well used',
+  ],
+  richInd: [
+    'wearing sharply tailored expensive dress',
+    'wearing a precisely cut suit of fine dark cloth',
+    'wearing immaculate tailored clothing with fine metal fastenings',
+  ],
+  poorInd: [
+    'wearing worn grimy factory overalls',
+    'wearing oil-stained coveralls patched at the elbows',
+    'wearing a soot-marked work jacket over rough cloth',
+  ],
+  ind: [
+    'wearing utilitarian industrial coveralls',
+    'wearing a heavy-duty work jacket and a tool harness',
+    'wearing standard-issue factory clothing with a chest badge',
+  ],
+};
+
+const GOVERNMENT_DRESS: Record<string, readonly string[]> = {
+  Anarchy: [
+    'armed, wary, improvised gear',
+    'scavenged armour plates strapped over the clothing, watchful',
+    'a weapon harness across the chest, hard suspicious look',
+  ],
+  Feudal: [
+    'rigid caste dress, ornamental rank markings',
+    'stiff formal robes with hereditary rank braid',
+    'a ceremonial sash and engraved caste tokens',
+  ],
+  Dictatorship: [
+    'uniform military styling, severe expression',
+    'state uniform with a hard collar, unsmiling',
+    'martial cut clothing, disciplined and grim',
+  ],
+  // Singular, like everything else here: "identical state-issue uniforms"
+  // quietly asked for more than one wearer.
+  Communist: [
+    'identical state-issue uniform',
+    'plain collective-issue clothing, no personal ornament',
+    'a standard state garment with a collective badge',
+  ],
+  'Corporate State': [
+    'corporate insignia, immaculate and cold',
+    'a company crest at the collar, groomed and expressionless',
+    'branded corporate dress, spotless and impersonal',
+  ],
+  Democracy: [
+    'varied civilian dress, open expression',
+    'ordinary everyday clothing, relaxed and open',
+    'individual civilian dress, unguarded expression',
+  ],
+  Confederacy: [
+    'mixed regional dress, travelling gear',
+    'layered clothing from several regions, a pack strap at the shoulder',
+    'eclectic dress with regional tokens, road-worn',
+  ],
+  // Multi-Government was missing from this chain once, so those worlds
+  // silently lost their whole political flavour — eight governments, seven
+  // branches. Keep every key present.
+  'Multi-Government': [
+    'clashing factional dress, competing insignia',
+    'mismatched factional colours and rival badges',
+    'contradictory insignia from several factions at once',
+  ],
+};
+
+const TECH_DRESS: readonly (readonly string[])[] = [
+  [ // primitive
+    'primitive equipment, hand-made and crude',
+    'crude hand-made tools, rope and hammered metal',
+    'rough improvised equipment, nothing manufactured',
+  ],
+  [ // serviceable
+    'serviceable technology, tools and simple devices',
+    'practical tools and sturdy machinery, nothing elaborate',
+    'workmanlike equipment, honest engineering',
+  ],
+  [ // advanced
+    'advanced technology, implants and fine instruments',
+    'neural implants at the temple, precise miniature instruments',
+    'sophisticated devices, fine optics, subtle augmentation',
+  ],
+];
+
+/**
  * What the world does to the people on it. The species tables give us a body;
  * the economy, government and tech level give us a life — and that is what
  * stops 256 portraits looking like 256 rolls on the same table.
@@ -37,50 +164,57 @@ export interface SpeciesPrompt {
 function environmentPhrase(sys: StarSystem): string {
   const econ = ECONOMY_NAMES[sys.economy];
   const gov = GOVERNMENT_NAMES[sys.government];
-  const bits: string[] = [];
-
-  // Clothing only — never a noun for the wearer.
-  //
-  // These used to say "a grimy factory hand in worn overalls", and Tibedied
-  // came back as a photograph of a man in overalls despite asking for a slimy
-  // lobster. "Factory hand" is a concrete human noun and it was competing with
-  // the species for the same slot; being the more ordinary request, it won.
-  // Describing the clothes and letting the species own the subject removes the
-  // competition entirely.
-  if (econ.includes('Agricultural')) {
-    bits.push(econ.startsWith('Rich')
-      ? 'wearing heavy woven farm clothing, prosperous and well fed'
-      : econ.startsWith('Poor')
-        ? 'wearing patched sun-worn farm clothing, weathered by subsistence work'
-        : 'wearing practical homespun work clothing');
-  } else {
-    bits.push(econ.startsWith('Rich')
-      ? 'wearing sharply tailored expensive dress'
-      : econ.startsWith('Poor')
-        ? 'wearing worn grimy factory overalls'
-        : 'wearing utilitarian industrial coveralls');
-  }
-
-  if (gov === 'Anarchy') bits.push('armed, wary, improvised gear');
-  else if (gov === 'Feudal') bits.push('rigid caste dress, ornamental rank markings');
-  else if (gov === 'Dictatorship') bits.push('uniform military styling, severe expression');
-  else if (gov === 'Communist') bits.push('identical state-issue uniforms');
-  else if (gov === 'Corporate State') bits.push('corporate insignia, immaculate and cold');
-  else if (gov === 'Democracy') bits.push('varied civilian dress, open expression');
-  else if (gov === 'Confederacy') bits.push('mixed regional dress, travelling gear');
-  // Multi-Government was missing from this chain, so those worlds silently
-  // lost their whole political flavour — eight governments, seven branches.
-  else if (gov === 'Multi-Government') bits.push('clashing factional dress, competing insignia');
+  const agri = econ.includes('Agricultural');
+  const key = econ.startsWith('Rich') ? (agri ? 'richAgri' : 'richInd')
+    : econ.startsWith('Poor') ? (agri ? 'poorAgri' : 'poorInd')
+      : (agri ? 'agri' : 'ind');
 
   const tl = sys.techLevel + 1;
-  bits.push(tl >= 10
-    ? 'advanced technology, implants and fine instruments'
-    : tl >= 6
-      ? 'serviceable technology, tools and simple devices'
-      : 'primitive equipment, hand-made and crude');
+  const band = tl >= 10 ? 2 : tl >= 6 ? 1 : 0;
 
-  return bits.join(', ');
+  return [
+    pickVariant(sys, 0, ECONOMY_DRESS[key]),
+    pickVariant(sys, 1, GOVERNMENT_DRESS[gov] ?? GOVERNMENT_DRESS.Democracy),
+    pickVariant(sys, 2, TECH_DRESS[band]),
+  ].join(', ');
 }
+
+/**
+ * Hand-written descriptions for the worlds that carry the game's identity.
+ *
+ * The generated clauses are good enough for 250 systems nobody will linger on.
+ * These dozen are where the effort gets seen: the world you launch from, the
+ * two ends of the famous trade runs, the anarchy everyone tells stories about,
+ * and the graveyard. They replace the economy/government/tech and homeworld
+ * clauses entirely, but not the species or the style — so a hero world still
+ * gets its 1984 species, and still renders in whatever style is selected.
+ *
+ * Same rule as the generated clauses, for the same reason: no noun for the
+ * wearer on non-human worlds, or it beats the species.
+ */
+const HEROES: Record<string, string> = {
+  Lave: 'wearing heavy woven plantation cloth with a hard uniform collar and a '
+    + 'dictatorship insignia, humid air, a rich green world of vast rain forests '
+    + 'and the notorious Lavian tree grub',
+  Diso: 'sleek black fur above plain homespun work cloth, calm and open, an old '
+    + 'farming democracy of ancient corn plantations under a restless sun',
+  Leesti: 'a cheap but immaculate corporate uniform, company crest at the collar, '
+    + 'shift-tired eyes, a thin hard-worked industrial world at the near end of '
+    + 'the richest trade run in the galaxy',
+  Zaonce: 'a sharp corporate uniform fitted awkwardly to a rodent frame, glossy '
+    + 'damp hide, precise instruments clipped at the chest, the banking polish of '
+    + 'a world that counts other worlds money',
+  Riedquat: 'improvised armour plate strapped over patched farm cloth, a weapon '
+    + 'harness across the chest, wary sidelong look, a lawless feuding world where '
+    + 'the law is whoever is still flying',
+  Tionisla: 'sombre dark formal dress over dry scaled hide, quiet and unhurried, a '
+    + 'world best known for the vast orbital graveyard of derelict ships that '
+    + 'circles it',
+  Reorte: 'coarse patched field cloth strained over a heavy black-furred frame, '
+    + 'severe martial styling, the hard discipline of an agricultural dictatorship',
+  Ensoreus: 'expensive tailored corporate dress, immaculate and cold, groomed black '
+    + 'fur, fine augmentation at the temple, a rich industrial world of glass towers',
+};
 
 const article = (word: string): string => (/^[AEIOU]/i.test(word) ? 'an' : 'a');
 
@@ -234,8 +368,8 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
     ...(human || humanoid ? [] : [`clearly a ${singular(species.toLowerCase())}, animal head and face`]),
     `an inhabitant of ${sys.name}, ${article(ECONOMY_NAMES[sys.economy])} ` +
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
-    environmentPhrase(sys),
-    `homeworld ${habitatPhrase(sys)}`,
+    HEROES[sys.name] ?? environmentPhrase(sys),
+    ...(HEROES[sys.name] ? [] : [`homeworld ${habitatPhrase(sys)}`]),
     ...STYLES[style].look,
   ].join(', ');
 
@@ -307,6 +441,23 @@ function checkNoContradictions(): void {
   }
 }
 checkNoContradictions();
+
+/**
+ * Every hero name must match a real system, or the override silently does
+ * nothing and the world quietly falls back to generated clauses — a typo that
+ * looks exactly like success.
+ *
+ * Only checked for galaxy 1: these are galaxy 1 names, and generating galaxy 2
+ * legitimately has none of them.
+ */
+if (galaxy === 1) {
+  const names = new Set(systems.map((s) => s.name));
+  const missing = Object.keys(HEROES).filter((n) => !names.has(n));
+  if (missing.length) {
+    console.error(`hero worlds not in galaxy 1: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
 
 const prompts = systems.map((s) => buildPrompt(s, style));
 
