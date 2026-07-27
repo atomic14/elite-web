@@ -8,7 +8,10 @@ import {
   makeRng, randDir, vAdd, vSub, vScale, vLen, v3, q4,
   type SimShip, type Control, type V3,
 } from './core.ts';
-import { observe, observePack, act, makeScratch, PACK_OBS_SIZE, type Brain } from './policy.ts';
+import {
+  observe, observePack, observePackWide, act, makeScratch,
+  PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain,
+} from './policy.ts';
 
 export interface ShotEvent {
   from: SimShip;
@@ -43,7 +46,7 @@ export class Episode {
 
   private readonly opts: EpisodeOptions;
   private readonly rng: () => number;
-  private readonly obs = new Float32Array(PACK_OBS_SIZE);
+  private readonly obs = new Float32Array(PACK_WIDE_OBS_SIZE);
   private readonly scratch = makeScratch();
   private traderWaypoint: V3 = v3();
   private traderWaypointTimer = 0;
@@ -86,9 +89,11 @@ export class Episode {
       let control: Control = IDLE;
       let wantsFire = false;
       if (ctrl.kind === 'policy') {
-        const obs = ctrl.brain.obsSize >= PACK_OBS_SIZE
-          ? observePack(p, this.trader, this.pirates, this.obs)
-          : observe(p, this.trader, this.obs);
+        const obs = ctrl.brain.obsSize >= PACK_WIDE_OBS_SIZE
+          ? observePackWide(p, this.trader, this.pirates, this.obs)
+          : ctrl.brain.obsSize >= PACK_OBS_SIZE
+            ? observePack(p, this.trader, this.pirates, this.obs)
+            : observe(p, this.trader, this.obs);
         control = act(ctrl.brain, obs, this.scratch);
         wantsFire = control.fire;
       } else {

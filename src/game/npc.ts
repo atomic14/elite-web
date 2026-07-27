@@ -10,7 +10,7 @@ import {
   type Brain, type BrainFile, type ObservableShip,
 } from '../sim/policy';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
-import packBrainFile from '../sim/brains/pirate-pack.json';
+import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
@@ -37,17 +37,17 @@ export const DEFEND_BRAIN: Brain | null = (() => {
 
 /**
  * The pack-trained brain: 18 inputs (solo 14 + the nearest packmate's bearing
- * and distance), so it can in principle coordinate rather than just converge.
+ * and distance). This is round 4's `pirate-pack-r4-selectonly`, the first pack
+ * policy to take 100% of held-out episodes against all three test traders
+ * (docs/TRAINING-LOG.md, run 7).
  *
- * It is **deliberately not the default**. On held-out seeds a trio of these
- * kills in 70% of episodes, against 100% for three copies of the solo brain —
- * packmate observations bought no coordination beyond the spawn spread the
- * game already applies (docs/TRAINING-LOG.md, runs 4 and 6). Shipping it would
- * make the game's pirates measurably worse.
+ * It is **still not the default**, but no longer because it's worse — it beats
+ * the shipped solo trio outright, including 100% vs 41% against a trader that
+ * shoots back. It kills a player-like target in 1.5-2.9s where the shipped
+ * trio takes 10.8-11.7s, and whether Elite's pirates should be 4-7x more
+ * lethal is a game-design decision, not a tournament one.
  *
- * It's wired in anyway so the result is reproducible in the real game rather
- * than only in the combat viewer: set `window.__packBrain = true` and every
- * pirate hunting you switches to it.
+ * Set `window.__packBrain = true` to fly it and judge for yourself.
  */
 const PACK_BRAIN: Brain | null = (() => {
   try {

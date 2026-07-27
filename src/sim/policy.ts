@@ -31,6 +31,12 @@ function fwdOf(s: ObservableShip): V3 {
 
 export const OBS_SIZE = 14; // solo observation
 export const PACK_OBS_SIZE = 18; // solo + nearest-packmate dir (3) + distance (1)
+// Round 4: the r2/r3 pack brains could see *where* a mate was but not what it
+// was doing, and runs 4 and 6 both concluded the missing signal was
+// coordination, not reward. This adds the mate's health, whether it is
+// actually engaging the target, and which side of the target it is coming
+// from — the minimum needed to choose a complementary attack line.
+export const PACK_WIDE_OBS_SIZE = 26;
 export const HIDDEN = 32;
 // output heads: pitch(3) roll(3) throttle(3) fire(2)
 export const OUT_SIZE = 11;
@@ -133,6 +139,73 @@ export function observePack(
   } else {
     out[14] = 0; out[15] = 0; out[16] = 0; out[17] = 1;
   }
+  return out;
+}
+
+/**
+ * The extra surface the wide pack observation needs on a packmate. SimShip
+ * satisfies it; the game would adapt its NPCs the same way it does for
+ * ObservableShip.
+ */
+export interface ObservableMate {
+  pos: V3;
+  quat: Q4;
+  hp: number;
+  cls: { hp: number };
+  alive: boolean;
+}
+
+/**
+ * Wide pack observation (round 4): the 18 of `observePack`, plus enough about
+ * the nearest mate to coordinate with it rather than merely avoid it —
+ *
+ *   18  mate health fraction
+ *   19  mate's distance to the target (log) — is it engaged, or off chasing?
+ *   20  mate's aim alignment on the target — is it attacking *now*?
+ *   21..23  direction from the target to the mate, in **our** ship frame:
+ *           the flanking signal. Approach opposite this and the target
+ *           cannot face both of us.
+ *   24  how many mates are still alive (÷3)
+ *   25  our own health fraction — press or break off
+ */
+export function observePackWide(
+  me: ObservableShip & { hp: number; cls: { hp: number } },
+  target: ObservableShip,
+  mates: ObservableMate[],
+  out: Float32Array,
+): Float32Array {
+  observePack(me, target, mates, out);
+  let best: ObservableMate | null = null;
+  let bestD = Infinity;
+  let living = 0;
+  for (const m of mates) {
+    if ((m as unknown) === (me as unknown) || !m.alive) continue;
+    living += 1;
+    const d = vLen(vSub(m.pos, me.pos));
+    if (d < bestD) {
+      bestD = d;
+      best = m;
+    }
+  }
+  if (best) {
+    const mateToTarget = vSub(target.pos, best.pos);
+    const mateDist = vLen(mateToTarget);
+    const mateFwd = qRotate(best.quat, v3(0, 0, -1));
+    const inv = { x: -me.quat.x, y: -me.quat.y, z: -me.quat.z, w: me.quat.w };
+    // where the mate sits relative to the target, expressed in our frame
+    const flank = qRotate(inv, vNorm(vSub(best.pos, target.pos)));
+    out[18] = Math.max(0, Math.min(1, best.hp / best.cls.hp));
+    out[19] = Math.min(2, Math.log10(Math.max(50, mateDist) / 100)) / 2;
+    out[20] = vDot(mateFwd, vNorm(mateToTarget));
+    out[21] = flank.x;
+    out[22] = flank.y;
+    out[23] = flank.z;
+  } else {
+    out[18] = 0; out[19] = 1; out[20] = 0;
+    out[21] = 0; out[22] = 0; out[23] = 0;
+  }
+  out[24] = Math.min(1, living / 3);
+  out[25] = Math.max(0, Math.min(1, me.hp / me.cls.hp));
   return out;
 }
 

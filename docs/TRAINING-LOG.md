@@ -89,16 +89,18 @@ Orbit/chase cameras, pause, 0.25×/1×/4× speed, auto-restart with a new seed.
 
 ## Follow-ups — all three since completed
 
-- ✅ **Pack phase** — Run 4 below (honest result: underperforms solo brains).
+- ✅ **Pack phase** — Run 4 below (result at the time: underperforms solo
+  brains). **Superseded by Run 7**: that verdict was a trainer bug, not a
+  property of pack policies. See the bottom of this file.
 - ✅ **League play** — Run 4 below (r2 pirate: 0% → 98% vs the evader).
 - ✅ **In-game integration** — pirates fly `pirate-attack-r2`, armed traders
   fly `jameson-defend` (Run 5); toggle with `window.__scriptedPirates`.
   The pack brain is wired into the game too (`window.__packBrain = true`
-  switches every pirate to the 18-input policy) but is **off by default**:
-  the tournament says a trio of solo brains is strictly better, so shipping
-  it as the default would be a regression. Enabling the toggle lets you
-  watch that verdict in the real game rather than only in the viewer, which
-  runs the same matchup as `pack-trained-vs-armed`.
+  switches every pirate to the 18-input policy) but is **off by default**.
+  The toggle now loads Run 7's `pirate-pack-r4-selectonly`, which takes 100%
+  against all three test traders — the reason it isn't the default is no
+  longer that it's worse (it isn't), but that it is 4-7x faster to kill,
+  which is a balance decision. See Run 7.
 
 ## Run 3 — evaluation methodology (how we tell it works)
 
@@ -282,3 +284,110 @@ r3 weights are kept in `src/sim/brains/` purely as evidence.
    into uselessness.
 3. **Behaviour-metric-based selection** — select on tournament kill rate
    rather than shaped fitness, now that the tournament is cheap.
+
+## Run 7 — AI round 4: the plan was wrong, and that's the result
+
+    # the winner
+    npm run train -- pack --validate-select --select-kills \
+        --out pirate-pack-r4-selectonly --gens 400 --pop 48 --eps 6
+    # ablations (each identical but for one flag)
+    npm run train -- pack --validate-select --out pirate-pack-r4-control  --gens 400 --pop 48 --eps 6
+    npm run train -- pack --validate-select --wide --out pirate-pack-r4-wideonly --gens 400 --pop 48 --eps 6
+    npm run train -- pack --validate-select --pool --out pirate-pack-r4-poolonly --gens 400 --pop 48 --eps 6
+    npm run train -- pack --validate-select --wide --pool --select-kills --out pirate-pack-r4 --gens 400 --pop 48 --eps 6
+    # the isolation run: run 4's exact hyperparameters, one variable changed
+    npm run train -- pack --validate-select --out pirate-pack-r4-isolate --gens 300 --pop 48
+    npm run evaluate 200
+
+Round 4 was supposed to test the three ideas at the end of run 6. It did.
+Two of them did nothing. The thing that actually mattered was a bug in the
+trainer that had been quietly corrupting runs 4 and 6.
+
+### The bug: we were saving the wrong brain
+
+The trainer kept the genome with the best score *ever seen*:
+
+```ts
+if (scored[0].f > bestFitness) { bestFitness = scored[0].f; best = scored[0].g; }
+```
+
+Every generation draws **fresh episode seeds**. So that comparison is across
+different exam papers — it doesn't find the best genome, it finds the
+luckiest generation, and then keeps whatever won it. The harder the seeds a
+genuinely good champion faced, the less likely it was to be saved.
+
+The fix (`--validate-select`) re-judges every generation's champion on **one
+fixed validation seed set** at the end, distinct from the training stream
+*and* from the tournament's held-out base — selecting on the tournament
+seeds would turn the tournament into a training set.
+
+The isolation run settles it. Run 4's exact command, changing only this:
+
+| pack of 3 vs armed scripted trader | kill | t-kill |
+| --- | --- | --- |
+| pack r2 (run 4, shipped as evidence) | 71% | 0.6s |
+| pack r3 (run 6) | 67% | 0.7s |
+| **run-4 config, fixed selection** | **100%** | **2.9s** |
+
+Same observation, same single scripted opponent, same shaped fitness, same
+300 generations, same population. **Runs 4 and 6 never showed that packs
+can't coordinate. They showed that the trainer was throwing the good ones
+away.** Both write-ups above stand as what we believed at the time; this is
+the correction.
+
+### The ablation (200 held-out episodes per matchup)
+
+All five runs share the fixed selection, so each row varies one thing.
+"unseen" is the honest column — `trader-evade` r1 is in nobody's pool,
+whereas r4's pool contained jameson-defend and trader-evade-r2.
+
+| pack of 3 | vs scripted | vs jameson-defend (seen) | vs evade-r1 (unseen) |
+| --- | --- | --- | --- |
+| 3x solo r2 brains (SHIPPED) | 100% / 10.8s | **41%** / 23.2s | 100% / 11.7s |
+| pack r2 (run 4) | 71% | 100% | 75% |
+| pack r3 (run 6) | 67% | 96% | 67% |
+| control (none of the three) | 100% / 2.1s | 97% | 99% |
+| + wide observations | 99% | 100% | 100% / 4.9s |
+| + opponent pool | 99% | 100% | 95% |
+| **+ kill-rate ranking** | **100% / 1.5s** | **100% / 0.8s** | **100% / 2.9s** |
+| all three | 100% / 1.9s | 99% | 99% |
+
+Verdict on each idea from run 6's list:
+
+1. **Wider pack observations — no real effect.** 26 inputs (mate health,
+   engagement, flank bearing) scored 99/100/100 against the control's
+   100/97/99. Within noise. The coordination signal was not the bottleneck;
+   the missing coordination was never in the policy in the first place.
+2. **Opponent pools — mildly harmful.** 95% on the unseen opponent, the
+   worst of the five. Training against jameson-defend and trader-evade-r2
+   bought performance against *those* and cost generality.
+3. **Kill-rate ranking — this one worked.** Ranking genomes within a
+   generation by kills (ties broken on shaped fitness) is the only change
+   that improved on the control everywhere, and it produced the first pack
+   brain to take 100% against all three traders.
+
+### What ships
+
+Nothing, yet — deliberately. `pirate-pack-r4-selectonly` is the best pack
+policy the project has produced, and unlike r2/r3 it beats the shipped
+configuration on the metric that matters most (the shipped solo trio only
+manages **41%** against a trader that fights back, losing 0.56 ships per
+episode; the r4 brain takes 100% in 0.8s losing none).
+
+But it kills a *player-like* target in 1.5-2.9s where the shipped trio takes
+10.8-11.7s. That is 4-7x more lethal, and whether Elite's pirates should be
+that deadly is a game-design question, not a tournament question. It is
+wired in behind `window.__packBrain = true` for playtesting; the default is
+unchanged pending a balance decision.
+
+### Methodological notes
+
+- The first ablation matrix was **discarded**: it was launched from a zsh
+  function passing `"--wide --pool --select-kills"` as one unquoted
+  parameter. zsh, unlike bash, does not word-split those — node received a
+  single meaningless argument, npm echoed it unquoted so the command
+  *looked* right, and the "all three" run silently trained as the control.
+  Caught because two rows were identical to the decimal across 18 metrics.
+  Every run in the table above was re-run with the flags as separate
+  arguments and its actual `obs=` and pool size audited from its log.
+- The three experiment flags default off, so runs 1-6 still reproduce.

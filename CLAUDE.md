@@ -55,11 +55,17 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 8. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
    import at build time. `git checkout src/sim/brains` restores shipped
    weights. Shipped-in-game: `pirate-attack-r2` (pirates), `jameson-defend`
-   (armed traders + anything player-assist). `pirate-pack` is loaded but
-   **off by default** — `window.__packBrain = true` switches pirates to it.
-   It stays off because a trio of solo brains kills in 100% of held-out
-   episodes against the pack brain's 70% (docs/TRAINING-LOG.md runs 4/6);
-   don't "fix" this by making it the default without beating that number.
+   (armed traders + anything player-assist). `pirate-pack-r4-selectonly` is
+   loaded but **off by default** — `window.__packBrain = true` switches
+   pirates to it. It is genuinely better (100% vs the shipped trio's 41%
+   against a trader that shoots back) but 4-7x faster to kill, so making it
+   the default is a **balance** decision awaiting playtest, not a metrics
+   one. See docs/TRAINING-LOG.md run 7.
+9. **The trainer's `--validate-select` flag matters more than it looks.**
+   Without it, the final brain is chosen by comparing scores across
+   generations that used *different* episode seeds — that picks the luckiest
+   generation, not the best genome, and it silently ruined runs 4 and 6. Use
+   it for any new run.
 
 ## Verification workflow (what has worked well)
 

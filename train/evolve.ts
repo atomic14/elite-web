@@ -23,7 +23,7 @@
 import { mkdirSync, writeFileSync, readFileSync, appendFileSync } from 'node:fs';
 import { Episode, type Controller } from '../src/sim/scenario.ts';
 import {
-  randomBrain, mutate, brainFromFile, OBS_SIZE, PACK_OBS_SIZE,
+  randomBrain, mutate, brainFromFile, OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
   type Brain, type BrainFile,
 } from '../src/sim/policy.ts';
 import { makeRng } from '../src/sim/core.ts';
@@ -66,7 +66,44 @@ function loadBrain(name: string): Brain {
 const opponentName = getStrArg('opponent', phase === 'evade' ? 'pirate-attack' : phase === 'defend' ? 'pirate-attack-r2' : '');
 const opponent: Brain | null = opponentName ? loadBrain(opponentName) : null;
 
-const OBS = phase === 'pack' ? PACK_OBS_SIZE : OBS_SIZE;
+// --- round-4 experiment flags -----------------------------------------------
+// All three default OFF so runs 4 and 6 rerun bit-identically.
+//
+//   --wide      pack policies get the 26-input observation (mate health,
+//               engagement and flank bearing) instead of the 18-input one.
+//   --pool      score each genome against a *rotation* of traders rather than
+//               only the scripted one, so it can't specialise into uselessness.
+//   --select-kills   rank genomes *within* a generation by kill rate, breaking
+//               ties on shaped fitness, instead of ranking by shaped fitness.
+//   --validate-select  choose the brain we keep by re-judging every generation
+//               champion on one fixed validation seed set, instead of trusting
+//               a training score that isn't comparable across generations.
+//               Kept separate from --select-kills so an ablation can hold the
+//               final-selection method constant while varying only the ranking.
+const WIDE = args.includes('--wide');
+const POOL = args.includes('--pool');
+const SELECT_KILLS = args.includes('--select-kills');
+const VALIDATE_SELECT = args.includes('--validate-select');
+
+const OBS = phase === 'pack' ? (WIDE ? PACK_WIDE_OBS_SIZE : PACK_OBS_SIZE) : OBS_SIZE;
+
+/**
+ * Traders the pack trains against. Run 6 refuted "the reward is wrong"; this
+ * tests the other half of that failure — a single opponent lets the pack overfit
+ * to one evasion style, which is exactly how the r3 attacker collapsed.
+ */
+const traderPool: Controller[] = (() => {
+  if (!POOL) return [{ kind: 'scripted' }];
+  const pool: Controller[] = [{ kind: 'scripted' }];
+  for (const name of ['jameson-defend', 'trader-evade-r2']) {
+    try {
+      pool.push({ kind: 'policy', brain: loadBrain(name) });
+    } catch {
+      console.log(`(pool) ${name} unavailable — skipping`);
+    }
+  }
+  return pool;
+})();
 
 function makeEpisodeFor(genome: Brain, seed: number): Episode {
   if (phase === 'attack') {
@@ -97,7 +134,7 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
   return new Episode({
     seed,
     pirates: Array.from({ length: packSize }, () => ({ kind: 'policy' as const, brain: genome })),
-    trader: { kind: 'scripted' },
+    trader: traderPool[seed % traderPool.length],
     traderArmed: true,
     maxTime: 60,
   });
@@ -112,12 +149,19 @@ function fitnessOf(ep: Episode): number {
 
 function evaluate(genome: Brain, gen: number): number {
   let total = 0;
+  let kills = 0;
   for (let e = 0; e < EPISODES; e++) {
     const ep = makeEpisodeFor(genome, gen * 977 + e * 131 + 7);
     while (!ep.done) ep.step(DT);
     total += fitnessOf(ep);
+    if (!ep.trader.alive) kills += 1;
   }
-  return total / EPISODES;
+  const shaped = total / EPISODES;
+  if (!SELECT_KILLS) return shaped;
+  // Rank on the behaviour we actually want. Kill rate alone is too coarse to
+  // hill-climb (EPISODES+1 distinct values), so shaped fitness breaks ties
+  // *within* a kill count without ever outranking one more kill.
+  return (kills / EPISODES) * 1000 + Math.max(-499, Math.min(499, shaped));
 }
 
 /** Reference: the scripted AI (or scripted trader for evade) on the same seeds. */
@@ -177,6 +221,8 @@ console.log(`phase=${phase} out=${OUT_NAME} pop=${POP} gens=${GENS} eps=${EPISOD
 
 let best: Brain = population[0];
 let bestFitness = -Infinity;
+/** each generation's champion, re-judged on fixed seeds at the end (--select-kills) */
+const champions: Brain[] = [];
 
 for (let gen = 0; gen < GENS; gen++) {
   const scored = population
@@ -188,6 +234,7 @@ for (let gen = 0; gen < GENS; gen++) {
     bestFitness = scored[0].f;
     best = scored[0].g;
   }
+  champions.push(scored[0].g);
   appendFileSync(logPath, JSON.stringify({
     gen, best: +scored[0].f.toFixed(3), mean: +mean.toFixed(3),
     worst: +scored[scored.length - 1].f.toFixed(3),
@@ -208,6 +255,52 @@ for (let gen = 0; gen < GENS; gen++) {
     next.push(mutate(parent, rng, sigmas[next.length % sigmas.length]));
   }
   population = next;
+}
+
+// --- final selection --------------------------------------------------------
+// Training scores are not comparable across generations: every generation draws
+// fresh seeds, so `bestFitness` latches onto whichever generation happened to be
+// easiest. That's tolerable when ranking within a generation, but it's the wrong
+// way to choose the brain we keep.
+//
+// So re-judge every generation's champion on ONE fixed seed set. That set is
+// distinct from the training stream *and* from the tournament's held-out base
+// (10,000,019) — selecting on the tournament seeds would make the tournament a
+// training set and its numbers meaningless.
+const VALIDATION_BASE = 5_000_011;
+const VALIDATION_EPISODES = 24;
+
+function validate(genome: Brain): { kills: number; shaped: number } {
+  let kills = 0;
+  let shaped = 0;
+  for (let e = 0; e < VALIDATION_EPISODES; e++) {
+    const ep = makeEpisodeFor(genome, VALIDATION_BASE + e * 7919);
+    while (!ep.done) ep.step(DT);
+    if (!ep.trader.alive) kills += 1;
+    shaped += fitnessOf(ep);
+  }
+  return { kills: kills / VALIDATION_EPISODES, shaped: shaped / VALIDATION_EPISODES };
+}
+
+if (VALIDATE_SELECT && champions.length) {
+  // de-duplicate: elites survive unchanged, so the same champion recurs
+  const unique = [...new Set(champions)];
+  console.log(`\nfinal selection: re-judging ${unique.length} generation champions ` +
+    `on ${VALIDATION_EPISODES} fixed validation seeds (base ${VALIDATION_BASE})`);
+  let bestScore = -Infinity;
+  let bestKills = 0;
+  for (const c of unique) {
+    const v = validate(c);
+    const score = v.kills * 1000 + Math.max(-499, Math.min(499, v.shaped));
+    if (score > bestScore) {
+      bestScore = score;
+      bestKills = v.kills;
+      best = c;
+      bestFitness = v.shaped;
+    }
+  }
+  console.log(`selected champion: ${(bestKills * 100).toFixed(0)}% validation kill rate ` +
+    `(shaped ${bestFitness.toFixed(2)})`);
 }
 
 const out: BrainFile = {

@@ -39,6 +39,12 @@ const brains: Record<string, Brain | null> = {
   'trader-evade-r2': tryLoad('trader-evade-r2'),
   'pirate-pack': tryLoad('pirate-pack'),
   'pirate-pack-r3': tryLoad('pirate-pack-r3'),
+  'pirate-pack-r4': tryLoad('pirate-pack-r4'),
+  'pirate-pack-r4-control': tryLoad('pirate-pack-r4-control'),
+  'pirate-pack-r4-isolate': tryLoad('pirate-pack-r4-isolate'),
+  'pirate-pack-r4-wideonly': tryLoad('pirate-pack-r4-wideonly'),
+  'pirate-pack-r4-poolonly': tryLoad('pirate-pack-r4-poolonly'),
+  'pirate-pack-r4-selectonly': tryLoad('pirate-pack-r4-selectonly'),
   'pirate-attack-r3': tryLoad('pirate-attack-r3'),
   'jameson-defend': tryLoad('jameson-defend'),
 };
@@ -174,38 +180,59 @@ if (brains['trader-evade']) {
   }
 }
 
-// --- packs vs armed trader ---------------------------------------------------
-console.log('\n## pack of 3 vs armed scripted trader\n');
-console.log(header);
-console.log(row('3x scripted pirates', runMatchup(
-  () => [{ kind: 'scripted' }, { kind: 'scripted' }, { kind: 'scripted' }], { kind: 'scripted' }, true, 60)));
-if (brains['pirate-attack']) {
-  const solo = brains['pirate-attack']!;
-  console.log(row('3x solo brains (no pack obs)', runMatchup(
-    () => [
-      { kind: 'policy', brain: solo },
-      { kind: 'policy', brain: solo },
-      { kind: 'policy', brain: solo },
-    ], { kind: 'scripted' }, true, 60)));
+// --- packs of 3 --------------------------------------------------------------
+// Every pack brain, against three different traders. The candidate list is
+// data so ablations slot in without copy-pasted blocks.
+const PACK_CANDIDATES: { label: string; key: string | null }[] = [
+  { label: '3x scripted pirates', key: null },
+  { label: '3x solo r1 brains (no pack obs)', key: 'pirate-attack' },
+  { label: '3x solo r2 brains (SHIPPED)', key: 'pirate-attack-r2' },
+  { label: 'pack r2 (alpha strike)', key: 'pirate-pack' },
+  { label: 'pack r3 (sustained fire)', key: 'pirate-pack-r3' },
+  { label: 'run-4 config, fixed selection', key: 'pirate-pack-r4-isolate' },
+  { label: 'r4 control (none of the 3)', key: 'pirate-pack-r4-control' },
+  { label: 'r4 +wide obs only', key: 'pirate-pack-r4-wideonly' },
+  { label: 'r4 +opponent pool only', key: 'pirate-pack-r4-poolonly' },
+  { label: 'r4 +kill-rate ranking only', key: 'pirate-pack-r4-selectonly' },
+  { label: 'r4 ALL THREE', key: 'pirate-pack-r4' },
+];
+
+function packSection(title: string, trader: Controller): void {
+  console.log(`\n## pack of 3 vs ${title}\n`);
+  console.log(header);
+  for (const c of PACK_CANDIDATES) {
+    if (c.key === null) {
+      console.log(row(c.label, runMatchup(
+        () => [{ kind: 'scripted' }, { kind: 'scripted' }, { kind: 'scripted' }],
+        trader, true, 60)));
+      continue;
+    }
+    const b = brains[c.key];
+    if (!b) continue;
+    console.log(row(c.label, runMatchup(
+      () => [
+        { kind: 'policy', brain: b },
+        { kind: 'policy', brain: b },
+        { kind: 'policy', brain: b },
+      ], trader, true, 60)));
+  }
 }
-if (brains['pirate-pack']) {
-  const pack = brains['pirate-pack']!;
-  console.log(row('pack-trained r2 (alpha strike)', runMatchup(
-    () => [
-      { kind: 'policy', brain: pack },
-      { kind: 'policy', brain: pack },
-      { kind: 'policy', brain: pack },
-    ], { kind: 'scripted' }, true, 60)));
+
+// The training target for every pack brain in the table.
+packSection('armed scripted trader (all packs trained on this)', { kind: 'scripted' });
+
+// r4's pool contained jameson-defend and trader-evade-r2, so these two rows
+// flatter r4 relative to r2/r3 — seen opponent, unseen seeds.
+if (brains['jameson-defend']) {
+  packSection('armed jameson-defend trader (in r4\'s pool)',
+    { kind: 'policy', brain: brains['jameson-defend']! });
 }
-if (brains['pirate-pack-r3']) {
-  const pack = brains['pirate-pack-r3']!;
-  console.log(row('pack-trained r3 (sustained fire)', runMatchup(
-    () => [
-      { kind: 'policy', brain: pack },
-      { kind: 'policy', brain: pack },
-      { kind: 'policy', brain: pack },
-    ], { kind: 'scripted' }, true, 60)));
+// trader-evade r1 is in NOBODY's training pool — the clean generalisation test.
+if (brains['trader-evade']) {
+  packSection('armed trader-evade r1 (unseen by every pack)',
+    { kind: 'policy', brain: brains['trader-evade']! });
 }
+
 // --- Commander Jameson: armed trader vs 2x shipped pirates -------------------
 if (brains['pirate-attack-r2']) {
   const r2 = brains['pirate-attack-r2']!;
