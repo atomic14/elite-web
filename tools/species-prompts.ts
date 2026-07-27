@@ -41,16 +41,16 @@ function environmentPhrase(sys: StarSystem): string {
 
   if (econ.includes('Agricultural')) {
     bits.push(econ.startsWith('Rich')
-      ? 'prosperous farmers in heavy woven clothing'
+      ? 'a prosperous farmer in heavy woven clothing'
       : econ.startsWith('Poor')
-        ? 'weathered subsistence farmers, patched and sun-worn clothing'
-        : 'agricultural workers in practical homespun');
+        ? 'a weathered subsistence farmer, patched and sun-worn clothing'
+        : 'an agricultural worker in practical homespun');
   } else {
     bits.push(econ.startsWith('Rich')
-      ? 'wealthy industrialists in sharp tailored dress'
+      ? 'a wealthy industrialist in sharp tailored dress'
       : econ.startsWith('Poor')
-        ? 'grimy factory hands in worn overalls'
-        : 'industrial workers in utilitarian coveralls');
+        ? 'a grimy factory hand in worn overalls'
+        : 'an industrial worker in utilitarian coveralls');
   }
 
   if (gov === 'Anarchy') bits.push('armed, wary, improvised gear');
@@ -75,6 +75,21 @@ function environmentPhrase(sys: StarSystem): string {
 }
 
 const article = (word: string): string => (/^[AEIOU]/i.test(word) ? 'an' : 'a');
+
+/**
+ * "Harmless Felines" -> "harmless feline".
+ *
+ * Diso kept coming back as a group portrait — five cats in dungarees — and no
+ * amount of negative prompting was going to fix it, because the prompt asked
+ * for it three times over: a plural species ("felines"), a plural population
+ * ("inhabitants of Diso") and a plural occupation ("agricultural workers").
+ * Negating "multiple figures" while requesting three plurals is not a contest.
+ *
+ * Every species in the 1984 tables is a plain -s plural (Rodents, Lobsters,
+ * Felines, Humanoids...), so this is as simple as it looks.
+ */
+const singular = (name: string): string =>
+  (name.endsWith('s') && !name.endsWith('ss') ? name.slice(0, -1) : name);
 
 /** The goat-soup line, trimmed to the evocative clause. */
 function habitatPhrase(sys: StarSystem): string {
@@ -194,12 +209,12 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
   // "Human Colonials" describes a people, not a body — say so plainly rather
   // than asking for a creature.
   const subject = species === 'Human Colonials'
-    ? 'human colonists'
-    : species.toLowerCase();
+    ? 'a single human colonist'
+    : `a single ${singular(species.toLowerCase())}`;
 
   const prompt = [
-    `head and shoulders portrait of ${subject}`,
-    `inhabitants of ${sys.name}, ${article(ECONOMY_NAMES[sys.economy])} ` +
+    `head and shoulders portrait of ${subject}, one individual alone`,
+    `an inhabitant of ${sys.name}, ${article(ECONOMY_NAMES[sys.economy])} ` +
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
     environmentPhrase(sys),
     `homeworld ${habitatPhrase(sys)}`,
@@ -219,7 +234,8 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
     // the first prompt produced, and the crt/lit styles push towards it.
     negative: [
       'silhouette, featureless, solid black shape, face in shadow',
-      'text, watermark, signature, blurry, busy background, multiple figures, full body',
+      'text, watermark, signature, blurry, busy background, full body',
+      'multiple figures, two people, group portrait, crowd, background characters',
       ...STYLES[style].negative,
     ].join(', '),
   };

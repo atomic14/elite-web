@@ -112,6 +112,7 @@ def posterise(
     sharpen: float = 1.6,
     cutoff: int = 2,
     invert: str = "auto",
+    pixel: int = 0,
 ) -> Image.Image:
     """All of the look lives here.
 
@@ -143,7 +144,21 @@ def posterise(
 
     if sharpen > 0:
         g = g.filter(ImageFilter.UnsharpMask(radius=2, percent=int(sharpen * 100), threshold=2))
-    g = g.resize((size, size), Image.LANCZOS)
+
+    # Everything happens at the BLOCK grid, and only the last step scales up.
+    #
+    # This is the whole reason to pixelate here rather than ask the model for
+    # pixel art. Quantising at 64 and then nearest-upscaling to 256 makes each
+    # block exactly one palette colour, aligned to a grid we chose. A model
+    # asked for "chunky pixels" paints them at whatever scale it likes, and
+    # that grid then beats against ours when we downsample — moiré, not
+    # crispness. Ours is real; its is a picture of pixels.
+    #
+    # Dithering must happen at the block size too. Dither at 256 and then
+    # shrink and the diffusion averages straight back out into mush, which
+    # undoes both steps at once.
+    work = pixel if pixel else size
+    g = g.resize((work, work), Image.LANCZOS)
     g = ImageOps.autocontrast(g, cutoff=cutoff)
     if gamma != 1.0:
         # <1 lifts the shadows (more phosphor lit), >1 deepens them
@@ -155,23 +170,28 @@ def posterise(
         # error diffusion can look like compression noise at this resolution.
         bm = bayer_matrix(4)
         n = len(bm)
-        out = Image.new("RGB", (size, size))
+        out = Image.new("RGB", (work, work))
         px, op = g.load(), out.load()
         levels = tones - 1
-        for y in range(size):
-            for x in range(size):
+        for y in range(work):
+            for x in range(work):
                 v = px[x, y] / 255 * levels + (bm[y % n][x % n] - 0.5)
                 op[x, y] = palette[max(0, min(levels, int(round(v))))]
-        return out
+    else:
+        pal_img = Image.new("P", (1, 1))
+        flat = [c for rgb in palette for c in rgb]
+        # pad by repeating the darkest colour: zero-padding leaves the quantiser
+        # 250-odd free pure-black entries and it will use them
+        pal_img.putpalette(flat + list(palette[0]) * ((768 - len(flat)) // 3))
+        rgb = Image.merge("RGB", (g, g, g))
+        mode = Image.FLOYDSTEINBERG if dither == "floyd" else Image.NONE
+        out = rgb.quantize(palette=pal_img, dither=mode).convert("RGB")
 
-    pal_img = Image.new("P", (1, 1))
-    flat = [c for rgb in palette for c in rgb]
-    # pad by repeating the darkest colour: zero-padding leaves the quantiser
-    # 250-odd free pure-black entries and it will use them
-    pal_img.putpalette(flat + list(palette[0]) * ((768 - len(flat)) // 3))
-    rgb = Image.merge("RGB", (g, g, g))
-    mode = Image.FLOYDSTEINBERG if dither == "floyd" else Image.NONE
-    return rgb.quantize(palette=pal_img, dither=mode).convert("RGB")
+    if pixel and pixel != size:
+        # NEAREST, obviously — any smoothing here would invent colours that are
+        # not in the palette, which is the one thing this whole step guarantees.
+        out = out.resize((size, size), Image.NEAREST)
+    return out
 
 
 def main() -> int:
@@ -186,12 +206,24 @@ def main() -> int:
     ap.add_argument("--sharpen", type=float, default=1.6,
                     help="unsharp before downsampling; 0 disables")
     ap.add_argument("--cutoff", type=int, default=2, help="autocontrast percentile clip")
+    # 128 into 256 = 2x2 blocks. Compared 2x2, 4x4 and 8x8 on the same raws:
+    # 4x4 loses the rat's eyes, 8x8 is unreadable, 2x2 keeps every face while
+    # still reading as deliberate. It also cuts the set from 9.7 MB to 2.7 MB.
+    ap.add_argument("--pixel", type=int, default=128,
+                    help="quantise at this block grid then nearest-upscale to --size "
+                         "(128 with --size 256 gives 2x2 blocks); 0 = off")
     ap.add_argument("--invert", default="auto", choices=["auto", "on", "off"],
                     help="auto flips dark-subject-on-bright-wall raws; see border_brighter()")
     ap.add_argument("--contact-sheet", default="",
                     help="also write one image with every portrait, for judging the set")
     ap.add_argument("--scale", type=int, default=1, help="nearest-neighbour upscale of the output")
     args = ap.parse_args()
+
+    if args.pixel and args.size % args.pixel:
+        print(f"--size {args.size} is not a multiple of --pixel {args.pixel}; blocks "
+              f"would come out uneven. Try {args.size // 2} or {args.size // 4}.",
+              file=sys.stderr)
+        return 1
 
     raw = pathlib.Path(args.raw)
     if not raw.is_dir():
@@ -208,7 +240,7 @@ def main() -> int:
     done = []
     for f in files:
         img = posterise(Image.open(f), args.size, args.tones, args.dither,
-                        args.gamma, args.sharpen, args.cutoff, args.invert)
+                        args.gamma, args.sharpen, args.cutoff, args.invert, args.pixel)
         if args.scale > 1:
             img = img.resize((args.size * args.scale,) * 2, Image.NEAREST)
         img.save(out / f.name, optimize=True)

@@ -104,6 +104,8 @@ def main() -> int:
     ap.add_argument("--size", type=int, default=256, help="output edge in pixels")
     ap.add_argument("--tones", type=int, default=16, help="how many phosphor levels")
     ap.add_argument("--dither", default="floyd", choices=["floyd", "bayer", "none"])
+    ap.add_argument("--pixel", type=int, default=128,
+                    help="block grid: 128 into 256 = 2x2 blocks; see posterise.py")
     # 256, not 512. The output is posterised down to 96px anyway, so asking
     # for 512 spends four times the memory and time on detail that is thrown
     # away by the quantiser. This is the single biggest lever if you are
@@ -174,7 +176,8 @@ def main() -> int:
             return 2
         if raw_dest:
             image.save(raw_dest)
-        posterise(image, args.size, args.tones, args.dither).save(dest, optimize=True)
+        posterise(image, args.size, args.tones, args.dither,
+                  pixel=args.pixel).save(dest, optimize=True)
         print(f"[{i}/{len(prompts)}] {p['system']:<10} {p['species']}", file=sys.stderr)
 
     print(f"\nwrote to {out}" + (f" (raws in {raw_out})" if raw_out else ""), file=sys.stderr)
