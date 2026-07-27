@@ -41,7 +41,7 @@ export class SpaceDust {
   private readonly half: number;
   private readonly streakMat: THREE.LineBasicMaterial;
   /** streak length in world units per unit of speed, at full strength */
-  private static readonly LENGTH_PER_SPEED = 0.12;
+  private static readonly LENGTH_PER_SPEED = 0.075;
   /**
    * Streaks start above the fastest ordinary cruise (max ship speed is 400)
    * so they read as a torus-drive effect and not as normal flight, and reach
@@ -107,10 +107,10 @@ export class SpaceDust {
     const speed = velocity ? velocity.length() : 0;
     const t = (speed - SpaceDust.FADE_IN) / (SpaceDust.FULL - SpaceDust.FADE_IN);
     const strength = Math.max(0, Math.min(1, t));
-    this.streakMat.opacity = 0.75 * strength;
+    this.streakMat.opacity = 0.42 * strength;
     this.streaks.visible = strength > 0.01;
     // dots dim as the streaks take over, so it reads as one effect
-    (this.points.material as THREE.PointsMaterial).opacity = 0.4 * (1 - 0.75 * strength);
+    (this.points.material as THREE.PointsMaterial).opacity = 0.4 * (1 - 0.45 * strength);
     if (!this.streaks.visible || !velocity) return;
 
     // trail each particle backwards along our heading
