@@ -131,6 +131,12 @@ resolves each attacker at the strength the game actually spawns. Two rules keep 
 things count — never credits in the bank — and threat grows sub-linearly with
 the prize, so the player outgrows the galaxy slowly rather than never.
 
+Reputation is deliberately two-sided. It lowers `appeal` (thieves want easy
+cargo, not a fight) but rolls a separate *challenge*: at Dangerous, ~35% of
+receptions are an organised group who came for the name. Folding fame straight
+into the tier instead made 99% of late-game receptions gangs, which erased the
+ladder — it has to roll, not accumulate.
+
 Because it lives in contracts.ts, `npm run campaign` scores the same function
 the game uses; it reports the tier mix and whether threat actually tracks
 wealth. The escape valve is `jettisonCargo()`: pirates came for cargo, so

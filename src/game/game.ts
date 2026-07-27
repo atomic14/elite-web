@@ -27,7 +27,7 @@ import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirate
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
-  cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP,
+  cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
   type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
@@ -439,9 +439,11 @@ export class Game {
           .addScaledVector(route, along)
           .add(rnd(2500));
         // ringleaders first, then the hangers-on they brought
+        const mt = memberTier(threat.tier, i);
         const npc = this.spawnNpc('pirate', pos, i + sys.index * 3,
-          pirateSpecForTier(memberTier(threat.tier, i), i + sys.index * 3));
+          pirateSpecForTier(mt, i + sys.index * 3));
         npc.organised = threat.organised;
+        npc.threatTier = mt;
       }
     }
 
@@ -897,7 +899,11 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   destroyNpc(npc: NpcShip): void {
     this.wreckNpc(npc);
-    if (npc.role !== 'asteroid') this.commander.kills += 1;
+    if (npc.role !== 'asteroid') {
+      this.commander.kills += 1;
+      // rating counts difficulty, not bodies: see killValue()
+      this.commander.combatScore += killValue(npc.threatTier);
+    }
     if (npc.role === 'pirate') {
       for (const k of this.commander.contracts) {
         if (k.kind === 'bounty' && k.destination === this.commander.systemIndex && k.progress < k.qty) {

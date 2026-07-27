@@ -14,6 +14,7 @@ import {
 import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/contracts.ts';
+import { killValue } from '../src/game/commander.ts';
 import { Episode } from '../src/sim/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/sim/policy.ts';
 import { makeRng } from '../src/sim/core.ts';
@@ -185,6 +186,28 @@ console.log('\npirate economics');
     memberTier(2, 4) === 1 && memberTier(1, 3) === 0);
   check('opportunist groups stay opportunists',
     [0, 1, 2, 3].every((i) => memberTier(0, i) === 0));
+
+  // fame draws challengers: at Dangerous, a share of receptions are people
+  // coming for the reputation rather than the cargo
+  {
+    const famous = { cargo: new Array(17).fill(0), kills: 3000, combatScore: 3000,
+      equipment: { laser: 'military', largeBay: false } };
+    // empty hold, so nothing here is worth robbing — only the name is
+    const rolls = Array.from({ length: 200 }, (_, i) =>
+      pirateThreat(lave, 0.1, markOf(famous), () => (i % 100) / 100));
+    const challenges = rolls.filter((r) => r.challenged).length;
+    check(`a famous commander gets challenged even flying empty (${challenges}/200)`,
+      challenges > 30 && challenges < 120);
+    const unknown = { ...famous, kills: 0, combatScore: 0 };
+    check('an unknown commander with an empty hold is left alone',
+      pirateThreat(lave, 0.1, markOf(unknown), fixed).tier === 0);
+    check('challengers arrive as an organised gang, not a mugging',
+      rolls.filter((r) => r.challenged).every((r) => r.tier === 2));
+  }
+
+  // ratings count difficulty, not bodies
+  check('a gang leader is worth five Sidewinders', killValue(2) === 5 * killValue(0));
+  check('a professional is worth two', killValue(1) === 2);
 
   // notoriety: spreads to jump-range neighbours, and fades
   const heat = new LivingGalaxy(g1);

@@ -189,7 +189,11 @@ detected — as on the original's dashboard.
   **jettisoning it (Y) buys them off** — proportionally: opportunists want a
   little, a gang that organised for you wants about a third of the prize.
   Selling big or dirty loads raises your profile here and in neighbouring
-  systems, and it fades if you lie low.
+  systems, and it fades if you lie low. Your **reputation cuts both ways**:
+  it scares off thieves after easy cargo, but once you're Dangerous roughly a
+  third of the ships waiting for you came for the name rather than the hold.
+  Ratings count difficulty too — a gang's Fer-de-Lance is worth five
+  Sidewinders — so the ladder rewards the fights worth having.
 - **Contracts** — every station runs a bulletin board with cargo runs,
   courier jobs and pirate-clearing bounties, available from your very first
   landing. Deadlines are measured in days, which pass as you jump. (The

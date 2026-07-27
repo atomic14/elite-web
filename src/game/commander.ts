@@ -154,6 +154,13 @@ export interface CommanderData {
   fuel: number; // tenths of a LY
   missiles: number;
   kills: number;
+  /**
+   * Combat reputation. Ships destroyed weighted by how hard they were:
+   * a gang's Fer-de-Lance is worth five Sidewinders, because it is.
+   * `kills` stays the literal body count for the status screen; this is what
+   * the rating ladder reads. Absent in saves written before it existed.
+   */
+  combatScore: number;
   cargo: number[]; // quantity per commodity index
   equipment: Equipment;
   legalStatus: number; // 0 clean, 1 offender, 2 fugitive
@@ -178,6 +185,7 @@ export function newCommander(): CommanderData {
     fuel: MAX_FUEL,
     missiles: 3,
     kills: 0,
+    combatScore: 0,
     cargo: COMMODITIES.map(() => 0),
     equipment: defaultEquipment(),
     legalStatus: 0,
@@ -210,18 +218,33 @@ export function loadCommander(): CommanderData {
     if (!Array.isArray(parsed.cargo) || parsed.cargo.length !== COMMODITIES.length) {
       parsed.cargo = COMMODITIES.map(() => 0);
     }
+    // saves from before weighted ratings: every past kill counts as one
+    if (typeof parsed.combatScore !== 'number') parsed.combatScore = parsed.kills ?? 0;
     return parsed;
   } catch {
     return newCommander();
   }
 }
 
-export function rating(kills: number): string {
+export function rating(combatScore: number): string {
   let r = RATINGS[0][1];
   for (const [threshold, name] of RATINGS) {
-    if (kills >= threshold) r = name;
+    if (combatScore >= threshold) r = name;
   }
   return r;
+}
+
+/**
+ * What destroying a pirate of this threat tier is worth toward your rating.
+ *
+ * The original counted every kill the same, which meant the fastest route to
+ * E L I T E was farming the weakest thing you could find — and made the
+ * ladder's top a flat grind. Weighting by tier rewards taking on the fights
+ * that are actually dangerous, which is the play the pirate economics are
+ * built to offer. (Deliberate deviation; see docs/GAP-ANALYSIS.md.)
+ */
+export function killValue(tier: number): number {
+  return tier >= 2 ? 5 : tier === 1 ? 2 : 1;
 }
 
 /** Tonnes currently used (kg/g commodities don't count against the hold). */

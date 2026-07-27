@@ -122,6 +122,10 @@ export function pirateCount(sys: StarSystem, danger: number, rng: () => number =
 //      combat power grows maybe tenfold; this should grow two- or threefold,
 //      so upgrades are felt rather than cancelled out.
 
+/** Combat score at which fame is fully "worth coming for" — Dangerous. */
+const FAME_FULL = 2560;
+/** Share of receptions that are challengers, at full fame. */
+const CHALLENGE_RATE = 0.35;
 /** Slaves, Narcotics, Firearms — worth more to a pirate, and mark you as a smuggler. */
 const CONTRABAND = new Set([3, 6, 10]);
 /**
@@ -141,8 +145,8 @@ export interface Mark {
   contraband: number;
   /** hold capacity — a big bay looks like a fat prize even when empty */
   capacity: number;
-  /** kills: your reputation arrives before you do */
-  kills: number;
+  /** combat reputation — your name arrives before you do */
+  combatScore: number;
   laser: 'pulse' | 'beam' | 'military';
   /** 0..1 regional heat from your recent big or dirty sales nearby */
   notoriety: number;
@@ -150,7 +154,12 @@ export interface Mark {
 
 /** Read a commander the way a pirate's scanner would. */
 export function markOf(
-  c: { cargo: number[]; kills: number; equipment: { laser: string; largeBay: boolean } },
+  c: {
+    cargo: number[];
+    kills: number;
+    combatScore?: number;
+    equipment: { laser: string; largeBay: boolean };
+  },
   notoriety = 0,
 ): Mark {
   let cargoValue = 0;
@@ -166,7 +175,7 @@ export function markOf(
     cargoValue,
     contraband,
     capacity: c.equipment.largeBay ? 35 : 20,
-    kills: c.kills,
+    combatScore: c.combatScore ?? c.kills,
     laser: (c.equipment.laser as Mark['laser']) ?? 'pulse',
     notoriety,
   };
@@ -197,6 +206,10 @@ export interface PirateThreat {
   organised: boolean;
   /** 0..1 how attractive you looked — exposed for tuning and tests */
   appeal: number;
+  /** 0..1 how much of this reception came for your reputation rather than your hold */
+  fame: number;
+  /** true when this lot came looking for you specifically, not for your cargo */
+  challenged: boolean;
 }
 
 /**
@@ -219,19 +232,31 @@ export function pirateThreat(
     + (mark.capacity > 20 ? 0.1 : 0);
 
   // What you look like you'd cost them.
-  const deter = Math.min(0.5, mark.kills / 150)
+  const deter = Math.min(0.5, mark.combatScore / 150)
     + (mark.laser === 'military' ? 0.3 : mark.laser === 'beam' ? 0.12 : 0);
 
   // Deterrence is weighted heavily: looking dangerous is the main lever the
   // player has against this system, and it should visibly work.
   const appeal = Math.max(0, Math.min(1, prize - 0.7 * deter + 0.6 * mark.notoriety));
 
+  // ...but fame cuts both ways. A reputation scares off thieves looking for
+  // easy cargo, and simultaneously draws people who want to be the ones who
+  // killed you. That draw is an *occasional challenge*, not a permanent tax:
+  // folding fame straight into the tier made 99% of receptions gangs once a
+  // commander hit Dangerous, which is monotonous and erases the whole tier
+  // ladder. Instead it rolls — at Dangerous, about a third of receptions are
+  // someone coming for the reputation rather than the cargo.
+  const fame = Math.max(0, Math.min(1, mark.combatScore / FAME_FULL));
+  const challenged = rng() < CHALLENGE_RATE * fame;
+  const draw = challenged ? 1 : appeal;
+
   // Sub-linear: a fat commander draws about one extra attacker, not five.
-  const count = Math.max(0, Math.round(place + appeal * 1.5 + rng() * 2 - 1));
+  // Fame adds its own challengers on top.
+  const count = Math.max(0, Math.round(place + appeal * 1.5 + fame * 1.2 + rng() * 2 - 1));
   // Thresholds, not the prize curve, set how often each tier appears — keeping
   // saturation high preserves the gap between a good load and a fat one.
-  const tier: 0 | 1 | 2 = appeal < 0.28 ? 0 : appeal < 0.5 ? 1 : 2;
+  const tier: 0 | 1 | 2 = draw < 0.28 ? 0 : draw < 0.5 ? 1 : 2;
   // A gang needs both a reason and the numbers to bother forming.
-  const organised = tier === 2 && count >= 3 && rng() < 0.4 + 0.5 * appeal;
-  return { count, tier, organised, appeal };
+  const organised = tier === 2 && count >= 3 && rng() < 0.4 + 0.5 * draw;
+  return { count, tier, organised, appeal, fame, challenged };
 }

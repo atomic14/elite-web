@@ -172,7 +172,7 @@ export function renderStatus(
       Cargo: ${cargoLines}<br/>
       ${c.trumbles > 0 ? `<span style="color:var(--hud-red)">Trumbles: ${c.trumbles}</span><br/>` : ''}
       Kills: ${c.kills}<br/>
-      Rating: <span style="color:var(--hud-amber)">${rating(c.kills).toUpperCase()}</span>
+      Rating: <span style="color:var(--hud-amber)">${rating(c.combatScore ?? c.kills).toUpperCase()}</span>
     </div>
     <div class="buttons"><button data-key="Escape">BACK</button></div>
   `);
@@ -552,7 +552,7 @@ export function renderGameOver(c: CommanderData): void {
     <h2>GAME OVER</h2>
     <div class="big">SHIP DESTROYED</div>
     <div class="info" style="text-align:center">
-      Final rating: ${rating(c.kills).toUpperCase()} &middot; ${c.kills} kills
+      Final rating: ${rating(c.combatScore ?? c.kills).toUpperCase()} &middot; ${c.kills} kills
     </div>
     <div class="buttons"><button data-key="Enter">RELOAD LAST STATION SAVE</button></div>
   `);

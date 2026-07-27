@@ -21,7 +21,7 @@ import {
   generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat, markOf, memberTier,
 } from '../src/game/contracts.ts';
 import {
-  newCommander, cargoCapacity, cargoTonnes, rating, EQUIPMENT_CATALOGUE,
+  newCommander, cargoCapacity, cargoTonnes, rating, killValue, EQUIPMENT_CATALOGUE,
   equipmentOwned, MAX_FUEL, type CommanderData, type Contract,
 } from '../src/game/commander.ts';
 import { makeRng } from '../src/sim/core.ts';
@@ -51,6 +51,7 @@ interface CareerResult {
   legs: number;
   deaths: number;
   kills: number;
+  combatScore: number;
   contractsDone: number;
   contractsFailed: number;
   cargoLost: number;
@@ -237,7 +238,8 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     appealCount += 1;
     const pirates = threat.count;
     for (let p = 0; p < pirates; p++) {
-      const outcome = resolveEncounter(c, rng, memberTier(threat.tier, p), hunts ? 'hunter' : 'trader');
+      const mt = memberTier(threat.tier, p);
+      const outcome = resolveEncounter(c, rng, mt, hunts ? 'hunter' : 'trader');
       if (outcome === 'escaped') continue;
       if (outcome === 'dead') {
         deaths += 1;
@@ -259,14 +261,15 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       }
       if (outcome === 'killed-them') {
         c.kills += 1;
-        c.credits += 50 + Math.floor(rng() * 60);
+        c.combatScore += killValue(mt);
+        c.credits += (50 + Math.floor(rng() * 60)) * (mt >= 2 ? 4 : mt === 1 ? 2 : 1);
         for (const k of c.contracts) {
           if (k.kind === 'bounty' && k.destination === c.systemIndex) k.progress += 1;
         }
       }
     }
 
-    const rank = rating(c.kills);
+    const rank = rating(c.combatScore);
     if (rank !== lastRank) {
       milestones.push({ rank, leg: leg + 1, day: c.day });
       lastRank = rank;
@@ -293,6 +296,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     legs,
     deaths,
     kills: c.kills,
+    combatScore: c.combatScore,
     contractsDone,
     contractsFailed,
     cargoLost,
@@ -497,7 +501,7 @@ function report(label: string, careers: CareerResult[], strategy: Strategy): voi
     `${num(careers.map((r) => r.contractsFailed)).toFixed(1)} failed per career`);
   console.log(`COMBAT   ${num(careers.map((r) => r.kills)).toFixed(1)} kills · ` +
     `${num(careers.map((r) => r.cargoLost)).toFixed(1)}t cargo lost to pirates per career`);
-  console.log(`RATING   median ${rating(Math.round(median(careers.map((r) => r.kills))))}`);
+  console.log(`RATING   median ${rating(Math.round(median(careers.map((r) => r.combatScore))))}`);
 
   // equipment progression
   const kitCounts = new Map<string, number>();

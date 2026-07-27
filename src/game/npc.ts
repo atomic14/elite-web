@@ -257,6 +257,8 @@ export class NpcShip {
   organised = false;
   /** took the jettisoned cargo and lost interest — see isHostileToPlayer */
   satisfied = false;
+  /** threat tier this ship was spawned at — sets what killing it is worth */
+  threatTier = 0;
 
   private speed: number;
   private readonly maxSpeed: number;

@@ -64,6 +64,18 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   motive is explicable to the player and gives them levers (bank the money,
   fly armed, lie low) where a hidden difficulty curve gives them none.
   Threat grows deliberately sub-linearly with the prize so upgrades stay felt.
+- **The rating ladder counts difficulty, not bodies.** The original scored
+  every kill the same, which made the fastest route to E L I T E farming the
+  weakest thing you could find, and made the top of the ladder a flat grind.
+  A gang's Fer-de-Lance is worth five Sidewinders (`killValue` in
+  commander.ts). `kills` is still the literal body count on the status screen;
+  `combatScore` is what the ladder reads. The iconic 25,600 is untouched.
+- **Fame draws challengers.** In the original, reputation only ever made you
+  safer. Here it cuts both ways: a reputation deters thieves after easy cargo
+  (it lowers `appeal`) while drawing people who want to be the ones who killed
+  you. At Dangerous, ~35% of receptions are someone coming for the name rather
+  than the hold — which is what stops the endgame being a grind, and is the
+  reason a famous commander gets hunted flying an empty ship.
 - **Jettisoning cargo (Y) buys off pirates.** Not in the original, which had
   no such out. They came for the goods; dumping a proportional share makes
   them break off — turning an unwinnable fight into a decision.
