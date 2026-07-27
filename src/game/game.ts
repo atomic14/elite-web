@@ -43,6 +43,14 @@ import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
  * simulated in training, so this can't break parity (invariant 2).
  */
 const LASER_GRAZE = 0.35;
+
+/**
+ * Where the sight sits, as a fraction of canvas height. The cockpit console
+ * covers the bottom ~22%, so the centre of what you can actually see is above
+ * the middle of the canvas. The camera projection is shifted to match (see
+ * resize), so this moves the gun axis and the crosshair together.
+ */
+const SIGHT_Y = 0.42;
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
@@ -228,11 +236,16 @@ export class Game {
     this.scene.add(this.dust.points);
     this.scene.add(this.camera);
 
-    // cockpit laser beams, drawn in camera space
+    // Cockpit laser beams, drawn in camera space. They converge ON THE CAMERA
+    // AXIS (0, 0, -z) because that is where the shot goes and where the
+    // crosshair sits. They previously met at y = +0.21 at z = -2.6 —
+    // atan(0.21/2.6) = 4.6 degrees high — which lined them up with the old
+    // mis-placed crosshair (#crosshair was top: 42%, not 50%). With the sight
+    // corrected the beams had to come down to match.
     const beamGeo = new THREE.BufferGeometry();
     beamGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-      -0.85, -0.75, -1.2, 0, 0.21, -2.6,
-      0.85, -0.75, -1.2, 0, 0.21, -2.6,
+      -0.85, -0.75, -1.2, 0, 0, -2.6,
+      0.85, -0.75, -1.2, 0, 0, -2.6,
     ], 3));
     this.beams = new THREE.LineSegments(
       beamGeo,
@@ -273,6 +286,16 @@ export class Game {
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
     this.camera.aspect = w / h;
+    // Lift the gun axis to SIGHT_Y before building the projection: the console
+    // eats the bottom of the screen, so the eye's centre is above the canvas
+    // centre. setViewOffset shifts the frustum (a lens shift) rather than the
+    // sight, which keeps the crosshair, the beams and the shot on one axis —
+    // moving the *crosshair* up instead is what put the sight 4.6 degrees
+    // above the shot for so long.
+    // +lift: the view window starts BELOW the virtual image top, which pushes
+    // the frustum centre up the screen. (Negative moves it down — measured.)
+    const lift = (0.5 - SIGHT_Y) * h;
+    this.camera.setViewOffset(w, h, 0, lift, w, h);
     this.camera.updateProjectionMatrix();
     this.hud.resizeOverlay(w, h);
   }
