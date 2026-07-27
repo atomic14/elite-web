@@ -53,6 +53,12 @@ export interface HudState {
   shipId: string;
   /** docking aid: station-local lateral offset + signed roll error, or null */
   dockAid: { x: number; y: number; roll: number; inSlot: boolean; rollOk: boolean } | null;
+  /**
+   * Where the docking slot is on screen (NDC), when you're close and on the
+   * right side of the station. `behind` means it's off past the edge of the
+   * view — the marker becomes an arrow rather than a bracket.
+   */
+  slotMarker: { x: number; y: number; behind: boolean } | null;
   /** combat computer engaged (shown in the view label slot) */
   assist: boolean;
   /** missile armed but not yet locked (yellow pylon) */
@@ -178,6 +184,7 @@ export class Hud {
     this.creditsEl.textContent = formatCredits(state.credits);
 
     this.drawDockAid(state.dockAid);
+    this.drawSlotMarker(state.slotMarker, state.dockAid?.inSlot ?? false);
     this.drawScanner(playerPos, playerQuat, contacts);
     this.drawCompass(playerPos, playerQuat, compassTarget);
   }
@@ -242,6 +249,63 @@ export class Hud {
    * offset as a dot (green when you'd fit through), and the slot's rotation
    * as a bar (green when your roll matches within tolerance).
    */
+  /**
+   * Point at the docking slot. Close in, the station fills the view and the
+   * entrance is easily off to one side or past the edge of the screen, which
+   * reads as "there is no entrance". Brackets it when visible; an arrow at the
+   * screen edge when it isn't. Drawn on the reticle canvas, which drawTargets
+   * has already cleared this frame.
+   */
+  private drawSlotMarker(marker: HudState['slotMarker'], inSlot: boolean): void {
+    if (!marker) return;
+    const ctx = this.reticle;
+    const w = ctx.canvas.width;
+    const h = ctx.canvas.height;
+    const colour = inSlot ? '#4dff5c' : '#ffb444';
+    ctx.strokeStyle = colour;
+    ctx.fillStyle = colour;
+    ctx.lineWidth = 2;
+
+    const onScreen = !marker.behind
+      && Math.abs(marker.x) <= 1 && Math.abs(marker.y) <= 1;
+    if (onScreen) {
+      const x = (marker.x * 0.5 + 0.5) * w;
+      const y = (-marker.y * 0.5 + 0.5) * h;
+      const r = 26;
+      const c = r * 0.45;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        ctx.beginPath();
+        ctx.moveTo(x + sx * r, y + sy * r - sy * c);
+        ctx.lineTo(x + sx * r, y + sy * r);
+        ctx.lineTo(x + sx * r - sx * c, y + sy * r);
+        ctx.stroke();
+      }
+      ctx.font = '10px Menlo, Consolas, monospace';
+      ctx.fillText(inSlot ? 'SLOT — LINED UP' : 'SLOT', x - r, y - r - 6);
+      return;
+    }
+
+    // off-screen: clamp to the edge and draw an arrow pointing that way
+    const len = Math.max(1e-3, Math.hypot(marker.x, marker.y));
+    const nx = marker.x / len;
+    const ny = marker.y / len;
+    const ex = (nx * 0.82 * 0.5 + 0.5) * w;
+    const ey = (-ny * 0.82 * 0.5 + 0.5) * h;
+    const a = Math.atan2(-ny, nx);
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(a);
+    ctx.beginPath();
+    ctx.moveTo(16, 0);
+    ctx.lineTo(-8, -9);
+    ctx.lineTo(-8, 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.font = '10px Menlo, Consolas, monospace';
+    ctx.fillText('SLOT', ex - 12, ey + 26);
+  }
+
   private drawDockAid(aid: HudState['dockAid']): void {
     const canvas = this.dockAid.canvas;
     if (!aid) {

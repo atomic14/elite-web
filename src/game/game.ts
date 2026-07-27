@@ -178,6 +178,7 @@ export class Game {
   private readonly dust = new SpaceDust();
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
+  private readonly tmp3 = new THREE.Vector3();
   private readonly tmpQ = new THREE.Quaternion();
   private readonly tmpM = new THREE.Matrix4();
 
@@ -2482,16 +2483,35 @@ export class Game {
     // flying toward the station (departures launch facing away, so the aid
     // stays out of the way after lift-off)
     let dockAid: import('../hud/hud').HudState['dockAid'] = null;
+    let slotMarker: import('../hud/hud').HudState['slotMarker'] = null;
     if (this.mode === 'flight' && !this.witchspace) {
       const st = this.world.station;
       const dist = this.player.position.distanceTo(st.position);
       const facingStation = this.player
         .getForward(this.tmp)
         .dot(this.tmp2.copy(st.position).sub(this.player.position).normalize()) > 0.35;
-      if (dist < 3000 && facingStation) {
-        const slotN = this.tmp.set(0, 0, -1).applyQuaternion(st.quaternion);
-        const onSlotSide = this.tmp2.copy(this.player.position).sub(st.position).dot(slotN) > 0;
-        if (onSlotSide) {
+      const slotN = this.tmp.set(0, 0, -1).applyQuaternion(st.quaternion);
+      const onSlotSide = this.tmp2.copy(this.player.position).sub(st.position).dot(slotN) > 0;
+      if (dist < 3000 && onSlotSide) {
+        // Where the slot actually IS, on screen. Close in the station fills the
+        // view and the entrance can sit off to one side, or off-frame entirely
+        // — you end up staring at a blank black face concluding there is no
+        // entrance. Deliberately NOT gated on facing the station: "which way is
+        // the slot" is precisely the question you have when looking the wrong
+        // way. The alignment aid below stays gated, so it still only appears
+        // when you're actually lining up.
+        this.tmp3.set(0, 0, -this.world.stationDockZ);
+        st.localToWorld(this.tmp3);
+        const behind = this.tmp3.clone().sub(this.player.position)
+          .dot(this.player.getForward(this.tmp2)) <= 0;
+        this.tmp3.project(this.camera);
+        slotMarker = {
+          x: behind ? -this.tmp3.x : this.tmp3.x,
+          y: behind ? -this.tmp3.y : this.tmp3.y,
+          behind,
+        };
+
+        if (facingStation) {
           const local = this.tmp2.copy(this.player.position);
           st.worldToLocal(local);
           this.tmpQ.copy(st.quaternion).invert().multiply(this.player.quaternion);
@@ -2567,6 +2587,7 @@ export class Game {
         hasLaser,
         shipId,
         dockAid,
+        slotMarker,
         assist: this.ccEngaged,
         armed: this.missileArmed,
         stationInRange:
