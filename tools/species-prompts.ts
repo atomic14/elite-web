@@ -39,18 +39,26 @@ function environmentPhrase(sys: StarSystem): string {
   const gov = GOVERNMENT_NAMES[sys.government];
   const bits: string[] = [];
 
+  // Clothing only — never a noun for the wearer.
+  //
+  // These used to say "a grimy factory hand in worn overalls", and Tibedied
+  // came back as a photograph of a man in overalls despite asking for a slimy
+  // lobster. "Factory hand" is a concrete human noun and it was competing with
+  // the species for the same slot; being the more ordinary request, it won.
+  // Describing the clothes and letting the species own the subject removes the
+  // competition entirely.
   if (econ.includes('Agricultural')) {
     bits.push(econ.startsWith('Rich')
-      ? 'a prosperous farmer in heavy woven clothing'
+      ? 'wearing heavy woven farm clothing, prosperous and well fed'
       : econ.startsWith('Poor')
-        ? 'a weathered subsistence farmer, patched and sun-worn clothing'
-        : 'an agricultural worker in practical homespun');
+        ? 'wearing patched sun-worn farm clothing, weathered by subsistence work'
+        : 'wearing practical homespun work clothing');
   } else {
     bits.push(econ.startsWith('Rich')
-      ? 'a wealthy industrialist in sharp tailored dress'
+      ? 'wearing sharply tailored expensive dress'
       : econ.startsWith('Poor')
-        ? 'a grimy factory hand in worn overalls'
-        : 'an industrial worker in utilitarian coveralls');
+        ? 'wearing worn grimy factory overalls'
+        : 'wearing utilitarian industrial coveralls');
   }
 
   if (gov === 'Anarchy') bits.push('armed, wary, improvised gear');
@@ -208,12 +216,22 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
   const species = speciesName(sys);
   // "Human Colonials" describes a people, not a body — say so plainly rather
   // than asking for a creature.
-  const subject = species === 'Human Colonials'
+  // Non-human species need saying twice and defending in the negative. The
+  // species tables ask for things like "Harmless Slimy Lobsters", and a lobster
+  // in factory overalls is a far stranger request than a person in factory
+  // overalls — so any human-shaped hint elsewhere in the prompt will win unless
+  // the species is stated as the subject outright.
+  const human = species === 'Human Colonials';
+  // "Humanoids" is excluded from the anti-human negative for the obvious
+  // reason: a humanoid is supposed to look like one.
+  const humanoid = species.toLowerCase().includes('humanoid');
+  const subject = human
     ? 'a single human colonist'
-    : `a single ${singular(species.toLowerCase())}`;
+    : `a single anthropomorphic ${singular(species.toLowerCase())} creature`;
 
   const prompt = [
     `head and shoulders portrait of ${subject}, one individual alone`,
+    ...(human || humanoid ? [] : [`clearly a ${singular(species.toLowerCase())}, animal head and face`]),
     `an inhabitant of ${sys.name}, ${article(ECONOMY_NAMES[sys.economy])} ` +
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
     environmentPhrase(sys),
@@ -236,6 +254,7 @@ export function buildPrompt(sys: StarSystem, style: Style = 'crt'): SpeciesPromp
       'silhouette, featureless, solid black shape, face in shadow',
       'text, watermark, signature, blurry, busy background, full body',
       'multiple figures, two people, group portrait, crowd, background characters',
+      ...(human || humanoid ? [] : ['human face, ordinary person, man, woman']),
       ...STYLES[style].negative,
     ].join(', '),
   };
