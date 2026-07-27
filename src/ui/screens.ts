@@ -118,7 +118,11 @@ export interface EquipRow {
 }
 
 /** Purchasable rows for this station, shared by renderer and purchase logic. */
-export function equipRows(sys: StarSystem, c: CommanderData): EquipRow[] {
+/**
+ * @param cheat playtesting only — lifts the tech-level lock so anything in the
+ *   catalogue can be fitted anywhere. See `window.__cheat` in game.ts.
+ */
+export function equipRows(sys: StarSystem, c: CommanderData, cheat = false): EquipRow[] {
   const fuelNeeded = MAX_FUEL - c.fuel;
   const rows: EquipRow[] = [{
     id: 'fuel',
@@ -128,7 +132,7 @@ export function equipRows(sys: StarSystem, c: CommanderData): EquipRow[] {
   }];
   for (const item of EQUIPMENT_CATALOGUE) {
     const owned = equipmentOwned(item.id, c);
-    const locked = sys.techLevel + 1 < item.minTL;
+    const locked = !cheat && sys.techLevel + 1 < item.minTL;
     rows.push({
       id: item.id,
       label: item.name,
@@ -139,8 +143,10 @@ export function equipRows(sys: StarSystem, c: CommanderData): EquipRow[] {
   return rows;
 }
 
-export function renderEquip(sys: StarSystem, c: CommanderData, selected: number): void {
-  const rows = equipRows(sys, c)
+export function renderEquip(
+  sys: StarSystem, c: CommanderData, selected: number, cheat = false,
+): void {
+  const rows = equipRows(sys, c, cheat)
     .map((r, i) => `
       <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}">
         <td>${r.label.toUpperCase()}</td>
@@ -148,6 +154,7 @@ export function renderEquip(sys: StarSystem, c: CommanderData, selected: number)
         <td class="num">${
           r.status === 'OWNED' ? 'OWNED'
           : r.status === 'TL-LOCKED' ? 'NOT AVAILABLE HERE'
+          : cheat ? 'FREE'
           : ''
         }</td>
       </tr>`)
@@ -155,6 +162,7 @@ export function renderEquip(sys: StarSystem, c: CommanderData, selected: number)
   show(`
     <h2>EQUIP SHIP &mdash; ${sys.name.toUpperCase()}</h2>
     <div class="rule"></div>
+    ${cheat ? '<div class="info" style="text-align:center;color:var(--hud-amber)">CHEAT MODE &mdash; EVERYTHING FITTED FREE, ANY TECH LEVEL</div>' : ''}
     <table>
       <tr><th>ITEM</th><th class="num">PRICE (Cr)</th><th class="num"></th></tr>
       ${rows}

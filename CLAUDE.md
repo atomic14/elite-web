@@ -83,6 +83,9 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
   loop to simulate time (browser rAF throttles in background tabs — manual
   stepping is the reliable way in automation).
 - `window.__scriptedPirates = true` disables all NPC brains (A/B testing).
+- `window.__cheat = true` fits anything from the equipment catalogue, free and
+  at any tech level — playtesting only. A console handle rather than a key
+  binding, deliberately: nobody should reach it by accident.
 - `npm run campaign` is the **balance playtest**: hundreds of full careers
   through the real galaxy/market/living-galaxy/contract modules (only flight
   is abstracted). Run it after touching prices, rewards, equipment or the

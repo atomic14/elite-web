@@ -43,6 +43,16 @@ import { planDocking, makeDockPlan } from './docking';
  * gunnery, which stays the cone both sides use. The player's own gun is never
  * simulated in training, so this can't break parity (invariant 2).
  */
+/**
+ * Playtesting cheat: `window.__cheat = true` fits anything from the catalogue
+ * anywhere, free and regardless of tech level. Deliberately a console handle
+ * like `__scriptedPirates` and `__packBrain` rather than a key binding — it is
+ * a development tool, and nobody should reach it by accident.
+ */
+function cheatMode(): boolean {
+  return !!(window as unknown as Record<string, unknown>).__cheat;
+}
+
 const LASER_GRAZE = 0.35;
 
 /**
@@ -2129,7 +2139,7 @@ export class Game {
         } else if (i.pressed('KeyE')) {
           this.mode = 'equip';
           this.equipSelected = 0;
-          renderEquip(this.system, this.commander, this.equipSelected);
+          renderEquip(this.system, this.commander, this.equipSelected, cheatMode());
         // ⇧N must be tested before plain N: pressed() CONSUMES the tap, so
         // `pressed('KeyN') && !held(Shift)` would swallow ⇧N and the
         // new-commander branch below would never fire.
@@ -2330,7 +2340,7 @@ export class Game {
           renderMarket(this.system, this.market, this.commander, this.marketSelected);
         } else if (this.mode === 'equip') {
           this.equipSelected = index;
-          renderEquip(this.system, this.commander, this.equipSelected);
+          renderEquip(this.system, this.commander, this.equipSelected, cheatMode());
         } else if (this.mode === 'contracts') {
           this.contractSelected = index;
           renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
@@ -2612,7 +2622,7 @@ export class Game {
 
   private handleEquipInput(): void {
     const i = this.input;
-    const rows = equipRows(this.system, this.commander);
+    const rows = equipRows(this.system, this.commander, cheatMode());
     let changed = false;
     if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
       this.equipSelected = (this.equipSelected + rows.length - 1) % rows.length;
@@ -2630,23 +2640,34 @@ export class Game {
       this.closeOverlay();
       return;
     }
-    if (changed) renderEquip(this.system, this.commander, this.equipSelected);
+    if (changed) renderEquip(this.system, this.commander, this.equipSelected, cheatMode());
   }
 
   /** @internal — driven by test/playtest.js */
   buyEquipment(id: string): void {
     const c = this.commander;
-    const row = equipRows(this.system, c).find((r) => r.id === id)!;
+    const cheat = cheatMode();
+    // `.find(...)!` used to be a non-null assertion, so an unknown id threw a
+    // TypeError instead of failing politely — reachable from the test harness
+    // and from any stale data-key in the DOM.
+    const row = equipRows(this.system, c, cheat).find((r) => r.id === id);
+    if (!row) {
+      sfx.beep(220);
+      return;
+    }
     if (row.status !== '' || (row.price <= 0 && id !== 'fuel')) {
       sfx.beep(220);
       return;
     }
-    if (c.credits < row.price) {
+    if (!cheat && c.credits < row.price) {
       this.hud.showMessage('INSUFFICIENT CREDITS', 2);
       sfx.beep(220);
       return;
     }
-    c.credits -= row.price;
+    // Cheat purchases are free rather than deducted-from-nothing: letting
+    // credits go negative would break the save, the status screen and the
+    // campaign simulator's "credits never go negative" assertion.
+    if (!cheat) c.credits -= row.price;
     switch (id) {
       case 'fuel': c.fuel = MAX_FUEL; break;
       case 'missile': c.missiles = Math.min(MAX_MISSILES, c.missiles + 1); break;
