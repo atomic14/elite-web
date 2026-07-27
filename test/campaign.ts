@@ -54,6 +54,8 @@ interface CareerResult {
   gangs: number;
   /** mean "worth robbing" score across the career */
   appeal: number;
+  /** first leg and day each combat rating was reached */
+  milestones: { rank: string; leg: number; day: number }[];
 }
 
 function runCareer(seed: number, systems: StarSystem[]): CareerResult {
@@ -75,6 +77,8 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
   let gangs = 0;
   let appealSum = 0;
   let appealCount = 0;
+  const milestones: { rank: string; leg: number; day: number }[] = [];
+  let lastRank = rating(0);
   let minMult = 1;
   let maxMult = 1;
   let dangerSum = 0;
@@ -225,6 +229,12 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
       }
     }
 
+    const rank = rating(c.kills);
+    if (rank !== lastRank) {
+      milestones.push({ rank, leg: leg + 1, day: c.day });
+      lastRank = rank;
+    }
+
     peakCredits = Math.max(peakCredits, c.credits);
     if (c.credits < 20 && cargoTonnes(c) === 0 && bankruptAtLeg === null) bankruptAtLeg = leg;
   }
@@ -241,6 +251,7 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     tierSeen,
     gangs,
     appeal: appealSum / Math.max(1, appealCount),
+    milestones,
     day: c.day,
     legs,
     deaths,
@@ -440,6 +451,26 @@ console.log(`PIRATES  reception by tier: opportunists ${Math.round(100 * tiers[0
   `${(careers.reduce((a, r) => a + r.gangs, 0) / COMMANDERS).toFixed(1)} organised per career · ` +
   `mean appeal ${num(careers.map((r) => r.appeal)).toFixed(2)}`);
 
+// the combat ladder: how long does each rank actually take?
+{
+  const ranks = ['Mostly Harmless', 'Poor', 'Below Average', 'Average',
+    'Above Average', 'Competent', 'Dangerous', 'Deadly', 'E L I T E'];
+  const rows = ranks.map((rank) => {
+    const hits = careers
+      .map((r) => r.milestones.find((m) => m.rank === rank))
+      .filter((m): m is { rank: string; leg: number; day: number } => !!m);
+    return { rank, reached: hits.length, legs: num(hits.map((h) => h.leg)), day: num(hits.map((h) => h.day)) };
+  }).filter((r) => r.reached > 0);
+  if (rows.length) {
+    console.log('LADDER   median legs / in-game years to each combat rating:');
+    for (const r of rows) {
+      console.log(`         ${r.rank.padEnd(16)} ${String(Math.round(r.legs)).padStart(6)} legs · ` +
+        `${(r.day / 365).toFixed(1).padStart(6)} yr` +
+        (r.reached < careers.length ? `  (${r.reached}/${careers.length} commanders)` : ''));
+    }
+  }
+}
+
 // does the threat actually track wealth, or is it just noise?
 {
   const sorted = [...careers].sort((a, b) => a.netWorth - b.netWorth);
@@ -474,8 +505,12 @@ assert('most contracts are completed rather than failed',
   num(careers.map((r) => r.contractsDone)) > num(careers.map((r) => r.contractsFailed)));
 assert('piracy costs cargo without ending most careers',
   num(careers.map((r) => r.deaths)) < LEGS * 0.25);
+// Calibrated for the default 60-leg run; a 45,000-leg career to Elite is
+// legitimately worth millions, so the ceiling scales with the run length.
+// The point is catching runaway/exponential wealth bugs, not long careers.
 assert('nobody accumulates absurd wealth',
-  Math.max(...worth) < 50_000_000, `best ${cr(Math.max(...worth))} Cr`);
+  Math.max(...worth) < 50_000_000 * Math.max(1, LEGS / 60),
+  `best ${cr(Math.max(...worth))} Cr over ${LEGS} legs`);
 assert('credits never go negative', credits.every((x) => x >= 0));
 assert('the living galaxy actually moves prices', hi - lo > 0.05, `${lo.toFixed(2)}..${hi.toFixed(2)}`);
 
