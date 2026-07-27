@@ -55,7 +55,11 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 8. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
    import at build time. `git checkout src/sim/brains` restores shipped
    weights. Shipped-in-game: `pirate-attack-r2` (pirates), `jameson-defend`
-   (armed traders + anything player-assist).
+   (armed traders + anything player-assist). `pirate-pack` is loaded but
+   **off by default** — `window.__packBrain = true` switches pirates to it.
+   It stays off because a trio of solo brains kills in 100% of held-out
+   episodes against the pack brain's 70% (docs/TRAINING-LOG.md runs 4/6);
+   don't "fix" this by making it the default without beating that number.
 
 ## Verification workflow (what has worked well)
 

@@ -149,7 +149,9 @@ ships.
 - **Debug handles** (deliberate, documented): `window.__game` (the Game
   instance — used by the autopilot test harness, see
   docs/JAMESON-TRIALS.md), `window.__policyKit` (trained brains + inference
-  fns), `window.__scriptedPirates` (disable brains).
+  fns), `window.__scriptedPirates` (disable brains), `window.__packBrain`
+  (switch pirates to the 18-input pack brain — off by default, and see
+  docs/TRAINING-LOG.md for why).
 - **Determinism**: the galaxy and sim are seeded (mulberry32); gameplay
   spawns/market fluctuations intentionally use `Math.random()`. Training
   episode *seeds* are deterministic per generation; mutation noise is drawn

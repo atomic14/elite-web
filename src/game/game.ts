@@ -1453,7 +1453,8 @@ export class Game {
     }
 
     for (const npc of this.npcs) {
-      const event = npc.update(dt, this.player, this.commander.legalStatus, this.world.station.position);
+      const event = npc.update(dt, this.player, this.commander.legalStatus,
+        this.world.station.position, this.npcs);
       if (event) this.resolveNpcFire(npc, event);
 
       if (npc.wantsDespawn) {

@@ -6,10 +6,11 @@ import {
   GECKO, MORAY, BOA, SHUTTLE, TRANSPORTER, GENERATION_SHIP,
 } from '../ships/geometry';
 import {
-  observe, act, makeScratch, brainFromFile,
+  observe, observePack, act, makeScratch, brainFromFile,
   type Brain, type BrainFile, type ObservableShip,
 } from '../sim/policy';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
+import packBrainFile from '../sim/brains/pirate-pack.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
@@ -34,14 +35,41 @@ export const DEFEND_BRAIN: Brain | null = (() => {
   }
 })();
 
+/**
+ * The pack-trained brain: 18 inputs (solo 14 + the nearest packmate's bearing
+ * and distance), so it can in principle coordinate rather than just converge.
+ *
+ * It is **deliberately not the default**. On held-out seeds a trio of these
+ * kills in 70% of episodes, against 100% for three copies of the solo brain —
+ * packmate observations bought no coordination beyond the spawn spread the
+ * game already applies (docs/TRAINING-LOG.md, runs 4 and 6). Shipping it would
+ * make the game's pirates measurably worse.
+ *
+ * It's wired in anyway so the result is reproducible in the real game rather
+ * than only in the combat viewer: set `window.__packBrain = true` and every
+ * pirate hunting you switches to it.
+ */
+const PACK_BRAIN: Brain | null = (() => {
+  try {
+    return brainFromFile(packBrainFile as unknown as BrainFile);
+  } catch {
+    return null;
+  }
+})();
+
 function brainsEnabled(): boolean {
   return !(window as unknown as Record<string, unknown>).__scriptedPirates;
+}
+
+function packBrainEnabled(): boolean {
+  return !!(window as unknown as Record<string, unknown>).__packBrain;
 }
 
 // Test-harness access to the trained policies (used by the autopilot
 // commanders in docs/JAMESON-TRIALS.md to fly the *player's* ship).
 (window as unknown as Record<string, unknown>).__policyKit = {
-  act, observe, makeScratch, pirateBrain: PIRATE_BRAIN, defendBrain: DEFEND_BRAIN,
+  act, observe, observePack, makeScratch,
+  pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
 };
 
 // NPC ships. Behaviour matrix:
@@ -203,6 +231,8 @@ export class NpcShip {
   private brainRollRate = 0;
   // sized for PACK_OBS_SIZE (18); solo brains only read the first 14 slots
   private static readonly obsBuf = new Float32Array(18);
+  /** scratch packmate list, reused so the 10 Hz decision stays allocation-light */
+  private static readonly mateView: { pos: THREE.Vector3; alive: boolean }[] = [];
   private static readonly scratch = makeScratch();
   private static readonly meView = {
     pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 },
@@ -268,7 +298,13 @@ export class NpcShip {
    * @param playerLegal 0 clean, 1 offender, 2 fugitive
    * @returns a fire event if this ship shot at something this frame
    */
-  update(dt: number, player: PlayerRef, playerLegal: number, home: THREE.Vector3): FireEvent | null {
+  update(
+    dt: number,
+    player: PlayerRef,
+    playerLegal: number,
+    home: THREE.Vector3,
+    fleet: readonly NpcShip[] = [],
+  ): FireEvent | null {
     if (!this.alive) return null;
 
     if (this.role === 'asteroid' || this.role === 'hermit') {
@@ -294,8 +330,10 @@ export class NpcShip {
 
     if (aggressiveToPlayer) {
       if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()) {
-        return this.brainFly(PIRATE_BRAIN, dt,
-          player.position, player.quaternion, 300, distPlayer, 'player');
+        const pack = PACK_BRAIN && packBrainEnabled();
+        return this.brainFly(pack ? PACK_BRAIN : PIRATE_BRAIN, dt,
+          player.position, player.quaternion, 300, distPlayer, 'player',
+          pack ? fleet : null);
       }
       return this.attack(dt, player.position, distPlayer, true);
     }
@@ -398,6 +436,21 @@ export class NpcShip {
   }
 
   /**
+   * The other pirates this ship is hunting with, in the shape observePack
+   * wants. Rebuilt per decision (10 Hz) rather than cached, because ships die
+   * mid-fight and a stale mate would be observed as still flying.
+   */
+  private packmates(fleet: readonly NpcShip[]): { pos: THREE.Vector3; alive: boolean }[] {
+    const out = NpcShip.mateView;
+    out.length = 0;
+    for (const m of fleet) {
+      if (m === this || m.role !== 'pirate' || !m.alive) continue;
+      out.push({ pos: m.object.position, alive: true });
+    }
+    return out;
+  }
+
+  /**
    * Fly with a trained policy: refresh the discrete control at 10 Hz, then
    * integrate it exactly like the sim (and the player's keyboard model).
    * targetSpeed and targetView.cls are approximations (the policies were
@@ -411,6 +464,8 @@ export class NpcShip {
     targetSpeed: number,
     dist: number,
     fireAt: 'player' | NpcShip | null,
+    /** non-null only for the 18-input pack brain, which observes its mates */
+    fleet: readonly NpcShip[] | null = null,
   ): FireEvent | null {
     this.brainTimer -= dt;
     if (!this.brainControl || this.brainTimer <= 0) {
@@ -433,7 +488,10 @@ export class NpcShip {
       tv.speed = targetSpeed;
       this.brainControl = act(
         brain,
-        observe(me as ObservableShip, tv as ObservableShip, NpcShip.obsBuf),
+        fleet
+          ? observePack(me as ObservableShip, tv as ObservableShip,
+            this.packmates(fleet), NpcShip.obsBuf)
+          : observe(me as ObservableShip, tv as ObservableShip, NpcShip.obsBuf),
         NpcShip.scratch,
       );
     }

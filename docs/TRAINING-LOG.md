@@ -93,6 +93,12 @@ Orbit/chase cameras, pause, 0.25×/1×/4× speed, auto-restart with a new seed.
 - ✅ **League play** — Run 4 below (r2 pirate: 0% → 98% vs the evader).
 - ✅ **In-game integration** — pirates fly `pirate-attack-r2`, armed traders
   fly `jameson-defend` (Run 5); toggle with `window.__scriptedPirates`.
+  The pack brain is wired into the game too (`window.__packBrain = true`
+  switches every pirate to the 18-input policy) but is **off by default**:
+  the tournament says a trio of solo brains is strictly better, so shipping
+  it as the default would be a regression. Enabling the toggle lets you
+  watch that verdict in the real game rather than only in the viewer, which
+  runs the same matchup as `pack-trained-vs-armed`.
 
 ## Run 3 — evaluation methodology (how we tell it works)
 
