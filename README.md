@@ -119,7 +119,8 @@ because browsers claim the function keys.
 
 L launch · M market · E equip ship · N local chart · G galactic chart ·
 C contracts · D data on system · I status · B switch keyboard layout ·
-X export save · Z import save · **Q start a new commander** (confirms first)
+S commander file (4 save slots · rename) · X export save · Z import save ·
+**Q start a new commander** (confirms first)
 
 ### Market
 

@@ -7,6 +7,8 @@ import type { GalaxyStateSave } from '../galaxy/living.ts';
 // localStorage on every successful docking, classic "save at station" style.
 
 export const MAX_FUEL = 70; // tenths of a light year
+/** The original's own commander, and still the default here. */
+export const DEFAULT_NAME = 'JAMESON';
 export const MAX_MISSILES = 4;
 
 export type LaserType = 'pulse' | 'beam' | 'military';
@@ -147,6 +149,7 @@ const RATINGS: [number, string][] = [
 ];
 
 export interface CommanderData {
+  /** what this commander is called — Elite's own default was Jameson */
   name: string;
   galaxy: number;
   systemIndex: number;
@@ -175,6 +178,72 @@ export interface CommanderData {
 }
 
 const SAVE_KEY = 'elite-web-commander';
+/** How many commanders you can keep on the go. */
+export const SAVE_SLOTS = 4;
+const slotKey = (slot: number): string => `${SAVE_KEY}:${slot}`;
+const CURRENT_KEY = 'elite-web-slot';
+
+/** Which slot is being played. Defaults to 1. */
+export function currentSlot(): number {
+  const n = Number(localStorage.getItem(CURRENT_KEY));
+  return Number.isInteger(n) && n >= 1 && n <= SAVE_SLOTS ? n : 1;
+}
+
+export function setCurrentSlot(slot: number): void {
+  try {
+    localStorage.setItem(CURRENT_KEY, String(slot));
+  } catch { /* storage unavailable */ }
+}
+
+/** A slot's headline, for the load screen. null when the slot is empty. */
+export interface SlotSummary {
+  slot: number;
+  name: string;
+  systemIndex: number;
+  credits: number;
+  kills: number;
+  combatScore: number;
+  day: number;
+}
+
+export function readSlot(slot: number): SlotSummary | null {
+  try {
+    const raw = localStorage.getItem(slotKey(slot));
+    if (!raw) return null;
+    const c = JSON.parse(raw) as Partial<CommanderData>;
+    return {
+      slot,
+      name: c.name ?? DEFAULT_NAME,
+      systemIndex: c.systemIndex ?? 7,
+      credits: c.credits ?? 0,
+      kills: c.kills ?? 0,
+      combatScore: c.combatScore ?? c.kills ?? 0,
+      day: c.day ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function deleteSlot(slot: number): void {
+  try {
+    localStorage.removeItem(slotKey(slot));
+  } catch { /* storage unavailable */ }
+}
+
+/**
+ * Move a pre-slots save into slot 1. Cheap, and it means the commander you
+ * were already playing doesn't get orphaned the moment slots appear.
+ */
+function migrateLegacySave(): void {
+  try {
+    const legacy = localStorage.getItem(SAVE_KEY);
+    if (legacy && !localStorage.getItem(slotKey(1))) {
+      localStorage.setItem(slotKey(1), legacy);
+    }
+    if (legacy) localStorage.removeItem(SAVE_KEY);
+  } catch { /* storage unavailable */ }
+}
 
 export function newCommander(): CommanderData {
   return {
@@ -196,17 +265,18 @@ export function newCommander(): CommanderData {
   };
 }
 
-export function saveCommander(c: CommanderData): void {
+export function saveCommander(c: CommanderData, slot = currentSlot()): void {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(c));
+    localStorage.setItem(slotKey(slot), JSON.stringify(c));
   } catch {
     // storage unavailable — play on without saves
   }
 }
 
-export function loadCommander(): CommanderData {
+export function loadCommander(slot = currentSlot()): CommanderData {
+  migrateLegacySave();
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(slotKey(slot));
     if (!raw) return newCommander();
     const stored = JSON.parse(raw) as Partial<CommanderData>;
     const parsed = { ...newCommander(), ...stored };
@@ -220,6 +290,7 @@ export function loadCommander(): CommanderData {
     }
     // saves from before weighted ratings: every past kill counts as one
     if (typeof parsed.combatScore !== 'number') parsed.combatScore = parsed.kills ?? 0;
+    if (typeof parsed.name !== 'string' || !parsed.name) parsed.name = DEFAULT_NAME;
     return parsed;
   } catch {
     return newCommander();

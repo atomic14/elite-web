@@ -74,16 +74,17 @@ const SIGHT_Y = 0.42;
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
+  SAVE_SLOTS, DEFAULT_NAME, currentSlot, setCurrentSlot, readSlot, deleteSlot,
   type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
-  hideScreen, renderDockedMenu, renderNewGameConfirm, renderMarket, renderStatus, renderChart, drawChart,
+  hideScreen, renderDockedMenu, renderNewGameConfirm, renderSaves, renderNaming, renderMarket, renderStatus, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
   renderGameOver, renderSystemData, renderContracts, describeContract, nearestSystem,
   distanceTenths, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE, type ChartState,
 } from '../ui/screens';
 
-type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'dead';
+type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'dead';
 
 const LASER_RANGE = 3500;
 const LASERS: Record<LaserType, { damage: number; cooldown: number; heat: number }> = {
@@ -176,6 +177,8 @@ export class Game {
   /** true after leaving a hermit, until you fly clear of it */
   /** waiting on the player to confirm erasing their commander */
   private pendingNewGame = false;
+  private saveSelected = 0;
+  private nameBuffer = '';
   /** the reception the current system laid on — surfaced for the HUD/tests */
   lastThreat: PirateThreat | null = null;
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
@@ -2159,6 +2162,7 @@ export class Game {
           this.pendingNewGame = true;
           renderNewGameConfirm(this.system, this.commander);
         }
+        else if (i.pressed('KeyS')) this.openSaves();
         else if (i.pressed('KeyN')) this.openLocalChart('docked');
         else if (i.pressed('KeyG')) this.openChart('docked');
         else if (i.pressed('KeyI')) this.openStatus('docked');
@@ -2177,6 +2181,14 @@ export class Game {
 
       case 'equip':
         this.handleEquipInput();
+        break;
+
+      case 'saves':
+        this.handleSavesInput();
+        break;
+
+      case 'naming':
+        this.handleNamingInput();
         break;
 
       case 'contracts': {
@@ -2630,6 +2642,99 @@ export class Game {
     } else {
       this.hud.showMessage(`JETTISONED ${dumped}t ${lastName}`, 2);
     }
+  }
+
+  /** @internal — driven by test/playtest.js */
+  openSaves(): void {
+    saveCommander(this.commander); // so the slot you're on is up to date
+    this.mode = 'saves';
+    this.saveSelected = currentSlot() - 1;
+    this.renderSaves();
+  }
+
+  private renderSaves(): void {
+    const slots = Array.from({ length: SAVE_SLOTS }, (_, i) => readSlot(i + 1));
+    renderSaves(this.systems, slots, this.saveSelected, currentSlot());
+  }
+
+  private handleSavesInput(): void {
+    const i = this.input;
+    if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
+      this.saveSelected = (this.saveSelected + SAVE_SLOTS - 1) % SAVE_SLOTS;
+      this.renderSaves();
+    }
+    if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
+      this.saveSelected = (this.saveSelected + 1) % SAVE_SLOTS;
+      this.renderSaves();
+    }
+    if (i.pressed('KeyR')) {
+      // start blank: pre-filling looks helpful but there is no way to select
+      // it, so typing a new name just appends to the old one
+      this.nameBuffer = '';
+      this.mode = 'naming';
+      renderNaming(this.nameBuffer, this.commander.name);
+      return;
+    }
+    if (i.pressed('KeyD')) {
+      const slot = this.saveSelected + 1;
+      if (slot === currentSlot()) {
+        this.hud.showMessage('CANNOT DELETE THE COMMANDER YOU ARE FLYING', 3);
+        sfx.beep(220);
+      } else {
+        deleteSlot(slot);
+        this.renderSaves();
+        sfx.beep(400, 0.1);
+      }
+      return;
+    }
+    if (i.pressed('Enter')) {
+      const slot = this.saveSelected + 1;
+      if (slot === currentSlot()) {
+        this.enterDocked();
+        return;
+      }
+      // Switch commanders by reloading: a career leaves state across the
+      // living galaxy, contracts, chart target and mission progress, and a
+      // clean boot is far more trustworthy than zeroing all of it by hand.
+      saveCommander(this.commander);
+      setCurrentSlot(slot);
+      location.reload();
+      return;
+    }
+    if (i.pressed('Escape')) this.enterDocked();
+  }
+
+  /** Elite-style name entry: letters straight in, no DOM focus to fight. */
+  private handleNamingInput(): void {
+    const i = this.input;
+    if (i.pressed('Escape')) {
+      this.mode = 'saves';
+      this.renderSaves();
+      return;
+    }
+    if (i.pressed('Enter')) {
+      const name = this.nameBuffer.trim() || DEFAULT_NAME;
+      this.commander.name = name;
+      saveCommander(this.commander);
+      this.mode = 'saves';
+      this.renderSaves();
+      this.hud.showMessage(`COMMANDER ${name}`, 3);
+      sfx.beep(700, 0.1);
+      return;
+    }
+    let changed = false;
+    if (i.pressed('Backspace')) {
+      this.nameBuffer = this.nameBuffer.slice(0, -1);
+      changed = true;
+    }
+    for (const code of i.drainPresses()) {
+      const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
+      if (!m) continue;
+      if (this.nameBuffer.length >= 12) break;
+      this.nameBuffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
+      changed = true;
+    }
+    if (changed) renderNaming(this.nameBuffer, this.commander.name);
   }
 
   private handleEquipInput(): void {

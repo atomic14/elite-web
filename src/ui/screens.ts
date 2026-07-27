@@ -3,7 +3,8 @@ import {
 } from '../galaxy/galaxy';
 import { planetDescription } from '../galaxy/goatsoup';
 import {
-  type CommanderData, type Contract, rating, cargoTonnes, formatCredits, cargoCapacity,
+  type CommanderData, type Contract, type SlotSummary,
+  rating, cargoTonnes, formatCredits, cargoCapacity,
   MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned,
 } from '../game/commander';
 
@@ -41,7 +42,7 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       <div data-key="KeyD"><b>D</b> DATA ON SYSTEM</div>
       <div data-key="KeyI"><b>I</b> COMMANDER STATUS</div>
     </div>
-    <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; X EXPORT SAVE &middot; Z IMPORT SAVE &middot; Q NEW COMMANDER</div>
+    <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; S COMMANDER FILE &middot; X EXPORT &middot; Z IMPORT &middot; Q NEW COMMANDER</div>
   `);
 }
 
@@ -174,6 +175,70 @@ export function renderEquip(
     <div class="keyline">
       CASH ${formatCredits(c.credits)} &middot; MISSILES ${c.missiles}
       &nbsp;&mdash;&nbsp; CLICK AN ITEM TO SELECT &middot; B / ENTER BUY &middot; ESC EXIT
+    </div>
+  `);
+}
+
+/**
+ * The commander file: every save slot, which one you're flying, and what is
+ * in the others.
+ */
+export function renderSaves(
+  systems: StarSystem[],
+  slots: (SlotSummary | null)[],
+  selected: number,
+  active: number,
+): void {
+  const rows = slots.map((slot, i) => {
+    const n = i + 1;
+    const here = n === active;
+    const cells = slot
+      ? `<td>${slot.name}</td>
+         <td>${systems[slot.systemIndex]?.name.toUpperCase() ?? '?'}</td>
+         <td class="num">${formatCredits(slot.credits)}</td>
+         <td>${rating(slot.combatScore).toUpperCase()}</td>
+         <td class="num">DAY ${slot.day}</td>`
+      : '<td colspan="5" style="opacity:0.5">&mdash; EMPTY &mdash;</td>';
+    return `
+      <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}">
+        <td>${here ? '&#9654;' : ''}${n}</td>
+        ${cells}
+      </tr>`;
+  }).join('');
+  show(`
+    <h2>COMMANDER FILE</h2>
+    <div class="rule"></div>
+    <table>
+      <tr><th></th><th>NAME</th><th>SYSTEM</th><th class="num">CASH</th><th>RATING</th><th class="num">DAY</th></tr>
+      ${rows}
+    </table>
+    <div class="buttons">
+      <button data-key="Enter">ENTER &mdash; LOAD</button>
+      <button data-key="KeyR">R &mdash; RENAME</button>
+      <button data-key="KeyD">D &mdash; DELETE</button>
+      <button data-key="Escape">ESC &mdash; DONE</button>
+    </div>
+    <div class="keyline">
+      &#9654; IS THE COMMANDER YOU ARE FLYING &middot; PROGRESS SAVES ON EVERY DOCK
+    </div>
+  `);
+}
+
+/** Typing a commander name, Elite-style: letters go straight in. */
+export function renderNaming(buffer: string, current = ''): void {
+  show(`
+    <h2>COMMANDER NAME</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center; line-height:2.2">
+      <span style="font-size:26px; letter-spacing:6px; color:var(--hud-amber)">
+        ${buffer.length ? buffer : '&nbsp;'}<span style="opacity:0.6">_</span>
+      </span><br/>
+      <span style="font-size:11px; opacity:0.7">
+        ${current ? `CURRENTLY ${current} &mdash; ESC KEEPS IT` : ''}
+      </span><br/>
+      <span style="font-size:11px; opacity:0.8">
+        LETTERS AND NUMBERS &middot; BACKSPACE &middot; ENTER TO CONFIRM &middot; ESC TO CANCEL
+      </span>
     </div>
   `);
 }
