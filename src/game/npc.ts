@@ -476,11 +476,16 @@ export class NpcShip {
         this.waypointTimer -= dt;
         if (this.waypointTimer <= 0) {
           this.waypointTimer = 10 + Math.random() * 12;
-          // work the lane between station and planet (the planet sits at
-          // the world origin, so scaling `home` walks that line)
+          // Work the lane between station and planet. The planet sits at the
+          // world origin, so scaling `home` walks that line — but the station
+          // orbits at 2.4 planet radii (world/system-scene.ts), which puts the
+          // planet surface at 1/2.4 = 0.42 of the way out. A minimum of 0.35
+          // aimed traders *inside the planet*, and with nothing stopping them
+          // they flew through it. 0.62 keeps the waypoint clear even when the
+          // random offset below happens to point straight down.
           this.waypoint
             .copy(home)
-            .multiplyScalar(0.35 + Math.random() * 0.65)
+            .multiplyScalar(0.62 + Math.random() * 0.38)
             .add(new THREE.Vector3().randomDirection().multiplyScalar(600 + Math.random() * 1200));
         }
         this.steerToward(this.waypoint, dt);

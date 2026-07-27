@@ -1648,7 +1648,10 @@ export class Game {
       this.assignNpcTargets();
     }
 
-    for (const npc of this.npcs) {
+    // Snapshot: despawns and destructions below rebuild this.npcs, and the
+    // fleet handed to update() should be consistent for every ship in the
+    // frame rather than shrinking underneath the loop.
+    for (const npc of [...this.npcs]) {
       const event = npc.update(dt, this.player, this.commander.legalStatus,
         this.world.station.position, this.npcs);
       if (event) this.resolveNpcFire(npc, event);
@@ -1714,6 +1717,24 @@ export class Game {
       }
     }
     for (const n of wrecked) this.wreckNpc(n);
+
+    // ...and solid to the station, which they were flying straight through.
+    // A bounce only, deliberately: damaging them here would kill traffic at
+    // random right outside the docking slot, and the problem being fixed is
+    // that ships visibly passed through the hull.
+    const stn = this.world.station;
+    const stBox = this.world.stationDockZ + 40;
+    for (const npc of fleet) {
+      if (!npc.alive || npc.inert || npc.role === 'hermit') continue;
+      const local = this.tmp2.copy(npc.object.position);
+      stn.worldToLocal(local);
+      if (Math.abs(local.x) > stBox || Math.abs(local.y) > stBox || Math.abs(local.z) > stBox) continue;
+      this.tmp3.copy(npc.object.position).sub(stn.position);
+      if (this.tmp3.lengthSq() < 1e-6) this.tmp3.set(0, 1, 0);
+      npc.object.position.copy(stn.position)
+        .addScaledVector(this.tmp3.normalize(), stBox + npc.radius);
+      npc.speed *= 0.4;
+    }
 
     // occasional new trader arriving from deep space keeps the lanes alive —
     // busier at productive systems (the living-galaxy Level-1 hook)
