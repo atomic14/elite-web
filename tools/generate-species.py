@@ -87,6 +87,17 @@ def posterise(img, size: int, palette=PHOSPHOR):
     return rgb.quantize(palette=pal_img, dither=Image.FLOYDSTEINBERG).convert("RGB")
 
 
+def looks_dead(img) -> bool:
+    """True if the model handed back an empty frame.
+
+    NaN latents cast to a uniform image, so the pipeline "succeeds" and writes
+    a black square. Catching it here matters: without the check a 256-image run
+    produces 256 black squares and only a RuntimeWarning to explain it.
+    """
+    lo, hi = img.convert("L").getextrema()
+    return hi - lo < 8
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("manifest", help="JSON from tools/species-prompts.ts --json")
@@ -127,11 +138,16 @@ def main() -> int:
 
     device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
-    # Half precision on MPS too, not just CUDA. Loading in float32 on an Apple
-    # GPU is what blows the memory ceiling: the weights alone take twice what
-    # they need, and MPS enforces a hard watermark rather than swapping.
+    # Half precision on GPU — float32 on MPS blows the memory ceiling, because
+    # MPS enforces a hard watermark rather than swapping.
+    #
+    # bfloat16 rather than float16 on MPS, deliberately. float16 overflows in
+    # this pipeline on Apple silicon and the result is NaN latents, which cast
+    # to a solid black PNG with only a RuntimeWarning to show for it. bfloat16
+    # has the same memory footprint and float32's exponent range, so it does
+    # not overflow.
     if args.dtype == "auto":
-        dtype = torch.float32 if device == "cpu" else torch.float16
+        dtype = {"cpu": torch.float32, "mps": torch.bfloat16, "cuda": torch.float16}[device]
     else:
         dtype = getattr(torch, args.dtype)
 
@@ -171,6 +187,15 @@ def main() -> int:
             height=args.gen_size,
             generator=gen,
         ).images[0]
+        if looks_dead(image):
+            print(
+                f"\n{p['system']}: the model returned an empty frame — almost always NaN\n"
+                f"latents from float16 overflow. Current dtype: {dtype}.\n"
+                f"  try:  --dtype bfloat16      (same memory, wider range)\n"
+                f"  or:   --dtype float32 --gen-size 192 --cpu-offload\n"
+                f"Nothing was written; fix the dtype and rerun.",
+                file=sys.stderr)
+            return 2
         posterise(image, args.size).save(dest, optimize=True)
         print(f"[{i}/{len(prompts)}] {p['system']:<10} {p['species']}", file=sys.stderr)
         # MPS in particular holds every allocation until told otherwise, so a
