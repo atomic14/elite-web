@@ -2131,7 +2131,7 @@ export class Game {
         if (this.pendingNewGame) {
           if (i.pressed('KeyY')) this.newCommanderGame();
           else if (i.pressed('KeyX')) this.exportSave(); // back it up first
-          else if (i.pressed('Escape') || i.pressed('KeyN')) {
+          else if (i.pressed('Escape') || i.pressed('KeyQ')) {
             this.pendingNewGame = false;
             renderDockedMenu(this.system, this.commander, this.missionText());
           }
@@ -2150,10 +2150,12 @@ export class Game {
           this.mode = 'equip';
           this.equipSelected = 0;
           renderEquip(this.system, this.commander, this.equipSelected, cheatMode());
-        // ⇧N must be tested before plain N: pressed() CONSUMES the tap, so
-        // `pressed('KeyN') && !held(Shift)` would swallow ⇧N and the
-        // new-commander branch below would never fire.
-        } else if (i.held('ShiftLeft', 'ShiftRight') && i.pressed('KeyN')) {
+        // Q, not a shifted N. ⇧N shared a key with the local chart, and
+        // cancelling the confirm with N while still holding shift re-opened it
+        // on the very next tap — you could get stuck in a loop you couldn't
+        // type your way out of. A destructive action should not share a key
+        // with anything, modifier or not.
+        } else if (i.pressed('KeyQ')) {
           this.pendingNewGame = true;
           renderNewGameConfirm(this.system, this.commander);
         }

@@ -23,7 +23,16 @@ const ACCEL = 220;
 const MAX_ROLL = 2.5;
 const MAX_PITCH = 1.45;
 const RATE_RAMP = 4.0;
-const RATE_DECAY = 5.0;
+/**
+ * How fast the turn rate bleeds off when you let go. Was 5.0, which made a
+ * light tap far bigger than it should be: most of the movement came AFTER
+ * the key was released, not during it. Measured on a 100ms tap at 1/60s, the
+ * ship swung 6.9 degrees, of which 5.5 was coast-down — against target hit
+ * windows of 1-2.5 degrees. At 12 the same tap is 3.7 degrees and stops when
+ * you stop. Peak rates are untouched, so sustained turns are as quick as
+ * before; only the tail is tightened.
+ */
+const RATE_DECAY = 12.0;
 
 export class PlayerShip {
   readonly position = new THREE.Vector3();
