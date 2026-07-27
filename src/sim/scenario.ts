@@ -4,7 +4,7 @@
 // Erasable-TypeScript only — runs in Node via --experimental-strip-types.
 
 import {
-  CLASSES, makeShip, stepShip, fireLaser, steerToward, facingAngle,
+  CLASSES, makeShip, stepShip, fireLaser, steerToward, facingAngle, resolveCollision, COLLISION,
   makeRng, randDir, vAdd, vSub, vScale, vLen, v3, q4,
   type SimShip, type Control, type V3,
 } from './core.ts';
@@ -148,6 +148,17 @@ export class Episode {
             events.push({ from: this.trader, to: threat, hit: threat.hp < hpBefore });
           }
         }
+      }
+    }
+
+    // ships are solid — every pairing, so packs can't stack in one point
+    // either. Damage lands in damageTaken, which the fitness already punishes.
+    for (let i = 0; i < this.pirates.length; i++) {
+      // the rammer pays; the target is shielded, as the player is in game.ts
+      resolveCollision(this.pirates[i], this.trader,
+        COLLISION.damage, COLLISION.victimDamage);
+      for (let j = i + 1; j < this.pirates.length; j++) {
+        resolveCollision(this.pirates[i], this.pirates[j]);
       }
     }
 

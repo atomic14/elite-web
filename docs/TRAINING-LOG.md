@@ -424,9 +424,71 @@ trained pirate hands back to the scripted break-off. Measured over 80 s of
 | before | 3 | 43 (the collision threshold) | 2 of 3 |
 | after | 0 | 99 | 3 of 3 |
 
-**The real fix is a collision model in `sim/core.ts` plus a retrain.** That
+**UPDATE — the collision model shipped; the retrain turned out to be
+unnecessary.** See "Collision round" at the end of this file.
+
+**The original plan was a collision model in `sim/core.ts` plus a retrain.** That
 is a sim/game parity issue (CLAUDE.md invariant 2) and the shipped brains
 were all fitted without it, so every one of them would need re-validating
 through the tournament. Worth doing as its own round: it would let the
 policies learn deflection and break-off themselves rather than having the
 game override them at knife range.
+
+## Collision round — ships are solid, and the retrain that wasn't needed
+
+`sim/core.ts` now has `COLLISION` + `resolveCollision`, and `Episode.step`
+resolves every pirate-trader and pirate-pirate pairing. The game gained
+NPC-vs-NPC collisions to match (it previously only collided the *player*
+with NPCs, so ships visibly flew through each other).
+
+Asymmetric, mirroring the game: the ship that flew into someone takes 0.45,
+the victim takes 0.12. In `game.ts` the player's fore/aft shields absorb
+collision damage before the hull sees any, so ramming is heavily weighted
+against the pirate; a symmetric model punished the *victim* for being hit,
+which is not what the game does.
+
+### What the retraining actually showed
+
+The whole chain was retrained five times against the new physics. Every
+attempt produced brains that failed the shipped-brain assertions — and then
+the committed, pre-collision brains were tested against the new sim and
+passed everything:
+
+| | kill rate | Jameson dies | collisions/episode |
+| --- | --- | --- | --- |
+| committed brains, collision sim | 100% | 17% | **0.00** |
+
+**The collision model did not invalidate the shipped brains.** They already
+fly clear of the target, so a rule that punishes contact costs them nothing.
+The retrains were the problem, not the physics.
+
+### Two real bugs the attempts exposed
+
+1. **Inverted selection polarity.** `validate()` (and the `--select-kills`
+   ranking) scored every phase by "did the trader die". In the `evade` and
+   `defend` phases **the genome IS the trader**, so both were selecting the
+   brain that died *most often*. This is why `trader-evade` fell from 14.44
+   to 2.09 and `jameson-defend` from 22.43 to 1.34 — blamed on the physics
+   for four rounds before the polarity was spotted. Both now branch on
+   phase.
+2. **Widening `LASER.aim` for the player broke NPC training.** Raising it
+   1.6 → 2.4 to make the *player's* shots forgiving also made every NPC 50%
+   more accurate in training, and evasion stopped working (evader 14.44 →
+   2.74, Jameson 22.43 → -0.14). `LASER.aim` governs NPC gunnery on both
+   sides and must not be used as a player-difficulty dial — the player's
+   gunnery is a ray test in `game.ts` and is not modelled here at all.
+
+### Also tried and reverted: a global agility nerf
+
+Pirates out-turn the player badly (NPC pitch is `turnRate × 1.4`, so a
+Sidewinder gets 1.54 against the player's old 1.1 — 40% better). Cutting
+`TURN` to 1.15/2.0 was tried and **reverted**: it leaves the pirate/trader
+*ratio* untouched while lowering absolute turn rates, and evasion depends on
+absolute agility far more than aggression does. The Jameson defence went
+from dying in 10% of 2v1 fights to 92% — no better than an unarmed trader.
+
+Fixed instead by raising the **player** (`MAX_PITCH` 1.1 → 1.45, `MAX_ROLL`
+2.0 → 2.5 in `player.ts`), which costs no retrain and cannot break parity,
+because the player's flight model is not simulated. The player now out-turns
+a pirate Cobra and a Krait, matches a Mamba, and is still edged by a
+Sidewinder and an Asp.

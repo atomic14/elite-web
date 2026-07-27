@@ -76,6 +76,18 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   you. At Dangerous, ~35% of receptions are someone coming for the name rather
   than the hold — which is what stops the endgame being a grind, and is the
   reason a famous commander gets hunted flying an empty ship.
+- **Player gunnery is a ray against the hull**, not a cone around a sphere.
+  The original (and this project until now) tested an angular cone sized from
+  the target's *maximum* radius, which makes every ship a ball: an Anaconda
+  was no easier to hit down its long flank than head-on, and shots landed on
+  empty space beside thin hulls. Now the shot is cast at the actual mesh,
+  with a small graze tolerance for beam width. Measured: an Anaconda is
+  1.3° nose-on and 2.5° broadside; a Sidewinder 1.6° across its wings and
+  0.6° vertically.
+- **The player's Cobra is more agile than the 1984 numbers imply**
+  (pitch 1.45 rad/s, roll 2.5). NPC fighters pitch at `turnRate × 1.4`, so
+  small hulls turn inside you — as they should — but at the original 1.1 they
+  turned inside you so far that holding a bead was hopeless.
 - **Jettisoning cargo (Y) buys off pirates.** Not in the original, which had
   no such out. They came for the goods; dumping a proportional share makes
   them break off — turning an unwinnable fight into a decision.

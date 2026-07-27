@@ -9,6 +9,7 @@ import {
   observe, observePack, act, makeScratch, brainFromFile,
   type Brain, type BrainFile, type ObservableShip,
 } from '../sim/policy';
+import { TURN } from '../sim/core';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
@@ -281,7 +282,8 @@ export class NpcShip {
   /** threat tier this ship was spawned at — sets what killing it is worth */
   threatTier = 0;
 
-  private speed: number;
+  /** public so the Game can scrub speed off on a collision */
+  speed: number;
   private readonly maxSpeed: number;
   private readonly turnRate: number;
   private fireCooldown = 2 + Math.random() * 2;
@@ -570,8 +572,9 @@ export class NpcShip {
     const c = this.brainControl;
 
     // integrate the discrete control (mirrors sim stepShip)
-    const maxPitch = this.turnRate * 1.4;
-    const maxRoll = this.turnRate * 2.4;
+    // must match TURN in sim/core.ts — invariant 2
+    const maxPitch = this.turnRate * TURN.pitch;
+    const maxRoll = this.turnRate * TURN.roll;
     const rampTo = (cur: number, target: number, active: boolean): number => {
       const rate = active ? 4.0 : 5.0;
       const next = cur + (target - cur) * Math.min(1, rate * dt);

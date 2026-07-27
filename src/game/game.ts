@@ -25,6 +25,24 @@ import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
+/**
+ * Player gunnery: a real ray against the hull, plus a small graze tolerance.
+ *
+ * The old test was purely angular — `atan(radius * k / dist)` — where `radius`
+ * is the hull's *maximum* extent, so the cone circumscribes the ship. That
+ * grants hits on empty space beside a thin hull and, worse, makes every ship a
+ * sphere: an Anaconda is no easier to hit down its 110-unit flank than
+ * head-on, which is not what the player sees.
+ *
+ * So: cast the shot at the actual hull mesh first. GRAZE is then a genuine
+ * aim-assist dial rather than a shape approximation — the beam has width, and
+ * a shot that just clips the silhouette still counts.
+ *
+ * NOT shared with the sim, and deliberately so: sim/core.ts models NPC
+ * gunnery, which stays the cone both sides use. The player's own gun is never
+ * simulated in training, so this can't break parity (invariant 2).
+ */
+const LASER_GRAZE = 0.35;
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
@@ -179,6 +197,8 @@ export class Game {
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
   private readonly tmp3 = new THREE.Vector3();
+  /** reused for player gunnery — see LASER_GRAZE */
+  private readonly shotRay = new THREE.Raycaster();
   private readonly tmpQ = new THREE.Quaternion();
   private readonly tmpM = new THREE.Matrix4();
 
@@ -890,15 +910,41 @@ export class Game {
     const forward = this.viewDir(this.tmp);
     let best: NpcShip | null = null;
     let bestDist = LASER_RANGE;
+
+    // 1. the honest test: does the shot actually pass through the hull?
+    this.shotRay.set(this.player.position, forward);
+    this.shotRay.far = LASER_RANGE;
     for (const npc of this.npcs) {
       if (!npc.alive) continue;
-      const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
-      const dist = to.length();
-      if (dist > bestDist) continue;
-      const cone = Math.max(0.02, Math.atan((npc.radius * 1.6) / dist));
-      if (forward.angleTo(to.normalize()) < cone) {
-        best = npc;
-        bestDist = dist;
+      const dist = npc.object.position.distanceTo(this.player.position);
+      // cheap reject before touching triangles
+      if (dist > bestDist + npc.radius) continue;
+      // Raycaster reads matrixWorld, which three.js only refreshes during
+      // render — without this the shot is tested against the ship's position
+      // one frame ago, and against the ORIGIN for anything spawned this frame.
+      npc.object.updateMatrixWorld(true);
+      const hits = this.shotRay.intersectObject(npc.object, true);
+      for (const h of hits) {
+        if (h.distance < bestDist) {
+          bestDist = h.distance;
+          best = npc;
+        }
+      }
+    }
+
+    // 2. grazing shots: the beam has width, so a near-miss that clips the
+    //    silhouette still counts. Only consulted if the ray missed everything.
+    if (!best) {
+      for (const npc of this.npcs) {
+        if (!npc.alive) continue;
+        const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
+        const dist = to.length();
+        if (dist > bestDist) continue;
+        const cone = Math.max(0.012, Math.atan((npc.radius * LASER_GRAZE) / dist));
+        if (forward.angleTo(to.normalize()) < cone) {
+          best = npc;
+          bestDist = dist;
+        }
       }
     }
     if (best) {
@@ -1517,6 +1563,35 @@ export class Game {
           this.hud.showMessage('COLLISION', 2);
           if (npc.takeDamage(0.45, this.player.position, true)) this.destroyNpc(npc);
         }
+      }
+    }
+
+    // ...and solid to each other, not just to the player. Without this, ships
+    // visibly fly through one another in a dogfight. Mirrors the sim's
+    // pirate-vs-pirate rule (resolveCollision in sim/core.ts): symmetric,
+    // because neither party has the player's shields.
+    for (let i = 0; i < this.npcs.length; i++) {
+      const a = this.npcs[i];
+      if (!a.alive || a.inert || a.role === 'hermit' || a.role === 'generation') continue;
+      for (let j = i + 1; j < this.npcs.length; j++) {
+        const b = this.npcs[j];
+        if (!b.alive || b.inert || b.role === 'hermit' || b.role === 'generation') continue;
+        const contact = a.radius + b.radius;
+        const gap = a.object.position.distanceTo(b.object.position);
+        if (gap >= contact) continue;
+        // shove them apart around their midpoint, then bill them both
+        this.tmp2.copy(a.object.position).sub(b.object.position);
+        if (this.tmp2.lengthSq() < 1e-6) this.tmp2.set(1, 0, 0);
+        this.tmp2.normalize();
+        this.tmp3.copy(a.object.position).add(b.object.position).multiplyScalar(0.5);
+        const push = (contact + 40) / 2;
+        a.object.position.copy(this.tmp3).addScaledVector(this.tmp2, push);
+        b.object.position.copy(this.tmp3).addScaledVector(this.tmp2, -push);
+        a.speed *= 0.3;
+        b.speed *= 0.3;
+        const aPos = a.object.position.clone();
+        if (a.takeDamage(0.45, b.object.position, false)) this.destroyNpc(a);
+        if (b.takeDamage(0.45, aPos, false)) this.destroyNpc(b);
       }
     }
 

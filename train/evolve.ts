@@ -149,19 +149,21 @@ function fitnessOf(ep: Episode): number {
 
 function evaluate(genome: Brain, gen: number): number {
   let total = 0;
-  let kills = 0;
+  let wins = 0;
+  // same polarity trap as validate(): in evade/defend the genome IS the trader
+  const defending = phase === 'evade' || phase === 'defend';
   for (let e = 0; e < EPISODES; e++) {
     const ep = makeEpisodeFor(genome, gen * 977 + e * 131 + 7);
     while (!ep.done) ep.step(DT);
     total += fitnessOf(ep);
-    if (!ep.trader.alive) kills += 1;
+    if (defending ? ep.trader.alive : !ep.trader.alive) wins += 1;
   }
   const shaped = total / EPISODES;
   if (!SELECT_KILLS) return shaped;
-  // Rank on the behaviour we actually want. Kill rate alone is too coarse to
+  // Rank on the behaviour we actually want. A win rate alone is too coarse to
   // hill-climb (EPISODES+1 distinct values), so shaped fitness breaks ties
-  // *within* a kill count without ever outranking one more kill.
-  return (kills / EPISODES) * 1000 + Math.max(-499, Math.min(499, shaped));
+  // *within* a win count without ever outranking one more win.
+  return (wins / EPISODES) * 1000 + Math.max(-499, Math.min(499, shaped));
 }
 
 /** Reference: the scripted AI (or scripted trader for evade) on the same seeds. */
@@ -270,16 +272,28 @@ for (let gen = 0; gen < GENS; gen++) {
 const VALIDATION_BASE = 5_000_011;
 const VALIDATION_EPISODES = 24;
 
-function validate(genome: Brain): { kills: number; shaped: number } {
-  let kills = 0;
+/**
+ * The behaviour we actually want, per phase.
+ *
+ * CRITICAL: in `evade` and `defend` the genome IS the trader, so "the trader
+ * died" is a FAILURE, not a success. Scoring every phase by trader deaths —
+ * as this did originally — selects the evader and the defender that die most
+ * often, and it silently wrecked both: trader-evade fell from 14.44 to 2.09
+ * and jameson-defend from 22.43 to 1.34 across four retrains before the
+ * inversion was spotted. The physics changes were blamed first; they were
+ * innocent.
+ */
+function validate(genome: Brain): { win: number; shaped: number } {
+  const defending = phase === 'evade' || phase === 'defend';
+  let win = 0;
   let shaped = 0;
   for (let e = 0; e < VALIDATION_EPISODES; e++) {
     const ep = makeEpisodeFor(genome, VALIDATION_BASE + e * 7919);
     while (!ep.done) ep.step(DT);
-    if (!ep.trader.alive) kills += 1;
+    if (defending ? ep.trader.alive : !ep.trader.alive) win += 1;
     shaped += fitnessOf(ep);
   }
-  return { kills: kills / VALIDATION_EPISODES, shaped: shaped / VALIDATION_EPISODES };
+  return { win: win / VALIDATION_EPISODES, shaped: shaped / VALIDATION_EPISODES };
 }
 
 if (VALIDATE_SELECT && champions.length) {
@@ -288,18 +302,19 @@ if (VALIDATE_SELECT && champions.length) {
   console.log(`\nfinal selection: re-judging ${unique.length} generation champions ` +
     `on ${VALIDATION_EPISODES} fixed validation seeds (base ${VALIDATION_BASE})`);
   let bestScore = -Infinity;
-  let bestKills = 0;
+  let bestWin = 0;
   for (const c of unique) {
     const v = validate(c);
-    const score = v.kills * 1000 + Math.max(-499, Math.min(499, v.shaped));
+    const score = v.win * 1000 + Math.max(-499, Math.min(499, v.shaped));
     if (score > bestScore) {
       bestScore = score;
-      bestKills = v.kills;
+      bestWin = v.win;
       best = c;
       bestFitness = v.shaped;
     }
   }
-  console.log(`selected champion: ${(bestKills * 100).toFixed(0)}% validation kill rate ` +
+  const metric = (phase === 'evade' || phase === 'defend') ? 'survival' : 'kill';
+  console.log(`selected champion: ${(bestWin * 100).toFixed(0)}% validation ${metric} rate ` +
     `(shaped ${bestFitness.toFixed(2)})`);
 }
 

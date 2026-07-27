@@ -97,12 +97,67 @@ export const CLASSES: Record<string, ShipClass> = {
 };
 
 // laser model — mirrors the player's pulse laser in game.ts
+/**
+ * Ships are solid. Mirrors game.ts's ramming rule (0.45 to both, shoved
+ * apart, most of the speed scrubbed off).
+ *
+ * Added in the collision round: without this, flying *through* the target was
+ * free in training, so the policies learned to close to zero range and sit
+ * there — which in the game reads as deliberate kamikaze. See
+ * docs/TRAINING-LOG.md. Damage lands in `damageTaken`, which every fitness
+ * function already penalises, so ramming becomes costly without any reward
+ * reshaping.
+ */
+export const COLLISION = {
+  /** what the ship that flew into someone takes — as game.ts deals to an NPC */
+  damage: 0.45,
+  /**
+   * What the *victim* takes. In game.ts the player's fore/aft shields absorb
+   * collision damage before the hull sees any, so ramming is heavily
+   * asymmetric against the pirate. The sim has no shields, so model that
+   * asymmetry directly — symmetric 0.45 punished the trader for being hit,
+   * which is not what happens in the game.
+   */
+  victimDamage: 0.12,
+  /** fraction of speed kept after a shunt */
+  speedRetained: 0.3,
+  /**
+   * Extra separation after contact. Kept small: at 120 the shunt threw ships
+   * ~190 apart, which combined with the damage taught the attacker to keep a
+   * huge margin and stop pressing at all (kill rate fell to 33%).
+   */
+  separation: 40,
+};
+
+/**
+ * turnRate → max pitch/roll. Mirrors game.ts's NpcShip.brainFly.
+ *
+ * These are deliberately UNCHANGED. Pirates being harder to track than the
+ * player was fixed by making the *player* more agile (MAX_PITCH/MAX_ROLL in
+ * player.ts), not by slowing everyone down. Cutting these to 1.15/2.0 was
+ * tried and reverted: it left the pirate/trader agility *ratio* identical
+ * while lowering absolute turn rates, and evasion needs absolute agility far
+ * more than aggression does — the Jameson defence went from dying in 10% of
+ * 2v1 fights to 92%, i.e. no better than an unarmed scripted trader.
+ */
+export const TURN = { pitch: 1.4, roll: 2.4 };
+
 export const LASER = {
   damage: 0.16,
   cooldown: 0.24,
   heat: 0.055,
   coolRate: 0.22,
   range: 3500,
+  /**
+   * Hit cone half-angle = atan(target.radius * aim / dist), for NPC gunnery.
+   *
+   * Do NOT widen this to make the *player's* shots more forgiving: it governs
+   * every NPC in training too. Raising it to 2.4 once collapsed the evader
+   * (fitness 14.44 → 2.74) and the Jameson defence (22.43 → -0.14), because
+   * running away stops working when everyone is 50% more accurate.
+   * The player's own gunnery is a ray test in game.ts and is not modelled here.
+   */
+  aim: 1.6,
 };
 
 // --- ship state -------------------------------------------------------------
@@ -158,8 +213,8 @@ function ramp(current: number, target: number, active: boolean, dt: number): num
 
 /** Integrate one ship one step under a discrete control. */
 export function stepShip(s: SimShip, c: Control, dt: number): void {
-  const maxPitch = s.cls.turnRate * 1.4;
-  const maxRoll = s.cls.turnRate * 2.4;
+  const maxPitch = s.cls.turnRate * TURN.pitch;
+  const maxRoll = s.cls.turnRate * TURN.roll;
   s.pitchRate = ramp(s.pitchRate, c.pitch * maxPitch, c.pitch !== 0, dt);
   s.rollRate = ramp(s.rollRate, c.roll * maxRoll, c.roll !== 0, dt);
   if (c.throttle > 0) s.speed = Math.min(s.cls.maxSpeed, s.speed + s.cls.accel * dt);
@@ -188,7 +243,7 @@ export function fireLaser(s: SimShip, target: SimShip, dt: number): number {
   const to = vSub(target.pos, s.pos);
   const dist = vLen(to);
   if (dist > LASER.range || !target.alive) return 0;
-  const cone = Math.max(0.02, Math.atan((target.cls.radius * 1.6) / dist));
+  const cone = Math.max(0.02, Math.atan((target.cls.radius * LASER.aim) / dist));
   const angle = Math.acos(Math.min(1, Math.max(-1, vDot(forward(s), vNorm(to)))));
   if (angle >= cone) return 0;
   s.shotsHit += 1;
@@ -197,6 +252,38 @@ export function fireLaser(s: SimShip, target: SimShip, dt: number): number {
   target.hp -= LASER.damage;
   if (target.hp <= 0) target.alive = false;
   return LASER.damage;
+}
+
+/**
+ * Resolve one pair of ships overlapping. Both take damage and are shoved
+ * apart — symmetric, unlike the game where the player's shields absorb it.
+ * @returns true if they were touching
+ */
+export function resolveCollision(
+  a: SimShip,
+  b: SimShip,
+  damageA = COLLISION.damage,
+  damageB = COLLISION.damage,
+): boolean {
+  if (!a.alive || !b.alive) return false;
+  const delta = vSub(a.pos, b.pos);
+  const gap = vLen(delta);
+  const contact = a.cls.radius + b.cls.radius;
+  if (gap >= contact) return false;
+
+  const away = gap > 1e-3 ? vScale(delta, 1 / gap) : v3(1, 0, 0);
+  const push = (contact + COLLISION.separation) / 2;
+  const mid = vScale(vAdd(a.pos, b.pos), 0.5);
+  a.pos = vAdd(mid, vScale(away, push));
+  b.pos = vSub(mid, vScale(away, push));
+  a.speed *= COLLISION.speedRetained;
+  b.speed *= COLLISION.speedRetained;
+  for (const [s, dmg] of [[a, damageA], [b, damageB]] as [SimShip, number][]) {
+    s.hp -= dmg;
+    s.damageTaken += dmg;
+    if (s.hp <= 0) s.alive = false;
+  }
+  return true;
 }
 
 /** Steer a scripted ship toward a point (axis-angle limited, like rotateTowards). */

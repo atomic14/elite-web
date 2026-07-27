@@ -8,8 +8,20 @@ import { keymap } from './engine/keymap';
 
 const MAX_SPEED = 400;
 const ACCEL = 220;
-const MAX_ROLL = 2.0;
-const MAX_PITCH = 1.1;
+/**
+ * The player's Cobra. Raised from 1.1/2.0 so you can actually hold a bead on
+ * a fighter: NPC pitch is turnRate × 1.4 (sim/core.ts TURN), so a Sidewinder
+ * pitches at 1.54 and a Krait at 1.40 — against 1.1 they simply turned inside
+ * you and combat felt unwinnable. At 1.45 you out-turn a pirate Cobra (1.12)
+ * and a Krait, match a Mamba, and are still edged by a Sidewinder (1.54) and
+ * an Asp (1.68), which is as it should be — those are far smaller ships.
+ *
+ * Changed here rather than in sim/core.ts on purpose: the player's flight
+ * model is not simulated in training, so this costs no retrain and cannot
+ * break sim/game parity.
+ */
+const MAX_ROLL = 2.5;
+const MAX_PITCH = 1.45;
 const RATE_RAMP = 4.0;
 const RATE_DECAY = 5.0;
 
