@@ -35,12 +35,15 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 
 ## Remaining
 
-2. **AI round 4** — round 3's reward reshaping and third league round both
+1. **AI round 4** — round 3's reward reshaping and third league round both
    failed on held-out seeds (see TRAINING-LOG.md); the next attempt should
    widen pack observations and use opponent pools rather than single
    opponents.
-4. **Contract variety** — the bulletin board covers cargo, courier and
+2. **Contract variety** — the bulletin board covers cargo, courier and
    bounty work; passenger berths and smuggling runs would widen it.
+3. **Surfacing the living galaxy** — the simulation runs, but the player
+   only sees it as prices, spawns and one news line. Trade-route and danger
+   overlays on the charts would make it legible.
 
 ## Deliberate deviations
 
