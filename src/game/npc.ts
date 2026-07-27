@@ -61,6 +61,27 @@ function brainsEnabled(): boolean {
   return !(window as unknown as Record<string, unknown>).__scriptedPirates;
 }
 
+/**
+ * Range at which trained pilots hand back to the scripted break-off.
+ *
+ * The sim the policies were trained in has NO collision model — `radius` in
+ * sim/core.ts is used only for the laser cone. Flying straight through the
+ * target is therefore free in training, so the optimal learned behaviour is to
+ * close to zero range and sit there shooting. In the game, where ships are
+ * solid, that reads as deliberate ramming: the pirate slides past you and
+ * kamikazes.
+ *
+ * They are not being rewarded for it — a collision deals 0.45 to both, which a
+ * shielded player absorbs and a 0.55 hp Sidewinder very nearly dies to. It was
+ * simply never taught to be a bad idea.
+ *
+ * Matches attack()'s existing 220-unit break-off, which brain-flown ships
+ * previously never reached because brainFly returns before attack() is called.
+ * The real fix is a collision model in sim/core.ts plus a retrain — this is
+ * the guard rail until then (docs/TRAINING-LOG.md).
+ */
+const RAM_GUARD = 220;
+
 function packBrainEnabled(): boolean {
   return !!(window as unknown as Record<string, unknown>).__packBrain;
 }
@@ -377,13 +398,15 @@ export class NpcShip {
     const aggressiveToPlayer = isHostileToPlayer(this, playerLegal) && distPlayer < 9000;
 
     if (aggressiveToPlayer) {
-      if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()) {
+      if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()
+          && distPlayer >= RAM_GUARD) {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
         return this.brainFly(pack ? PACK_BRAIN : PIRATE_BRAIN, dt,
           player.position, player.quaternion, 300, distPlayer, 'player',
           pack ? fleet : null);
       }
+      // Inside knife range the scripted break-off takes over — see RAM_GUARD.
       return this.attack(dt, player.position, distPlayer, true);
     }
 

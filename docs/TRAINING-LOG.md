@@ -391,3 +391,42 @@ unchanged pending a balance decision.
   Every run in the table above was re-run with the flags as separate
   arguments and its actual `obs=` and pool size audited from its log.
 - The three experiment flags default off, so runs 1-6 still reproduce.
+
+## Known gap — the sim has no collision model
+
+Reported from play: "the enemy ship flies towards me, then goes behind and
+seems to kamikaze into me."
+
+`src/sim/core.ts` has no collision detection. `radius` appears in the ship
+classes but is used only to size the laser cone (`core.ts` line ~191).
+Two ships may occupy the same point at no cost.
+
+So in training, flying *through* the target is free, and the optimal learned
+behaviour is to close to zero range and sit there shooting. In the game,
+where ships are solid and a collision deals 0.45 to both, that reads as
+deliberate ramming.
+
+They are **not** being rewarded for it. 0.45 is absorbed by a shielded
+player and very nearly kills a 0.55 hp Sidewinder — measured pre-fix, one
+of three attacking pirates destroyed itself in 80 seconds. The policy was
+simply never taught that ramming is a bad idea.
+
+Compounding it, `attack()`'s 220-unit break-off — added long ago precisely
+to stop scripted ships ramming — was unreachable for brain-flown ships,
+because `brainFly()` returns before `attack()` is ever called.
+
+**Guard rail shipped** (`RAM_GUARD` in `game/npc.ts`): inside 220 units a
+trained pirate hands back to the scripted break-off. Measured over 80 s of
+3-v-1 combat:
+
+| | collisions | closest approach | pirates surviving |
+| --- | --- | --- | --- |
+| before | 3 | 43 (the collision threshold) | 2 of 3 |
+| after | 0 | 99 | 3 of 3 |
+
+**The real fix is a collision model in `sim/core.ts` plus a retrain.** That
+is a sim/game parity issue (CLAUDE.md invariant 2) and the shipped brains
+were all fitted without it, so every one of them would need re-validating
+through the tournament. Worth doing as its own round: it would let the
+policies learn deflection and break-off themselves rather than having the
+game override them at knife range.
