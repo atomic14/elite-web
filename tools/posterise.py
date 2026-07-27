@@ -113,6 +113,7 @@ def posterise(
     cutoff: int = 2,
     invert: str = "auto",
     pixel: int = 0,
+    contrast: float = 1.0,
 ) -> Image.Image:
     """All of the look lives here.
 
@@ -160,6 +161,13 @@ def posterise(
     work = pixel if pixel else size
     g = g.resize((work, work), Image.LANCZOS)
     g = ImageOps.autocontrast(g, cutoff=cutoff)
+    if contrast != 1.0:
+        # Steepen around mid-grey. Distinct from --cutoff, which only clips the
+        # ends: at a coarse block grid the ends are usually fine and it is the
+        # midtones that collapse, so a face becomes one flat mass. This is the
+        # control that keeps features at 4x4.
+        lut = [max(0, min(255, int((i - 128) * contrast + 128 + 0.5))) for i in range(256)]
+        g = g.point(lut)
     if gamma != 1.0:
         # <1 lifts the shadows (more phosphor lit), >1 deepens them
         lut = [min(255, int(((i / 255) ** gamma) * 255 + 0.5)) for i in range(256)]
@@ -204,11 +212,14 @@ def main() -> int:
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="<1 lifts shadows (more lit phosphor), >1 deepens them")
     ap.add_argument("--sharpen", type=float, default=1.6,
-                    help="unsharp before downsampling; 0 disables")
+                    help="unsharp at full resolution before downsampling; 0 disables")
     ap.add_argument("--cutoff", type=int, default=2, help="autocontrast percentile clip")
-    # 128 into 256 = 2x2 blocks. Compared 2x2, 4x4 and 8x8 on the same raws:
-    # 4x4 loses the rat's eyes, 8x8 is unreadable, 2x2 keeps every face while
-    # still reading as deliberate. It also cuts the set from 9.7 MB to 2.7 MB.
+    ap.add_argument("--contrast", type=float, default=1.0,
+                    help="steepen the midtones; >1 boosts. Coarser --pixel wants more")
+    # 128 into 256 = 2x2 blocks. Compared 2x2, 4x4 and 8x8 on the same raws,
+    # then 4x4 again with contrast up to 2.5: the boost restores separation but
+    # not detail, so 4x4 still loses the rat's eyes where 2x2 keeps them.
+    # 8x8 is unreadable at any contrast. 2.7 MB for the set, against 1.3 at 4x4.
     ap.add_argument("--pixel", type=int, default=128,
                     help="quantise at this block grid then nearest-upscale to --size "
                          "(128 with --size 256 gives 2x2 blocks); 0 = off")
@@ -240,7 +251,8 @@ def main() -> int:
     done = []
     for f in files:
         img = posterise(Image.open(f), args.size, args.tones, args.dither,
-                        args.gamma, args.sharpen, args.cutoff, args.invert, args.pixel)
+                        args.gamma, args.sharpen, args.cutoff, args.invert,
+                        args.pixel, args.contrast)
         if args.scale > 1:
             img = img.resize((args.size * args.scale,) * 2, Image.NEAREST)
         img.save(out / f.name, optimize=True)

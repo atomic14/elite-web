@@ -16,3 +16,7 @@ Thumbs.db
 # unposterised model output — kept locally so the posterise can be re-tuned
 # without regenerating (tools/posterise.py), too heavy to commit
 tools/species-raw/
+
+# python bytecode from tools/
+__pycache__/
+*.pyc
