@@ -7,23 +7,40 @@
 
     node --experimental-strip-types tools/species-prompts.ts 1 --json > /tmp/g1.json
 
-    # fast path: 4-bit quantised Z-Image via newideas99/ultra-fast-image-gen
+    # fast path: 4-bit quantised Z-Image, model loaded ONCE (default)
     uv run tools/generate-species.py /tmp/g1.json --repo ../ultra-fast-image-gen
+
+    # same model, but a fresh process per image — only for a one-off
+    uv run tools/generate-species.py /tmp/g1.json --backend cli
 
     # built-in path: full-precision diffusers, needs its own dependencies
     uv run --with torch --with diffusers --with transformers --with accelerate \
         tools/generate-species.py /tmp/g1.json --backend diffusers
 
-Two backends. `external` shells out to a separate clone that runs Z-Image
-Turbo quantised to 4 bits (~8 GB resident against ~30 GB for fp16, and far
-quicker) — that process owns its own environment, so this script needs
-nothing but pillow. `diffusers` keeps the original in-process path for when
-you want full precision or no second checkout.
+Three backends, and the difference between the first two is the whole ball
+game for a 256-system run:
 
-This script therefore declares only pillow. The heavy dependencies are passed
-on the command line for the backend that actually needs them, rather than
-making everyone install three gigabytes of torch to shell out to another
-process.
+  server (default)  POST to the local FastAPI in newideas99/ultra-fast-image-gen.
+                    Z-Image Turbo quantised to 4 bits (~8 GB resident against
+                    ~30 GB for fp16), and the model is loaded ONCE and stays
+                    resident across every request.
+  cli               the same repo's generate.py, one process per image. It
+                    loads and unloads the model every single time — for 256
+                    portraits that is 256 cold starts, which dwarfs the actual
+                    inference. Kept for a single test image.
+  diffusers         the original in-process path, for full precision or when
+                    you do not want a second checkout.
+
+The server is started automatically if it is not already up, and left running
+afterwards so a second pass is instant. Neither of the first two backends
+needs anything in *this* environment: that process owns torch, so this script
+declares only pillow, and the heavy dependencies are passed on the command
+line for the one backend that actually needs them in-process.
+
+One real difference between the backends: the ultra-fast repo takes no
+negative prompt, so the manifest's negative is dropped for server and cli.
+Expect slightly more lettering and watermark-ish artefacts; the posterise
+mostly eats them.
 
 Python rather than TypeScript because that is where the model lives; nothing
 here runs at build time or in the browser. The game deploys as a static site,
@@ -128,10 +145,18 @@ def main() -> int:
     ap.add_argument("--steps", type=int, default=8, help="Z-Image-Turbo is a few-step model")
     ap.add_argument("--limit", type=int, default=0, help="stop after N (for a trial run)")
     ap.add_argument("--only", default="", help="comma-separated system names, for a trial run")
-    ap.add_argument("--backend", default="external", choices=["external", "diffusers"],
-                    help="external = quantised, via a clone of ultra-fast-image-gen")
+    # server, not cli: the cli backend reloads ~8 GB of weights per image, so
+    # for 256 systems the model loads dwarf the inference. Same model either way.
+    ap.add_argument("--backend", default="server", choices=["server", "cli", "diffusers"],
+                    help="server = quantised, model stays resident (default)")
     ap.add_argument("--repo", default="../ultra-fast-image-gen",
-                    help="that clone's path (external backend)")
+                    help="clone of ultra-fast-image-gen (server and cli backends)")
+    ap.add_argument("--server", default="http://127.0.0.1:7860",
+                    help="where that repo's server.py listens; started if not already up")
+    ap.add_argument("--server-wait", type=int, default=900,
+                    help="seconds to wait for the server (first run downloads the model)")
+    ap.add_argument("--job-timeout", type=int, default=600,
+                    help="seconds to wait for one image")
     ap.add_argument("--model", default="zimage-quant", help="model name to pass it")
     ap.add_argument("--device", default="", help="mps / cuda / cpu (default: let the backend decide)")
     ap.add_argument("--dtype", default="auto", choices=["auto", "float16", "bfloat16", "float32"],
@@ -154,10 +179,11 @@ def main() -> int:
     if raw_out:
         raw_out.mkdir(parents=True, exist_ok=True)
 
-    if args.backend == "external":
-        gen_image = make_external_backend(args)
-    else:
-        gen_image = make_diffusers_backend(args)
+    gen_image = {
+        "server": make_server_backend,
+        "cli": make_cli_backend,
+        "diffusers": make_diffusers_backend,
+    }[args.backend](args)
 
     for i, p in enumerate(prompts, 1):
         stem = f"{p['index']:03d}-{p['system'].lower()}.png"
@@ -184,30 +210,131 @@ def main() -> int:
     return 0
 
 
-def make_external_backend(args):
-    """Drive a clone of newideas99/ultra-fast-image-gen.
-
-    It runs Z-Image Turbo quantised to 4 bits, which is both far lighter and
-    much quicker than the full-precision path. Its CLI takes a seed and an
-    output path, so per-system reproducibility survives the switch.
-
-    It has no negative-prompt flag, so the manifest's negative is dropped here.
-    That is a real difference between the backends: expect slightly more
-    lettering and watermark-ish artefacts, which the posterise mostly eats.
-    """
-    import shutil
-    import subprocess
-    import tempfile
-
+def find_repo(args):
+    """Locate the ultra-fast-image-gen clone, or explain how to get one."""
     repo = pathlib.Path(args.repo).expanduser().resolve()
     if not (repo / "generate.py").is_file():
         raise SystemExit(
             f"no generate.py in {repo}\n"
             f"  git clone https://github.com/newideas99/ultra-fast-image-gen\n"
             f"then point --repo at it.")
+    import shutil
     if not shutil.which("uv"):
         raise SystemExit("uv not found; it runs the other repo's dependencies")
+    return repo
 
+
+def make_server_backend(args):
+    """Drive the ultra-fast repo's FastAPI server, keeping the model resident.
+
+    This exists because of an easy and expensive mistake. The obvious way to
+    use that repo is to shell out to its generate.py per image — which works,
+    and is what --backend cli still does. But generate.py loads the model,
+    generates, and exits. Z-Image quantised is ~8 GB of weights; paying that
+    load 256 times costs far more than the 256 inferences it wraps.
+
+    server.py holds the same model in memory and takes jobs over HTTP, so the
+    load is paid once. The protocol is submit-then-poll: POST /api/generate
+    returns a job id, GET /api/jobs/<id> reports progress and finally the
+    image URLs, GET /api/files/<id>/<name> is the PNG.
+
+    Only stdlib here — urllib, not requests — so the pillow-only dependency
+    line stays true.
+    """
+    import subprocess
+    import time
+    import urllib.error
+    import urllib.request
+
+    base = args.server.rstrip("/")
+
+    def api(path: str, payload=None, timeout=30):
+        req = urllib.request.Request(f"{base}{path}")
+        if payload is not None:
+            req.data = json.dumps(payload).encode()
+            req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+
+    def up() -> bool:
+        try:
+            api("/api/status", timeout=3)
+            return True
+        except (urllib.error.URLError, OSError, ValueError):
+            return False
+
+    proc = None
+    if up():
+        print(f"server backend: reusing {base}", file=sys.stderr)
+    else:
+        repo = find_repo(args)
+        print(f"starting {repo}/server.py (first run downloads the model) ...", file=sys.stderr)
+        # Left running deliberately: the next pass then starts instantly, and
+        # a run that dies halfway does not take the loaded weights with it.
+        proc = subprocess.Popen(
+            ["uv", "run", "--with-requirements", "requirements.txt", "python", "server.py"],
+            cwd=repo, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        for _ in range(args.server_wait):
+            if up():
+                break
+            if proc.poll() is not None:
+                raise SystemExit(
+                    f"server.py exited with {proc.returncode}. Try running it by hand:\n"
+                    f"  cd {repo} && uv run --with-requirements requirements.txt python server.py")
+            time.sleep(1)
+        else:
+            raise SystemExit(f"server did not come up at {base} within {args.server_wait}s")
+        print(f"server backend: {args.model} via {base}", file=sys.stderr)
+
+    def run(p):
+        job = api("/api/generate", {
+            "model": args.model,
+            "prompt": p["prompt"],
+            "width": args.gen_size, "height": args.gen_size,
+            "steps": args.steps,
+            "seed": p["seed"] % (2 ** 31),
+            "count": 1,
+            **({"device": args.device} if args.device else {}),
+        })["job_id"]
+
+        deadline = time.monotonic() + args.job_timeout
+        while True:
+            st = api(f"/api/jobs/{job}")
+            if st["status"] == "error" or st["error"]:
+                raise SystemExit(
+                    f"{p['system']}: {st['error'] or 'job failed'}\n"
+                    f"If the model is not downloaded yet, open {base} and pull "
+                    f"'{args.model}' once — the picker shows download progress.")
+            if st["images"]:
+                break
+            if time.monotonic() > deadline:
+                raise SystemExit(f"{p['system']}: job {job} still {st['status']} after "
+                                 f"{args.job_timeout}s")
+            time.sleep(0.4)
+
+        url = st["images"][0]["url"]
+        if not url.startswith("http"):
+            url = base + ("" if url.startswith("/") else "/") + url
+        with urllib.request.urlopen(url, timeout=60) as r:
+            from io import BytesIO
+            return Image.open(BytesIO(r.read())).copy()
+
+    return run
+
+
+def make_cli_backend(args):
+    """Drive the same repo's generate.py, one process per image.
+
+    Correct but slow at scale: it reloads the model every invocation. Use it
+    for a single test image; use the server backend for a real run.
+
+    Its CLI takes a seed and an output path, so per-system reproducibility is
+    the same either way.
+    """
+    import subprocess
+    import tempfile
+
+    repo = find_repo(args)
     tmpdir = pathlib.Path(tempfile.mkdtemp(prefix="species-"))
 
     def run(p):
@@ -231,7 +358,9 @@ def make_external_backend(args):
                 f"{res.stdout[-2000:]}\n{res.stderr[-2000:]}")
         return Image.open(target).copy()
 
-    print(f"external backend: {args.model} via {repo}", file=sys.stderr)
+    print(f"cli backend: {args.model} via {repo} "
+          f"(reloads the model per image — --backend server is far quicker)",
+          file=sys.stderr)
     return run
 
 

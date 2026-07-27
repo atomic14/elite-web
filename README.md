@@ -44,7 +44,8 @@ npm run campaign -- 4 45000 all      # three career strategies, all the way to E
 # inhabitant portraits (offline; images are committed, nothing runs in the browser)
 node --experimental-strip-types tools/species-prompts.ts 1 --json > /tmp/g1.json
 uv run tools/generate-species.py /tmp/g1.json --repo ../ultra-fast-image-gen --only Lave,Diso
-uv run tools/posterise.py --dither bayer --tones 3   # re-crush, no GPU needed
+                                     # ^ starts that repo's server.py and keeps the model resident
+uv run tools/posterise.py --dither bayer --tones 3   # re-crush the look, no GPU needed
 ```
 
 Two playtest harnesses back this up. `npm run campaign` plays hundreds of
