@@ -44,6 +44,7 @@ npm run campaign -- 4 45000 all      # three career strategies, all the way to E
 # inhabitant portraits (offline; images are committed, nothing runs in the browser)
 node --experimental-strip-types tools/species-prompts.ts 1 --json > /tmp/g1.json
 uv run tools/generate-species.py /tmp/g1.json --only Lave,Diso,Riedquat
+uv run tools/posterise.py --dither bayer --tones 3   # re-crush, no GPU needed
 ```
 
 Two playtest harnesses back this up. `npm run campaign` plays hundreds of

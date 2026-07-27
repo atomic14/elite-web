@@ -102,6 +102,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("manifest", help="JSON from tools/species-prompts.ts --json")
     ap.add_argument("--out", default="public/species")
+    # Keep the model's own output. Re-crushing it takes seconds where
+    # regenerating takes hours, so the posterise settings can be tuned without
+    # touching the GPU again. Not committed — see .gitignore.
+    ap.add_argument("--raw-out", default="tools/species-raw",
+                    help="where to keep the unposterised output ('' to skip)")
     ap.add_argument("--size", type=int, default=96, help="output edge in pixels")
     # 256, not 512. The output is posterised down to 96px anyway, so asking
     # for 512 spends four times the memory and time on detail that is thrown
@@ -127,6 +132,9 @@ def main() -> int:
 
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    raw_out = pathlib.Path(args.raw_out) if args.raw_out else None
+    if raw_out:
+        raw_out.mkdir(parents=True, exist_ok=True)
 
     try:
         import torch
@@ -196,6 +204,8 @@ def main() -> int:
                 f"Nothing was written; fix the dtype and rerun.",
                 file=sys.stderr)
             return 2
+        if raw_out:
+            image.save(raw_out / f"{p['index']:03d}-{p['system'].lower()}.png")
         posterise(image, args.size).save(dest, optimize=True)
         print(f"[{i}/{len(prompts)}] {p['system']:<10} {p['species']}", file=sys.stderr)
         # MPS in particular holds every allocation until told otherwise, so a

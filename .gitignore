@@ -12,3 +12,7 @@ Thumbs.db
 # local scratch (training logs in train/logs/ ARE committed —
 # they're the recorded evidence for docs/TRAINING-LOG.md)
 *.local
+
+# unposterised model output — kept locally so the posterise can be re-tuned
+# without regenerating (tools/posterise.py), too heavy to commit
+tools/species-raw/
