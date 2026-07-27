@@ -98,16 +98,19 @@ export function buildPrompt(sys: StarSystem): SpeciesPrompt {
       `${ECONOMY_NAMES[sys.economy].toLowerCase()} ${GOVERNMENT_NAMES[sys.government].toLowerCase()} world`,
     environmentPhrase(sys),
     `homeworld ${habitatPhrase(sys)}`,
-    // Ask for a NORMAL, well-lit, detailed portrait. The first version asked
-    // for "stark high contrast, simple bold shapes, minimal detail" on the
-    // theory that it would survive the crush — and the model obliged with a
-    // flat white silhouette on black. Exactly as requested, and useless: the
-    // posterise needs a tonal range to dither INTO, so the flattening has to
-    // be done by the palette afterwards, not by the model up front.
-    'detailed painted portrait, clear features, expressive face',
-    'soft directional lighting, full range of light and shade',
-    'plain uncluttered background, centred head and shoulders',
-    'retro science fiction paperback cover art, 1980s',
+    // NOTHING about style, palette, contrast or era. The model's only job is
+    // a good, clearly-lit, detailed image; every bit of the look is applied
+    // afterwards by tools/posterise.py, where it costs a second to change
+    // instead of an afternoon.
+    //
+    // This is not fastidiousness. The first version asked for "stark high
+    // contrast, simple bold shapes, minimal detail" so the output would
+    // survive the crush, and got a flat white silhouette — 2 distinct grey
+    // levels against 210 for a normally-lit portrait. There was nothing for
+    // four phosphor tones to dither into. Asking the generator to pre-empt
+    // the post-processing actively destroys what the post-processing needs.
+    'detailed, sharp focus, clearly lit, natural full tonal range',
+    'plain uncluttered background, centred head and shoulders portrait',
   ].join(', ');
 
   return {
