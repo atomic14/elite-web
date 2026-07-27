@@ -477,7 +477,7 @@ export function localCoordsFromClick(
  * The original's "DATA ON <SYSTEM>" page: the full statistics block plus
  * the procedurally generated planet description.
  */
-export function renderSystemData(sys: StarSystem, current: StarSystem): void {
+export function renderSystemData(sys: StarSystem, current: StarSystem, news = ''): void {
   const d = distanceTenths(current, sys);
   show(`
     <h2>DATA ON ${sys.name.toUpperCase()}</h2>
@@ -494,6 +494,7 @@ export function renderSystemData(sys: StarSystem, current: StarSystem): void {
     </table>
     <div class="rule"></div>
     <div class="info sysdesc">${planetDescription(sys)}</div>
+    ${news ? `<div class="info sysdesc" style="color:var(--hud-amber);margin-top:8px">${news}</div>` : ''}
     <div class="buttons"><button data-key="Escape">BACK</button></div>
   `);
 }

@@ -1,0 +1,45 @@
+
+> elite-web@1.0.0 evaluate
+> node --experimental-strip-types --no-warnings train/evaluate.ts 40
+
+
+Evaluation tournament — 40 held-out episodes per matchup (seed base 10000019)
+
+## 1v1 vs scripted trader
+
+| matchup                            | kill | t-kill | acc  | t-surv | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- |
+| scripted pirate (baseline)         |  100% |    1.8s |  100% |    1.8s |  0.00 |     — |
+| random policy (baseline)           |    0% |      —s |    2% |   45.0s |  0.00 |     — |
+| trained pirate r1                  |  100% |    6.0s |   32% |    6.0s |  0.00 |     — |
+| trained pirate r2 (league)         |   90% |   21.7s |   19% |   24.0s |  0.00 |     — |
+| trained pirate r3 (league)         |    3% |    1.7s |    1% |   43.9s |  0.00 |     — |
+
+## 1v1 vs trained evader
+
+| matchup                            | kill | t-kill | acc  | t-surv | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- |
+| scripted pirate vs evader          |  100% |    1.8s |  100% |    1.8s |  0.00 |     — |
+| trained pirate r1 vs evader        |    0% |      —s |    4% |   45.0s |  0.00 |     — |
+| trained pirate r2 vs evader        |   98% |   18.6s |   22% |   19.3s |  0.00 |     — |
+| trained pirate r3 vs evader        |    0% |      —s |    1% |   45.0s |  0.00 |     — |
+
+## pack of 3 vs armed scripted trader
+
+| matchup                            | kill | t-kill | acc  | t-surv | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- |
+| 3x scripted pirates                |  100% |    0.7s |  100% |    0.7s |  0.00 |    91 |
+| 3x solo brains (no pack obs)       |  100% |    1.6s |   43% |    1.6s |  0.00 |    91 |
+| pack-trained r2 (alpha strike)     |   70% |    0.6s |    9% |   18.4s |  0.00 |    91 |
+| pack-trained r3 (sustained fire)   |   68% |    0.7s |    3% |   20.0s |  0.00 |    91 |
+
+## Commander Jameson: armed trader vs 2x pirate-r2
+
+| matchup                            | kill | t-kill | acc  | t-surv | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- |
+| scripted armed trader (baseline)   |  100% |   14.0s |   20% |   14.0s |  0.00 |    47 |
+| JAMESON defence policy             |   10% |   14.4s |    1% |   41.9s |  0.53 |    92 |
+(here "kill"/"t-surv" describe the TRADER: low kill% + high t-surv = Jameson wins)
+
+kill = trader destroyed · t-kill = mean time to kill · acc = pirate accuracy
+t-surv = trader survival · lost = pirates lost/episode · sprd° = attacker spread at hits

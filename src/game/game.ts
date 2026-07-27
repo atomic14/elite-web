@@ -12,6 +12,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy';
+import { LivingGalaxy } from '../galaxy/living';
 import { buildSystemScene, type SystemScene } from '../world/system-scene';
 import { createStarfield, SpaceDust } from '../world/starfield';
 import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
@@ -85,6 +86,8 @@ export class Game {
 
   systems: StarSystem[];
   commander: CommanderData;
+  /** level-1 simulation: trade flowing between all 256 systems */
+  readonly living: LivingGalaxy;
   world!: SystemScene;
   npcs: NpcShip[] = [];
   private explosions: Explosion[] = [];
@@ -182,6 +185,14 @@ export class Game {
 
     this.commander = loadCommander();
     this.systems = generateGalaxy(this.commander.galaxy);
+    this.living = new LivingGalaxy(this.systems);
+    this.living.load(this.commander.galaxyState);
+    // catch the galaxy up if this save has been away a while
+    if (this.living.day < this.commander.day) {
+      this.living.advance(
+        Math.min(60, this.commander.day - this.living.day),
+        COMMODITIES.map((c) => c.gradient));
+    }
 
     this.scene.add(createStarfield());
     this.scene.add(this.dust.points);
@@ -238,6 +249,24 @@ export class Game {
 
   private get system(): StarSystem {
     return this.systems[this.commander.systemIndex];
+  }
+
+  /**
+   * The 1984 market, nudged by the living galaxy: supply that actually
+   * arrived makes things cheaper here, cargo lost to pirates makes them
+   * dearer. Baseline prices are untouched — this is a ±25% delta.
+   */
+  private localMarket(): MarketEntry[] {
+    const base = generateMarket(this.system, Math.floor(Math.random() * 256));
+    return base.map((m, i) => {
+      const mult = this.living.priceMultiplier(this.commander.systemIndex, i);
+      return {
+        ...m,
+        price: +(m.price * mult).toFixed(1),
+        // scarcity shows in stock as well as price
+        quantity: Math.max(0, Math.round(m.quantity * (2 - mult))),
+      };
+    });
   }
 
   // --- world lifecycle -----------------------------------------------------
@@ -369,7 +398,9 @@ export class Game {
     const rnd = (range: number) =>
       new THREE.Vector3().randomDirection().multiplyScalar(range * (0.5 + Math.random()));
 
-    const traders = 1 + (Math.random() < 0.5 ? 1 : 0);
+    // traders here are the convoys the living galaxy says are arriving
+    const arrivals = this.living.imminentArrivals(sys.index);
+    const traders = Math.max(1, Math.min(4, arrivals.length || (Math.random() < 0.5 ? 2 : 1)));
     for (let i = 0; i < traders; i++) {
       this.spawnNpc('trader', home.clone().add(rnd(1800)), i + sys.index);
     }
@@ -383,7 +414,11 @@ export class Game {
     }
 
     if (situation === 'arrival') {
-      const pirates = Math.max(0, Math.round((7 - sys.government) / 2 + Math.random() * 2 - 1));
+      // pirate pressure: government lawlessness plus whatever the living
+      // galaxy has recorded happening to convoys around here lately
+      const danger = this.living.danger(sys.index);
+      const pirates = Math.max(0,
+        Math.round((7 - sys.government) / 2 + danger * 3 + Math.random() * 2 - 1));
       const toStation = home.clone().sub(this.player.position);
       const routeLen = toStation.length();
       const route = toStation.normalize();
@@ -469,10 +504,11 @@ export class Game {
     this.clearCanisters();
     this.checkMissionAtDock();
     this.hermitTrading = false;
-    this.market = generateMarket(this.system, Math.floor(Math.random() * 256));
+    this.market = this.localMarket();
     this.settleContracts();
     this.contractOffers = this.generateContractOffers();
     this.contractSelected = 0;
+    this.commander.galaxyState = this.living.save();
     saveCommander(this.commander);
     if (!booting) {
       sfx.dock();
@@ -778,7 +814,9 @@ export class Game {
         return;
       }
     }
-    this.commander.day += 1 + Math.ceil(distanceTenths(this.system, this.systems[t]) / 20);
+    const daysPassed = 1 + Math.ceil(distanceTenths(this.system, this.systems[t]) / 20);
+    this.commander.day += daysPassed;
+    this.living.advance(daysPassed, COMMODITIES.map((c) => c.gradient));
     this.commander.systemIndex = t;
     this.chart.targetIndex = null;
     this.arriveInSystem();
@@ -1370,6 +1408,7 @@ export class Game {
     const target = this.chart.targetIndex ?? c.systemIndex;
     c.systemIndex = target;
     c.day += 3; // the tow takes a while
+    this.living.advance(3, COMMODITIES.map((cm) => cm.gradient));
     this.chart.targetIndex = null;
     this.witchspace = false;
     this.arriveInSystem();
@@ -2113,7 +2152,8 @@ export class Game {
   openSystemData(sys: StarSystem, from: 'docked' | 'chart' | 'local'): void {
     this.dataReturn = from;
     this.mode = 'data';
-    renderSystemData(sys, this.system);
+    // the living galaxy's latest word on this system, when it has one
+    renderSystemData(sys, this.system, this.living.headline(sys.index));
   }
 
   private openStatus(from: 'docked' | 'flight'): void {

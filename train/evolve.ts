@@ -91,14 +91,12 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
       traderArmed: true,
     });
   }
-  // pack: 3 ships, one shared policy, armed scripted trader
+  // pack: 2-4 ships sharing one policy vs an armed scripted trader. Pack
+  // size varies with the seed so the policy can't overfit to exactly three.
+  const packSize = 2 + (seed % 3);
   return new Episode({
     seed,
-    pirates: [
-      { kind: 'policy', brain: genome },
-      { kind: 'policy', brain: genome },
-      { kind: 'policy', brain: genome },
-    ],
+    pirates: Array.from({ length: packSize }, () => ({ kind: 'policy' as const, brain: genome })),
     trader: { kind: 'scripted' },
     traderArmed: true,
     maxTime: 60,

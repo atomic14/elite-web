@@ -212,25 +212,33 @@ export class Episode {
     );
   }
 
-  /** Shared fitness for a policy pack (all pirates one policy). */
+  /**
+   * Shared fitness for a policy pack (all pirates one policy).
+   *
+   * Round 3 (see docs/TRAINING-LOG.md): round 2 learned an all-in alpha
+   * strike that killed fastest but only 70% of the time, because the
+   * survivor bonus and shot penalty together rewarded a single decisive
+   * gamble over sustained pressure. So: reward damage-per-second of
+   * engagement, drop the shot penalty entirely, and shrink the survivor
+   * term so staying alive is worth less than keeping the target under fire.
+   */
   fitnessPack(): number {
     let damage = 0;
-    let shots = 0;
     let taken = 0;
     let alive = 0;
     for (const p of this.pirates) {
       damage += p.damageDealt;
-      shots += p.shotsFired;
       taken += p.damageTaken;
       if (p.alive) alive += 1;
     }
     const killed = !this.trader.alive;
+    const pressure = damage / Math.max(4, this.t); // damage per second on target
     return (
-      6 * damage +
-      (killed ? 10 + 4 * (1 - this.t / this.maxTime) : 0) +
-      1.5 * alive -
-      0.02 * shots -
-      2 * taken
+      5 * damage +
+      30 * pressure +
+      (killed ? 12 + 5 * (1 - this.t / this.maxTime) : 0) +
+      0.5 * alive -
+      1.5 * taken
     );
   }
 

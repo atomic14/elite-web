@@ -38,8 +38,10 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
    between all 256 systems and materialises in yours, with prices nudged by
    simulated trade and pirate risk migrating to rich, lawless routes.
    Design in [AI-TRAINING.md](AI-TRAINING.md).
-2. **AI round 3** — pack-phase retrain with the reward fixes noted in the
-   training log, and a third league round.
+2. **AI round 4** — round 3's reward reshaping and third league round both
+   failed on held-out seeds (see TRAINING-LOG.md); the next attempt should
+   widen pack observations and use opponent pools rather than single
+   opponents.
 4. **Contract variety** — the bulletin board covers cargo, courier and
    bounty work; passenger berths and smuggling runs would widen it.
 

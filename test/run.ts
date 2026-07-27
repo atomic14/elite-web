@@ -12,6 +12,7 @@ import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
 } from '../src/galaxy/galaxy.ts';
 import { planetDescription } from '../src/galaxy/goatsoup.ts';
+import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { Episode } from '../src/sim/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/sim/policy.ts';
 import { makeRng } from '../src/sim/core.ts';
@@ -70,6 +71,54 @@ check('every system in galaxy 1 gets a sentence',
   }));
 check('descriptions vary across systems',
   new Set(g1.slice(0, 40).map(planetDescription)).size > 25);
+
+// --- living galaxy ----------------------------------------------------------
+
+console.log('\nliving galaxy');
+{
+  const gradients = COMMODITIES.map((c) => c.gradient);
+  const rngA = makeRng(12345);
+  const living = new LivingGalaxy(g1);
+  living.advance(60, gradients, rngA);
+  check('convoys are in flight after two months', living.convoys.length > 0);
+  check('convoy list stays bounded', living.convoys.length <= 400);
+  check('some systems have drifted from baseline', living.states.size > 0);
+
+  let priceOk = true;
+  let anyDrift = false;
+  for (const [index] of living.states) {
+    for (let i = 0; i < COMMODITIES.length; i++) {
+      const m = living.priceMultiplier(index, i);
+      if (m < 0.74 || m > 1.26) priceOk = false;
+      if (m !== 1) anyDrift = true;
+    }
+  }
+  check('price multipliers stay within ±25% of the 1984 baseline', priceOk);
+  check('prices actually move', anyDrift);
+  check('danger stays in 0..1',
+    [...living.states.values()].every((s) => s.danger >= 0 && s.danger <= 1));
+
+  // determinism + persistence
+  const livingB = new LivingGalaxy(g1);
+  livingB.advance(60, gradients, makeRng(12345));
+  eq('same seed → same day', livingB.day, living.day);
+  eq('same seed → same convoy count', livingB.convoys.length, living.convoys.length);
+
+  const restored = new LivingGalaxy(g1);
+  restored.load(living.save());
+  eq('save/load round-trips the day', restored.day, living.day);
+  eq('save/load round-trips convoys', restored.convoys.length, living.convoys.length);
+  const sample = [...living.states.keys()][0];
+  check('save/load round-trips prices',
+    Math.abs(restored.priceMultiplier(sample, 0) - living.priceMultiplier(sample, 0)) < 0.002);
+
+  // pressure decays back toward baseline when trade stops
+  const quiet = new LivingGalaxy(g1);
+  const st = quiet.state(7);
+  st.pressure[0] = 0.9;
+  quiet.advance(40, gradients, () => 1); // rng()=1 → no new convoys
+  check('pressure decays back toward the baseline', Math.abs(st.pressure[0]) < 0.01);
+}
 
 // --- market model -----------------------------------------------------------
 

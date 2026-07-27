@@ -204,3 +204,75 @@ the scripted trader) and guns down an attacker roughly every other episode.
 brain when attacked — by pirates *or by you*. Attack a Python and it fights
 like a 90%-survival commander, not a fleeing target. Small traders (Adder,
 Worm) still just run. `window.__scriptedPirates = true` disables all brains.
+
+## Run 6 — AI round 3: two hypotheses, two refutations
+
+    npm run train -- pack --out pirate-pack-r3 --gens 300 --pop 48
+    npm run train -- attack --opponent trader-evade-r2 --seed-brain pirate-attack-r2 \
+        --out pirate-attack-r3 --gens 250 --pop 48
+    npm run evaluate 40                    # → train/logs/tournament-r3.txt
+
+### Hypothesis 1: reshape the pack reward (refuted)
+
+Run 4's pack learned an all-in alpha strike — fastest kill in the stable
+(0.6s) but only 70% of episodes. The training log blamed the survivor bonus
+and shot penalty for rewarding one decisive gamble over sustained pressure,
+and proposed three fixes, all applied here:
+
+- reward **damage per second of engagement** (`30·damage/max(4,t)`)
+- **drop the shot penalty** entirely (it appeared to teach timidity)
+- **randomise pack size 2-4** during training so the policy can't overfit
+  to exactly three ships
+
+Training fitness rose from 25.04 to **32.45** (the new terms are worth
+more, so the numbers aren't comparable). On held-out seeds:
+
+| pack | kill | t-kill | acc |
+| --- | --- | --- | --- |
+| 3× scripted | 100% | 0.7s | 100% |
+| 3× solo r1 brains | **100%** | 1.6s | 43% |
+| pack-trained r2 | 70% | 0.6s | 9% |
+| **pack-trained r3** | **68%** | 0.7s | 3% |
+
+No improvement — 68% against r2's 70%, with accuracy *falling* from 9% to
+3%. The reward reshaping moved the training score without moving the
+behaviour. Conclusion: **the bottleneck is not the reward function.** More
+likely the observation: a pack policy sees only the nearest packmate's
+bearing and distance, which is too thin to coordinate on — no sense of
+whether a mate is engaged, damaged, or lining up its own pass. Round 4, if
+attempted, should widen the observation before touching rewards again.
+
+**Three copies of the solo brain remain the shipped pack.**
+
+### Hypothesis 2: a third league round (refuted, instructively)
+
+Seeding from the r2 champion and training against the trained evader
+produced fitness 18.40 — nominally the best attack score yet — and a
+policy that is nearly useless:
+
+| pirate | vs scripted trader | vs trained evader |
+| --- | --- | --- |
+| r1 | 100% kills | 0% |
+| **r2 (shipped)** | **90%** | **98%** |
+| r3 | **3%** | **0%** |
+
+This is a textbook self-play failure: the r2 evader it trained against is
+*very* good at running away, so the fitness landscape rewarded closing
+behaviour that scores points without ever landing kills, and the policy
+walked off the cliff. Training fitness went up; every behavioural metric
+went down.
+
+It is the strongest argument yet for the evaluation harness. Both runs
+looked like successes from inside the trainer; only held-out cross-play
+against baselines exposed them. **The r2 brains stay shipped**, and the
+r3 weights are kept in `src/sim/brains/` purely as evidence.
+
+### What would actually help next
+
+1. **Wider pack observations** (mate health, mate engagement, target's
+   relative bearing to each mate) — the coordination signal is missing.
+2. **Opponent pools rather than single opponents** in league rounds: score
+   each genome against scripted + r1 + r2 evaders, so it cannot specialise
+   into uselessness.
+3. **Behaviour-metric-based selection** — select on tournament kill rate
+   rather than shaped fitness, now that the tournament is cheap.

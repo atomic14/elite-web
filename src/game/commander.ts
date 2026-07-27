@@ -1,4 +1,5 @@
 import { COMMODITIES } from '../galaxy/galaxy';
+import type { GalaxyStateSave } from '../galaxy/living';
 
 // Commander Jameson: everything that persists between sessions. Saved to
 // localStorage on every successful docking, classic "save at station" style.
@@ -160,6 +161,8 @@ export interface CommanderData {
   /** elapsed days — advanced by hyperspace jumps, used for deadlines */
   day: number;
   contracts: Contract[];
+  /** living-galaxy deltas (prices, danger, convoys in flight) */
+  galaxyState?: GalaxyStateSave;
 }
 
 const SAVE_KEY = 'elite-web-commander';

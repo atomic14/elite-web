@@ -38,6 +38,8 @@ const brains: Record<string, Brain | null> = {
   'trader-evade': tryLoad('trader-evade'),
   'trader-evade-r2': tryLoad('trader-evade-r2'),
   'pirate-pack': tryLoad('pirate-pack'),
+  'pirate-pack-r3': tryLoad('pirate-pack-r3'),
+  'pirate-attack-r3': tryLoad('pirate-attack-r3'),
   'jameson-defend': tryLoad('jameson-defend'),
 };
 const rng = makeRng(0xdead);
@@ -151,6 +153,9 @@ if (brains['pirate-attack']) {
 if (brains['pirate-attack-r2']) {
   console.log(row('trained pirate r2 (league)', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r2']! }], { kind: 'scripted' }, false, 45)));
 }
+if (brains['pirate-attack-r3']) {
+  console.log(row('trained pirate r3 (league)', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r3']! }], { kind: 'scripted' }, false, 45)));
+}
 
 // --- 1v1 vs trained evader ---------------------------------------------------
 if (brains['trader-evade']) {
@@ -163,6 +168,9 @@ if (brains['trader-evade']) {
   }
   if (brains['pirate-attack-r2']) {
     console.log(row('trained pirate r2 vs evader', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r2']! }], evader, false, 45)));
+  }
+  if (brains['pirate-attack-r3']) {
+    console.log(row('trained pirate r3 vs evader', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r3']! }], evader, false, 45)));
   }
 }
 
@@ -182,7 +190,16 @@ if (brains['pirate-attack']) {
 }
 if (brains['pirate-pack']) {
   const pack = brains['pirate-pack']!;
-  console.log(row('pack-trained (shared reward)', runMatchup(
+  console.log(row('pack-trained r2 (alpha strike)', runMatchup(
+    () => [
+      { kind: 'policy', brain: pack },
+      { kind: 'policy', brain: pack },
+      { kind: 'policy', brain: pack },
+    ], { kind: 'scripted' }, true, 60)));
+}
+if (brains['pirate-pack-r3']) {
+  const pack = brains['pirate-pack-r3']!;
+  console.log(row('pack-trained r3 (sustained fire)', runMatchup(
     () => [
       { kind: 'policy', brain: pack },
       { kind: 'policy', brain: pack },
