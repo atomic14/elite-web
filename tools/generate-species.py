@@ -112,7 +112,11 @@ def main() -> int:
     # for 512 spends four times the memory and time on detail that is thrown
     # away by the quantiser. This is the single biggest lever if you are
     # running out of memory.
-    ap.add_argument("--gen-size", type=int, default=256, help="what to ask the model for")
+    # The posterised output only needs 96px, but this is also the resolution of
+    # the raw you keep — so if you want the unposterised images to be worth
+    # looking at, raise it. 512 is comfortable now that MPS runs in bfloat16.
+    ap.add_argument("--gen-size", type=int, default=256,
+                    help="model resolution; also the size of the kept raw (512 for nicer raws)")
     ap.add_argument("--steps", type=int, default=8, help="Z-Image-Turbo is a few-step model")
     ap.add_argument("--limit", type=int, default=0, help="stop after N (for a trial run)")
     ap.add_argument("--only", default="", help="comma-separated system names, for a trial run")
@@ -180,8 +184,13 @@ def main() -> int:
             pass
 
     for i, p in enumerate(prompts, 1):
-        dest = out / f"{p['index']:03d}-{p['system'].lower()}.png"
-        if dest.exists():
+        stem = f"{p['index']:03d}-{p['system'].lower()}.png"
+        dest = out / stem
+        raw_dest = raw_out / stem if raw_out else None
+        # Resume must consider BOTH outputs. Testing only the posterised file
+        # means that turning --raw-out on after a run skips every system and
+        # silently produces no raws at all.
+        if dest.exists() and (raw_dest is None or raw_dest.exists()):
             continue
         # with sequential offload the modules are shuffled between CPU and GPU,
         # so the generator has to live on the CPU to stay valid
@@ -204,8 +213,8 @@ def main() -> int:
                 f"Nothing was written; fix the dtype and rerun.",
                 file=sys.stderr)
             return 2
-        if raw_out:
-            image.save(raw_out / f"{p['index']:03d}-{p['system'].lower()}.png")
+        if raw_dest:
+            image.save(raw_dest)
         posterise(image, args.size).save(dest, optimize=True)
         print(f"[{i}/{len(prompts)}] {p['system']:<10} {p['species']}", file=sys.stderr)
         # MPS in particular holds every allocation until told otherwise, so a
