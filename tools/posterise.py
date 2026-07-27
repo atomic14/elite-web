@@ -214,7 +214,12 @@ def main() -> int:
     ap.add_argument("--sharpen", type=float, default=1.6,
                     help="unsharp at full resolution before downsampling; 0 disables")
     ap.add_argument("--cutoff", type=int, default=2, help="autocontrast percentile clip")
-    ap.add_argument("--contrast", type=float, default=1.0,
+    # 1.3 rather than off. On the Tibedied lobster it does two things: pulls
+    # the face out of a narrow midtone band, and — less obviously — cleans the
+    # background. Near-black pixels sitting on a palette boundary get dithered,
+    # so empty space fills with speckle; pushing them to true black stops it,
+    # and the file gets SMALLER despite looking more detailed.
+    ap.add_argument("--contrast", type=float, default=1.3,
                     help="steepen the midtones; >1 boosts. Coarser --pixel wants more")
     # 128 into 256 = 2x2 blocks. Compared 2x2, 4x4 and 8x8 on the same raws,
     # then 4x4 again with contrast up to 2.5: the boost restores separation but
