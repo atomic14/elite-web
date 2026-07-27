@@ -573,7 +573,7 @@ export class Game {
     if (!booting) {
       sfx.dock();
       sfx.tunnel();
-      this.tunnel.start();
+      this.tunnel.start(1.4, 'in'); // the bay shuts around you
     }
     // park just outside the slot so the backdrop behind the menu is the station
     this.player.position.copy(this.world.spawnPosition);
@@ -641,7 +641,7 @@ export class Game {
     this.populateSystem('launch');
     sfx.launch();
     sfx.tunnel();
-    this.tunnel.start();
+    this.tunnel.start(1.4, 'out'); // and opens again on the way out
     this.hud.showMessage(`LEAVING ${this.system.name.toUpperCase()} STATION`, 3);
   }
 
