@@ -102,7 +102,7 @@ def main() -> int:
     ap.add_argument("--raw-out", default="tools/species-raw",
                     help="where to keep the unposterised output ('' to skip)")
     ap.add_argument("--size", type=int, default=256, help="output edge in pixels")
-    ap.add_argument("--tones", type=int, default=4, help="how many phosphor levels")
+    ap.add_argument("--tones", type=int, default=16, help="how many phosphor levels")
     ap.add_argument("--dither", default="floyd", choices=["floyd", "bayer", "none"])
     # 256, not 512. The output is posterised down to 96px anyway, so asking
     # for 512 spends four times the memory and time on detail that is thrown

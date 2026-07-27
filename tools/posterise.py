@@ -18,13 +18,18 @@ trusted with — the exact palette, and the resolution. Both are hard
 requirements: 256 portraits ship in a static site and must land on the game's
 three greens to the byte.
 
-PNG, and not negotiably. A dithered four-tone image is the worst case there
-is for JPEG: the dither is high-frequency noise, which is exactly what DCT
-spends its bits on, while PNG stores four colours at 2 bits a pixel and runs
-the black background almost to nothing. Measured at 256px, four tones —
-PNG 8.5 KB, JPEG q92 21.9 KB. Two and a half times bigger, and it turns 4
-colours into 6397 with every single pixel off-palette. JPEG only wins above
-about sixteen tones, and a sixteen-tone portrait is not this game.
+PNG. At four tones this was not even close — a dithered four-tone image is
+the pathological case for JPEG, because the dither is high-frequency noise,
+exactly what DCT spends its bits on, where PNG stores four colours at 2 bits
+a pixel and runs the black background to almost nothing. Measured at 256px:
+PNG 8.5 KB against JPEG q92's 21.9 KB, and JPEG turned 4 colours into 6397
+with every pixel off-palette.
+
+At sixteen tones that argument weakens and the numbers deserve re-running,
+because sixteen levels barely need dithering at all — and undithered PNG is
+much cheaper than the 23 KB measured with Floyd-Steinberg. Compare
+--dither none against floyd before reaching for JPEG; the palette guarantee
+is worth real bytes, and losing it is what JPEG actually costs.
 
 Between those, one repair remains: --invert. A studio portrait is a dark
 subject on a bright wall, which crushes to a glowing rectangle with a hole in
@@ -174,7 +179,7 @@ def main() -> int:
     ap.add_argument("--raw", default="tools/species-raw")
     ap.add_argument("--out", default="public/species")
     ap.add_argument("--size", type=int, default=256)
-    ap.add_argument("--tones", type=int, default=4, help="how many phosphor levels")
+    ap.add_argument("--tones", type=int, default=16, help="how many phosphor levels")
     ap.add_argument("--dither", default="floyd", choices=["floyd", "bayer", "none"])
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="<1 lifts shadows (more lit phosphor), >1 deepens them")
