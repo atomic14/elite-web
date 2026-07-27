@@ -122,9 +122,12 @@ position/orientation invariant.
 
 `pirateThreat()` in `game/contracts.ts` decides your reception from a **mark**
 — what a pirate can observe (cargo value, contraband, hold size, fitted laser,
-kills, regional notoriety). It returns a count, a *tier* (which hulls, via
-`pirateSpecForTier` in npc.ts) and whether they're *organised* (which flies the
-coordinated pack brain). Two rules keep it from rubber-banding: only visible
+kills, regional notoriety). It returns a count, a *tier* and whether they're *organised* (which flies the
+coordinated pack brain). The tier describes the *group*, not every ship in it:
+`memberTier()` gives the first one or two members the full tier and drops the
+rest a rung, so a gang is ringleaders plus hangers-on. npc.ts owns the hulls
+(`pirateSpecForTier`), contracts.ts owns the rule — so the campaign simulator
+resolves each attacker at the strength the game actually spawns. Two rules keep it from rubber-banding: only visible
 things count — never credits in the bank — and threat grows sub-linearly with
 the prize, so the player outgrows the galaxy slowly rather than never.
 

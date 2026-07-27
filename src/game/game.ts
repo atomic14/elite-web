@@ -13,7 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy';
 import { LivingGalaxy } from '../galaxy/living';
-import { generateContractOffers, applyMarketPressure, pirateThreat, markOf, type PirateThreat } from './contracts';
+import { generateContractOffers, applyMarketPressure, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene';
 import { createStarfield, SpaceDust } from '../world/starfield';
 import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
@@ -438,8 +438,9 @@ export class Game {
           .clone()
           .addScaledVector(route, along)
           .add(rnd(2500));
+        // ringleaders first, then the hangers-on they brought
         const npc = this.spawnNpc('pirate', pos, i + sys.index * 3,
-          pirateSpecForTier(threat.tier, i + sys.index * 3));
+          pirateSpecForTier(memberTier(threat.tier, i), i + sys.index * 3));
         npc.organised = threat.organised;
       }
     }

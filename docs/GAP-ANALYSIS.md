@@ -58,8 +58,9 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   with your *combat rating*; here it scales with what you're visibly worth
   (`pirateThreat` in src/game/contracts.ts) — cargo, hold size, fitted laser,
   reputation, and regional notoriety from your recent sales. Poor commanders
-  meet opportunists in Sidewinders, rich ones meet organised gangs in
-  Fer-de-Lances flying the coordinated pack brain. Rationale: an economic
+  meet opportunists in Sidewinders, rich ones meet organised gangs — two
+  ringleaders in Fer-de-Lances or Asps flying the coordinated pack brain,
+  plus hangers-on a tier below them. Rationale: an economic
   motive is explicable to the player and gives them levers (bank the money,
   fly armed, lie low) where a hidden difficulty curve gives them none.
   Threat grows deliberately sub-linearly with the prize so upgrades stay felt.

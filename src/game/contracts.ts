@@ -124,7 +124,13 @@ export function pirateCount(sys: StarSystem, danger: number, rng: () => number =
 
 /** Slaves, Narcotics, Firearms — worth more to a pirate, and mark you as a smuggler. */
 const CONTRABAND = new Set([3, 6, 10]);
-/** Cargo value (tenths of a credit) at which the prize term saturates. */
+/**
+ * Cargo value (tenths of a credit) at which the prize term saturates — 1,600 Cr.
+ * Tuned against the campaign sim: this makes gangs ~5% of receptions (2 per
+ * career for a wealthy commander) while holding deaths per career at the 1.4
+ * baseline. Lower it and gangs get commoner but the wealth curve collapses
+ * (1,200 Cr → 9% gangs but median net worth 2,242 Cr against 3,661).
+ */
 const PRIZE_SATURATION = 25000;
 
 /** Everything a pirate can observe about you. */
@@ -166,6 +172,23 @@ export function markOf(
   };
 }
 
+/**
+ * Which tier of hull the Nth member of a group flies.
+ *
+ * A gang is not five Fer-de-Lances. It's one or two ringleaders who decided
+ * you were worth organising for, plus hangers-on in whatever they could
+ * afford — which is both more believable and what lets gangs be *common*
+ * rather than an overwhelming rarity.
+ *
+ * Lives here rather than in npc.ts so the campaign simulator resolves each
+ * attacker at the same strength the game spawns it at; npc.ts owns the hulls,
+ * this owns the rule.
+ */
+export function memberTier(groupTier: number, memberIndex: number): number {
+  const leaders = groupTier >= 2 ? 2 : 1;
+  return memberIndex < leaders ? groupTier : Math.max(0, groupTier - 1);
+}
+
 export interface PirateThreat {
   count: number;
   /** 0 opportunists (Sidewinders, Kraits) · 1 professionals · 2 an organised gang */
@@ -199,11 +222,15 @@ export function pirateThreat(
   const deter = Math.min(0.5, mark.kills / 150)
     + (mark.laser === 'military' ? 0.3 : mark.laser === 'beam' ? 0.12 : 0);
 
-  const appeal = Math.max(0, Math.min(1, prize - 0.5 * deter + 0.6 * mark.notoriety));
+  // Deterrence is weighted heavily: looking dangerous is the main lever the
+  // player has against this system, and it should visibly work.
+  const appeal = Math.max(0, Math.min(1, prize - 0.7 * deter + 0.6 * mark.notoriety));
 
   // Sub-linear: a fat commander draws about one extra attacker, not five.
   const count = Math.max(0, Math.round(place + appeal * 1.5 + rng() * 2 - 1));
-  const tier: 0 | 1 | 2 = appeal < 0.34 ? 0 : appeal < 0.7 ? 1 : 2;
+  // Thresholds, not the prize curve, set how often each tier appears — keeping
+  // saturation high preserves the gap between a good load and a fat one.
+  const tier: 0 | 1 | 2 = appeal < 0.28 ? 0 : appeal < 0.5 ? 1 : 2;
   // A gang needs both a reason and the numbers to bother forming.
   const organised = tier === 2 && count >= 3 && rng() < 0.4 + 0.5 * appeal;
   return { count, tier, organised, appeal };

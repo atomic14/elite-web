@@ -175,7 +175,9 @@ detected — as on the original's dashboard.
 - **Pirates as businesses** — what waits for you on the way in depends on
   what you're visibly worth. An empty Cobra draws a couple of opportunists in
   Sidewinders; a full hold draws professionals; a fat, notorious one draws an
-  organised gang in Fer-de-Lances flying a coordinated attack policy. Only
+  organised gang flying a coordinated attack policy. A gang isn't five
+  Fer-de-Lances, though — it's two ringleaders plus hangers-on in whatever
+  they could afford, which is why they can be common without being hopeless. Only
   what a pirate can *see* counts — cargo, hold size, fitted laser, your
   reputation — never your bank balance, so banking the money and flying clean
   is a real strategy. Threat grows far slower than your ship does, so upgrades

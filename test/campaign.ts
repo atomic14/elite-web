@@ -18,7 +18,7 @@
 import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '../src/galaxy/galaxy.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import {
-  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat, markOf,
+  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat, markOf, memberTier,
 } from '../src/game/contracts.ts';
 import {
   newCommander, cargoCapacity, cargoTonnes, rating, EQUIPMENT_CATALOGUE,
@@ -196,7 +196,7 @@ function runCareer(seed: number, systems: StarSystem[]): CareerResult {
     appealCount += 1;
     const pirates = threat.count;
     for (let p = 0; p < pirates; p++) {
-      const outcome = resolveEncounter(c, rng, threat.tier);
+      const outcome = resolveEncounter(c, rng, memberTier(threat.tier, p));
       if (outcome === 'escaped') continue;
       if (outcome === 'dead') {
         deaths += 1;

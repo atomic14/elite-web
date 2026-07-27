@@ -13,7 +13,7 @@ import {
 } from '../src/galaxy/galaxy.ts';
 import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
-import { pirateThreat, markOf } from '../src/game/contracts.ts';
+import { pirateThreat, markOf, memberTier } from '../src/game/contracts.ts';
 import { Episode } from '../src/sim/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/sim/policy.ts';
 import { makeRng } from '../src/sim/core.ts';
@@ -162,7 +162,7 @@ console.log('\npirate economics');
   // the deterrence lever: looking dangerous makes you less worth the trouble
   const armed = at(mk({ 7: 35 }, 150, 'military', true));
   check(`a military laser and a reputation lower the tier (${laden.tier} → ${armed.tier})`,
-    armed.appeal < laden.appeal - 0.2 && armed.tier < laden.tier);
+    armed.appeal < laden.appeal - 0.3 && armed.tier < laden.tier);
 
   // contraband and notoriety both raise it
   check('contraband is worth more than its price alone',
@@ -176,6 +176,15 @@ console.log('\npirate economics');
   check('a gang needs the numbers to form',
     !at(mk({ 7: 35 }, 0, 'pulse', true), 0).organised
       || at(mk({ 7: 35 }, 0, 'pulse', true), 0).count >= 3);
+
+  // a gang is ringleaders plus hangers-on, not five Fer-de-Lances — this is
+  // what lets gangs be common without being overwhelming
+  check('a gang has exactly two ringleaders',
+    memberTier(2, 0) === 2 && memberTier(2, 1) === 2 && memberTier(2, 2) === 1);
+  check('hangers-on fly a tier below their leaders',
+    memberTier(2, 4) === 1 && memberTier(1, 3) === 0);
+  check('opportunist groups stay opportunists',
+    [0, 1, 2, 3].every((i) => memberTier(0, i) === 0));
 
   // notoriety: spreads to jump-range neighbours, and fades
   const heat = new LivingGalaxy(g1);
