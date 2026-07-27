@@ -31,7 +31,7 @@ import {
   type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
-  hideScreen, renderDockedMenu, renderMarket, renderStatus, renderChart, drawChart,
+  hideScreen, renderDockedMenu, renderNewGameConfirm, renderMarket, renderStatus, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
   renderGameOver, renderSystemData, renderContracts, describeContract, nearestSystem,
   distanceTenths, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE, type ChartState,
@@ -128,6 +128,8 @@ export class Game {
   hermitTrading = false;
   private hermitMarket: MarketEntry[] = [];
   /** true after leaving a hermit, until you fly clear of it */
+  /** waiting on the player to confirm erasing their commander */
+  private pendingNewGame = false;
   /** the reception the current system laid on — surfaced for the HUD/tests */
   lastThreat: PirateThreat | null = null;
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
@@ -545,6 +547,18 @@ export class Game {
     a.click();
     URL.revokeObjectURL(a.href);
     this.hud.showMessage('COMMANDER EXPORTED', 3);
+  }
+
+  /**
+   * Throw the current commander away and boot a fresh one at Lave. Reloads
+   * rather than resetting in place: a career leaves state in the living
+   * galaxy, contract offers, chart target and mission progress, and a clean
+   * boot is far more trustworthy than trying to zero all of it by hand.
+   */
+  /** @internal — driven by test/playtest.js */
+  newCommanderGame(): void {
+    localStorage.removeItem('elite-web-commander');
+    location.reload();
   }
 
   /** Load a commander from a JSON file (replaces the current save). */
@@ -1835,6 +1849,16 @@ export class Game {
 
     switch (this.mode) {
       case 'docked':
+        // the erase-your-career confirmation swallows every other key
+        if (this.pendingNewGame) {
+          if (i.pressed('KeyY')) this.newCommanderGame();
+          else if (i.pressed('KeyX')) this.exportSave(); // back it up first
+          else if (i.pressed('Escape') || i.pressed('KeyN')) {
+            this.pendingNewGame = false;
+            renderDockedMenu(this.system, this.commander, this.missionText());
+          }
+          break;
+        }
         if (i.pressed('KeyL')) this.launch();
         else if (i.pressed('KeyM')) {
           this.mode = 'market';
@@ -1848,7 +1872,14 @@ export class Game {
           this.mode = 'equip';
           this.equipSelected = 0;
           renderEquip(this.system, this.commander, this.equipSelected);
-        } else if (i.pressed('KeyN')) this.openLocalChart('docked');
+        // ⇧N must be tested before plain N: pressed() CONSUMES the tap, so
+        // `pressed('KeyN') && !held(Shift)` would swallow ⇧N and the
+        // new-commander branch below would never fire.
+        } else if (i.held('ShiftLeft', 'ShiftRight') && i.pressed('KeyN')) {
+          this.pendingNewGame = true;
+          renderNewGameConfirm(this.system, this.commander);
+        }
+        else if (i.pressed('KeyN')) this.openLocalChart('docked');
         else if (i.pressed('KeyG')) this.openChart('docked');
         else if (i.pressed('KeyI')) this.openStatus('docked');
         else if (i.pressed('KeyX')) this.exportSave();

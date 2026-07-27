@@ -41,7 +41,34 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       <div data-key="KeyD"><b>D</b> DATA ON SYSTEM</div>
       <div data-key="KeyI"><b>I</b> COMMANDER STATUS</div>
     </div>
-    <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; X EXPORT SAVE &middot; Z IMPORT SAVE</div>
+    <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; X EXPORT SAVE &middot; Z IMPORT SAVE &middot; &#8679;N NEW COMMANDER</div>
+  `);
+}
+
+/**
+ * Confirmation for starting over. Deliberately spells out what is about to be
+ * destroyed and points at the export key first — this is the only action in
+ * the game that throws away a career.
+ */
+export function renderNewGameConfirm(sys: StarSystem, c: CommanderData): void {
+  show(`
+    <h2>NEW COMMANDER</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center; line-height:2">
+      This will erase your current commander:<br/>
+      <span style="color:var(--hud-amber)">
+        ${sys.name.toUpperCase()} &middot; ${formatCredits(c.credits)} &middot;
+        ${c.kills} KILLS &middot; ${rating(c.combatScore ?? c.kills).toUpperCase()}
+      </span><br/>
+      and start again at Lave with 100.0 Cr.<br/>
+      <span style="opacity:0.8; font-size:11px">
+        Press ESC to cancel and X to export a backup first.
+      </span>
+    </div>
+    <div class="buttons">
+      <button data-key="KeyY">Y — ERASE AND START AGAIN</button>
+      <button data-key="Escape">ESC — CANCEL</button>
+    </div>
   `);
 }
 
