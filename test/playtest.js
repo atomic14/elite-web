@@ -149,8 +149,24 @@
       return null;
     },
 
-    /** Sell everything, then buy the most profitable legal cargo for `dest`. */
-    trade(destIndex) {
+    /**
+     * Reload the last station save after being destroyed. Drives respawn()
+     * directly rather than injecting Enter: the death screen's keypress is
+     * edge-triggered, and a press that lands on the wrong frame leaves the
+     * agent sitting in `dead` forever, which reads as a strand.
+     */
+    reviveFromDeath() {
+      this.note('death');
+      g.respawn();
+      this.step(4);
+    },
+
+    /**
+     * Turn the hold back into cash and top up the tank. Split out of trade()
+     * because it must happen *before* we ask what's in jump range: a commander
+     * sitting on a full hold and a dry tank isn't stranded, just illiquid.
+     */
+    liquidate() {
       const c = g.commander;
       // sell all non-contract cargo
       const committed = new Map();
@@ -165,12 +181,15 @@
           c.credits += Math.round(g.market[i].price * 10);
         }
       }
-      // refuel
-      const need = 70 - c.fuel;
-      if (need > 0) {
-        const cost = Math.round(need * 0.4);
-        if (c.credits >= cost) { c.credits -= cost; c.fuel = 70; }
-      }
+      // refuel through the game's own purchase path (all-or-nothing, as in
+      // the original — it declines rather than part-filling)
+      if (c.fuel < 70) g.buyEquipment('fuel');
+    },
+
+    /** Sell everything, refuel, then buy the most profitable legal cargo for `dest`. */
+    trade(destIndex) {
+      const c = g.commander;
+      this.liquidate();
       // buy for the destination economy
       const dest = g.systems[destIndex];
       const GRAD = [-2, -1, -3, -5, -5, 8, 29, 14, 6, 1, 13, -9, -1, -1, -2, -1, 15];
@@ -215,16 +234,29 @@
 
     async flyToStationAndDock(maxSteps = 20000) {
       let steps = 0, finalRun = false, fights = 0, combatSteps = 0;
+      let holdSteps = 0, blockaded = false;
       while (g.mode === 'flight' && steps < maxSteps) {
         const st = g.world.station;
         const slotN = new V(0, 0, -1).applyQuaternion(st.quaternion);
         const dist = g.player.position.distanceTo(st.position);
         const gate = st.position.clone().addScaledVector(slotN, 800);
 
+        // Pirates loitering in the station's lap would otherwise hold us at a
+        // standstill forever (the collision hold below yields to anything
+        // within 320, and we don't normally fight this close in). In an
+        // anarchy that's a livelock, not caution — so once the approach has
+        // been blocked this long, latch it and turn and fight instead.
+        if (!blockaded && holdSteps >= 400) {
+          blockaded = true;
+          this.note('combat:blockaded');
+        }
+
         // a fight that won't end is a fight to run from — the defence
         // policy evades rather than kills, so cap the engagement
         const fightingTooLong = combatSteps > 2500;
-        const threat = dist > 2500 && !fightingTooLong ? this.nearestHostile(4500) : null;
+        const threat = (dist > 2500 || blockaded) && !fightingTooLong
+          ? this.nearestHostile(4500)
+          : null;
         if (fightingTooLong && combatSteps < 2600) {
           combatSteps = 2600;
           this.note('combat:disengaged');
@@ -247,10 +279,22 @@
         }
 
         if (dist < 6000) {
+          // yield to traffic in the docking lanes — but once blockaded, only
+          // to ships that aren't shooting at us, so hostiles can't stall us
+          const hostileRoles = ['pirate', 'thargoid', 'thargon'];
           let nd = Infinity;
-          for (const n of g.npcs) if (n.alive) nd = Math.min(nd, n.object.position.distanceTo(g.player.position));
-          if (nd < 320) { g.player.speed = 0; this.step(10); steps += 10; continue; }
+          for (const n of g.npcs) {
+            if (!n.alive) continue;
+            if (blockaded && hostileRoles.includes(n.role)) continue;
+            nd = Math.min(nd, n.object.position.distanceTo(g.player.position));
+          }
+          if (nd < 320) {
+            g.player.speed = 0;
+            this.step(10); steps += 10; holdSteps += 10;
+            continue;
+          }
         }
+        holdSteps = 0;
 
         if (finalRun) {
           const before = dist;
@@ -350,18 +394,19 @@
         let deaths = 0;
 
         for (let leg = 0; leg < legs; leg++) {
-          if (g.mode === 'dead') {
-            deaths += 1;
-            this.note('death');
-            g.input.injectPress('Enter');
-            this.step(4);
-          }
+          if (g.mode === 'dead') { deaths += 1; this.reviveFromDeath(); }
           if (g.mode !== 'docked') {
             await this.flyToStationAndDock();
+            // dying on the way in is a death, not a strand: reload the last
+            // station save and press on, exactly as a player would
+            if (g.mode === 'dead') { deaths += 1; this.reviveFromDeath(); }
             if (g.mode !== 'docked') { this.fail('stranded — abandoning run'); break; }
           }
 
           // --- station business ---
+          // cash up and refuel first, so the range check below reflects what
+          // this commander can actually afford rather than what's in the hold
+          this.liquidate();
           const contract = this.takeContract();
           this.equip();
           // where next? contract destination, else a profitable neighbour
