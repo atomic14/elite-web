@@ -25,6 +25,13 @@ so images are generated offline and committed.
 
 Model: Tongyi-MAI/Z-Image-Turbo (Apache 2.0 — outputs are ours to ship).
 
+Running out of GPU memory? In order of how much they buy you:
+  --gen-size 192      ask for less; it is posterised to 96 anyway
+  --dtype bfloat16    if float16 gives you black or NaN images
+  --cpu-offload       weights stay in system RAM; slow but it will finish
+On Apple silicon the ceiling is a hard watermark rather than a swap, so a
+float32 load fails outright where the same model in float16 fits.
+
 The posterise step is the point, not an afterthought. Straight model output
 would look nothing like this game: it is wireframes on a phosphor CRT. Crushing
 to a handful of greens at low resolution makes the portraits look like
@@ -85,10 +92,18 @@ def main() -> int:
     ap.add_argument("manifest", help="JSON from tools/species-prompts.ts --json")
     ap.add_argument("--out", default="public/species")
     ap.add_argument("--size", type=int, default=96, help="output edge in pixels")
-    ap.add_argument("--gen-size", type=int, default=512, help="what to ask the model for")
+    # 256, not 512. The output is posterised down to 96px anyway, so asking
+    # for 512 spends four times the memory and time on detail that is thrown
+    # away by the quantiser. This is the single biggest lever if you are
+    # running out of memory.
+    ap.add_argument("--gen-size", type=int, default=256, help="what to ask the model for")
     ap.add_argument("--steps", type=int, default=8, help="Z-Image-Turbo is a few-step model")
     ap.add_argument("--limit", type=int, default=0, help="stop after N (for a trial run)")
     ap.add_argument("--only", default="", help="comma-separated system names, for a trial run")
+    ap.add_argument("--dtype", default="auto", choices=["auto", "float16", "bfloat16", "float32"],
+                    help="auto = half precision on GPU, float32 on CPU")
+    ap.add_argument("--cpu-offload", action="store_true",
+                    help="keep the model in system RAM and page it in — slow, but survives a small GPU")
     args = ap.parse_args()
 
     data = json.loads(pathlib.Path(args.manifest).read_text())
@@ -111,17 +126,43 @@ def main() -> int:
         return 1
 
     device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
-    print(f"loading Z-Image-Turbo on {device} ...", file=sys.stderr)
+
+    # Half precision on MPS too, not just CUDA. Loading in float32 on an Apple
+    # GPU is what blows the memory ceiling: the weights alone take twice what
+    # they need, and MPS enforces a hard watermark rather than swapping.
+    if args.dtype == "auto":
+        dtype = torch.float32 if device == "cpu" else torch.float16
+    else:
+        dtype = getattr(torch, args.dtype)
+
+    print(f"loading Z-Image-Turbo on {device} ({dtype}) ...", file=sys.stderr)
     pipe = DiffusionPipeline.from_pretrained(
         "Tongyi-MAI/Z-Image-Turbo",
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-    ).to(device)
+        torch_dtype=dtype,
+    )
+
+    if args.cpu_offload:
+        # weights live in system RAM and move to the GPU a module at a time
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe = pipe.to(device)
+
+    # Trade a little speed for a much lower peak: attention over one head at a
+    # time, and the VAE decoding in slices. Both are no-ops if unsupported.
+    for opt in ("enable_attention_slicing", "enable_vae_slicing", "enable_vae_tiling"):
+        try:
+            getattr(pipe, opt)()
+        except (AttributeError, NotImplementedError):
+            pass
 
     for i, p in enumerate(prompts, 1):
         dest = out / f"{p['index']:03d}-{p['system'].lower()}.png"
         if dest.exists():
             continue
-        gen = torch.Generator(device=device).manual_seed(p["seed"] % (2**31))
+        # with sequential offload the modules are shuffled between CPU and GPU,
+        # so the generator has to live on the CPU to stay valid
+        gen_device = "cpu" if args.cpu_offload else device
+        gen = torch.Generator(device=gen_device).manual_seed(p["seed"] % (2**31))
         image = pipe(
             prompt=p["prompt"],
             negative_prompt=p["negative"],
@@ -132,6 +173,13 @@ def main() -> int:
         ).images[0]
         posterise(image, args.size).save(dest, optimize=True)
         print(f"[{i}/{len(prompts)}] {p['system']:<10} {p['species']}", file=sys.stderr)
+        # MPS in particular holds every allocation until told otherwise, so a
+        # long run creeps up on the watermark even when one image fits fine
+        del image
+        if device == "mps" and hasattr(torch, "mps"):
+            torch.mps.empty_cache()
+        elif device == "cuda":
+            torch.cuda.empty_cache()
 
     print(f"\nwrote {len(prompts)} to {out}", file=sys.stderr)
     return 0
