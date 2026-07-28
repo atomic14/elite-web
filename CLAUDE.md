@@ -14,6 +14,7 @@ npm run check      # lint + tests — what `prebuild` runs
 npm run build      # prebuild (lint + test) then vite build → dist/
 npm run train -- <attack|evade|pack|defend> [--gens N --pop N ...]
 npm run evaluate   # held-out tournament for the current brains
+npm run survivability  # can a *shielded* commander survive a gang? (see invariant 8)
 npm test           # invariant + sim tests (test/run.ts, no framework)
 npm run campaign   # headless balance playtest (test/campaign.ts)
                    # `-- <commanders> <legs> <trader|hunter|privateer|both|all>`
@@ -68,15 +69,20 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
    packBrainEnabled()`): opportunists and professionals fly the solo brain,
    a tier-2 gang of 3+ flies the pack policy. `window.__packBrain = true`
    still forces it on everyone, for A/B.
-   That split is the balance answer, because the brain is brutal: against a
-   trader that fights back it kills 100% in **0.7s** losing 0.02 ships,
-   where the solo trio manages 60% in 14.3s and loses 1.52. Roughly 20x, not
-   the 4-7x measured against softer targets.
-   Gangs are gated on fame, so a new commander never meets one; by E L I T E
-   they are 34-45% of receptions. **The campaign cannot check this** — it
-   abstracts flight, so it validates the economy, not a 0.7s kill. If gangs
-   feel unsurvivable in real flight, the lever is `organised` in
-   contracts.ts, not the brain. See docs/TRAINING-LOG.md runs 7 and 8.
+   That split is the balance answer, and it is measured. Beware the
+   tournament's headline "kills a defended target in 0.7s": its defender is
+   `traderCobra`, hp 1.0, and the sim has **no shields**, while the player
+   soaks 3-4x that (fore/aft shields 1.0 each, then energy at 2 per point).
+   Correct for it (`npm run survivability`) and a gang of 3 kills a commander
+   **50% of the time in 4.5s**, 38% if they keep both shields working — a
+   real fight with time to answer, not an execution. The same correction
+   shows why gangs must exist: opportunists on the solo brain kill a shielded
+   commander 0-2% of the time, so without them the late game has no threat.
+   Gangs are gated on fame — a new commander never meets one; by E L I T E
+   they are 34-45% of receptions. Still unflown in the real game, where ECM,
+   the escape pod, torus and RAM_GUARD all favour the player, so treat 50% as
+   the floor. Lever if it needs one: `organised` in contracts.ts, not the
+   brain. See docs/TRAINING-LOG.md runs 7 and 8.
 9. **The trainer's `--validate-select` flag matters more than it looks.**
    Without it, the final brain is chosen by comparing scores across
    generations that used *different* episode seeds — that picks the luckiest

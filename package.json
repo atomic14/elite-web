@@ -18,7 +18,8 @@
     "train": "node --experimental-strip-types --no-warnings train/evolve.ts",
     "evaluate": "node --experimental-strip-types --no-warnings train/evaluate.ts",
     "test": "node --experimental-strip-types --no-warnings test/run.ts",
-    "campaign": "node --experimental-strip-types --no-warnings test/campaign.ts"
+    "campaign": "node --experimental-strip-types --no-warnings test/campaign.ts",
+    "survivability": "node --experimental-strip-types --no-warnings train/survivability.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

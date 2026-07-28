@@ -568,3 +568,54 @@ exactly what it was trained to do.
 
 test/playtest.js is the harness that could answer it, since it flies the real
 game with the defence brain.
+
+### Correcting the number the balance decision was resting on
+
+    npm run survivability
+
+The 0.7s kill above is measured against `CLASSES.traderCobra`, hp 1.0 — and
+`core.ts` says it outright: "The sim has no shields." The player has two, plus
+an energy bank that absorbs overflow. From game.ts's `applyPlayerDamage`: each
+shield soaks 1.0, then damage costs energy at 2 per point against a bank of 4,
+so a commander taking hits on one face soaks **3.0** raw damage and one
+manoeuvring so both shields work soaks **4.0**, against the sim trader's 1.0.
+
+The tournament defender is roughly a third as durable as the commander flying
+it. That is correct for *training* — shields would have to exist in both the
+sim and the game to hold invariant 2, and every brain was fitted without them
+— but it is the wrong number to make a balance decision from.
+
+`train/survivability.ts` leaves the sim alone and corrects only the defender's
+hp. 200 episodes per cell, on a seed base distinct from both the training
+stream and evaluate.ts's held-out base:
+
+| gang of 3, defender flies jameson-defend | pack brain | solo brain |
+| --- | --- | --- |
+| hp 1.0 — sim trader (what the tournament measures) | 99% in 0.6s | 60% in 15.9s |
+| hp 3.0 — player, hits on one face | **50% in 4.5s** | 2% in 21.6s |
+| hp 4.0 — player, manoeuvring | **38% in 4.4s** | 0%, never |
+
+| gang of 4 | pack brain | solo brain |
+| --- | --- | --- |
+| hp 1.0 | 100% in 0.3s | 85% in 13.2s |
+| hp 3.0 | 75% in 4.0s | 2% in 23.0s |
+| hp 4.0 | 59% in 3.8s | 0%, never |
+
+**The alarm was an artefact.** A gang of three is not a 0.7-second execution;
+it is a coin-flip fight lasting four and a half seconds, which is time enough
+to burn ECM, run for the station, or engage the torus drive. Four of them at
+59-75% is a fight you should probably decline, which seems right for the
+rarest reception in the game.
+
+The same table makes the opposite case just as strongly, and this is the part
+that justifies gangs existing at all: **opportunists flying the solo brain
+kill a properly shielded commander 0-2% of the time, and at hp 4.0 never once
+in 200 episodes.** Ship only the solo brain and a commander with working
+shields has no opponent. The tier split is not gilding, it is the only thing
+putting any threat in the late game.
+
+Still not flown in the real game. Every omission here favours the player —
+ECM, escape pod, torus drive, RAM_GUARD breaking pirates off at knife range,
+and a player Cobra more agile than `traderCobra`'s 0.5 turn rate — so 50%
+is a floor, not an estimate. Regeneration is ignored for the same reason
+(0.035/s per shield is under a tenth of a point across a fight this short).
