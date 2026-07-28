@@ -828,3 +828,55 @@ handicap also looks deliberate: NPCs are meant to be less dangerous than the
 player's own gun. What has changed is that it is now asserted in `npm test` as
 a ratio, so altering either side is visible rather than silent — and every
 brain's behaviour is fitted to the sim's side of it.
+
+## Flying it settles the run 9 question: it should ship
+
+Reported from play: pirates are hard to hit; they do not hit back much; and
+after one or two go down the rest "seem to give up".
+
+All three are real, and two of them have the same cause.
+
+### Why they seem to give up
+
+Measured in the game, four tier-1 pirates, 45-60 seconds, **player not firing
+a shot**:
+
+| | shipped brain | run 9 brain |
+| --- | --- | --- |
+| pirates destroyed with no help from the player | **3 of 4** | **0 of 4** |
+| share of the fight spent inside 220 units, guns disabled | 24% | 6% |
+| hits landed on the player | 11 | 11 |
+| damage to the player | 1.67 | 1.83 |
+
+Three of four attackers destroyed themselves. `attack()` disables the guns
+inside 220 units and steers away (RAM_GUARD, added so pirates stop kamikazing),
+so the survivors spend a fifth of the fight circling at knife range doing
+nothing. Between the self-destruction and the guns-off orbiting, "they gave up"
+is a fair description of what is on screen.
+
+### The reversal
+
+Run 9's brain was held back because the sim said it kills a shielded commander
+100% of the time in 6.8 seconds. In the game it deals **1.83 damage in a
+minute** against a commander who soaks 3.0 to 4.0, and the player survives.
+The sim was overstating it by the 5.4x fire-rate gap documented above.
+
+At tier 2, where the missiles are, across 5 runs of 3 pirates:
+
+| | shipped | run 9 |
+| --- | --- | --- |
+| player killed | 0% | 0% |
+| pirates lost to their own flying | 1.2 of 3 | 0.2 of 3 |
+| damage to the player | 1.68 | 2.00 |
+| guns-off orbiting | 21% | 8% |
+
+So it fixes both complaints at a cost of about 0.3 damage a minute. The earlier
+63% death figure came from tier-2 ships firing **missiles** at 1.3 damage each,
+not from the brain, and it happens with either brain.
+
+The remaining complaint, that pirates are hard to hit, is a separate number and
+is not about the AI at all: the player's hit test is `atan(radius * 0.35 /
+dist)`, which is the central 12% of a ship's area, while an NPC needs only to
+be within 0.25 radians (28.6 degrees wide) of you at any range. That asymmetry
+is in `LASER_GRAZE` in game.ts, which core.ts confirms is not modelled in the
+sim, so it can be tuned without touching a single brain.
