@@ -41,6 +41,8 @@ h1 {
   text-shadow: 0 0 40px rgba(77, 255, 92, 0.45);
 }
 .tagline { font-size: 21px; color: var(--hud-green); margin-bottom: 22px; }
+.namenote { max-width: 560px; margin: 0 auto 18px; font-size: 15px; color: var(--hud-dim); }
+.namenote .rank { color: var(--hud-amber); letter-spacing: 2px; }
 .blurb { max-width: 620px; margin: 0 auto 32px; }
 
 .cta { text-align: center; }

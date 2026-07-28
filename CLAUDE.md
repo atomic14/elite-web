@@ -1,9 +1,17 @@
 # CLAUDE.md — working on elite-web
 
-A web remake of 1984's Elite (TypeScript + Vite + three.js) with ship AI
-trained by neuroevolution self-play. Owner: Chris (atomic14.com). Public
-repo; MIT + fan-project notice in LICENSE — keep the non-commercial homage
-framing intact.
+**HARMLESS** — an unofficial browser tribute to Elite (1984) (TypeScript +
+Vite + three.js) with ship AI trained by neuroevolution self-play. Owner:
+Chris (atomic14.com). Public repo; MIT + fan-project notice in LICENSE — keep
+the non-commercial homage framing intact.
+
+**The name is deliberate and load-bearing.** "Elite" is a live Frontier
+Developments trademark, so it is not used as this project's NAME anywhere —
+not in titles, H1s, Open Graph, JSON-LD or the domain. It IS used in prose to
+say what this is a tribute to ("a browser tribute to Elite (1984)"), which is
+nominative use and is the point. The in-game `E L I T E` combat rank stays: it
+describes gameplay, not the product. Site is harmless.atomic14.com. The repo
+and npm package are still named elite-web, deliberately left alone.
 
 ## Commands
 

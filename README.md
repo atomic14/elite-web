@@ -1,6 +1,10 @@
-# ELITE (web)
+# HARMLESS
 
-A web remake of the classic 1984 Elite: authentic wireframe ships, the
+*An unofficial browser tribute to **Elite** (1984) by David Braben and Ian
+Bell. Harmless is the combat rating you start at; the ladder ends at
+E L I T E.*
+
+Authentic wireframe ships, the
 original byte-accurate procedural galaxy (Lave is system 7, as it should
 be), modern shader-driven suns and planets — and ship AI trained by
 neuroevolution self-play, flying both the pirates that hunt you and the
