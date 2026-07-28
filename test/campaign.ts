@@ -166,20 +166,57 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     // --- equip, keeping a trading float ---
     // A hunter's shopping list is not a trader's: guns and survivability
     // first, and it needs a far smaller float because it isn't buying cargo.
-    const COMBAT_KIT = ['beam', 'military', 'energyUnit', 'escapePod', 'ecm',
-      'combatComputer', 'rearLaser', 'missile'];
-    const shoppingList = strategy !== 'trader'
-      ? [...EQUIPMENT_CATALOGUE].sort((a, b) => {
-        const ai = COMBAT_KIT.indexOf(a.id), bi = COMBAT_KIT.indexOf(b.id);
-        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
-      })
-      : EQUIPMENT_CATALOGUE;
+    // Order matters more now that an unaffordable item means saving rather
+    // than skipping: put a 60,000 credit military laser second and a hunter
+    // buys nothing else until it has one. Cheap survivability first, the
+    // expensive gun once it is actually reachable.
+    const COMBAT_KIT = ['beam', 'ecm', 'energyUnit', 'escapePod',
+      'combatComputer', 'military', 'missile'];
+    // A trader needs a list too. Without one it shopped in EQUIPMENT_CATALOGUE
+    // order, which is roughly tech-level order and not usefulness order, and
+    // the result was daft: 100% of traders finished a career owning a rear
+    // laser, 95% a left and 85% a right, while only 30% ever bought a beam.
+    // That is 12,000 credits on three auxiliary pulse lasers, of which the
+    // model credits exactly one at +0.05, ahead of a 10,000 credit beam laser
+    // worth +0.18. Nobody would play that way, so the simulated economy was
+    // being judged on purchases no real commander makes.
+    //
+    // Hold first (it pays for everything else), then the gun, then the things
+    // that stop you dying. Auxiliary lasers come after the kit that works.
+    const TRADE_KIT = ['largeBay', 'beam', 'ecm', 'scoops', 'escapePod',
+      'energyUnit', 'dockingComputer', 'military'];
+    // Never bought. A rear or side laser only fires while you are looking that
+    // way, so using one means fighting a dogfight backwards, and Chris's read
+    // is that real players do not. The station still sells them; this models
+    // the commander who does not buy them, which is nearly all of them.
+    const SKIP = ['rearLaser', 'leftLaser', 'rightLaser'];
+    const order = strategy !== 'trader' ? COMBAT_KIT : TRADE_KIT;
+    const priority = (id: string): number => {
+      const i = order.indexOf(id);
+      if (i >= 0) return i;
+      return 100;
+    };
+    const shoppingList = [...EQUIPMENT_CATALOGUE]
+      .sort((a, b) => priority(a.id) - priority(b.id));
     const float = strategy === 'hunter' ? 300 : 1500; // privateers still need a trading float
     for (const item of shoppingList) {
       if (item.id === 'trumble') continue; // a trap, not an upgrade
+      if (SKIP.includes(item.id)) continue; // see SKIP: nobody flies backwards
       if (equipmentOwned(item.id, c)) continue;
-      if (here.techLevel + 1 < item.minTL) continue;
-      if (c.credits - item.price < float) continue;
+      if (here.techLevel + 1 < item.minTL) continue; // not sold here, try elsewhere
+      if (c.credits - item.price < float) {
+        // SAVE for it, do not drop down to something cheaper. Skipping ahead is
+        // why the priority list did nothing on its own: an unaffordable 10,000
+        // credit beam laser was passed over and the 4,000 credit rear laser
+        // bought in its place, every single time, until every trader owned
+        // three auxiliary lasers and a third of them owned a beam.
+        //
+        // Only for items on the curated list. Anything off it stays
+        // opportunistic, so a commander who already owns the kit that matters
+        // can still spend spare cash on the rest.
+        if (priority(item.id) < 100) break;
+        continue;
+      }
       c.credits -= item.price;
       applyEquipment(c, item.id);
       if (firstUpgradeLeg === null && item.id !== 'missile') firstUpgradeLeg = leg;
@@ -363,7 +400,10 @@ function resolveEncounter(
   let strength = 0.48 - tier * 0.09;
   if (c.equipment.laser === 'beam') strength += 0.18;
   if (c.equipment.laser === 'military') strength += 0.3;
-  if (c.equipment.rearLaser) strength += 0.05;
+  // Rear and side lasers are NOT counted. They only fire while you are looking
+  // that way (views 1-3), so using one means flying a dogfight backwards, and
+  // in practice almost nobody does. Crediting a rear laser as passive combat
+  // strength modelled a player who does not exist.
   if (c.equipment.ecm) strength += 0.05;
   if (c.equipment.energyUnit) strength += 0.08;
   if (c.equipment.combatComputer) strength += 0.2;

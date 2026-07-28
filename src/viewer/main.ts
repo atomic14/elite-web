@@ -7,7 +7,7 @@ import { buildShip, COBRA_MK3, SIDEWINDER } from '../ships/geometry';
 import { createStarfield } from '../world/starfield';
 import { Episode, type ShotEvent } from '../sim/scenario';
 import { brainFromFile, randomBrain, type BrainFile } from '../sim/policy';
-import { makeRng, type SimShip } from '../sim/core';
+import { makeRng, type SimShip, forward } from '../sim/core';
 import pirateR1BrainFile from '../sim/brains/pirate-attack.json';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import traderBrainFile from '../sim/brains/trader-evade.json';
@@ -142,11 +142,27 @@ function syncViews(events: ShotEvent[]): void {
     v.object.visible = v.sim.alive;
   }
   for (const e of events) {
+    // From the NOSE, along the nose. This used to draw hull-centre to
+    // target-centre, which made every shot look like it left the side of the
+    // ship and curved onto the target: at any bank angle the line visibly
+    // disagreed with where the ship was pointing. The sim never fired that way
+    // (measured: hits average 0.5 degrees off the nose, worst 1.9), so this was
+    // purely a drawing bug, and a misleading one.
+    //
+    // A miss now flies PAST the target instead of into it. Drawing a miss to
+    // the target's centre made it look like a hit that failed to register.
+    const f = forward(e.from);
+    const r = e.from.cls.radius;
+    const ox = e.from.pos.x + f.x * r;
+    const oy = e.from.pos.y + f.y * r;
+    const oz = e.from.pos.z + f.z * r;
+    const reach = Math.hypot(e.to.pos.x - ox, e.to.pos.y - oy, e.to.pos.z - oz);
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute([
-      e.from.pos.x, e.from.pos.y, e.from.pos.z,
-      e.to.pos.x, e.to.pos.y, e.to.pos.z,
-    ], 3));
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(
+      e.hit
+        ? [ox, oy, oz, e.to.pos.x, e.to.pos.y, e.to.pos.z]
+        : [ox, oy, oz, ox + f.x * reach, oy + f.y * reach, oz + f.z * reach],
+      3));
     const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
       color: e.hit ? 0xffe9a8 : 0xff5c40,
       transparent: true,
