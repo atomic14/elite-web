@@ -18,10 +18,13 @@ export function hideScreen(): void {
   el().classList.add('hidden');
 }
 
-function show(html: string): void {
+function show(html: string, wide = false): void {
   const s = el();
   s.innerHTML = html;
   s.classList.remove('hidden');
+  // charts put their readout beside the map rather than under it, so they need
+  // more width than a table screen
+  s.classList.toggle('wide', wide);
   // Drop the cockpit console while a screen is up. Nothing on a screen needs
   // the scanner or the gauges, and the console was costing the screen a third
   // of the viewport: #screen sat at top 40% with max-height 66vh purely to
@@ -414,7 +417,17 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
 
 // --- Short range (local) chart ---------------------------------------------
 
-export const LOCAL_SCALE = 19; // canvas px per chart x-unit
+/**
+ * Canvas px per chart unit.
+ *
+ * Bounded by the range circle, not by taste: a full tank is 7.0 LY, drawn at
+ * (fuel/4)*LOCAL_SCALE = 17.5*LOCAL_SCALE px. At 15 that is 262px, which fits
+ * inside the 560px square with room to spare. Raise one and you must raise
+ * the other or the range clips again.
+ */
+export const LOCAL_SCALE = 15;
+/** Square, so a light year is the same number of pixels whichever way you go. */
+export const LOCAL_CANVAS = 560;
 
 export function renderLocalChart(
   systems: StarSystem[],
@@ -424,10 +437,12 @@ export function renderLocalChart(
   show(`
     <h2>SHORT RANGE CHART</h2>
     <div class="rule"></div>
-    <canvas id="local-canvas" width="780" height="380"></canvas>
-    <div class="info" id="local-info" style="text-align:center; min-height:76px"></div>
+    <div class="chartrow">
+      <canvas id="local-canvas" width="${LOCAL_CANVAS}" height="${LOCAL_CANVAS}"></canvas>
+      <div class="info" id="local-info"></div>
+    </div>
     <div class="keyline">CLICK A SYSTEM TO TARGET IT &middot; ARROWS MOVE &middot; ENTER TARGET &middot; D DATA ON SYSTEM &middot; M MARKET &middot; F FIND &middot; ESC EXIT</div>
-  `);
+  `, true);
   drawLocalChart(systems, c, chart);
 }
 
@@ -454,6 +469,16 @@ export function drawLocalChart(
   ctx.strokeStyle = '#1d6b26';
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
+  // A CIRCLE, and it has to be one. distanceTenths is 4*sqrt(dx^2 + (dy/2)^2)
+  // and py() plots dy/2, so the plotted space is already isotropic: equal
+  // pixels mean equal light years in every direction. Reachable is therefore
+  // a circle of radius (fuel/4)*LOCAL_SCALE.
+  //
+  // I briefly "fixed" a clipping problem by making this an ellipse. That was
+  // wrong twice over — it halved the apparent range north/south, so systems
+  // you could actually reach fell outside the marker. The clipping was never
+  // the circle's fault: the canvas was 780x380 for a shape needing 664x664.
+  // The canvas is square now (see renderLocalChart) and the circle fits.
   ctx.arc(cx, cy, (c.fuel / 4) * LOCAL_SCALE, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);

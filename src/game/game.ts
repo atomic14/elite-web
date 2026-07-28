@@ -192,6 +192,8 @@ export class Game {
   /** true after leaving a hermit, until you fly clear of it */
   /** waiting on the player to confirm erasing their commander */
   private pendingNewGame = false;
+  /** cursor position for arrow-key menu navigation (see handleMenuCursor) */
+  private menuSelected = 0;
   private saveSelected = 0;
   private nameBuffer = '';
   /** the reception the current system laid on — surfaced for the HUD/tests */
@@ -2153,6 +2155,8 @@ export class Game {
       document.getElementById('help')!.classList.toggle('hidden');
     }
 
+    this.handleMenuCursor();
+
     switch (this.mode) {
       case 'docked':
         // the erase-your-career confirmation swallows every other key
@@ -2369,6 +2373,39 @@ export class Game {
     this.chart.cursorX = cur.x;
     this.chart.cursorY = cur.y;
     renderLocalChart(this.systems, this.commander, this.chart);
+  }
+
+  /**
+   * Arrow-key cursor over any screen menu, with Enter to choose.
+   *
+   * Generic on purpose. Menu rows already carry a `data-key` so that a click
+   * can be turned into a synthetic key press (see handleScreenClick), which
+   * means Enter needs to do exactly one thing: inject the selected row's key.
+   * No per-screen wiring, and any menu added later gets this for free.
+   *
+   * It never consumes anything the letter keys need — the shortcuts printed
+   * beside each row keep working, and this is an addition to them, not a
+   * replacement. Only ArrowUp/ArrowDown/Enter are touched, and only while a
+   * menu is actually on screen.
+   */
+  private handleMenuCursor(): void {
+    const items = [...document.querySelectorAll<HTMLElement>('#screen .menu div[data-key]')];
+    if (!items.length) return;
+    const i = this.input;
+    const down = i.pressed('ArrowDown');
+    const up = i.pressed('ArrowUp');
+    if (down || up) {
+      this.menuSelected = (this.menuSelected + (down ? 1 : -1) + items.length) % items.length;
+      sfx.beep(520, 0.03);
+    }
+    if (this.menuSelected >= items.length) this.menuSelected = 0;
+    // re-applied every frame rather than only on movement: these screens
+    // re-render on all sorts of events and would otherwise lose the highlight
+    items.forEach((el, n) => el.classList.toggle('sel', n === this.menuSelected));
+    if (i.pressed('Enter')) {
+      const key = items[this.menuSelected].dataset.key;
+      if (key) i.injectPress(key);
+    }
   }
 
   /**

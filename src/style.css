@@ -63,6 +63,22 @@ html, body {
 body.screen-open #hud { display: none; }
 body.screen-open #screen { top: 50%; max-height: 88vh; }
 
+/* Chart screens: map on the left, readout on the right. Stacked, the readout
+   sat directly under a map that draws to its own bottom edge, so the two
+   always looked like they were touching however much height the box had. */
+#screen.wide { max-width: 1260px; }
+#screen .chartrow { display: flex; gap: 20px; align-items: flex-start; }
+#screen .chartrow canvas { flex: 0 0 auto; }
+#screen .chartrow .info {
+  flex: 1 1 auto;
+  min-width: 290px;
+  text-align: left;
+  line-height: 1.9;
+  border-left: 1px solid var(--hud-dim);
+  padding-left: 18px;
+  align-self: stretch;
+}
+
 #hud {
   position: absolute;
   bottom: 0;
@@ -418,6 +434,7 @@ body.screen-open #screen { top: 50%; max-height: 88vh; }
 /* clickable screen affordances */
 #screen .menu div[data-key] { cursor: pointer; padding: 0 8px; border-left: 2px solid transparent; }
 #screen .menu div[data-key]:hover { background: rgba(77, 255, 92, 0.14); border-left-color: var(--hud-green); }
+#screen .menu div[data-key].sel { background: rgba(77, 255, 92, 0.2); border-left-color: var(--hud-green); }
 #screen tr.pick { cursor: pointer; }
 #screen tr.pick:hover td { background: rgba(77, 255, 92, 0.14); }
 #screen tr.sel.pick:hover td { background: var(--hud-green); }
