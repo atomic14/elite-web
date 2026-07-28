@@ -112,6 +112,32 @@ function brainsEnabled(): boolean {
  */
 const RAM_GUARD = 220;
 
+/**
+ * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
+ * LASER.range in sim/core.ts, and it has to: a brain trained to open fire at
+ * 3000 units was silently refused the shot by a 2600 gate, so it would sit
+ * there pointing straight at the target and never pull the trigger.
+ *
+ * Measured before the change, two tier-0 pirates over 45 seconds: pointing at
+ * the player 90% of the time, but inside 2600 only 51% of it. Half the fight
+ * was spent aiming from out of a range the pirate did not know it had.
+ */
+const NPC_LASER_RANGE = 3500;
+
+/**
+ * Time between an NPC's shots. The sim gives every ship the player's pulse
+ * laser at 0.24s; these are the game's deliberate handicap, and they are NOT
+ * what limits an NPC's damage.
+ *
+ * Tested at sim parity (0.18-0.30s, five times faster): 3.7 shots per minute
+ * per ship against the current 4.1, and 3.52 damage against 3.78. No
+ * difference, because a pirate is only pointed within the 0.25 rad firing gate
+ * for about 5% of a fight. It is not waiting on the cooldown; it is waiting to
+ * be aimed at you, and it is busy weaving.
+ */
+const NPC_COOLDOWN_LO = 0.9;
+const NPC_COOLDOWN_SPREAD = 0.8;
+
 function packBrainEnabled(): boolean {
   return !!(window as unknown as Record<string, unknown>).__packBrain;
 }
@@ -664,8 +690,9 @@ export class NpcShip {
     this.advance(dt);
 
     this.fireCooldown -= dt;
-    if (c.fire && fireAt && this.fireCooldown <= 0 && dist < 2600 && this.facing(targetPos) < 0.25) {
-      this.fireCooldown = 0.9 + Math.random() * 0.8;
+    if (c.fire && fireAt && this.fireCooldown <= 0 && dist < NPC_LASER_RANGE
+        && this.facing(targetPos) < 0.25) {
+      this.fireCooldown = NPC_COOLDOWN_LO + Math.random() * NPC_COOLDOWN_SPREAD;
       return fireAt === 'player' ? { at: 'player' } : { at: fireAt };
     }
     return null;
@@ -694,7 +721,7 @@ export class NpcShip {
     this.speed = approach(this.speed, dist > 700 ? this.maxSpeed : this.maxSpeed * 0.45, 120 * dt);
     this.advance(dt);
     this.fireCooldown -= dt;
-    if (this.fireCooldown <= 0 && dist < 2600 && this.facing(targetPos) < 0.22) {
+    if (this.fireCooldown <= 0 && dist < NPC_LASER_RANGE && this.facing(targetPos) < 0.22) {
       this.fireCooldown = (this.role === 'thargoid' ? 1.0 : 1.4) + Math.random() * 1.8;
       return isPlayer ? { at: 'player' } : { at: npcTarget! };
     }

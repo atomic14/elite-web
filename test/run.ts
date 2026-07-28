@@ -412,10 +412,12 @@ console.log('\nsim/game combat parity');
   // gun). The point is that changing either side becomes visible instead of
   // silent, since every brain's behaviour is fitted to the sim's number.
   const simCooldown = num(core, /LASER = \{[\s\S]{0,200}?cooldown:\s*([\d.]+)/);
-  // `this.` anchors on the brainFly assignment. Without it this matched the
-  // field initialiser (2 + random*2) and reported 12.5x instead of 5.4x.
-  const npcLo = num(npc, /this\.fireCooldown = ([\d.]+) \+ Math\.random\(\)/);
-  const npcSpread = num(npc, /this\.fireCooldown = [\d.]+ \+ Math\.random\(\) \* ([\d.]+)/);
+  // Read the named constants, not the expression. This used to parse
+  // `this.fireCooldown = 0.9 + Math.random() * 0.8` directly and broke the
+  // moment those numbers were given names — which is the test working, but a
+  // constant is the more stable thing to read.
+  const npcLo = num(npc, /const NPC_COOLDOWN_LO = ([\d.]+);/);
+  const npcSpread = num(npc, /const NPC_COOLDOWN_SPREAD = ([\d.]+);/);
   const npcMean = npcLo! + npcSpread! / 2;
   const ratio = npcMean / simCooldown!;
   check(`NPC fire rate is ${ratio.toFixed(1)}x slower than the sim trains for `

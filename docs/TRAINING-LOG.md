@@ -880,3 +880,42 @@ dist)`, which is the central 12% of a ship's area, while an NPC needs only to
 be within 0.25 radians (28.6 degrees wide) of you at any range. That asymmetry
 is in `LASER_GRAZE` in game.ts, which core.ts confirms is not modelled in the
 sim, so it can be tuned without touching a single brain.
+
+## Correction — the fire-rate gap is real but is not what limits NPC damage
+
+The entry above concluded that NPCs firing 5.4x slower than the sim trains them
+to is why they barely hurt you. Two experiments say that conclusion was wrong.
+
+**Fire rate, tested at sim parity.** Cooldown dropped from 0.9-1.7s to
+0.18-0.30s, five times faster, six runs of two tier-0 pirates:
+
+| | shots/min/ship | damage in 45s | player deaths |
+| --- | --- | --- | --- |
+| 0.9-1.7s (shipped) | 4.1 | 3.78 | 0 of 6 |
+| 0.18-0.30s (sim parity) | 3.7 | 3.52 | 0 of 6 |
+
+No difference. The cooldown was never the binding constraint.
+
+**Laser range, aligned to the sim.** NPC firing range raised from 2600 to the
+3500 the sim and the player both use. Six runs each: damage 3.78 against 3.83,
+and both spent 100% of the fight inside 2600 anyway. Also no difference. That
+change was made on the strength of a single run showing 51% of time spent
+beyond 2600, which was not representative.
+
+**What actually limits them.** Instrumenting one Sidewinder for 60 seconds: it
+fired 3 times, at 6.3, 13.6 and 13.9 degrees off the nose, and it was inside
+the 14.3 degree firing gate, in range, and outside the ram guard for **5.5% of
+the fight**. 5.5% eligibility with a 1.3s cooldown predicts about 2.5 shots a
+minute; it fired 3. The arithmetic closes.
+
+A pirate is not waiting for its gun to cool. It is waiting to be pointed at
+you, and it is busy weaving — which is the behaviour we want and the same
+behaviour that makes it hard for the player to hit. Both complaints, "hard to
+hit" and "they never shoot", are the same fact seen from the two cockpits.
+
+Nothing was tuned as a result. The cooldown is back where it was, the range
+stays at 3500 purely for parity with the sim the brains trained in (it changed
+no measured outcome), and both are named constants now rather than magic
+numbers in an expression. Widening the 0.25 rad firing gate is the lever that
+would actually raise their output, and it would do it by granting shots at
+angles they have not earned.
