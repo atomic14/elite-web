@@ -92,7 +92,7 @@ interface PoolEntry {
   /** does this trader shoot back? */
   armed: boolean;
   /** hull it flies; playerCobra has the commander's speed and agility */
-  hull?: 'traderCobra' | 'playerCobra';
+  hull?: 'traderCobra' | 'playerCobra' | 'playerCobraSlow';
   label: string;
 }
 
@@ -135,6 +135,8 @@ const traderPool: PoolEntry[] = (() => {
     ['trader-evade-r2', false, 'traderCobra'],   // r2 runner, freighter
     ['trader-evade-r2', false, 'playerCobra'],   // the same evasion, player agility
     ['jameson-defend', true, 'playerCobra'],     // shoots back, player agility
+    ['trader-evade-r2', false, 'playerCobraSlow'], // slow knife-fighter, as humans fly
+    ['jameson-defend', true, 'playerCobraSlow'],   // and one that shoots while doing it
   ] as const) {
     if (name === HOLD_OUT) { console.log(`(pool) holding out ${name}`); continue; }
     try {

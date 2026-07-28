@@ -13,7 +13,7 @@ import { TURN } from '../sim/core';
 import { planDocking, makeDockPlan, type DockPlan } from './docking';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
-import sharpBrainFile from '../sim/brains/pirate-attack-r6-playerlike.json';
+import sharpBrainFile from '../sim/brains/pirate-attack-r11-slow.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
@@ -503,12 +503,21 @@ export class NpcShip {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
         const solo = sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
-        // The player's REAL speed. This was hardcoded 300 whatever the
-        // player was doing, so the observation fed the brain a constant where
-        // the sim feeds the target's actual speed — the one input a pursuer
-        // most needs to lead its shot.
+        // A CONSTANT, and it has to stay one until the brains are retrained.
+        //
+        // Passing the player's true speed looks like the obvious fix, and it
+        // broke the game: observe() feeds `target.speed / 400` to the network,
+        // and every brain was fitted against a freighter cruising near 220, so
+        // that input has only ever been about 0.55. Chris flies at a median of
+        // 66 and stops dead to turn, which is 0.165 or zero. Out of
+        // distribution, the policies degenerate and the pirates hang in space
+        // spinning on the spot.
+        //
+        // 300 is a lie, but it is a lie inside the range they were trained on.
+        // The honest fix is a retrain with target speed sampled across the
+        // envelope a human actually flies, and then this becomes player.speed.
         return this.brainFly(pack ? PACK_BRAIN : solo, dt,
-          player.position, player.quaternion, player.speed, distPlayer, 'player',
+          player.position, player.quaternion, 300, distPlayer, 'player',
           pack ? fleet : null);
       }
       // Inside knife range the scripted break-off takes over — see RAM_GUARD.

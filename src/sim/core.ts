@@ -106,6 +106,18 @@ export const CLASSES: Record<string, ShipClass> = {
    * fight. Keep in step with player.ts (invariant 2).
    */
   playerCobra: { name: 'Cobra Mk III (player)', hp: 1.0, maxSpeed: 400, turnRate: 1.036, radius: 34, accel: 120 },
+  /**
+   * How a human actually flies in a dogfight, from Chris's recorded envelope:
+   * median speed 66, pitch held at 1.36 of a possible 1.45. He turns almost on
+   * the spot and stops dead to bring guns to bear.
+   *
+   * It exists because run 10, trained only against targets doing 220 to 400,
+   * simply stops when the target does: 99 units flown in 20 seconds against a
+   * stationary player, where the same brain flies 1145 and closes to 225 if
+   * the player is doing 300. A pursuer that has never seen a slow target has
+   * no policy for one.
+   */
+  playerCobraSlow: { name: 'Cobra Mk III (player, knife-fighting)', hp: 1.0, maxSpeed: 90, turnRate: 1.036, radius: 34, accel: 120 },
 };
 
 // laser model — mirrors the player's pulse laser in game.ts

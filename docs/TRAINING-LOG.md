@@ -1024,3 +1024,48 @@ Worth noting what this does to the earlier bot-flown accuracy numbers: the bot
 fires once per cooldown by construction, so its 33% was never inflated. A human
 holding the trigger through a turn is simply a different measurement, and only
 the human's is the one that matters.
+
+## Run 11 — the experimental brains freeze against a human, and why
+
+Reported from play: "the enemy ships are not moving, just spinning on the spot."
+
+The shipped brain is fine and always was. This is a defect in the player-like
+brains from runs 9 and 10, and the human envelope is what exposed it.
+
+Measured with the player STOPPED, 20 seconds, one tier-1 pirate at 2000 units:
+
+| brain | distance flown | closed to |
+| --- | --- | --- |
+| pirate-attack-r2 (shipped) | 4829 | 372 |
+| run 10 | **99** | did not move |
+| run 11 (slow target added) | 653 | 1685 |
+
+And with the player at 300, run 10 flies 1145 and closes to 225. It is not
+broken; it only pursues a target that is *moving*. Its pool was a freighter at
+220 and player hulls at up to 400, so a stationary target is outside everything
+it has ever seen. Chris flies at a median of **66** and stops dead to turn.
+
+Run 11 adds `playerCobraSlow` (90 max, player agility) to the pool, which is
+his envelope. It roughly sextuples the distance flown, 99 to 653, and it still
+does not close the way the shipped brain does. Better, not fixed.
+
+### What I got wrong on the way
+
+I "fixed" a bug by passing the player's true speed to `brainFly` instead of the
+hardcoded 300. It is the correct value and it made things worse: `observe()`
+feeds `target.speed / 400`, every shipped brain was fitted against a freighter
+near 220, so that input has only ever been about 0.55. A player at 66, or
+stopped, is 0.165 or zero — out of distribution, and the shipped brains
+degrade too. Reverted to the constant, with a comment saying why it must stay
+one until the brains are retrained across the full speed range.
+
+So the ordering matters: the observation cannot be made honest until the
+training distribution covers what the honest value can be.
+
+### Where this leaves the experiment
+
+The default game is untouched and healthy: shipped brain, toggle off, closes
+2000 to 269 on a stationary player. Everything from runs 9 to 11 sits behind
+`window.__sharpPirates` and none of it is fit to ship, for a reason that only
+appeared when a human flew: they were all trained against targets that move
+like ships, and a human in a dogfight moves like a turret.
