@@ -52,6 +52,11 @@ export interface HudState {
   /** name + range of the ship under the crosshair ('' when none) */
   shipId: string;
   /** docking aid: station-local lateral offset + signed roll error, or null */
+  /**
+   * Docking state. Once drove a separate corner overlay; that is gone — the
+   * port marker says whether you are lined up, and saying it twice in two
+   * places was worse than saying it once. Only `inSlot` is read now.
+   */
   dockAid: { x: number; y: number; roll: number; inSlot: boolean; rollOk: boolean } | null;
   /**
    * Where the docking slot is on screen (NDC), when you're close and on the
@@ -100,7 +105,6 @@ export class Hud {
   private readonly viewEl = byId('viewlabel');
   private readonly shipIdEl = byId('shipid');
   private readonly crosshairEl = byId('crosshair');
-  private readonly dockAid: CanvasRenderingContext2D;
   private readonly reticle: CanvasRenderingContext2D;
   private readonly energySegs: HTMLElement[];
   private readonly missileEls: HTMLElement[];
@@ -119,7 +123,6 @@ export class Hud {
 
   constructor() {
     this.scanner = (byId('scanner') as HTMLCanvasElement).getContext('2d')!;
-    this.dockAid = (byId('dockaid') as HTMLCanvasElement).getContext('2d')!;
     this.reticle = (byId('reticle') as HTMLCanvasElement).getContext('2d')!;
     this.compass = (byId('compass') as HTMLCanvasElement).getContext('2d')!;
     this.energySegs = Array.from(byId('g-energy').querySelectorAll('i'));
@@ -183,7 +186,10 @@ export class Hud {
     this.conditionEl.style.color = state.condition === 'RED' ? '#ff4d4d' : '';
     this.creditsEl.textContent = formatCredits(state.credits);
 
-    this.drawDockAid(state.dockAid);
+    // No separate docking-aid overlay: the port marker already says whether
+    // you are lined up, and two things telling you the same thing in different
+    // corners of the screen is worse than one. dockAid survives purely as the
+    // source of that lined-up state.
     this.drawSlotMarker(state.slotMarker, state.dockAid?.inSlot ?? false);
     this.drawScanner(playerPos, playerQuat, contacts);
     this.drawCompass(playerPos, playerQuat, compassTarget);
@@ -281,7 +287,7 @@ export class Hud {
         ctx.stroke();
       }
       ctx.font = '10px Menlo, Consolas, monospace';
-      ctx.fillText(inSlot ? 'SLOT — LINED UP' : 'SLOT', x - r, y - r - 6);
+      ctx.fillText(inSlot ? 'DOCKING PORT — LINED UP' : 'DOCKING PORT', x - r, y - r - 6);
       return;
     }
 
@@ -304,37 +310,6 @@ export class Hud {
     ctx.restore();
     ctx.font = '10px Menlo, Consolas, monospace';
     ctx.fillText('SLOT', ex - 12, ey + 26);
-  }
-
-  private drawDockAid(aid: HudState['dockAid']): void {
-    const canvas = this.dockAid.canvas;
-    if (!aid) {
-      canvas.style.display = 'none';
-      return;
-    }
-    canvas.style.display = 'block';
-    const ctx = this.dockAid;
-    const s = canvas.width;
-    const c = s / 2;
-    ctx.clearRect(0, 0, s, s);
-
-    // slot aperture (96x20 in station units, scaled)
-    const kx = 0.42;
-    ctx.strokeStyle = DIM;
-    ctx.strokeRect(c - 48 * kx, c - 10 * kx, 96 * kx, 20 * kx);
-    ctx.strokeStyle = aid.rollOk ? GREEN : AMBER;
-    ctx.beginPath();
-    // roll bar: where the slot's long axis currently is, relative to your wings
-    ctx.moveTo(c - Math.cos(aid.roll) * 40, c - Math.sin(aid.roll) * 40);
-    ctx.lineTo(c + Math.cos(aid.roll) * 40, c + Math.sin(aid.roll) * 40);
-    ctx.stroke();
-    // your lateral offset (clamped into view)
-    const px = c + Math.max(-42, Math.min(42, aid.x * kx));
-    const py = c - Math.max(-42, Math.min(42, aid.y * kx));
-    ctx.fillStyle = aid.inSlot ? GREEN : '#ff5c4d';
-    ctx.beginPath();
-    ctx.arc(px, py, 3, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   private drawScanner(

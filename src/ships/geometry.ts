@@ -488,9 +488,14 @@ export function buildDodoStation(color: THREE.ColorRepresentation): {
     new THREE.EdgesGeometry(geo, 1),
     new THREE.LineBasicMaterial({ color }),
   );
-  // docking slot on the front face
+  // Docking port on the front face, sitting just PROUD of it.
+  //
+  // This was -(dockZ - 0.5), which put it half a unit inside the hull — and
+  // the hull is an opaque black mesh, so from outside the station the port was
+  // simply not there. On a 170-unit station half a unit out is invisible as an
+  // offset and guarantees the lines draw in front of the fill.
   const slot = new THREE.BufferGeometry();
-  const z = -(dockZ - 0.5);
+  const z = -(dockZ + 0.5);
   slot.setAttribute('position', new THREE.Float32BufferAttribute([
     48, 10, z, 48, -10, z, 48, -10, z, -48, -10, z,
     -48, -10, z, -48, 10, z, -48, 10, z, 48, 10, z,

@@ -391,15 +391,6 @@ body.screen-open #screen { top: 50%; max-height: 88vh; }
   pointer-events: none;
 }
 
-#dockaid {
-  position: absolute;
-  left: 50%; top: 42%; /* follows the crosshair */
-  margin-left: 70px;
-  transform: translateY(-50%);
-  display: none;
-  pointer-events: none;
-}
-
 /* console indicators, after the original: S = station in range, E = ECM detected */
 .indicators { display: flex; gap: 4px; }
 .indicators span {
