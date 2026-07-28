@@ -130,8 +130,21 @@ const RAM_GUARD = 220;
  * This matters more than it looks. Fixing the gun would have achieved nothing
  * if pirates still went silent inside 220 units, because 220 units is where
  * Chris fights.
+ *
+ * 150, and the number is arithmetic rather than taste. It was 90 for one
+ * wave and both of Chris's arena fights had ships fly into him. A pirate
+ * re-decides at 10 Hz, so a head-on closure — 300 for the pirate against the
+ * player's 400 — covers 70 units between decisions, and the two hulls are 68
+ * units of radius before they touch. A 90-unit guard leaves 22 units of
+ * margin: less than one decision tick, so breaking off is not something the
+ * ship is physically able to do. 150 gives it a tick to turn, and still
+ * clears the range Chris actually fights at (median 260, 10th percentile
+ * 214), which is the dead zone the wide guard created.
+ *
+ * The sim cannot catch this: it has no ram guard, so its 1-9% collision rate
+ * says nothing about what the guard should be.
  */
-const RAM_GUARD_NO_RAM = 90;
+const RAM_GUARD_NO_RAM = 150;
 
 /**
  * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and

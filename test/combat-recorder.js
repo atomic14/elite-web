@@ -31,6 +31,18 @@
     npcShots: 0,
     npcHitsOnPlayer: 0,
     damageTaken: 0,
+    /**
+     * Damage to the player split by cause. Every source funnels through
+     * applyPlayerDamage, so counting calls scored a ship that rammed Chris as
+     * several perfect shots — his first g1 wave read 85% enemy accuracy, which
+     * is the hit cap, at a range where the model allows about 50%.
+     *
+     * The six paths in game.ts have distinct magnitudes, so they separate
+     * exactly: laser 0.1 + rand*0.12, ram 0.45, missile 1.3, station 0.9,
+     * cargo 0.06. Keep in step with applyPlayerDamage's callers.
+     */
+    damageBy: { laser: 0, ram: 0, missile: 0, station: 0, cargo: 0, unknown: 0 },
+    countBy: { laser: 0, ram: 0, missile: 0, station: 0, cargo: 0, unknown: 0 },
     damageDealt: 0,
     kills: 0,
     startedAt: null,
@@ -57,6 +69,7 @@
       this.samples = []; this.events = []; this.t = 0;
       this.playerShots = 0; this.playerHits = 0; this.npcShots = 0;
       this.npcHitsOnPlayer = 0; this.damageTaken = 0; this.damageDealt = 0; this.kills = 0;
+      for (const k of Object.keys(this.damageBy)) { this.damageBy[k] = 0; this.countBy[k] = 0; }
     },
 
     report() {
@@ -87,10 +100,17 @@
           shots: this.npcShots,
           hitsOnYou: this.npcHitsOnPlayer,
           accuracy: pct(this.npcHitsOnPlayer, this.npcShots),
-          damageToYou: this.damageTaken.toFixed(2),
+          laserDamageToYou: this.damageBy.laser.toFixed(2),
+          totalDamageToYou: this.damageTaken.toFixed(2),
           shotsPerMinutePerShip: rows.length
             ? (this.npcShots / (rows.length / SAMPLE_HZ / 60)).toFixed(1) : '0',
         },
+        // where the damage actually came from. A collision reads as several
+        // perfect shots if you only count applyPlayerDamage calls.
+        DAMAGE_BY_CAUSE: Object.fromEntries(
+          Object.entries(this.damageBy)
+            .filter(([, v]) => v > 0)
+            .map(([k, v]) => [k, `${v.toFixed(2)} over ${this.countBy[k]}`])),
         THEIR_GEOMETRY: {
           withinLaserRange: pct(inRange.length, rows.length),
           linedUpOnYou: pct(linedUp.length, rows.length),
@@ -107,6 +127,16 @@
     json() { return JSON.stringify({ samples: this.samples, events: this.events }); },
   };
 
+  /** Which of game.ts's applyPlayerDamage callers produced this hit. */
+  function classify(amt) {
+    if (amt >= 0.1 && amt < 0.221) return 'laser';   // 0.1 + random*0.12
+    if (Math.abs(amt - 0.45) < 1e-9) return 'ram';
+    if (Math.abs(amt - 1.3) < 1e-9) return 'missile';
+    if (Math.abs(amt - 0.9) < 1e-9) return 'station';
+    if (Math.abs(amt - 0.06) < 1e-9) return 'cargo';
+    return 'unknown';
+  }
+
   const SAMPLE_HZ = 10;
   let sampleAccum = 0;
   let origUpdate = null, npcProto = null, origApply = null, origFire = null;
@@ -120,7 +150,17 @@
     // damage to the player
     origApply = g.applyPlayerDamage.bind(g);
     g.applyPlayerDamage = (amt, from) => {
-      if (rec.running) { rec.npcHitsOnPlayer++; rec.damageTaken += amt; }
+      if (rec.running) {
+        const kind = classify(amt);
+        rec.damageBy[kind] += amt;
+        rec.countBy[kind] += 1;
+        rec.damageTaken += amt;
+        // only laser fire counts against their shots — see damageBy
+        if (kind === 'laser') rec.npcHitsOnPlayer++;
+        if (kind === 'ram' || kind === 'missile') {
+          rec.events.push({ t: +rec.t.toFixed(1), what: kind === 'ram' ? 'a ship rammed you' : 'missile hit you' });
+        }
+      }
       return origApply(amt, from);
     };
 
