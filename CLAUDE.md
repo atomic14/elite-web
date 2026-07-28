@@ -122,6 +122,12 @@ vite.config.ts; add new pages there or they won't build.
   loop to simulate time (browser rAF throttles in background tabs — manual
   stepping is the reliable way in automation).
 - `window.__scriptedPirates = true` disables all NPC brains (A/B testing).
+- `window.__sharpPirates = true` flies run 9's attacker on every pirate;
+  `= 'pro'` only on professionals and gangs (tier >= 1), leaving opportunists
+  on the shipped brain. Measured in the real game with test/gang-trial.js,
+  three *unorganised* pirates: shipped brain kills a fully equipped commander
+  0% of 8 trials, run 9's brain 63%, mean 3.4 seconds. It is off by default
+  for that reason, and 'pro' is the configuration worth playtesting.
 - `window.__cheat = true` fits anything from the equipment catalogue, free and
   at any tech level — playtesting only. A console handle rather than a key
   binding, deliberately: nobody should reach it by accident.

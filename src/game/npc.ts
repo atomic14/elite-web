@@ -13,6 +13,7 @@ import { TURN } from '../sim/core';
 import { planDocking, makeDockPlan, type DockPlan } from './docking';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
+import sharpBrainFile from '../sim/brains/pirate-attack-r5-varied.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
@@ -24,6 +25,33 @@ import defendBrainFile from '../sim/brains/jameson-defend.json';
 const PIRATE_BRAIN: Brain | null = (() => {
   try {
     return brainFromFile(pirateBrainFile as unknown as BrainFile);
+  } catch {
+    return null;
+  }
+})();
+
+/**
+ * Run 9's attacker, trained against a rotation of five opponents including two
+ * that shoot back (docs/TRAINING-LOG.md). It stopped ramming (0.94 contacts an
+ * episode down to 0.01) and it generalises: held out of its own training,
+ * jameson-defend still dies to it 44.5% of the time against the shipped
+ * brain's 4.0%.
+ *
+ * NOT the default, and the reason is worth reading before switching it on. As
+ * the ordinary pirate it kills a fully shielded commander 100% of the time in
+ * under seven seconds, where the shipped brain manages 1%. That makes routine
+ * opportunists deadlier than organised gangs, which is backwards.
+ *
+ *   window.__sharpPirates = true     every pirate flies it
+ *   window.__sharpPirates = 'pro'    only professionals and gangs (tier >= 1),
+ *                                    opportunists keep the shipped brain
+ *
+ * The 'pro' setting is the interesting one: it is the tier ladder the game
+ * already has, giving three steps of escalation instead of two.
+ */
+const SHARP_BRAIN: Brain | null = (() => {
+  try {
+    return brainFromFile(sharpBrainFile as unknown as BrainFile);
   } catch {
     return null;
   }
@@ -86,6 +114,13 @@ const RAM_GUARD = 220;
 
 function packBrainEnabled(): boolean {
   return !!(window as unknown as Record<string, unknown>).__packBrain;
+}
+
+/** Which pirates, if any, fly run 9's sharper attacker. See SHARP_BRAIN. */
+function sharpBrainFor(tier: number): boolean {
+  const flag = (window as unknown as Record<string, unknown>).__sharpPirates;
+  if (!flag || !SHARP_BRAIN) return false;
+  return flag === 'pro' ? tier >= 1 : true;
 }
 
 // Test-harness access to the trained policies (used by the autopilot
@@ -415,7 +450,8 @@ export class NpcShip {
           && distPlayer >= RAM_GUARD) {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
-        return this.brainFly(pack ? PACK_BRAIN : PIRATE_BRAIN, dt,
+        const solo = sharpBrainFor(this.threatTier) ? SHARP_BRAIN! : PIRATE_BRAIN;
+        return this.brainFly(pack ? PACK_BRAIN : solo, dt,
           player.position, player.quaternion, 300, distPlayer, 'player',
           pack ? fleet : null);
       }
