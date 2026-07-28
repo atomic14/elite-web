@@ -15,7 +15,7 @@ import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/contracts.ts';
 import { killValue } from '../src/game/commander.ts';
-import { Episode } from '../src/sim/scenario.ts';
+import { Episode, type Controller } from '../src/sim/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/sim/policy.ts';
 import { makeRng } from '../src/sim/core.ts';
 
@@ -313,6 +313,55 @@ for (const name of ['pirate-attack', 'pirate-attack-r2', 'trader-evade',
   const expected = obs * hidden + hidden + hidden * hidden + hidden + hidden * 11 + 11;
   check(`${name}: ${f.weights.length} weights match its declared shape`,
     f.weights.length === expected && f.weights.every((w) => Number.isFinite(w)));
+}
+
+// --- collision rates --------------------------------------------------------
+
+// The collision round concluded the shipped brains "already fly clear of the
+// target, so a rule that punishes contact costs them nothing", from a table
+// covering the scripted trader and the Jameson matchups. It did not cover
+// pirate versus trained EVADER, and there the claim is false: those two brains
+// were both trained before collisions existed, and they ram each other in more
+// than half of all fights. Against an unarmed evader the pirate destroys itself
+// 17% of the time, which is the evader winning by being flown into.
+//
+// Asserted here so the numbers are enforced rather than assumed, and so the
+// known-bad matchup cannot quietly get worse. Bounds are ceilings on today's
+// measured behaviour, not aspirations.
+
+console.log('\ncollision rates');
+{
+  const COLLISION_DAMAGE = 0.45;
+  const rams = (make: () => { pirates: Controller[]; trader: Controller; traderArmed?: boolean },
+                episodes: number): number => {
+    let total = 0;
+    for (let e = 0; e < episodes; e++) {
+      const ep = new Episode({ seed: 7000 + e * 11, ...make(), maxTime: 45 });
+      while (!ep.done) ep.step(1 / 15);
+      // an unarmed trader deals no laser damage, so all pirate damage is contact
+      for (const p of ep.pirates) total += p.damageTaken / COLLISION_DAMAGE;
+    }
+    return total / episodes;
+  };
+
+  const pirate = pirateR2;                 // already loaded above
+  const evader = load('trader-evade-r2');
+  {
+    const vScripted = rams(() => ({
+      pirates: [{ kind: 'policy', brain: pirate }], trader: { kind: 'scripted' },
+    }), 40);
+    check(`pirate vs scripted trader rarely collides (${vScripted.toFixed(2)}/episode)`,
+      vScripted < 0.3);
+  }
+  {
+    // KNOWN BAD. Kept as a ceiling so it cannot worsen unnoticed; a retrain
+    // that fixes it should tighten this number, not delete the check.
+    const vEvader = rams(() => ({
+      pirates: [{ kind: 'policy', brain: pirate }], trader: { kind: 'policy', brain: evader },
+    }), 40);
+    check(`pirate vs trained evader collisions no worse than known (${vEvader.toFixed(2)}/episode)`,
+      vEvader < 1.6);
+  }
 }
 
 // --- sim/game combat parity (invariant 2) -----------------------------------

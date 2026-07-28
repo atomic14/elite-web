@@ -667,3 +667,45 @@ expertly and shoots badly (0.1-0.9 kills per fight), so these are stalemates
 rather than wins — a human flying aggressively would take far more hits than
 this policy does, and would also kill far faster. And the harness caps
 pitch/roll at 0.7/1.2 where the real player has 1.45/2.5.
+
+## Correction — "the shipped brains fly clear of the target" is not general
+
+Reported from watching the viewer: ships colliding.
+
+The collision round above concluded that the committed brains needed no
+retraining, on the strength of one line: **collisions/episode 0.00**. That
+number is real, and it is also incomplete. It was measured against the scripted
+trader and the Jameson matchups. Nobody measured pirate against trained
+*evader*, which is a scenario the viewer offers by name.
+
+Measured now, 200 episodes each, counting contacts from the damage ledger
+rather than from ship separation. Separation cannot see them: resolveCollision
+runs inside the step and shoves the ships apart before any test outside the
+step could sample an overlap. My first attempt at this measurement reported
+0.00 everywhere for exactly that reason.
+
+| matchup | rams/episode | fights with contact |
+| --- | --- | --- |
+| pirate r2 vs scripted trader | 0.08 | 7% |
+| scripted pirate vs scripted trader | 0.00 | 0% |
+| **pirate r2 vs trained evader** | **0.94** | **57%** |
+| pack of 3 (solo brains) vs trader | 0.13 | 3% |
+| pack-trained vs trader | 0.00 | 0% |
+
+The evader matchup is not cosmetic. Against an unarmed evader the pirate is
+destroyed in **17.5%** of episodes and **every one of those deaths is the
+pirate flying into the trader**, because an unarmed trader deals no damage at
+all. The trader dies in 3%. A brain trained to dodge is, in effect, winning by
+being crashed into.
+
+Why: `pirate-attack-r2` and `trader-evade-r2` were both trained on 26 July, and
+the collision model landed after them. Neither has any idea that contact costs
+0.45 out of a 1.1 hull. They were never taught to avoid each other; they were
+only *verified* not to, in matchups where they happened not to.
+
+Not retrained here. The collision round already burned five retrains that all
+failed the shipped-brain assertions, and firing a sixth at this without a plan
+would repeat it. What has changed is that the claim is now enforced instead of
+assumed: `npm test` measures both matchups and fails if either gets worse. The
+evader bound is a ceiling on today's behaviour, not a target — a retrain that
+fixes this should tighten it rather than delete it.
