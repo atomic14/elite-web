@@ -35,13 +35,13 @@ const PIRATE_BRAIN: Brain | null = (() => {
  * game. It does not ram (0 self-destructions in 4 ships over a minute, against
  * 3 of 4 for the shipped brain) and it flies and shoots normally.
  *
- * Runs 10 and 11 scored better in the sim and are NOT wired here, because they
- * fail against a human. Both were trained against player-agility targets and
- * run 11 additionally against a 90-max-speed one, and the result brakes to a
- * standstill when the target slows: measured in the sim against a stationary
- * target, run 11 chooses full reverse on 100% of frames. Chris flies at a
- * median of 66 and stops dead to turn, so from the cockpit they simply hang
- * there spinning. See docs/TRAINING-LOG.md run 11.
+ * Runs 10 and 11 scored better in the sim and are NOT wired here. Run 11 is
+ * degenerate: it chooses forward throttle on 0% of frames against a target at
+ * ANY speed, so it hangs in space rotating and firing when a line happens to
+ * cross the player. It still scored 83% in validation, because episodes begin
+ * with the ships closing and a brain that coasts and shoots can score.
+ * r5-varied and the shipped brain both choose forward 100% of the time at
+ * every target speed. See docs/TRAINING-LOG.md run 11.
  *
  * NOT the default, and the reason is worth reading before switching it on. As
  * the ordinary pirate it kills a fully shielded commander 100% of the time in

@@ -1108,3 +1108,29 @@ actually does, and no amount of evolution against the wrong opponent fixes
 that. The next useful step is not a retrain: it is making the game feed the
 same observation the sim does, and only then fitting an opponent to Chris's
 recorded envelope.
+
+### Correction — run 11 is not speed-sensitive, it is simply degenerate
+
+The postmortem above says run 11 learned "slow target, slow down" from the
+90-max-speed opponent. That was wrong, and the test that settles it is one
+line: sample the throttle choice against targets at several speeds.
+
+| brain | tgt 0 | tgt 66 | tgt 220 | tgt 400 |
+| --- | --- | --- | --- | --- |
+| pirate-attack-r2 (shipped) | 100% | 100% | 100% | 100% |
+| pirate-attack-r5-varied | 100% | 100% | 100% | 100% |
+| **pirate-attack-r11-slow** | **0%** | **0%** | **0%** | **0%** |
+
+Percentage of frames choosing forward throttle. Run 11 never accelerates,
+against anything, ever. It is not responding to target speed at all; it is a
+degenerate policy that reached 83% validation kill rate for reasons that have
+nothing to do with flying — episodes start with the ships closing, and a brain
+that coasts and shoots can still score.
+
+That is a selection failure, not an observation mismatch, and `--validate-select`
+did not catch it because kill rate does not notice a pirate that never moves.
+Worth a guard in the trainer: reject any champion whose throttle output is
+constant.
+
+The practical consequence is unchanged. r5-varied is safe on this test and is
+what the toggle points at. r11 stays committed as evidence of the failure mode.
