@@ -88,12 +88,25 @@ vite.config.ts; add new pages there or they won't build.
    Keep new economic rules there.
 8. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
    import at build time. `git checkout src/sim/brains` restores shipped
-   weights. Shipped-in-game: **`pirate-attack-g1`** (pirates),
+   weights. Shipped-in-game: **`pirate-attack-r2`** (pirates),
    **`jameson-defend-g1`** (armed traders + anything player-assist),
-   **`pirate-pack-g1`** (organised gangs only — `npc.ts`, `this.organised ||
-   packBrainEnabled()`). `window.__legacyPirates = true` flies the
-   pre-gun-fix `pirate-attack-r2` for A/B; `window.__packBrain = true`
-   forces the pack policy on everyone.
+   **`pirate-pack-r4-selectonly`** (organised gangs only — `npc.ts`,
+   `this.organised || packBrainEnabled()`). `window.__sharpPirates = true`
+   flies generation 2 (`= 'pro'` only on tier >= 1); `window.__packBrain =
+   true` forces the pack policy on everyone.
+
+   **The generation-1/2 attackers were measured, shipped, flown and rolled
+   back.** They win on every number this project can produce — 17 shots an
+   engagement against r2's 1.3, 93% kills against a target flown the way
+   Chris flies against 0% — and he played them and said the old brain was
+   more fun. That outranks the numbers. The reason is structural, and it is
+   Chris's own observation: stopping lets you pivot and hold a firing line
+   because you stop translating past the target. It is true, the sim models
+   it faithfully, so evolution finds it — and a well-optimised pirate is a
+   turret that hangs in space and snipes. r2 is fun BECAUSE it is bad at
+   that: it flies attack runs, weaves, overshoots, and gives you a dogfight
+   you can win. **Lethality is a proxy for threat, and threat is not fun.**
+   The open problem is r2's flying with g2's gunnery.
 
    **Generation 1 is the first set trained against the gun a pirate actually
    carries**, and that is the whole story of runs 9-14 failing to transfer.
