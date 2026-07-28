@@ -46,7 +46,7 @@ const FLIGHT: { of: keyof Keymap; what: string }[] = [
 const COMMANDS: [string, string][] = [
   ['J', 'torus drive (8× speed, cuts out near mass)'],
   ['H', 'hyperspace jump to your target'],
-  ['E', 'E.C.M. — destroys incoming missiles'],
+  ['E', 'E.C.M., destroys incoming missiles'],
   ['T', 'target missile'],
   ['M', 'fire missile'],
   ['U', 'unarm missile'],
@@ -58,7 +58,7 @@ const COMMANDS: [string, string][] = [
   ['I', 'commander status'],
   ['P', 'pause'],
   ['V', 'mouse flight'],
-  ['1–4', 'views: front, rear, left, right'],
+  ['1 2 3 4', 'views: front, rear, left, right'],
   ['?', 'controls guide'],
 ];
 
@@ -80,7 +80,7 @@ if (host) {
       ${table('classic', layouts.classic)}
       ${table('modern', layouts.modern)}
     </div>
-    <h3>Commands — the same in both layouts</h3>
+    <h3>Commands, the same in both layouts</h3>
     <table class="data cmd">
       ${COMMANDS.map(([k, what]) => `<tr><td><kbd>${k}</kbd></td><td>${what}</td></tr>`).join('')}
     </table>`;
