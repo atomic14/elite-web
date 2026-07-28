@@ -709,3 +709,72 @@ would repeat it. What has changed is that the claim is now enforced instead of
 assumed: `npm test` measures both matchups and fails if either gets worse. The
 evader bound is a ceiling on today's behaviour, not a target — a retrain that
 fixes this should tighten it rather than delete it.
+
+## Run 9 — the collision retrain: it worked, and it must not ship as-is
+
+    npm run train -- attack --pool --validate-select \
+        --out pirate-attack-r5-varied --gens 400 --pop 48 --eps 8
+    npm run train -- attack --pool --pool-hold-out jameson-defend --validate-select \
+        --out pirate-attack-r5-holdout --gens 400 --pop 48 --eps 8
+
+Goal: stop `pirate-attack-r2` ramming the evader (0.94 contacts/episode, 57% of
+fights, and 17.5% of the time the pirate destroyed itself on an unarmed target).
+
+### Two failures first, both informative
+
+Training against `trader-evade-r2` alone produced a counter-brain, not a pilot:
+100% kills against that evader in 4.6s, and **9%** against the scripted trader,
+down from the shipped brain's 86.5%. Ranking by kill rate (`--select-kills`)
+made no difference; the problem was the opponent, not the selection.
+
+`--pool` turned out not to apply to the attack phase at all. It only ever fed
+the pack phase, so every "pooled" attack run had been a single-opponent run.
+Attack now honours it.
+
+### What variety actually means
+
+Chris's steer: train against a range of pilots, some who run and some who turn
+and fight. The second half was missing entirely — the attack phase never set
+`traderArmed`, so every opponent in the rotation, `jameson-defend` included,
+flew **unarmed**. The pirate was being trained exclusively against victims, and
+a pirate that has never been shot at has no reason to learn when to break off.
+
+The pool is now five: scripted hauler, scripted-but-armed, `trader-evade` (r1),
+`trader-evade-r2`, and `jameson-defend` armed.
+
+### Result — 200 episodes per cell
+
+| opponent | r2 (shipped) | r5-varied |
+| --- | --- | --- |
+| scripted trader | 92.0% / 0.10 rams | **100%** / 0.00 |
+| trader-evade r1 | 93.5% / 0.06 | 90.0% / 0.00 |
+| trader-evade r2 | 3.0% / **0.94** | 99.5% / **0.01** |
+| jameson-defend, armed | 4.0% | 77.5% |
+
+The ramming is gone. And because every opponent above was in the pool, that
+table alone proves nothing about generality, so `--pool-hold-out` exists now:
+a brain trained with `jameson-defend` excluded still kills it **44.5%** of the
+time against the shipped brain's 4.0%. Eleven times better on an opponent it
+has never met. The improvement is real, not memorised.
+
+### Why it does not ship
+
+`npm run survivability` with the new brain as the ordinary pirate:
+
+| defender | r2 (shipped) | r5-varied |
+| --- | --- | --- |
+| player, hp 3.0 | 1% killed | **100% in 6.8s** |
+| player, hp 4.0 | 0% killed | **100% in 8.4s** |
+
+Three *ordinary* pirates would kill a fully shielded commander every single
+time, which makes routine opportunists deadlier than the organised gangs
+(53% and 41% at the same hp). A new commander would die on every encounter.
+
+So this is the pack brain all over again: better on every metric and a game
+design decision rather than a metrics one. The shipped brain is unchanged.
+`pirate-attack-r5-varied` and `-r5-holdout` are committed as evidence.
+
+The obvious use, if it is wanted, is the tier ladder that already exists:
+opportunists keep `pirate-attack-r2`, professionals fly r5-varied, gangs keep
+the pack brain. That gives three genuine steps of escalation instead of two,
+and it is a playtest away.

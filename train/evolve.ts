@@ -87,30 +87,81 @@ const VALIDATE_SELECT = args.includes('--validate-select');
 
 const OBS = phase === 'pack' ? (WIDE ? PACK_WIDE_OBS_SIZE : PACK_OBS_SIZE) : OBS_SIZE;
 
+interface PoolEntry {
+  ctrl: Controller;
+  /** does this trader shoot back? */
+  armed: boolean;
+  label: string;
+}
+
 /**
- * Traders the pack trains against. Run 6 refuted "the reward is wrong"; this
- * tests the other half of that failure — a single opponent lets the pack overfit
- * to one evasion style, which is exactly how the r3 attacker collapsed.
+ * The opposition. Run 6 refuted "the reward is wrong"; this tests the other
+ * half of that failure, which is that a single opponent produces a
+ * counter-brain rather than a pilot.
+ *
+ * Variety means two different things and the pool needs both. Different
+ * BEHAVIOUR: a scripted hauler flies a predictable line, the evaders jink.
+ * And different THREAT: a trader that shoots back is a completely different
+ * problem from one that only runs, and a pirate that has never been shot at
+ * has no reason to learn when to break off.
+ *
+ * That second axis was missing entirely — the attack phase never set
+ * traderArmed, so every opponent in the rotation, jameson-defend included,
+ * flew unarmed. The pirate was being trained exclusively against victims.
  */
-const traderPool: Controller[] = (() => {
-  if (!POOL) return [{ kind: 'scripted' }];
-  const pool: Controller[] = [{ kind: 'scripted' }];
-  for (const name of ['jameson-defend', 'trader-evade-r2']) {
+/**
+ * Leave one opponent out of the pool, so it can serve as a genuinely unseen
+ * test afterwards. Without this every evaluation is in-distribution: the seeds
+ * differ but the opponents do not, and "it beats everything it trained on" is
+ * a much weaker claim than it looks.
+ */
+const HOLD_OUT = getStrArg('pool-hold-out', '');
+
+const traderPool: PoolEntry[] = (() => {
+  const scripted: PoolEntry = { ctrl: { kind: 'scripted' }, armed: false, label: 'scripted hauler' };
+  if (!POOL) return [scripted];
+  const pool: PoolEntry[] = [scripted];
+  // an armed scripted trader: predictable flying, but it shoots
+  pool.push({ ctrl: { kind: 'scripted' }, armed: true, label: 'scripted, armed' });
+  for (const [name, armed] of [
+    ['trader-evade', false],       // r1 runner
+    ['trader-evade-r2', false],    // r2 runner, a different style
+    ['jameson-defend', true],      // turns and fights
+  ] as const) {
+    if (name === HOLD_OUT) { console.log(`(pool) holding out ${name}`); continue; }
     try {
-      pool.push({ kind: 'policy', brain: loadBrain(name) });
+      pool.push({ ctrl: { kind: 'policy', brain: loadBrain(name) }, armed, label: name });
     } catch {
       console.log(`(pool) ${name} unavailable — skipping`);
     }
   }
+  console.log(`(pool) ${pool.length} opponents: ${pool.map((e) => e.label).join(', ')}`);
   return pool;
 })();
 
 function makeEpisodeFor(genome: Brain, seed: number): Episode {
   if (phase === 'attack') {
-    const trader: Controller = opponent
-      ? { kind: 'policy', brain: opponent }
-      : { kind: 'scripted' };
-    return new Episode({ seed, pirates: [{ kind: 'policy', brain: genome }], trader });
+    // --pool rotates the opponent, and for `attack` that is not a refinement,
+    // it is the difference between a brain and a counter-brain. Trained
+    // against trader-evade-r2 alone, a pirate reached 100% kills against that
+    // evader in 4.6s and then managed 9% against the scripted trader, down
+    // from the shipped brain's 86.5%. It had not learned to hunt; it had
+    // learned to beat one opponent.
+    //
+    // --opponent still pins a single trader when you want league play, and
+    // --pool takes precedence because a rotation including that opponent is
+    // strictly more information.
+    const pick: PoolEntry = POOL
+      ? traderPool[seed % traderPool.length]
+      : opponent
+        ? { ctrl: { kind: 'policy', brain: opponent }, armed: false, label: 'opponent' }
+        : { ctrl: { kind: 'scripted' }, armed: false, label: 'scripted' };
+    return new Episode({
+      seed,
+      pirates: [{ kind: 'policy', brain: genome }],
+      trader: pick.ctrl,
+      traderArmed: pick.armed,
+    });
   }
   if (phase === 'evade') {
     return new Episode({
@@ -134,7 +185,7 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
   return new Episode({
     seed,
     pirates: Array.from({ length: packSize }, () => ({ kind: 'policy' as const, brain: genome })),
-    trader: traderPool[seed % traderPool.length],
+    trader: traderPool[seed % traderPool.length].ctrl,
     traderArmed: true,
     maxTime: 60,
   });

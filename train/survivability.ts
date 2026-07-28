@@ -45,7 +45,7 @@ const DT = 1 / 15;
 const SEED_BASE = 918_273;
 
 const pack = load('pirate-pack-r4-selectonly');
-const solo = load('pirate-attack-r2');
+const solo = load(process.env.SOLO_BRAIN ?? 'pirate-attack-r2');
 const jameson = load('jameson-defend');
 
 interface Result { kill: number; ttk: number; lost: number }
