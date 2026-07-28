@@ -143,6 +143,14 @@ vite.config.ts; add new pages there or they won't build.
   prints a report of what it exercised plus any violations. Run it after
   gameplay changes: `await __playtest.run({ legs: 8 })` (~4 min).
   Inspect `__playtest.history` for the per-leg ledger.
+- `test/combat-recorder.js` records a fight a HUMAN flew, which every other
+  harness cannot: `__rec.start()`, fly, `__rec.report()`. It logs your accuracy
+  and theirs, damage both ways, and the geometry that decides whether an NPC
+  can shoot at all (distance, facing error, share of the fight lined up).
+  **Prefer it to bot-flown measurements.** Both bots mislead in opposite
+  directions: flying straight flatters freighter-trained brains, and the
+  defence policy evades superbly while shooting badly, so everything looks
+  survivable. Read-only, restores its patches on stop().
 - `train/jameson-autopilot.js` is the narrower trade-run harness behind
   docs/JAMESON-TRIALS.md: `await __auto.runTrial('Lave','Leesti',6)`.
   Both back up and restore the player's save.
