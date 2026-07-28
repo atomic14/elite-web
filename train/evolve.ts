@@ -24,9 +24,10 @@ import { mkdirSync, writeFileSync, readFileSync, appendFileSync } from 'node:fs'
 import { Episode, type Controller } from '../src/sim/scenario.ts';
 import {
   randomBrain, mutate, brainFromFile, OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
+  observe, act, makeScratch,
   type Brain, type BrainFile,
 } from '../src/sim/policy.ts';
-import { makeRng } from '../src/sim/core.ts';
+import { makeRng, makeShip, v3, q4, CLASSES } from '../src/sim/core.ts';
 
 const args = process.argv.slice(2);
 const PHASES = ['attack', 'evade', 'pack', 'defend'];
@@ -346,6 +347,46 @@ const VALIDATION_EPISODES = 24;
  * inversion was spotted. The physics changes were blamed first; they were
  * innocent.
  */
+/**
+ * Does this genome actually fly?
+ *
+ * Run 11 reached an 83% validation kill rate while choosing forward throttle on
+ * ZERO percent of frames, against a target at any speed. It sat in space
+ * rotating and shooting, and it scored because episodes begin with the ships
+ * already closing — a brain that coasts and fires can still kill things.
+ * Nothing in the selection noticed, because kill rate cannot see a pirate that
+ * never moves, and it went into the game where it was immediately obvious to a
+ * human and to nobody else.
+ *
+ * So: sample the controls the policy actually emits and reject a champion
+ * whose throttle is constant. A real pursuer varies it.
+ */
+function flies(genome: Brain): { forward: number; degenerate: boolean } {
+  const obs = new Float32Array(PACK_WIDE_OBS_SIZE);
+  const scratch = makeScratch();
+  let forward = 0;
+  let frames = 0;
+  // a spread of geometries and target speeds, not one canned setup
+  for (const targetSpeed of [0, 90, 220, 400]) {
+    for (const hull of ['traderCobra', 'playerCobra'] as const) {
+      const me = makeShip(CLASSES.pirateCobra, v3(0, 0, 1800), q4());
+      const tgt = makeShip(CLASSES[hull], v3(0, 0, 0), q4());
+      tgt.speed = targetSpeed;
+      me.speed = 200;
+      for (let i = 0; i < 60; i++) {
+        const c = act(genome, observe(me, tgt, obs), scratch);
+        if (c.throttle > 0) forward += 1;
+        frames += 1;
+        me.pos.z -= 25;
+      }
+    }
+  }
+  const share = forward / frames;
+  // Only the low end. Always accelerating is what a pursuer does — the
+  // shipped brain throttles forward 100% of the time and works fine.
+  return { forward: share, degenerate: share < 0.05 };
+}
+
 function validate(genome: Brain): { win: number; shaped: number } {
   const defending = phase === 'evade' || phase === 'defend';
   let win = 0;
@@ -366,7 +407,14 @@ if (VALIDATE_SELECT && champions.length) {
     `on ${VALIDATION_EPISODES} fixed validation seeds (base ${VALIDATION_BASE})`);
   let bestScore = -Infinity;
   let bestWin = 0;
+  let bestForward = 0;
+  let rejected = 0;
   for (const c of unique) {
+    // A champion that never varies its throttle is not a pilot, whatever it
+    // scored. Checked before the kill rate is even consulted, because the kill
+    // rate is exactly what failed to notice this in run 11.
+    const f = flies(c);
+    if (f.degenerate) { rejected += 1; continue; }
     const v = validate(c);
     const score = v.win * 1000 + Math.max(-499, Math.min(499, v.shaped));
     if (score > bestScore) {
@@ -374,11 +422,19 @@ if (VALIDATE_SELECT && champions.length) {
       bestWin = v.win;
       best = c;
       bestFitness = v.shaped;
+      bestForward = f.forward;
     }
+  }
+  if (rejected) {
+    console.log(`rejected ${rejected} of ${unique.length} champions for constant throttle ` +
+      `(see flies(): run 11 shipped one of these)`);
+  }
+  if (bestScore === -Infinity) {
+    console.log('EVERY champion was degenerate — nothing worth saving from this run');
   }
   const metric = (phase === 'evade' || phase === 'defend') ? 'survival' : 'kill';
   console.log(`selected champion: ${(bestWin * 100).toFixed(0)}% validation ${metric} rate ` +
-    `(shaped ${bestFitness.toFixed(2)})`);
+    `(shaped ${bestFitness.toFixed(2)}, throttles forward ${(bestForward * 100).toFixed(0)}% of the time)`);
 }
 
 const out: BrainFile = {

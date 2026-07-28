@@ -64,6 +64,13 @@ can also play a commander all the way to **E L I T E** (25,600 kills) in
 about 20 seconds, under three different strategies — `trader`, `hunter`,
 `privateer` — which is how the combat ladder below was measured.
 
+Two more harnesses live in `test/`. **`combat-recorder.js`** logs a fight you
+fly yourself — your accuracy and theirs, damage both ways, and the geometry
+that decides whether an NPC can shoot at all. **`arena.js`** spawns repeatable
+waves and measures your flight envelope. Both exist because every bot-flown
+measurement in this project turned out to be shaped by the bot: flying straight
+flatters one kind of AI, flying the defence policy flatters another.
+
 There's also an **autonomous playtest agent** (`test/playtest.js`): paste it
 into the browser console with the game open and `await __playtest.run({
 legs: 8 })` sends a commander off to take contracts, trade, fight, jump and
@@ -287,9 +294,18 @@ are freshly-made approximations in the spirit of the originals.
 ## Roadmap
 
 [docs/GAP-ANALYSIS.md](docs/GAP-ANALYSIS.md) tracks feature-by-feature parity
-with the original manual — almost all of it is now implemented. Remaining:
-side laser mounts, gamepad / pointer-lock mouse flight, and the two-level
-"living galaxy" simulation sketched in
-[docs/AI-TRAINING.md](docs/AI-TRAINING.md). AI-wise: pack-phase round 3
-(reward shaping ideas in docs/TRAINING-LOG.md) and putting the defence brain
-behind a purchasable in-game "combat computer".
+with the original manual, and almost all of it is implemented — including the
+things this section used to list as outstanding: side laser mounts, mouse
+flight, the two-level living galaxy, the purchasable combat computer, and pack
+training (now at round 11).
+
+Remaining: gamepad support, the last few hulls, and a decision on two combat
+questions that are measured but not settled — whether organised gangs are too
+weak (0 player deaths in 36 recorded fights), and whether the pack brain should
+become their default.
+
+One finding worth reading before touching combat AI, from
+[docs/TRAINING-LOG.md](docs/TRAINING-LOG.md): pirates line up on a human player
+about 5% of the time, and land 88% of the shots they do take. Doubling that 5%
+kills the player. The balance rests on pursuit being imperfect, so "better"
+pursuit is not automatically better.

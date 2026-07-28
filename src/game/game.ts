@@ -2220,6 +2220,10 @@ export class Game {
         else if (i.pressed('KeyN')) this.openLocalChart('docked');
         else if (i.pressed('KeyG')) this.openChart('docked');
         else if (i.pressed('KeyI')) this.openStatus('docked');
+        // The menu has advertised "D DATA ON SYSTEM" all along with nothing
+        // behind it while docked — the only KeyD handlers were on the charts
+        // and the save screen. Reports the system you are standing on.
+        else if (i.pressed('KeyD')) this.openSystemData(this.system, 'docked');
         else if (i.pressed('KeyX')) this.exportSave();
         else if (i.pressed('KeyZ')) this.importSave();
         else if (i.pressed('KeyB')) {
