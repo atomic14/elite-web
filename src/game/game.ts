@@ -2985,6 +2985,36 @@ export class Game {
       }
     }
 
+    // Nearest hostile, for the off-screen threat arrow. Same projection as
+    // the docking port marker: project into clip space, and mirror it when the
+    // ship is behind us so the arrow points backwards rather than at its
+    // reflection through the camera.
+    let threatMarker: import('../hud/hud').HudState['threatMarker'] = null;
+    if (this.mode === 'flight' && !this.witchspace) {
+      let nearest: NpcShip | null = null;
+      let best = Infinity;
+      let count = 0;
+      for (const npc of this.npcs) {
+        if (!isHostileToPlayer(npc, this.commander.legalStatus)) continue;
+        const d = npc.object.position.distanceTo(this.player.position);
+        if (d > 9000) continue;
+        count += 1;
+        if (d < best) { best = d; nearest = npc; }
+      }
+      if (nearest) {
+        this.tmp3.copy(nearest.object.position);
+        const toward = this.tmp2.copy(this.tmp3).sub(this.player.position);
+        const behind = toward.dot(this.player.getForward(this.tmp)) <= 0;
+        this.tmp3.project(this.camera);
+        threatMarker = {
+          x: behind ? -this.tmp3.x : this.tmp3.x,
+          y: behind ? -this.tmp3.y : this.tmp3.y,
+          behind,
+          count,
+        };
+      }
+    }
+
     // target brackets: ships in front of the current view, plus a lead
     // marker on the locked one (laser bolts are instant, but the target
     // keeps moving while you line up, so show where it will be)
@@ -3045,6 +3075,7 @@ export class Game {
         shipId,
         dockAid,
         slotMarker,
+        threatMarker,
         assist: this.ccEngaged,
         armed: this.missileArmed,
         stationInRange:

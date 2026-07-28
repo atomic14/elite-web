@@ -64,6 +64,8 @@ export interface HudState {
    * view — the marker becomes an arrow rather than a bracket.
    */
   slotMarker: { x: number; y: number; behind: boolean } | null;
+  /** nearest hostile, for the off-screen threat arrow; `count` = hostiles near */
+  threatMarker: { x: number; y: number; behind: boolean; count: number } | null;
   /** combat computer engaged (shown in the view label slot) */
   assist: boolean;
   /** missile armed but not yet locked (yellow pylon) */
@@ -191,6 +193,7 @@ export class Hud {
     // corners of the screen is worse than one. dockAid survives purely as the
     // source of that lined-up state.
     this.drawSlotMarker(state.slotMarker, state.dockAid?.inSlot ?? false);
+    this.drawThreatMarker(state.threatMarker);
     this.drawScanner(playerPos, playerQuat, contacts);
     this.drawCompass(playerPos, playerQuat, compassTarget);
   }
@@ -262,6 +265,54 @@ export class Hud {
    * screen edge when it isn't. Drawn on the reticle canvas, which drawTargets
    * has already cleared this frame.
    */
+  /**
+   * An arrow at the edge of the screen pointing at something you cannot see.
+   *
+   * Shared by the docking port and the nearest hostile, because it is the same
+   * question in both cases — "which way do I turn?" — and it should look and
+   * behave identically whichever is asking.
+   */
+  private drawEdgeArrow(marker: { x: number; y: number }, colour: string, label: string): void {
+    const ctx = this.reticle;
+    const w = ctx.canvas.width;
+    const h = ctx.canvas.height;
+    ctx.strokeStyle = colour;
+    ctx.fillStyle = colour;
+    const len = Math.max(1e-3, Math.hypot(marker.x, marker.y));
+    const nx = marker.x / len;
+    const ny = marker.y / len;
+    const ex = (nx * 0.82 * 0.5 + 0.5) * w;
+    const ey = (-ny * 0.82 * 0.5 + 0.5) * h;
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(Math.atan2(-ny, nx));
+    ctx.beginPath();
+    ctx.moveTo(16, 0);
+    ctx.lineTo(-8, -9);
+    ctx.lineTo(-8, 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.font = '10px Menlo, Consolas, monospace';
+    ctx.fillText(label, ex - label.length * 3, ey + 26);
+  }
+
+  /**
+   * Red arrow towards the nearest hostile, when it is not on screen.
+   *
+   * Only when off screen: a ship you can see already has brackets round it,
+   * and an arrow pointing at something in plain view is noise. Off screen it
+   * answers the question that actually gets you killed — being shot from
+   * somewhere you are not looking.
+   */
+  private drawThreatMarker(marker: HudState['threatMarker']): void {
+    if (!marker) return;
+    const onScreen = !marker.behind
+      && Math.abs(marker.x) <= 1 && Math.abs(marker.y) <= 1;
+    if (onScreen) return;
+    this.drawEdgeArrow(marker, '#ff4d4d', marker.count > 1 ? `THREAT x${marker.count}` : 'THREAT');
+  }
+
   private drawSlotMarker(marker: HudState['slotMarker'], inSlot: boolean): void {
     if (!marker) return;
     const ctx = this.reticle;
@@ -291,25 +342,7 @@ export class Hud {
       return;
     }
 
-    // off-screen: clamp to the edge and draw an arrow pointing that way
-    const len = Math.max(1e-3, Math.hypot(marker.x, marker.y));
-    const nx = marker.x / len;
-    const ny = marker.y / len;
-    const ex = (nx * 0.82 * 0.5 + 0.5) * w;
-    const ey = (-ny * 0.82 * 0.5 + 0.5) * h;
-    const a = Math.atan2(-ny, nx);
-    ctx.save();
-    ctx.translate(ex, ey);
-    ctx.rotate(a);
-    ctx.beginPath();
-    ctx.moveTo(16, 0);
-    ctx.lineTo(-8, -9);
-    ctx.lineTo(-8, 9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    ctx.font = '10px Menlo, Consolas, monospace';
-    ctx.fillText('SLOT', ex - 12, ey + 26);
+    this.drawEdgeArrow(marker, colour, 'DOCKING PORT');
   }
 
   private drawScanner(
