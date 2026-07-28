@@ -50,6 +50,7 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       <div data-key="KeyG"><b>G</b> GALACTIC CHART</div>
       <div data-key="KeyD"><b>D</b> DATA ON SYSTEM</div>
       <div data-key="KeyI"><b>I</b> COMMANDER STATUS</div>
+      <div data-key="KeyH"><b>H</b> NEW PILOT'S BRIEFING</div>
     </div>
     <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; S COMMANDER FILE &middot; X EXPORT &middot; Z IMPORT &middot; Q NEW COMMANDER</div>
   `);
@@ -60,6 +61,102 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
  * destroyed and points at the export key first — this is the only action in
  * the game that throws away a career.
  */
+/**
+ * The in-game briefing: what to actually DO, for someone who has never played.
+ *
+ * Deliberately short and paged rather than one long screen. Somebody reading
+ * this is stuck right now and wants the next action, not a manual — the manual
+ * exists, at /manual.html, and this points at it. Six pages is about the limit
+ * of what anyone reads before wanting to fly.
+ */
+const BRIEFING: { title: string; body: string }[] = [
+  {
+    title: 'WHERE YOU ARE',
+    body: `You are docked at a space station in your own Cobra Mk III, with
+      100 credits and no reputation at all.<br/><br/>
+      Nobody will give you a mission or tell you where to go. You make money by
+      hauling cargo between worlds that want different things, and you spend it
+      on a better ship, and that is the whole game. The only score that matters
+      is your combat rating, which starts at <b>Harmless</b>.<br/><br/>
+      Everything on this menu is a letter key. <b>&uarr; &darr;</b> and
+      <b>ENTER</b> work too.`,
+  },
+  {
+    title: 'MAKE SOME MONEY',
+    body: `Press <b>M</b> for the market.<br/><br/>
+      Worlds are short of what they do not make. <b>Agricultural</b> worlds sell
+      food, textiles, liquor and furs cheaply. <b>Industrial</b> worlds sell
+      machinery, computers and alloys cheaply — and each pays well for the
+      other's goods.<br/><br/>
+      So: buy a hold full of something cheap here, and sell it somewhere with
+      the opposite economy. <b>Contracts</b> (<b>C</b>) pay better than plain
+      cargo for the same trip, but they have deadlines.`,
+  },
+  {
+    title: 'CHOOSE A DESTINATION',
+    body: `Press <b>N</b> for the short range chart.<br/><br/>
+      The dashed circle is how far your fuel will take you — 7 light years on a
+      full tank. Anything inside it you can reach.<br/><br/>
+      Move the cursor with the <b>arrow keys</b>, press <b>ENTER</b> to set your
+      target, <b>D</b> for a full report on a world, and <b>F</b> to search by
+      name. Look for an economy opposite to this one.`,
+  },
+  {
+    title: 'FLY THERE',
+    body: `<b>L</b> to launch, then <b>H</b> to jump once you are clear of the
+      station.<br/><br/>
+      You come out of hyperspace a long way from the planet. Point at it and
+      press <b>J</b> for the torus drive — eight times speed. It cuts out near
+      anything with mass: a planet, a station, or somebody who has come to meet
+      you.<br/><br/>
+      Watch the scanner in the middle of the console. You are the centre. Red
+      contacts are hostile.`,
+  },
+  {
+    title: 'DOCKING',
+    body: `The hard part, and everybody finds it hard at first.<br/><br/>
+      The station <b>rotates</b>, and so does its docking port. An amber marker
+      shows where the port is, with an arrow at the edge of the screen when it
+      is behind you.<br/><br/>
+      Get onto the axis straight out from the port, then <b>roll until you match
+      its rotation</b> — the opening is a letterbox and you must be the same way
+      up as it. Then go in slowly. The marker turns green when you are lined
+      up.<br/><br/>
+      When you can afford one, buy a <b>docking computer</b> and press <b>C</b>.`,
+  },
+  {
+    title: 'STAYING ALIVE',
+    body: `Pirates want your cargo and they size you up first — a fat hold on a
+      soft ship draws a crowd. Anarchies are the worst.<br/><br/>
+      <b>Y</b> jettisons cargo, and it genuinely works: a pirate who gets paid
+      loses interest. <b>E</b> fires the E.C.M. and kills incoming missiles.
+      Your shields recharge, so turning to put a fresh face towards an attacker
+      buys real time.<br/><br/>
+      Police care about contraband and about who shot first.<br/><br/>
+      The full manual, with a first-run worked example and rather more besides,
+      is at <b>/manual.html</b>.`,
+  },
+];
+
+/** How many pages the briefing has, so the Game can clamp without importing it. */
+export const BRIEFING_PAGES = BRIEFING.length;
+
+export function renderBriefing(page: number): void {
+  const p = BRIEFING[Math.max(0, Math.min(BRIEFING.length - 1, page))];
+  const n = BRIEFING.length;
+  const dots = BRIEFING.map((_, i) =>
+    `<span class="${i === page ? 'on' : ''}">&bull;</span>`).join('');
+  show(`
+    <h2>${p.title}</h2>
+    <div class="rule"></div>
+    <div class="info brief">${p.body}</div>
+    <div class="pager">${dots} &nbsp; ${page + 1} / ${n}</div>
+    <div class="keyline">
+      &larr; &rarr; TURN THE PAGE &middot; ESC CLOSE &middot; FULL MANUAL AT /manual.html
+    </div>
+  `);
+}
+
 export function renderNewGameConfirm(sys: StarSystem, c: CommanderData): void {
   show(`
     <h2>NEW COMMANDER</h2>

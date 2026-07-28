@@ -451,6 +451,11 @@ body.screen-open #screen { top: 50%; max-height: 88vh; }
   color: var(--hud-green);
 }
 
+/* new pilot's briefing */
+#screen .brief { max-width: 38em; margin: 6px auto 0; text-align: left; line-height: 1.95; }
+#screen .pager { text-align: center; color: var(--hud-dim); font-size: 12px; margin-top: 14px; letter-spacing: 2px; }
+#screen .pager span.on { color: var(--hud-green); }
+
 /* clickable screen affordances */
 #screen .menu div[data-key] { cursor: pointer; padding: 0 8px; border-left: 2px solid transparent; }
 #screen .menu div[data-key]:hover { background: rgba(77, 255, 92, 0.14); border-left-color: var(--hud-green); }

@@ -81,10 +81,11 @@ import {
   hideScreen, renderDockedMenu, renderNewGameConfirm, renderSaves, renderNaming, renderMarket, renderStatus, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
   renderGameOver, renderSystemData, renderContracts, describeContract, nearestSystem,
+  renderBriefing, BRIEFING_PAGES,
   distanceTenths, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE, type ChartState,
 } from '../ui/screens';
 
-type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'dead';
+type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
 
 const LASER_RANGE = 3500;
 const LASERS: Record<LaserType, { damage: number; cooldown: number; heat: number }> = {
@@ -194,6 +195,8 @@ export class Game {
   private pendingNewGame = false;
   /** cursor position for arrow-key menu navigation (see handleMenuCursor) */
   private menuSelected = 0;
+  /** page of the new pilot's briefing */
+  private briefPage = 0;
   private saveSelected = 0;
   private nameBuffer = '';
   /** the reception the current system laid on — surfaced for the HUD/tests */
@@ -2191,6 +2194,11 @@ export class Game {
           this.pendingNewGame = true;
           renderNewGameConfirm(this.system, this.commander);
         }
+        else if (i.pressed('KeyH')) {
+          this.mode = 'briefing';
+          this.briefPage = 0;
+          renderBriefing(this.briefPage);
+        }
         else if (i.pressed('KeyS')) this.openSaves();
         else if (i.pressed('KeyN')) this.openLocalChart('docked');
         else if (i.pressed('KeyG')) this.openChart('docked');
@@ -2203,6 +2211,24 @@ export class Game {
           renderDockedMenu(this.system, this.commander, this.missionText());
         }
         break;
+
+      case 'briefing': {
+        // Left/right rather than up/down: these are pages, and the menu cursor
+        // owns up/down. Clamped, not wrapped — wrapping from the last page back
+        // to the first reads as "you missed something".
+        const last = BRIEFING_PAGES - 1;
+        if (i.pressed('ArrowRight') || i.pressed('Enter')) {
+          this.briefPage = Math.min(last, this.briefPage + 1);
+          renderBriefing(this.briefPage);
+        } else if (i.pressed('ArrowLeft')) {
+          this.briefPage = Math.max(0, this.briefPage - 1);
+          renderBriefing(this.briefPage);
+        } else if (i.pressed('Escape') || i.pressed('KeyH')) {
+          this.mode = 'docked';
+          renderDockedMenu(this.system, this.commander, this.missionText());
+        }
+        break;
+      }
 
       case 'market':
         this.handleMarketInput();

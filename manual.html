@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ELITE — Space Trader's Flight Training Manual</title>
+    <meta name="description" content="How to fly, trade, fight and survive. Plus a short novella and papers from the eight galaxies." />
+    <link rel="stylesheet" href="/src/manual.css" />
+  </head>
+  <body>
+    <nav id="toc">
+      <a class="brand" href="/">◄ LAUNCH</a>
+      <a href="#start">First Flight</a>
+      <a href="#ship">Your Ship</a>
+      <a href="#controls">Controls</a>
+      <a href="#trade">Trading</a>
+      <a href="#jump">Hyperspace</a>
+      <a href="#dock">Docking</a>
+      <a href="#trouble">Trouble</a>
+      <a href="#kit">Equipment</a>
+      <a href="#ranks">Ratings</a>
+      <a href="#novella">The Long Way Out</a>
+      <a href="#papers">Papers</a>
+    </nav>
+
+    <main>
+      <header>
+        <h1>ELITE</h1>
+        <p class="sub">Space Trader's Flight Training Manual</p>
+        <p class="issued">Issued to Commander Jameson on graduation · Lave Station · Galactic Co-operative of Worlds</p>
+      </header>
+
+      <section id="start">
+        <h2>Your First Flight</h2>
+        <p>
+          You have a Cobra Mk III, one hundred credits, a pulse laser and no
+          reputation whatsoever. Nobody is going to tell you what to do next —
+          that is rather the point. But here is a first hour that works.
+        </p>
+        <ol class="steps">
+          <li><b>Buy cargo.</b> Press <kbd>M</kbd> at the station for the market.
+            Lave is a rich agricultural world, so its food, textiles, liquor and
+            furs are cheap. Buy something and fill the hold.</li>
+          <li><b>Pick somewhere to sell it.</b> <kbd>N</kbd> opens the short
+            range chart. Anything inside the dashed circle is within your fuel.
+            Industrial worlds pay well for what agricultural worlds grow.</li>
+          <li><b>Target it and jump.</b> Move the cursor with the arrow keys,
+            press <kbd>ENTER</kbd> to target, then <kbd>L</kbd> to launch and
+            <kbd>H</kbd> to make the jump.</li>
+          <li><b>Fly to the station.</b> You arrive a long way out. Point at the
+            planet and press <kbd>J</kbd> for the torus drive; it cuts out near
+            anything solid, including pirates.</li>
+          <li><b>Dock.</b> Line up with the rotating port and go in slowly.
+            See <a href="#dock">Docking</a> — it is the hardest thing you will
+            do today.</li>
+          <li><b>Sell, refuel, repeat.</b> And this time buy a little more.</li>
+        </ol>
+        <div class="box">
+          <h3>A worked first run</h3>
+          <p>
+            From Lave with the standard hundred credits, computed against this
+            game's own market model:
+          </p>
+          <table class="data">
+            <tr><th>Buy</th><th>At</th><th>Sell at</th><th>Jump</th><th>Profit</th></tr>
+            <tr><td>19t Alien Items</td><td>97.3 Cr</td><td>Reorte</td><td>4.4 LY</td><td>+22.8 Cr</td></tr>
+            <tr><td>20t Liquor/Wines</td><td>46.4 Cr</td><td>Zaonce</td><td>5.7 LY</td><td>+16.0 Cr</td></tr>
+            <tr><td>20t Liquor/Wines</td><td>46.4 Cr</td><td>Leesti</td><td>3.8 LY</td><td>+12.0 Cr</td></tr>
+          </table>
+          <p class="note">
+            Prices drift from day to day, so treat these as the shape of a good
+            run rather than a timetable. A full tank costs under three credits,
+            so it is fine to spend nearly everything on cargo.
+          </p>
+        </div>
+        <p class="warn">
+          You will also see fat margins on <b>Narcotics</b> and <b>Slaves</b>.
+          Those are illegal. Carrying them makes you a target for the police,
+          and getting caught costs more than the run is worth — until you know
+          what you are doing, and then it is your business.
+        </p>
+      </section>
+
+      <section id="ship">
+        <h2>Your Ship</h2>
+        <p>
+          A Cobra Mk III. Fast, tough enough, and with a hold big enough to make
+          a living. Everything on the console tells you something that will
+          eventually keep you alive.
+        </p>
+        <dl class="facts">
+          <dt>Fore / Aft shields</dt>
+          <dd>Take damage before your hull does, and recharge on their own. They
+            are directional: a ship behind you drains the aft bar. Turning to
+            face an attacker puts a fresh shield between you and it.</dd>
+          <dt>Energy</dt>
+          <dd>Four banks. What is left after your shields fail — when it reaches
+            zero you are dead. Also fuels the ECM and the energy bomb, so
+            burning it defensively is a real trade.</dd>
+          <dt>Fuel</dt>
+          <dd>Seven light years, in tenths. Only hyperspace consumes it; flying
+            about a system is free. Refuel at any station, or skim a sun if you
+            have fuel scoops and steady nerves.</dd>
+          <dt>Cabin temperature</dt>
+          <dd>Rises near a sun. Ignore it and you cook.</dd>
+          <dt>Laser temperature</dt>
+          <dd>Rises as you fire. Let it max out and the laser cuts out exactly
+            when you need it — fire in bursts.</dd>
+          <dt>Scanner</dt>
+          <dd>The ellipse at the centre of the console. You are the middle; the
+            stalks show whether a contact is above or below you. Red is hostile,
+            green is not, yellow is the station.</dd>
+        </dl>
+      </section>
+
+      <section id="controls">
+        <h2>Controls</h2>
+        <p>
+          Two layouts. <b>Classic</b> is the 1984 BBC Micro scheme and the
+          default; <b>Modern</b> is WASD. Toggle with <kbd>B</kbd> when docked.
+          Arrow keys fly in both, flight-style — pull back to climb.
+        </p>
+        <div id="controls-table">
+          <p class="note">Loading bindings…</p>
+        </div>
+        <p class="note">
+          These tables are generated from the game's own keymap, so they cannot
+          fall out of step with what your keyboard actually does.
+        </p>
+      </section>
+
+      <section id="trade">
+        <h2>Trading</h2>
+        <p>
+          The whole economy turns on one idea: <b>worlds are short of what they
+          do not make</b>. Every commodity has a price that slides with the
+          local economy, and the two ends of that slide are where your money is.
+        </p>
+        <div class="two">
+          <div class="box">
+            <h3>Buy on agricultural worlds</h3>
+            <p>Food · Textiles · Liquor/Wines · Furs</p>
+            <p class="note">Grown cheaply where there is land, wanted badly where there is not.</p>
+          </div>
+          <div class="box">
+            <h3>Buy on industrial worlds</h3>
+            <p>Machinery · Computers · Alloys · Luxuries</p>
+            <p class="note">Made cheaply where there are factories, wanted badly where there are none.</p>
+          </div>
+        </div>
+        <p>
+          So the classic run is a short hop between neighbours at opposite ends
+          of that scale, carrying one thing out and a different thing back.
+          Poor worlds have the sharpest prices and the worst company.
+        </p>
+        <p>
+          <b>Contracts</b> (<kbd>C</kbd> when docked) pay better than cargo for
+          the same journey — deliveries, courier work, and bounties on pirates.
+          They have deadlines. Missing one costs you the fee and some standing.
+        </p>
+      </section>
+
+      <section id="jump">
+        <h2>Hyperspace &amp; the Charts</h2>
+        <p>
+          <kbd>N</kbd> gives the short range chart — your neighbourhood, with a
+          dashed circle showing exactly how far your remaining fuel will take
+          you. <kbd>G</kbd> gives the whole galaxy: 256 worlds, all of them
+          real, all of them generated the same way they were in 1984.
+        </p>
+        <p>
+          Move the cursor with the arrows, <kbd>ENTER</kbd> to set your target,
+          <kbd>D</kbd> for a full report on the world under the cursor, and
+          <kbd>F</kbd> to search by name. Then <kbd>H</kbd> in flight to jump.
+        </p>
+        <p>
+          You arrive at the witch-point, a long way out from the planet, and the
+          journey in is part of the game. That is what the torus drive
+          (<kbd>J</kbd>) is for. It disengages near anything with mass — a
+          planet, a station, or somebody who wants your cargo.
+        </p>
+      </section>
+
+      <section id="dock">
+        <h2>Docking</h2>
+        <p>
+          The single most feared manoeuvre in space, and rightly. The station
+          rotates. The docking port rotates with it. You have to arrive lined up
+          with a slot that will not hold still.
+        </p>
+        <ol class="steps">
+          <li>Approach the face with the port on it. An amber marker shows where
+            the port is, with an arrow at the screen edge when it is behind you.</li>
+          <li>Get on the axis — straight out from the port, not off to one side.</li>
+          <li><b>Roll to match the port's rotation.</b> This is the part people
+            miss. The opening is a letterbox, and your ship has to be the same
+            way up as it is.</li>
+          <li>Slow down. Then go in. The marker turns green and reads
+            <span class="ok">DOCKING PORT — LINED UP</span> when you have it.</li>
+        </ol>
+        <p>
+          Get it wrong and you bounce off the hull with a bang and a dent in
+          your shields. Get it wrong at speed and you die.
+        </p>
+        <p class="warn">
+          When you have the money, buy a <b>docking computer</b>. It is the
+          least glamorous purchase in the catalogue and the one that will do
+          most for your quality of life.
+        </p>
+      </section>
+
+      <section id="trouble">
+        <h2>Trouble</h2>
+        <dl class="facts">
+          <dt>Pirates</dt>
+          <dd>They want your cargo, and they size you up before committing —
+            a fat hold and a soft ship draws a crowd. Anarchies are worst.</dd>
+          <dt>Jettison (<kbd>Y</kbd>)</dt>
+          <dd>Throwing cargo out genuinely works. A pirate who gets paid loses
+            interest; this is an escape, not a donation.</dd>
+          <dt>ECM (<kbd>E</kbd>)</dt>
+          <dd>Destroys incoming missiles. Costs energy. A missile you do not
+            answer will take most of your shields with it.</dd>
+          <dt>Police</dt>
+          <dd>Vipers, and they are good. They care about contraband and about
+            who shot first. Shoot a clean ship near a station and you will find
+            out how good.</dd>
+          <dt>The law</dt>
+          <dd>Your legal status follows you across the galaxy. Offender is
+            inconvenient; fugitive means every Viper in the system.</dd>
+          <dt>Gangs</dt>
+          <dd>Organised, well-equipped and coordinated — they fly as a unit
+            rather than a mob. You will not meet one until you are worth the
+            trouble. Consider that a compliment and then consider leaving.</dd>
+        </dl>
+      </section>
+
+      <section id="kit">
+        <h2>Equipment, roughly in the order worth buying it</h2>
+        <ol class="steps">
+          <li><b>Large cargo bay</b> — every run earns more, immediately.</li>
+          <li><b>Fuel scoops</b> — free fuel from suns, and lets you collect
+            cargo canisters from things you have shot.</li>
+          <li><b>Beam laser</b> — the first upgrade that changes fights.</li>
+          <li><b>E.C.M. system</b> — the answer to missiles.</li>
+          <li><b>Docking computer</b> — see above. Buy it.</li>
+          <li><b>Escape pod</b> — cheap insurance. You lose the cargo and the
+            ship; you keep being alive.</li>
+          <li><b>Extra energy unit</b> — faster recharge, which in a long fight
+            is worth more than it sounds.</li>
+          <li><b>Military laser, galactic hyperdrive, energy bomb</b> — for when
+            money is no longer the problem.</li>
+        </ol>
+        <p class="note">
+          Stations only sell what their tech level supports. The good things are
+          on the high-tech worlds, which are usually the safe ones.
+        </p>
+      </section>
+
+      <section id="ranks">
+        <h2>Ratings</h2>
+        <p>
+          Your combat rating is the only score that matters, and it moves
+          slowly. It starts at <b>Harmless</b> and ends, for almost nobody, at
+          <b>E L I T E</b>.
+        </p>
+        <p class="ladder">
+          Harmless · Mostly Harmless · Poor · Average · Above Average ·
+          Competent · Dangerous · Deadly · <b>E L I T E</b>
+        </p>
+        <p>
+          Tougher opponents count for more, so the ladder is climbed by picking
+          harder fights, not more of them. Reaching the top is the whole game.
+          Most commanders die Competent.
+        </p>
+      </section>
+
+      <section id="novella">
+        <h2>The Long Way Out</h2>
+        <p class="byline">A story of the eight galaxies</p>
+
+        <h3>I. Lave</h3>
+        <p>
+          The tree grubs of Lave are the size of a forearm and taste, everyone
+          agrees, of nothing much at all. Kaira Vell had spent four years
+          packing them into crates on the equatorial plantations, and in all
+          that time the only thing she had learned worth knowing was that the
+          crates went up and almost nothing came back down.
+        </p>
+        <p>
+          She watched them go from the loading yard: a freighter lifting through
+          the rain haze every afternoon at four, dwindling to a bright point,
+          gone. Someone was up there. Someone was always up there, and it was
+          never anybody from the plantations.
+        </p>
+        <p>
+          The ship cost her everything. It was a Cobra Mk III with a hundred
+          thousand hours on the frame, a pulse laser that had been fitted twice
+          and repaired four times, and a previous owner who had signed the
+          transfer without once looking up. The station clerk gave her a hundred
+          credits of settlement money, a fuel tank filled to seven light years,
+          and a manual she never read.
+        </p>
+        <p>
+          She had expected to feel something at the transfer. What she felt,
+          mostly, was the specific dread of having no plantation to go back to.
+        </p>
+        <p>
+          "First ship?" the clerk said.
+        </p>
+        <p>
+          "Does it show?"
+        </p>
+        <p>
+          "You're the only one smiling." He stamped the transfer. "Rating,
+          harmless. Don't take that personally, everybody starts there. Some
+          people stay."
+        </p>
+
+        <h3>II. Diso</h3>
+        <p>
+          She filled the hold with liquor because it was cheap and because the
+          chart said Diso was three and a half light years away and industrial
+          enough to be thirsty. The jump itself was nothing — a lurch, a smear
+          of light, and then a different sun in a different place, hanging there
+          as though it had always been hers to look at.
+        </p>
+        <p>
+          What nobody had told her was how far out you arrive. The planet sat
+          ahead of her like a coin held at arm's length, and it stayed that size
+          for a very long time. She learned the torus drive from the panel
+          markings, the way you learn anything when there is nobody to ask, and
+          she learned it a second time twenty minutes later when it cut out
+          without warning and dropped her back to a crawl.
+        </p>
+        <p>
+          The reason it had cut out was drifting a thousand metres off her port
+          side, and it was a Sidewinder, and it was already turning.
+        </p>
+        <p>
+          Here is what nobody tells you about the first time. It is not
+          frightening in the way you have rehearsed. There is no music. There is
+          a shape on a screen that was not there before, and a small polite
+          chime, and an enormous quantity of time in which to make one decision
+          badly.
+        </p>
+        <p>
+          She was not brave. She wants that on the record. She hauled the
+          throttle back, opened the cargo hatch, and threw eleven tonnes of
+          decent Lavian brandy into the dark. The Sidewinder broke off to gather
+          it up. It never fired a shot, and neither did she, and she reached
+          Diso Station four hours later with an empty hold, forty credits, and
+          her hands still shaking on the stick.
+        </p>
+        <p>
+          She sold nothing at Diso, because she had nothing to sell, and spent
+          two days in the station bar working out what she had actually learned.
+          It came to three things. Pirates want the cargo more than they want
+          you. A pulse laser is not an argument. And the reason the old hands
+          all fly the same three routes is not that they lack imagination.
+        </p>
+        <p>
+          The docking took her six attempts. On the fifth, she understood at
+          last that the station was turning and she was not, and that the
+          letterbox would never come to her — she had to become the same shape
+          as it. On the sixth she went in clean, and the bay lights swallowed
+          her whole, and she sat in the silence afterwards for a full minute
+          before she could unclench her hands.
+        </p>
+        <p>
+          Afterwards she sat in the bay and laughed until it turned into
+          something else, and then she went and found a terminal and looked up
+          how much a docking computer cost. It was four hundred credits. She had
+          forty. She wrote the number on the back of the transfer papers and
+          carried it around for eight months.
+        </p>
+
+        <h3>III. The Milk Run</h3>
+        <p>
+          Leesti to Zaonce is three and a half light years and the most boring
+          stretch of space in the eight galaxies, which is exactly why it made
+          her.
+        </p>
+        <p>
+          Leesti is industrial and poor; Zaonce is industrial and rich and runs
+          the banks that own most of what passes between them. Nobody grows
+          anything on either. So the trade is furs and liquor in one direction
+          and computers in the other, and the margins are thin, and the run is
+          safe, and you can do it four times a week until you have enough money
+          to do something stupid.
+        </p>
+        <p>
+          Kaira did it for five months. She learned the market the way you learn
+          a language you are not being taught: that prices move day to day, that
+          a world with a poor economy pays more for what it cannot make, that
+          the fat margins on the board at any given moment are usually
+          contraband, and that the two commodities with the best returns in the
+          entire galaxy will get your hold scanned at the first station with
+          police worth the name.
+        </p>
+        <p>
+          She also learned the thing that is not in any manual, which is that
+          the run is where you practise. Every approach to Zaonce Station was a
+          docking she did not have to survive. By the end of the third month she
+          was going in at speed without thinking about it, matching the roll on
+          the way down the axis, and the six attempts at Diso had become a story
+          she told against herself.
+        </p>
+        <p>
+          Beam laser. Large bay. Fuel scoops. E.C.M. In that order, because in
+          that order each one paid for the next. She never did buy the docking
+          computer.
+        </p>
+
+        <h3>IV. Riedquat</h3>
+        <p>
+          Four months later she had a beam laser, a large bay, and a habit of
+          checking the scanner before she checked anything else. She had also
+          acquired the specific arrogance of a pilot who has survived exactly
+          enough to be dangerous to herself.
+        </p>
+        <p>
+          Riedquat is an anarchy. Everyone knows this. The chart says so, the
+          bulletins say so, and the old hands in the Diso bar said so at some
+          length, which is probably why she went.
+        </p>
+        <p>
+          They came out of the dark on the way in — three of them, in good ships,
+          spread wide enough that turning to face one meant turning her back on
+          the others. That was the moment she understood the difference between
+          pirates and a <em>gang</em>. Pirates are opportunists who happen to be
+          in the same place. These flew like a single animal with three heads.
+        </p>
+        <p>
+          She had time to think, with great clarity, that the arithmetic had
+          changed — that everything she knew about pirates had been learned from
+          opportunists, and that these were something else, and that the
+          difference was going to be measured in seconds.
+        </p>
+        <p>
+          Her aft shield went in the first eight seconds. She rolled, hard, put
+          the fresh face towards them, and ran for the planet with everything
+          the drive had, and the only reason she is alive is that the station's
+          Vipers were already scrambling, and that pirates who have decided the
+          arithmetic has changed are entirely willing to leave.
+        </p>
+        <p>
+          She docked with her energy in the last bank and a hole where a fuel
+          scoop used to be. The mechanic looked at the damage and then at her.
+        </p>
+        <p>
+          "Riedquat," he said. Not a question.
+        </p>
+        <p>
+          "I wanted to see it."
+        </p>
+        <p>
+          "Everybody wants to see it." He was already writing the bill. "Rating?"
+        </p>
+        <p>
+          "Competent, as of this morning."
+        </p>
+        <p>
+          "And you went to Riedquat." He tore off the top copy. "Look. The
+          rating goes up when you take fights you could lose. It doesn't say
+          anything about fights you couldn't win. Those are just dying with
+          extra steps."
+        </p>
+        <p>
+          He laughed at that — not unkindly, the way you laugh at somebody who
+          has just told you they are halfway up a mountain when you can see the
+          rest of it behind them.
+        </p>
+
+        <h3>V. Tionisla</h3>
+        <p>
+          There is a graveyard at Tionisla. It is not a metaphor. Two thousand
+          ships in slow orbit, hulls opened to vacuum, name-plates still legible
+          if you fly close enough — and pilots do fly close enough, all the
+          time, because the one thing every commander wants to know is what the
+          end looks like.
+        </p>
+        <p>
+          Kaira went at the end of her first year, on a whim she could not
+          explain. She took the ship in slow among them, running dark, reading
+          the plates. Traders. Bounty hunters. A Constrictor with its whole
+          spine laid open. A Cobra Mk III much like hers, older, with the name
+          <em>Second Thoughts</em> across the nose, and beside it, welded to the
+          frame by somebody who had known the owner, a plate that just read:
+          <span class="quote">SHE WAS COMPETENT, AND THEN SHE WASN'T.</span>
+        </p>
+        <p>
+          She sat with that for a while.
+        </p>
+        <p>
+          The graveyard is very quiet. That is the part people leave out of the
+          story afterwards, because it is not dramatic and it is the only thing
+          you actually remember: two thousand ships, absolutely still, and the
+          only sound your own air handling. Every one of them had been somebody
+          who filled a hold at Lave and thought, right, and went.
+        </p>
+        <p>
+          She thought about the clerk, who had been kind, and had been telling
+          her the truth, and had been wrong about which part mattered. Most
+          commanders make Competent and stop. That is not a warning. It is a
+          description of the exact place where the game either ends or begins,
+          and it is a choice, and almost nobody notices they are making it.
+        </p>
+        <p>
+          Then she turned the ship around, laid in a course for the far side of
+          the chart, and went looking for the rest of the mountain.
+        </p>
+        <p class="endmark">— and that is where you come in.</p>
+      </section>
+
+      <section id="papers">
+        <h2>Papers from the Eight Galaxies</h2>
+        <p class="note">
+          Collected documents. Some of this is useful; some of it is what people
+          say to each other in bars and print anyway.
+        </p>
+
+        <article class="doc">
+          <h3>GalCop Advisory 114-C: Reception Committees</h3>
+          <p class="meta">Galactic Co-operative of Worlds · Office of Trade Safety · circulated to all registered hulls</p>
+          <p>
+            Analysis of eleven thousand incidents finds that piracy is not
+            random. Attackers assess a target before committing, and the
+            assessment is mostly arithmetic: <b>what is aboard</b>, <b>what it
+            would cost to take it</b>, and increasingly, <b>who you are</b>.
+          </p>
+          <p>
+            Commanders are reminded that a visibly armed ship is attacked less
+            often, and that the deterrent effect of a military laser considerably
+            exceeds its firing value. Commanders of established reputation are
+            advised of the corresponding hazard: a proportion of encounters are
+            no longer attempts on your cargo but attempts on your name. These
+            are better equipped, better coordinated, and will not be bought off
+            with jettisoned goods.
+          </p>
+          <p class="meta">Jettison remains effective against ordinary opportunists. It has no effect on a challenge.</p>
+        </article>
+
+        <article class="doc">
+          <h3>The Tionisla Chronicle — Obituaries</h3>
+          <p class="meta">Two hundred and forty-first year of the Co-operative</p>
+          <p>
+            <b>ORRIN VASSE</b>, of Leesti, at Riedquat, aboard <em>Margin Call</em>.
+            Vasse ran the Leesti–Zaonce circuit for nineteen years without once
+            being fired upon, a record he attributed to leaving before he had
+            to. He is survived by a docking computer he never fitted, on the
+            grounds that he would get round to it. Interment at Tionisla, third
+            ring.
+          </p>
+          <p>
+            <b>"CAPTAIN" MEHL SORROWAY</b>, of nowhere he would confirm, at
+            Ensoreus. Sorroway claimed on four separate occasions to have flown
+            with the Dark Wheel. The Chronicle notes that on each occasion the
+            claim was made after the third drink and before the bill.
+          </p>
+        </article>
+
+        <article class="doc">
+          <h3>Pilot's log — <em>Second Thoughts</em>, final pages</h3>
+          <p class="meta">Recovered at Tionisla. Reproduced by permission of the estate.</p>
+          <p class="log">
+            <b>Day 402.</b> Zaonce. Fitted the beam laser. Cannot now afford the
+            escape pod. Told myself the laser means I won't need one, which I
+            notice is the sort of thing I would once have found funny.
+          </p>
+          <p class="log">
+            <b>Day 418.</b> Three of them at Usleti, and they did not come at me
+            one at a time. That is the part nobody writes down. You train against
+            one ship because one ship is what you can imagine. Then there are
+            three and they are all in the wrong place at once.
+          </p>
+          <p class="log">
+            <b>Day 419.</b> Aft shield still down to a third by morning. Ship's
+            computer keeps telling me the recharge rate is nominal. Nominal is
+            doing a great deal of work in that sentence.
+          </p>
+          <p class="log">
+            <b>Day 431.</b> Made Deadly today. Nobody to tell.
+          </p>
+        </article>
+
+        <article class="doc">
+          <h3>Notice — Lave Station Trade Board</h3>
+          <p class="meta">Posted daily. Do not remove.</p>
+          <p>
+            Commanders are reminded that <b>narcotics and slaves are prohibited
+            cargo</b> throughout Co-operative space and that ignorance of a
+            hold's contents is not a defence. Scanning is routine within station
+            approach. Penalties escalate with quantity and with prior record.
+          </p>
+          <p class="meta">
+            Commanders are further reminded that the higher margins on prohibited
+            cargo are not a discount offered by the Co-operative but a premium
+            charged by the people who will eventually catch you.
+          </p>
+        </article>
+
+        <article class="doc">
+          <h3>On the Dark Wheel</h3>
+          <p class="meta">Collected bar-talk, unverifiable, printed for completeness</p>
+          <p>
+            Everyone has met somebody who has met somebody. They fly ships that
+            do not appear in any registry. They recruit, supposedly, by watching
+            — never by asking. Every commander who has ever been offered a
+            hyperspace beacon by a stranger in a station bar believes they were
+            being tested, and every one of them tells the story as though they
+            passed.
+          </p>
+          <p class="meta">
+            The Chronicle's position is that the Dark Wheel is what pilots
+            invented so that being very good at this would mean something.
+            The Chronicle's position has never once persuaded anybody.
+          </p>
+        </article>
+      </section>
+
+      <footer>
+        <p>
+          A fan remake of Elite (1984) by David Braben and Ian Bell. Not
+          affiliated with, endorsed by, or connected to the original authors or
+          rights holders. The fiction here is original to this project.
+        </p>
+        <p><a href="/">◄ Back to the game</a></p>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/manual.ts"></script>
+  </body>
+</html>

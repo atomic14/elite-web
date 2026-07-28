@@ -54,6 +54,17 @@ export function keymap(): Keymap {
   return LAYOUTS[active];
 }
 
+/**
+ * Both layouts, for the manual page.
+ *
+ * CLAUDE.md lists four places key bindings live and asks for them to be
+ * changed together; the manual would have been a fifth. It renders from this
+ * instead, so it cannot drift — a binding changed here is changed there.
+ */
+export function allLayouts(): Record<LayoutName, Keymap> {
+  return LAYOUTS;
+}
+
 export function layoutName(): LayoutName {
   return active;
 }

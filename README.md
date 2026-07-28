@@ -75,6 +75,16 @@ lint or tests fails the deploy build rather than shipping.
 You start docked at Lave Station with 100.0 Cr, a full tank and 3 missiles.
 Progress saves automatically every time you dock.
 
+## New to Elite?
+
+There is a **[Space Trader's Flight Training Manual](manual.html)** — how to
+trade, jump, dock and survive, a worked first run computed from the game's own
+market model, plus an original novella and some papers from the eight galaxies.
+Served at `/manual.html` alongside the game.
+
+In-game, **H** at the station opens a six-page new pilot's briefing, and **?**
+shows the controls at any time.
+
 ## Controls
 
 Two flight layouts ship. **CLASSIC — the authentic 1984 keys — is the
