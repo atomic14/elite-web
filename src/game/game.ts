@@ -1015,7 +1015,9 @@ export class Game {
         .addScaledVector(slotN, 500 + i * 120)
         .add(new THREE.Vector3().randomDirection().multiplyScalar(80));
       const viper = this.spawnNpc('police', pos, i);
-      viper.provoked = true; // launched specifically for you
+      // launched specifically for you, so this one IS your business
+      viper.provoked = true;
+      viper.provokedByPlayer = true;
     }
     this.hud.showMessage('STATION DEFENCE LAUNCHED', 4);
     sfx.beep(300, 0.18);

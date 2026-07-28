@@ -301,8 +301,13 @@ export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
   if (npc.satisfied) return false;
   return (
     npc.role === 'pirate' || npc.role === 'thargoid' || npc.role === 'thargon' ||
-    (npc.role === 'police' && (legalStatus >= 2 || npc.provoked)) ||
-    (npc.role === 'hunter' && (legalStatus >= 1 || npc.provoked))
+    // provokedBY PLAYER, not provoked. takeDamage() flags `provoked` for any
+    // damage from any source, so a Viper trading fire with a pirate — or one
+    // that clipped an asteroid — used to decide a clean commander was fair
+    // game. Chris flew into exactly that: a police ship mid-fight with another
+    // NPC turned on him as though he were a fugitive.
+    (npc.role === 'police' && (legalStatus >= 2 || npc.provokedByPlayer)) ||
+    (npc.role === 'hunter' && (legalStatus >= 1 || npc.provokedByPlayer))
   );
 }
 
@@ -414,6 +419,7 @@ export class NpcShip {
   readonly maxHp: number;
   alive = true;
   /** Set when the player damages this ship. */
+  /** hit by anything at all — police do NOT read this, see isHostileToPlayer */
   provoked = false;
   /** True when it was specifically the player who attacked us. */
   provokedByPlayer = false;

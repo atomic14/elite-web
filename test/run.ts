@@ -375,6 +375,34 @@ console.log('\ncollision rates');
   }
 }
 
+// --- police only care about what YOU did ------------------------------------
+
+// takeDamage() sets `provoked` for damage from ANY source, including another
+// NPC. isHostileToPlayer() used to read that flag, so a Viper fighting a
+// pirate turned on a clean commander — which is what Chris flew into while
+// approaching a station. The distinction already existed (`provokedByPlayer`,
+// used for the chase logic) and only the hostility test was wrong.
+//
+// Asserted at source level because npc.ts touches `window` at module scope
+// and cannot be imported under node.
+
+console.log('\npolice hostility');
+{
+  const src = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  const npcSrc = src('../src/game/npc.ts');
+  const gameSrc = src('../src/game/game.ts');
+  const hostile = npcSrc.slice(npcSrc.indexOf('export function isHostileToPlayer'),
+    npcSrc.indexOf('export interface NpcSpec'));
+  check('police read provokedByPlayer, not provoked',
+    /police' && \(legalStatus >= 2 \|\| npc\.provokedByPlayer\)/.test(hostile));
+  check('bounty hunters read provokedByPlayer, not provoked',
+    /hunter' && \(legalStatus >= 1 \|\| npc\.provokedByPlayer\)/.test(hostile));
+  check('no bare `npc.provoked` left in the hostility test',
+    !/npc\.provoked[^B]/.test(hostile));
+  check('station defence vipers still come for you',
+    /viper\.provokedByPlayer = true/.test(gameSrc));
+}
+
 // --- sim/game combat parity (invariant 2) -----------------------------------
 
 // The combat numbers exist twice — src/sim/core.ts and src/game/{npc,game}.ts

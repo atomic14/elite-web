@@ -143,7 +143,7 @@
 
   const hostiles = () => g.npcs.filter((n) => n.alive
     && (n.role === 'pirate' || n.role === 'thargoid' || n.role === 'thargon'
-        || ((n.role === 'police' || n.role === 'hunter') && n.provoked))
+        || ((n.role === 'police' || n.role === 'hunter') && n.provokedByPlayer))
     && n.object.position.distanceTo(g.player.position) < 9000);
 
   function patch() {
