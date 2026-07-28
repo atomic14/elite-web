@@ -646,7 +646,12 @@ export class Game {
    */
   /** @internal — driven by test/playtest.js */
   newCommanderGame(): void {
-    localStorage.removeItem('elite-web-commander');
+    // deleteSlot, NOT removeItem('elite-web-commander'). That was the key
+    // saves lived at before slots existed; since the refactor they live at
+    // 'elite-web-commander:<slot>', so this deleted nothing at all and the
+    // reload loaded the same commander straight back — you asked to start
+    // again and got your old ship, cargo and equipment.
+    deleteSlot(currentSlot());
     location.reload();
   }
 
@@ -663,7 +668,12 @@ export class Game {
         if (typeof parsed.credits !== 'number' || typeof parsed.systemIndex !== 'number') {
           throw new Error('not a commander file');
         }
-        localStorage.setItem('elite-web-commander', JSON.stringify(parsed));
+        // Same stale key as newCommanderGame had, and worse here: writing to
+        // the legacy key meant the import was ignored (slot 1 already exists,
+        // so the migration skips it) AND then deleted, because
+        // migrateLegacySave clears that key on the next boot. The imported
+        // commander vanished without a word.
+        saveCommander(parsed as CommanderData, currentSlot());
         location.reload(); // boot cleanly from the imported save
       } catch {
         this.hud.showMessage('IMPORT FAILED — NOT A COMMANDER FILE', 4);
