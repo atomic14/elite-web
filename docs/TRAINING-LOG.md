@@ -1259,3 +1259,99 @@ suspect for why nothing transfers: **a policy whose win condition is a burst
 the game's guns cannot produce.** Aligning the sim's laser to the NPC fire rate
 invalidates all six shipped brains, so it is a decision rather than a fix.
 Shipped brains are unchanged: pirates still fly `pirate-attack-r2`.
+
+## Run 15 — generation 1: the gun
+
+Chris: *"do it."*
+
+The sim gave every ship the player's pulse laser. The game's NPCs carry
+something else entirely, and the mismatch ran in both directions at once:
+
+| | sim (`LASER`) | game (`npc.ts` + `resolveNpcFire`) |
+| --- | --- | --- |
+| firing gate | ~0.027 rad (cone at 2000) | 0.25 rad |
+| cadence | 0.24s | 0.9 + rand*0.8, mean 1.30s |
+| hit | deterministic cone test | dice on range, capped 0.85 |
+| damage/s when lined up | 0.667 | 0.041 |
+
+Training therefore paid for precision aim the game never asks for, while the
+game needs a patience the sim never modelled. Every attack run since round 1
+was fitted to a weapon that does not exist.
+
+The confirmation was immediate and slightly grim. Replayed under the real gun,
+the brain the game had been shipping all along:
+
+| pirate | kills | shots per episode | it died |
+| --- | --- | --- | --- |
+| statue (never moves) | 93% | 19.2 | — |
+| scripted chase AI | 56% | 6.7 | — |
+| **pirate-attack-r2 (shipped)** | **2%** | **1.9** | — |
+
+One-point-nine shots in a 45-second engagement. That is not a subtle
+regression, it is Chris's bug report reproduced in a test harness: *"I met a
+gecko and sidewinder — neither of them shot at me, even though they seemed to
+point right at me."* Six rounds of training never saw it, because the sim was
+measuring a different weapon.
+
+### The fix
+
+`core.ts` gains `NPC_GUN` beside `LASER`, and `ShipClass.gun` selects between
+them; pirate and trader hulls declare `gun: 'npc'`. Shots are stochastic but
+driven by the episode's seeded rng, so episodes stay reproducible. `test/run.ts`
+now asserts cadence, gate, hit cap and damage are **equal** across sim and
+game, where it used to document a 5.4x ratio as a known gap.
+
+All four brains retrained against it — `trader-evade-g1`, `jameson-defend-g1`,
+`pirate-attack-g1`, `pirate-pack-g1`. On 250 held-out episodes (seed base
+4410907, not the training stream nor either validation base):
+
+| target | r2 | g1 |
+| --- | --- | --- |
+| knife-fight, as Chris flies (playerCobraSlow) | 0% | 93% |
+| player, full speed | 0% | 79% |
+| runner, player speed | 0% | 1% |
+| freighter | 2% | 97% |
+
+Shots fired per engagement went from 1.3 to 17.0. The runner column is the
+reassuring one: a commander who simply leaves still gets away 99% of the time,
+because pirates do 260/300 against the player's 400 and no amount of training
+changes arithmetic.
+
+Two things came out of the wiring that were not part of the plan:
+
+- **The target-speed constant is gone.** `npc.ts` passed a hardcoded 300
+  because the brains had only ever seen a freighter near 220 and Chris flies at
+  a median of 66. The comment set its own condition for removal — "a retrain
+  with target speed sampled across the envelope a human actually flies" — and
+  the g1 pool spans 90, 220 and 400 speed hulls plus two runners. It now passes
+  `player.speed`.
+- **The knife-range dead zone is gone.** `RAM_GUARD` switches a pirate's guns
+  off inside 220 units, which is exactly where Chris fights (median engagement
+  range 260, 10th percentile 214). It was the right trade for brains that
+  kamikazed; g1 destroys itself in 1-9% of engagements against r2's 36-73%, so
+  it gets `RAM_GUARD_NO_RAM` (90) instead. Fixing the gun would have achieved
+  little if pirates still went silent at the range the fight happens.
+
+### Balance is not settled, and the harness says so
+
+`npm run survivability`, corrected for the commander's real durability:
+
+| pirates | hp 3.0 (one face) | hp 4.0 (both shields) |
+| --- | --- | --- |
+| 1 | 25% in 40.0s | 1% |
+| 2 | 98% in 25.5s | 89% |
+| 3 | 100% in 17.4s | 100% |
+
+One pirate is a long, survivable fight, which is right. Two at 89-98% is
+hotter than the 50%-for-a-gang-of-three this project previously aimed at.
+
+Before anyone tunes on that number: **the defender in that table loses 0.0-0.3
+pirates per fight.** It barely shoots back, where Chris kills them. It is the
+same trap CLAUDE.md warns about, pointed the other way — the bot is again the
+thing deciding the answer. The old brains measured 0-2% here, so the honest
+summary is "the late game went from no threat to an unflown amount of threat".
+
+Fly it before tuning it. If it needs a lever, the legible numbers are
+`NPC_COOLDOWN_LO/SPREAD`, the 0.85 hit cap and the 0.25 gate — all now mirrored
+in `NPC_GUN` and asserted equal by the tests — not the flying, which is
+emergent and would take the balance with it.

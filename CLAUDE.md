@@ -88,26 +88,34 @@ vite.config.ts; add new pages there or they won't build.
    Keep new economic rules there.
 8. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
    import at build time. `git checkout src/sim/brains` restores shipped
-   weights. Shipped-in-game: `pirate-attack-r2` (pirates), `jameson-defend`
-   (armed traders + anything player-assist). `pirate-pack-r4-selectonly`
-   **now ships, for organised gangs only** (`npc.ts` — `this.organised ||
-   packBrainEnabled()`): opportunists and professionals fly the solo brain,
-   a tier-2 gang of 3+ flies the pack policy. `window.__packBrain = true`
-   still forces it on everyone, for A/B.
-   That split is the balance answer, and it is measured. Beware the
-   tournament's headline "kills a defended target in 0.7s": its defender is
-   `traderCobra`, hp 1.0, and the sim has **no shields**, while the player
-   soaks 3-4x that (fore/aft shields 1.0 each, then energy at 2 per point).
-   Correct for it (`npm run survivability`) and a gang of 3 kills a commander
-   **50% of the time in 4.5s**, 38% if they keep both shields working — a
-   real fight with time to answer, not an execution. The same correction
-   shows why gangs must exist: opportunists on the solo brain kill a shielded
-   commander 0-2% of the time, so without them the late game has no threat.
-   Gangs are gated on fame — a new commander never meets one; by E L I T E
-   they are 34-45% of receptions. Still unflown in the real game, where ECM,
-   the escape pod, torus and RAM_GUARD all favour the player, so treat 50% as
-   the floor. Lever if it needs one: `organised` in contracts.ts, not the
-   brain. See docs/TRAINING-LOG.md runs 7 and 8.
+   weights. Shipped-in-game: **`pirate-attack-g1`** (pirates),
+   **`jameson-defend-g1`** (armed traders + anything player-assist),
+   **`pirate-pack-g1`** (organised gangs only — `npc.ts`, `this.organised ||
+   packBrainEnabled()`). `window.__legacyPirates = true` flies the
+   pre-gun-fix `pirate-attack-r2` for A/B; `window.__packBrain = true`
+   forces the pack policy on everyone.
+
+   **Generation 1 is the first set trained against the gun a pirate actually
+   carries**, and that is the whole story of runs 9-14 failing to transfer.
+   The sim handed every ship the player's pulse laser — 0.24s cadence through
+   a ~0.027 rad cone, deterministic hits — where `npc.ts` gives an NPC 1.30s
+   through a 0.25 rad gate and then rolls dice on range. Lined up, 0.667
+   damage/second against 0.041. `src/sim/core.ts` now models both as
+   `LASER` and `NPC_GUN`, hulls declare `gun`, and `test/run.ts` asserts
+   cadence, gate, hit cap and damage are EQUAL rather than documenting a
+   5.4x ratio. Change one side, change the other (invariant 2).
+
+   Balance is NOT settled. Under the real gun the old brains kill a shielded
+   commander 0-2% of the time — the late game had no threat, which is what
+   playing it felt like. The new ones, in the corrected-durability harness
+   (`npm run survivability`), go 25% for one pirate at hp 3.0, 98% for two,
+   100% for three. That is hotter than the 50%-for-a-gang-of-three the
+   project previously aimed at, but the sim's defender loses only 0.0-0.3
+   pirates a fight where a human kills them, so it understates the player
+   badly. **Fly it before tuning it** (`test/arena.js`, `test/combat-recorder.js`).
+   If it needs a lever, prefer the legible numbers — `NPC_COOLDOWN_LO/SPREAD`,
+   the 0.85 hit cap, the 0.25 gate, all mirrored in `NPC_GUN` — over the
+   flying, which is emergent. See docs/TRAINING-LOG.md runs 12-15.
 9. **The trainer's `--validate-select` flag matters more than it looks.**
    Without it, the final brain is chosen by comparing scores across
    generations that used *different* episode seeds — that picks the luckiest
@@ -122,12 +130,11 @@ vite.config.ts; add new pages there or they won't build.
   loop to simulate time (browser rAF throttles in background tabs — manual
   stepping is the reliable way in automation).
 - `window.__scriptedPirates = true` disables all NPC brains (A/B testing).
-- `window.__sharpPirates = true` flies run 9's attacker on every pirate;
-  `= 'pro'` only on professionals and gangs (tier >= 1), leaving opportunists
-  on the shipped brain. Measured in the real game with test/gang-trial.js,
-  three *unorganised* pirates: shipped brain kills a fully equipped commander
-  0% of 8 trials, run 9's brain 63%, mean 3.4 seconds. It is off by default
-  for that reason, and 'pro' is the configuration worth playtesting.
+- `window.__legacyPirates = true` flies the pre-gun-fix `pirate-attack-r2` on
+  every pirate (`= 'pro'` only on tier >= 1). It is the control, not a
+  difficulty setting: under the real gun it fires about one shot per
+  engagement and dies in 65% of its own ambushes. Use it to A/B the new
+  brains in one session with test/gang-trial.js.
 - `window.__cheat = true` fits anything from the equipment catalogue, free and
   at any tech level — playtesting only. A console handle rather than a key
   binding, deliberately: nobody should reach it by accident.

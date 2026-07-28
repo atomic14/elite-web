@@ -9,10 +9,10 @@ import { Episode, type ShotEvent } from '../sim/scenario';
 import { brainFromFile, randomBrain, type BrainFile } from '../sim/policy';
 import { makeRng, type SimShip, forward } from '../sim/core';
 import pirateR1BrainFile from '../sim/brains/pirate-attack.json';
-import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
+import pirateBrainFile from '../sim/brains/pirate-attack-g1.json';
 import traderBrainFile from '../sim/brains/trader-evade.json';
 import packBrainFile from '../sim/brains/pirate-pack.json';
-import defendBrainFile from '../sim/brains/jameson-defend.json';
+import defendBrainFile from '../sim/brains/jameson-defend-g1.json';
 
 // Combat viewer: replays the training environment with the real wireframe
 // ships, so trained behaviour can be watched (and compared to baselines).

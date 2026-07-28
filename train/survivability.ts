@@ -44,9 +44,9 @@ const DT = 1 / 15;
 // this is not scoring on seeds anything was selected against
 const SEED_BASE = 918_273;
 
-const pack = load('pirate-pack-r4-selectonly');
+const pack = load(process.env.PACK_BRAIN ?? 'pirate-pack-r4-selectonly');
 const solo = load(process.env.SOLO_BRAIN ?? 'pirate-attack-r2');
-const jameson = load('jameson-defend');
+const jameson = load(process.env.DEFEND_BRAIN ?? 'jameson-defend');
 
 interface Result { kill: number; ttk: number; lost: number }
 

@@ -11,15 +11,20 @@ import {
 } from '../sim/policy';
 import { TURN } from '../sim/core';
 import { planDocking, makeDockPlan, type DockPlan } from './docking';
-import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
-import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
-import sharpBrainFile from '../sim/brains/pirate-attack-r5-varied.json';
-import defendBrainFile from '../sim/brains/jameson-defend.json';
+import pirateBrainFile from '../sim/brains/pirate-attack-g1.json';
+import packBrainFile from '../sim/brains/pirate-pack-g1.json';
+import legacyBrainFile from '../sim/brains/pirate-attack-r2.json';
+import defendBrainFile from '../sim/brains/jameson-defend-g1.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
-// We ship the league round-2 brain: it beats evasive targets 98% of the time
-// (round 1 scored 0% vs them) while still taking non-evaders 90% — and human
-// players fly evasively.
+//
+// Generation 1 of the brains trained against the gun a pirate actually
+// carries. Every earlier round was fitted to the player's pulse laser —
+// firing every 0.24s through a 0.027 rad cone — while the game gives NPCs
+// 1.30s and a 0.25 rad gate. Replayed under the real gun, the brain this
+// replaces fires 1.3 shots in an entire engagement and kills 0% of targets,
+// which is precisely how it felt to fly against.
+//
 // Pirates fly with it at a 10 Hz decision rate; set `window.__scriptedPirates
 // = true` to compare against the old scripted AI.
 const PIRATE_BRAIN: Brain | null = (() => {
@@ -31,33 +36,19 @@ const PIRATE_BRAIN: Brain | null = (() => {
 })();
 
 /**
- * Run 9's attacker, and the last experimental brain that actually works in the
- * game. It does not ram (0 self-destructions in 4 ships over a minute, against
- * 3 of 4 for the shipped brain) and it flies and shoots normally.
+ * The brain that shipped before the gun was modelled correctly, kept so the
+ * two can be flown against each other in the same session.
  *
- * Runs 10 and 11 scored better in the sim and are NOT wired here. Run 11 is
- * degenerate: it chooses forward throttle on 0% of frames against a target at
- * ANY speed, so it hangs in space rotating and firing when a line happens to
- * cross the player. It still scored 83% in validation, because episodes begin
- * with the ships closing and a brain that coasts and shoots can score.
- * r5-varied and the shipped brain both choose forward 100% of the time at
- * every target speed. See docs/TRAINING-LOG.md run 11.
+ *   window.__legacyPirates = true    every pirate flies the old brain
  *
- * NOT the default, and the reason is worth reading before switching it on. As
- * the ordinary pirate it kills a fully shielded commander 100% of the time in
- * under seven seconds, where the shipped brain manages 1%. That makes routine
- * opportunists deadlier than organised gangs, which is backwards.
- *
- *   window.__sharpPirates = true     every pirate flies it
- *   window.__sharpPirates = 'pro'    only professionals and gangs (tier >= 1),
- *                                    opportunists keep the shipped brain
- *
- * The 'pro' setting is the interesting one: it is the tier ladder the game
- * already has, giving three steps of escalation instead of two.
+ * It is not a fallback and not a difficulty setting. Under the real gun it
+ * fires roughly one shot per engagement, kills a shielded commander 0-2% of
+ * the time, and dies in 65% of its own ambushes. It exists as a control: if
+ * the new brains ever feel wrong, this is what "wrong" used to look like.
  */
-const SHARP_BRAIN: Brain | null = (() => {
+const LEGACY_BRAIN: Brain | null = (() => {
   try {
-    return brainFromFile(sharpBrainFile as unknown as BrainFile);
+    return brainFromFile(legacyBrainFile as unknown as BrainFile);
   } catch {
     return null;
   }
@@ -131,10 +122,14 @@ const RAM_GUARD = 220;
  * while pirates come past at 290-310, so every pass crosses the dead zone and
  * three tier-1 ships managed ZERO shots in 33 seconds.
  *
- * Run 10's brain does not need the guard: measured at 0 self-destructions in
- * 4 ships over a minute, against 3 of 4 for the shipped brain. So when it is
- * flying, the guard shrinks to the point where a collision is actually
- * imminent and the ship keeps its guns until then.
+ * The generation-1 brains do not need the guard: they destroy themselves in
+ * 1-9% of engagements, against 36-73% for the brain they replace. So they get
+ * the tight guard — it shrinks to the point where a collision is actually
+ * imminent, and the ship keeps its guns until then.
+ *
+ * This matters more than it looks. Fixing the gun would have achieved nothing
+ * if pirates still went silent inside 220 units, because 220 units is where
+ * Chris fights.
  */
 const RAM_GUARD_NO_RAM = 90;
 
@@ -168,10 +163,10 @@ function packBrainEnabled(): boolean {
   return !!(window as unknown as Record<string, unknown>).__packBrain;
 }
 
-/** Which pirates, if any, fly run 9's sharper attacker. See SHARP_BRAIN. */
-function sharpBrainFor(tier: number): boolean {
-  const flag = (window as unknown as Record<string, unknown>).__sharpPirates;
-  if (!flag || !SHARP_BRAIN) return false;
+/** Which pirates, if any, fly the pre-gun-fix brain. See LEGACY_BRAIN. */
+function legacyBrainFor(tier: number): boolean {
+  const flag = (window as unknown as Record<string, unknown>).__legacyPirates;
+  if (!flag || !LEGACY_BRAIN) return false;
   return flag === 'pro' ? tier >= 1 : true;
 }
 
@@ -510,28 +505,33 @@ export class NpcShip {
     const aggressiveToPlayer = isHostileToPlayer(this, playerLegal) && distPlayer < 9000;
 
     if (aggressiveToPlayer) {
-      const sharp = sharpBrainFor(this.threatTier);
-      const guard = sharp ? RAM_GUARD_NO_RAM : RAM_GUARD;
+      const legacy = legacyBrainFor(this.threatTier);
+      // The old brain kamikazed and needs the wide guard; the new ones do
+      // not, and get to keep their guns down to knife range — which is the
+      // range Chris actually fights at. See RAM_GUARD_NO_RAM.
+      const guard = legacy ? RAM_GUARD : RAM_GUARD_NO_RAM;
       if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()
           && distPlayer >= guard) {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
-        const solo = sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
-        // A CONSTANT, and it has to stay one until the brains are retrained.
+        const solo = legacy ? LEGACY_BRAIN! : PIRATE_BRAIN;
+        // The player's REAL speed, at last.
         //
-        // Passing the player's true speed looks like the obvious fix, and it
-        // broke the game: observe() feeds `target.speed / 400` to the network,
-        // and every brain was fitted against a freighter cruising near 220, so
-        // that input has only ever been about 0.55. Chris flies at a median of
-        // 66 and stops dead to turn, which is 0.165 or zero. Out of
-        // distribution, the policies degenerate and the pirates hang in space
-        // spinning on the spot.
+        // This was hardcoded to 300 because observe() feeds `target.speed/400`
+        // to the network and every brain had been fitted against a freighter
+        // cruising near 220 — so the input had only ever been about 0.55.
+        // Chris flies at a median of 66 and stops dead to turn, which is 0.165
+        // or zero: out of distribution, and the policies degenerated into
+        // hanging in space spinning on the spot. 300 was a lie told to keep
+        // them inside the range they knew.
         //
-        // 300 is a lie, but it is a lie inside the range they were trained on.
-        // The honest fix is a retrain with target speed sampled across the
-        // envelope a human actually flies, and then this becomes player.speed.
+        // The condition that comment set for removing the lie was "a retrain
+        // with target speed sampled across the envelope a human actually
+        // flies". The generation-1 pool spans 90, 220 and 400 speed hulls plus
+        // two runners, so the brains have now seen the whole range, and the
+        // legacy brain stays one flag away (__legacyPirates) for comparison.
         return this.brainFly(pack ? PACK_BRAIN : solo, dt,
-          player.position, player.quaternion, 300, distPlayer, 'player',
+          player.position, player.quaternion, player.speed, distPlayer, 'player',
           pack ? fleet : null);
       }
       // Inside knife range the scripted break-off takes over — see RAM_GUARD.
