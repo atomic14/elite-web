@@ -13,6 +13,11 @@ nominative use and is the point. The in-game `E L I T E` combat rank stays: it
 describes gameplay, not the product. Site is https://harmless.atomic14.com, repo is
 github.com/atomic14/harmless.
 
+**Link to pages WITHOUT the .html.** Cloudflare Pages serves clean URLs and
+308-redirects `/play.html` to `/play`, so a canonical or sitemap entry ending
+in .html points at a redirect — which is an SEO error, not a cosmetic one.
+Vite's dev server serves both forms, so extensionless links work locally too.
+
 **The `elite-web-*` localStorage keys are NOT branding and must never be
 renamed** — `elite-web-commander:<slot>`, `elite-web-slot`, `elite-web-keymap`.
 They are where every existing player's commander lives; renaming them orphans
@@ -22,8 +27,8 @@ Import earlier. They stay as they are, forever.
 ## Commands
 
 ```sh
-npm run dev        # landing at localhost:5173 · game at /play.html
-                   # viewer at /viewer.html · manual + novella at /manual.html, /novella.html
+npm run dev        # landing at localhost:5173 · game at /play
+                   # viewer at /viewer · manual + novella at /manual, /novella
 npm run lint       # tsc --noEmit over src/, train/ and test/
 npm run check      # lint + tests — what `prebuild` runs
 npm run build      # prebuild (lint + test) then vite build → dist/

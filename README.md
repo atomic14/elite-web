@@ -36,10 +36,10 @@ the [combat viewer](docs/TRAINING-LOG.md).*
 
 ```sh
 npm install
-npm run dev     # http://localhost:5173            (landing page)
-                # http://localhost:5173/play.html   (the game)
-                # http://localhost:5173/viewer.html (AI combat viewer)
-                # /manual.html · /novella.html      (manual and story)
+npm run dev     # http://localhost:5173         (landing page)
+                # http://localhost:5173/play    (the game)
+                # http://localhost:5173/viewer  (AI combat viewer)
+                # /manual · /novella            (manual and story)
 npm run build   # lint + tests (via prebuild), then production build to dist/
 npm run train -- attack --gens 400   # retrain the pirate AI (Node ≥ 22.6; see train/README.md)
 npm run evaluate                     # held-out tournament for the current brains
@@ -83,9 +83,9 @@ Progress saves automatically every time you dock.
 
 ## New to Elite?
 
-There is a **[Space Trader's Flight Training Manual](manual.html)** — how to
+There is a **[Space Trader's Flight Training Manual](https://harmless.atomic14.com/manual)** — how to
 trade, jump, dock and survive, with a first run worked out against the game's
-own market model — and **[The Long Way Out](novella.html)**, an original
+own market model — and **[The Long Way Out](https://harmless.atomic14.com/novella)**, an original
 novella with papers from the eight galaxies.
 
 In-game, **H** at the station opens a six-page new pilot's briefing, and **?**
