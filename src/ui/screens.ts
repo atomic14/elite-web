@@ -358,19 +358,28 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
 
   ctx.clearRect(0, 0, w, h);
 
-  // fuel range ellipse
-  ctx.strokeStyle = '#1d6b26';
+  // Fuel range. An ellipse is correct HERE — unlike the short-range chart —
+  // because sx and sy scale the two axes independently to fit the whole galaxy
+  // into the canvas, so a circle in light years is not a circle in pixels.
+  //
+  // Semi-axes are R*sx and R*sy with R = fuel/4, and nothing else. There used
+  // to be an extra *0.5 on the y radius, which halved the drawn reach
+  // north/south: audited against distanceTenths across all 256 systems, it put
+  // 4 of the 9 systems actually in range OUTSIDE the marker. With the correct
+  // radii the drawn ellipse and the real rule agree exactly, both ways.
+  ctx.strokeStyle = '#2a8f36';
   ctx.setLineDash([3, 3]);
   ctx.beginPath();
-  ctx.ellipse(px(current), py(current), (c.fuel / 4) * sx, (c.fuel / 4) * sy * 0.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(px(current), py(current), (c.fuel / 4) * sx, (c.fuel / 4) * sy, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // systems
+  // Systems. 1.5px of #2a7a33 on near-black was close to invisible — 256 of
+  // them are the whole point of this screen, so they get size and light.
   for (const s of systems) {
     const within = distanceTenths(current, s) <= c.fuel;
-    ctx.fillStyle = within ? '#4dff5c' : '#2a7a33';
-    const r = s.index === c.systemIndex ? 3 : 1.5;
+    ctx.fillStyle = within ? '#7dff88' : '#46b354';
+    const r = s.index === c.systemIndex ? 4.5 : 2.5;
     ctx.fillRect(px(s) - r / 2, py(s) - r / 2, r, r);
   }
 
@@ -526,21 +535,45 @@ export function drawLocalChart(
   const info = document.getElementById('local-info');
   if (info) {
     const near = nearestSystem(systems, chart.cursorX, chart.cursorY);
-    if (near) {
-      const d = distanceTenths(current, near);
-      info.innerHTML =
-        `<span style="color:var(--hud-amber); letter-spacing:3px">${near.name.toUpperCase()}</span>` +
-        ` &middot; ${(d / 10).toFixed(1)} LY` +
-        (d > c.fuel && near.index !== c.systemIndex
-          ? ' &middot; <span style="color:var(--hud-red)">OUT OF RANGE</span>' : '') +
-        `<br/>${ECONOMY_NAMES[near.economy]} &middot; ${GOVERNMENT_NAMES[near.government]}` +
-        ` &middot; TECH LEVEL ${near.techLevel + 1}` +
-        `<br/>Population: ${(near.population / 10).toFixed(1)} Billion (${speciesName(near)})` +
-        `<br/>Gross productivity: ${near.productivity} M CR` +
-        ` &middot; Average radius: ${near.radius} km`;
-    } else {
+    if (!near) {
       info.textContent = ' ';
+      delete info.dataset.system;
+      return;
     }
+    // Rebuild ONLY when the cursor lands on a different system. This runs on
+    // every cursor move, and re-setting innerHTML re-creates the <img> — which
+    // makes the portrait flicker as you sweep the chart even though it is the
+    // same file. Cheap guard, very visible difference.
+    if (info.dataset.system === String(near.index)) return;
+    info.dataset.system = String(near.index);
+
+    const d = distanceTenths(current, near);
+    const out = d > c.fuel && near.index !== c.systemIndex;
+    const portrait = portraitUrl(near, c.galaxy);
+    info.innerHTML =
+      `<div class="sysname">${near.name.toUpperCase()}` +
+      `<span class="dist"> &middot; ${(d / 10).toFixed(1)} LY</span>` +
+      (out ? ' <span class="oor">OUT OF RANGE</span>' : '') +
+      '</div>' +
+`<div class="sysrow">` +
+      `<dl class="sysfacts">
+         <dt>Economy</dt><dd>${ECONOMY_NAMES[near.economy]}</dd>
+         <dt>Government</dt><dd>${GOVERNMENT_NAMES[near.government]}</dd>
+         <dt>Tech level</dt><dd>${near.techLevel + 1}</dd>
+         <dt>Population</dt><dd>${(near.population / 10).toFixed(1)} Billion` +
+           (portrait ? '' : ` (${speciesName(near)})`) + `</dd>
+         <dt>Productivity</dt><dd>${near.productivity} M CR</dd>
+         <dt>Radius</dt><dd>${near.radius} km</dd>
+       </dl>` +
+      (portrait
+        ? `<figure class="chartface">
+             <img src="${portrait}" alt="Inhabitant of ${near.name}"
+                  onerror="this.parentElement.remove()"/>
+             <figcaption>${speciesName(near)}</figcaption>
+           </figure>`
+        : '') +
+      `</div>` +
+      `<div class="sysblurb">${planetDescription(near)}</div>`;
   }
 }
 
@@ -617,6 +650,11 @@ export function localCoordsFromClick(
  * The images are generated offline and committed (tools/generate-species.py),
  * so this is a plain static asset — nothing runs at build time or in the
  * browser.
+ *
+ * Loaded eagerly, deliberately. `loading="lazy"` on one ~10 KB image that is
+ * on screen the moment it exists buys nothing, and it cost something real:
+ * the lazy intersection callback never fired in a throttled background tab,
+ * so the portrait silently stayed blank while the same URL fetched fine.
  */
 export function portraitUrl(sys: StarSystem, galaxy: number): string {
   if (galaxy !== 1) return '';
@@ -636,7 +674,7 @@ export function renderSystemData(
   // regeneration should degrade to the old text-only page, not a broken icon.
   const face = portrait ? `
     <figure class="portrait">
-      <img src="${portrait}" alt="Inhabitant of ${sys.name}" loading="lazy"
+      <img src="${portrait}" alt="Inhabitant of ${sys.name}"
            onerror="this.parentElement.remove()"/>
       <figcaption>${speciesName(sys)}</figcaption>
     </figure>` : '';

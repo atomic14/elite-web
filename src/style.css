@@ -69,9 +69,38 @@ body.screen-open #screen { top: 50%; max-height: 88vh; }
 #screen.wide { max-width: 1260px; }
 #screen .chartrow { display: flex; gap: 20px; align-items: flex-start; }
 #screen .chartrow canvas { flex: 0 0 auto; }
+/* the chart readout: name, inhabitant portrait, facts, and the goat-soup line */
+#screen .chartrow .info .sysname {
+  color: var(--hud-amber); letter-spacing: 3px; font-size: 15px; margin-bottom: 10px;
+}
+#screen .chartrow .info .sysname .dist { letter-spacing: 1px; font-size: 13px; }
+#screen .chartrow .info .oor { color: var(--hud-red); letter-spacing: 1px; font-size: 12px; }
+/* facts and portrait side by side. Floating the portrait instead squeezed the
+   facts grid into its remaining width and wrapped "Poor Agricultural" in two. */
+#screen .chartrow .info .sysrow { display: flex; gap: 16px; align-items: flex-start; }
+#screen .chartrow .info .sysrow .sysfacts { flex: 1 1 auto; }
+#screen .chartrow .info .chartface { flex: 0 0 auto; margin: 0; text-align: center; }
+#screen .chartrow .info .chartface img {
+  width: 168px; height: 168px;
+  image-rendering: pixelated;      /* see the portrait note in screens.ts */
+  border: 1px solid var(--hud-dim); display: block;
+}
+#screen .chartrow .info .chartface figcaption {
+  font-size: 11px; color: var(--hud-amber); margin-top: 5px; max-width: 168px;
+}
+#screen .chartrow .info .sysfacts {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 0 0 10px;
+}
+#screen .chartrow .info .sysfacts dt { color: var(--hud-amber); opacity: 0.85; }
+#screen .chartrow .info .sysfacts dd { margin: 0; }
+#screen .chartrow .info .sysblurb { clear: both; opacity: 0.9; line-height: 1.7; padding-top: 8px; }
+
 #screen .chartrow .info {
-  flex: 1 1 auto;
-  min-width: 290px;
+  /* an explicit basis, not `auto`: #screen shrink-wraps its content, so a
+     flexible column just collapses to its min-width and the space we made by
+     widening the screen goes unused */
+  flex: 0 0 440px;
+  min-width: 440px;
   text-align: left;
   line-height: 1.9;
   border-left: 1px solid var(--hud-dim);
