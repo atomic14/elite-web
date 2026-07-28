@@ -11,7 +11,7 @@ import {
 } from '../sim/policy';
 import { TURN } from '../sim/core';
 import { planDocking, makeDockPlan, type DockPlan } from './docking';
-import pirateBrainFile from '../sim/brains/pirate-attack-g1.json';
+import pirateBrainFile from '../sim/brains/pirate-attack-g2.json';
 import packBrainFile from '../sim/brains/pirate-pack-g1.json';
 import legacyBrainFile from '../sim/brains/pirate-attack-r2.json';
 import defendBrainFile from '../sim/brains/jameson-defend-g1.json';
@@ -145,6 +145,13 @@ const RAM_GUARD = 220;
  * says nothing about what the guard should be.
  */
 const RAM_GUARD_NO_RAM = 150;
+
+/**
+ * Floor under the target speed handed to the brains. See the call site in
+ * update() — below roughly 150 the attack policies stop throttling forward,
+ * and a commander who slows to fight gets pirates that hang in space.
+ */
+const TARGET_SPEED_FLOOR = 150;
 
 /**
  * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
@@ -528,23 +535,32 @@ export class NpcShip {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
         const solo = legacy ? LEGACY_BRAIN! : PIRATE_BRAIN;
-        // The player's REAL speed, at last.
+        // The player's speed, with a FLOOR under it.
         //
-        // This was hardcoded to 300 because observe() feeds `target.speed/400`
-        // to the network and every brain had been fitted against a freighter
-        // cruising near 220 — so the input had only ever been about 0.55.
-        // Chris flies at a median of 66 and stops dead to turn, which is 0.165
-        // or zero: out of distribution, and the policies degenerated into
-        // hanging in space spinning on the spot. 300 was a lie told to keep
-        // them inside the range they knew.
+        // This was hardcoded to 300 for years because observe() feeds
+        // `target.speed/400` to the network and the brains had only seen a
+        // freighter near 220. Generation 1 was trained across 90, 220 and 400
+        // speed hulls plus two runners, so passing the real speed looked safe.
+        // It was not: Chris flies at a median of 66 and stops dead to turn,
+        // and pirates went inert — "they now sit still spinning", then "they
+        // just sit there". Measured in the sim, the attacker throttles forward
+        // on 19% of frames against a stationary target and 84% against one at
+        // 220.
         //
-        // The condition that comment set for removing the lie was "a retrain
-        // with target speed sampled across the envelope a human actually
-        // flies". The generation-1 pool spans 90, 220 and 400 speed hulls plus
-        // two runners, so the brains have now seen the whole range, and the
-        // legacy brain stays one flag away (__legacyPirates) for comparison.
+        // Adding a stationary knife-fighter to the training pool (g2) moved
+        // that from 19% to 43%, which is better and still not flying. The
+        // input is the problem, not the fit: a bare speed scalar carries no
+        // direction, tells a pirate almost nothing it cannot see from the
+        // geometry, and the policy has latched onto it anyway.
+        //
+        // So: real speed where the brain is competent, floored where it is
+        // not. The floor is a lie, but a bounded one that preserves the
+        // variation that actually matters — a target running at 400 still
+        // reads differently from one turning at 200. Deleting the input
+        // entirely is the honest fix and costs a retrain of every brain.
         return this.brainFly(pack ? PACK_BRAIN : solo, dt,
-          player.position, player.quaternion, player.speed, distPlayer, 'player',
+          player.position, player.quaternion,
+          Math.max(TARGET_SPEED_FLOOR, player.speed), distPlayer, 'player',
           pack ? fleet : null);
       }
       // Inside knife range the scripted break-off takes over — see RAM_GUARD.

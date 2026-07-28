@@ -49,6 +49,12 @@ export class SpaceDust {
    */
   private static readonly FADE_IN = 520;
   private static readonly FULL = 2400;
+  /**
+   * No dust closer than this. At `size` 3.5 with sizeAttenuation the sprite
+   * subtends roughly 3.5/distance of the viewport, so 150 units keeps the
+   * worst case at about a 2% square — a dot, which is what it is meant to be.
+   */
+  private static readonly NEAR_CLIP = 150;
 
   constructor(count = 500, size = 3000) {
     this.half = size / 2;
@@ -97,6 +103,28 @@ export class SpaceDust {
         let d = arr[i + a] - c;
         if (d > this.half) arr[i + a] -= size * Math.ceil((d - this.half) / size);
         else if (d < -this.half) arr[i + a] += size * Math.ceil((-d - this.half) / size);
+      }
+      // Keep dust off the camera. These are untextured point sprites, so they
+      // draw as squares, and sizeAttenuation scales them by 1/distance — a
+      // mote that drifts through the cockpit becomes a grey-green square
+      // filling a chunk of the screen. The wrap above keeps particles inside
+      // the cube but nothing stopped one landing on the player's nose.
+      //
+      // Respawn rather than push aside: shoving it outwards would smear it
+      // across the view as you close on it, where a teleport is one frame and
+      // one particle in 500.
+      const dx = arr[i] - center.x;
+      const dy = arr[i + 1] - center.y;
+      const dz = arr[i + 2] - center.z;
+      if (dx * dx + dy * dy + dz * dz < SpaceDust.NEAR_CLIP * SpaceDust.NEAR_CLIP) {
+        // random direction, at a radius that is comfortably outside the hole
+        const u = Math.random() * 2 - 1;
+        const th = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(1 - u * u);
+        const dist = SpaceDust.NEAR_CLIP * 2 + Math.random() * (this.half - SpaceDust.NEAR_CLIP * 2);
+        arr[i] = center.x + Math.cos(th) * r * dist;
+        arr[i + 1] = center.y + Math.sin(th) * r * dist;
+        arr[i + 2] = center.z + u * dist;
       }
     }
     pos.needsUpdate = true;

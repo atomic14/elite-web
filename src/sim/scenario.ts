@@ -29,7 +29,20 @@ export type Controller =
    * run (all of them orbit at ~2100 and die), so the pressure to give chase
    * has to be put into the pool by hand.
    */
-  | { kind: 'runner' };
+  | { kind: 'runner' }
+  /**
+   * A target that turns hard and barely translates — how a human actually
+   * knife-fights. Chris flies at a median of 66 with the pitch pinned near its
+   * cap, and stops dead to bring guns to bear.
+   *
+   * `playerCobraSlow` was meant to cover this and does not: a policy flying it
+   * cruises near its 90 maximum, so `target.speed/400` never drops below about
+   * 0.22 in training. Measured against a stationary target, the g1 attacker
+   * throttles forward on 19% of frames where it manages 85% at speed 300 — it
+   * hangs at ~430 units and pivots instead of making attack runs, which is
+   * exactly what Chris reported flying it: "they now sit still spinning".
+   */
+  | { kind: 'holding' };
 
 export interface EpisodeOptions {
   seed: number;
@@ -153,6 +166,8 @@ export class Episode {
         control = { ...control, fire: false };
       } else if (tCtrl.kind === 'runner') {
         control = this.runningTrader(dt);
+      } else if (tCtrl.kind === 'holding') {
+        control = this.holdingTrader(dt);
       } else {
         control = this.scriptedTrader(dt);
       }
@@ -217,6 +232,15 @@ export class Episode {
       }
     }
     return best;
+  }
+
+  /** Turn to face the threat, and stay put doing it. See `holding`. */
+  private holdingTrader(dt: number): Control {
+    const threat = this.nearestPirate();
+    if (threat) steerToward(this.trader, threat.pos, dt);
+    // brake toward a crawl rather than a dead stop: a human bleeds speed off
+    // and drifts, and a hard zero is a corner the physics never otherwise hits
+    return { pitch: 0, roll: 0, throttle: this.trader.speed > 60 ? -1 : 0, fire: false };
   }
 
   /** Nose away from the nearest threat, throttle open, and keep going. */

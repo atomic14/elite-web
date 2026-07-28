@@ -160,6 +160,14 @@ const traderPool: PoolEntry[] = (() => {
   for (const hull of ['traderCobra', 'playerCobra'] as const) {
     pool.push({ ctrl: { kind: 'runner' }, armed: false, hull, label: `runner/${hull}` });
   }
+  // The knife-fighter, and the reason g1 needed a second pass: nothing in the
+  // pool ever went slower than about 90, because a policy flying the slow hull
+  // still cruises at its maximum. Chris fights at a median of 66 and stops to
+  // turn, and against a stationary target g1 throttled forward on 19% of
+  // frames — it hung at ~430 units and pivoted. It looked exactly like the
+  // degenerate run-11 brain, and for the same reason: out of distribution.
+  pool.push({ ctrl: { kind: 'holding' }, armed: true, hull: 'playerCobra',
+    label: 'holding/playerCobra' });
   console.log(`(pool) ${pool.length} opponents: ${pool.map((e) => e.label).join(', ')}`);
   return pool;
 })();
