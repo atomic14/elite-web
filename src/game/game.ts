@@ -95,6 +95,21 @@ const LASERS: Record<LaserType, { damage: number; cooldown: number; heat: number
 const MISSILE_SPEED = 700;
 // Sun proximity tuning (ordered: heat starts < scooping < temp maxes < death).
 // The sun itself orbits ~320k out (world/system-scene.ts).
+/**
+ * How far out of the planet you drop from witch-space, in planet radii.
+ *
+ * Was 12, which measured badly against what it is supposed to feel like: the
+ * planet came out 9.6 degrees wide — a sixth of the screen height, a ball
+ * hanging in front of you rather than a world you have yet to reach — and the
+ * clean torus run to the station took 17.8 seconds.
+ *
+ * At 24 the planet is 4.8 degrees, a disc you fly towards, and the run is
+ * about 37 seconds. Long enough to be a journey, short enough not to be a
+ * chore, and the arrival pirates scatter along the corridor proportionally
+ * (populateSystem uses the route length) so the ambush spread scales with it.
+ */
+const WITCHPOINT_RADII = 24;
+
 const SUN_HEAT_START = 110_000; // cabin temp begins to climb
 const SUN_SCOOP_RANGE = 80_000; // fuel scoops gather inside this
 const SUN_HEAT_MAX = 26_000;    // cabin temp reaches 1.0 (death follows)
@@ -887,7 +902,7 @@ export class Game {
     const dir = stationDir
       .add(new THREE.Vector3().randomDirection().multiplyScalar(0.5))
       .normalize();
-    this.player.position.copy(dir.multiplyScalar(this.world.planetRadius * 12));
+    this.player.position.copy(dir.multiplyScalar(this.world.planetRadius * WITCHPOINT_RADII));
     this.lookAlong(this.tmp.copy(this.player.position).negate());
     this.player.speed = 250;
     this.policeScanned = false;
