@@ -54,6 +54,15 @@ html, body {
   pointer-events: none;
 }
 
+/*
+ * A screen replaces the cockpit rather than sharing it with the console.
+ * Hiding the console is what lets #screen centre on the real viewport and use
+ * its full height — the chart in particular was being squeezed into 66vh to
+ * clear a panel nothing on that screen uses.
+ */
+body.screen-open #hud { display: none; }
+body.screen-open #screen { top: 50%; max-height: 88vh; }
+
 #hud {
   position: absolute;
   bottom: 0;
@@ -228,6 +237,10 @@ html, body {
    * Centred in the space you can actually see, not the canvas: the cockpit
    * console owns the bottom ~21%, so 50% leaves a big void above the panel
    * and almost nothing below it. Same reasoning as SIGHT_Y in game.ts.
+   *
+   * These two values are the fallback for a screen shown without the
+   * `screen-open` class; with it (see below) the console is hidden and the
+   * screen takes the whole viewport, properly centred.
    */
   left: 50%; top: 40%;
   transform: translate(-50%, -50%);

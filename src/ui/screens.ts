@@ -14,6 +14,7 @@ import {
 const el = (): HTMLElement => document.getElementById('screen')!;
 
 export function hideScreen(): void {
+  document.body.classList.remove('screen-open');
   el().classList.add('hidden');
 }
 
@@ -21,6 +22,11 @@ function show(html: string): void {
   const s = el();
   s.innerHTML = html;
   s.classList.remove('hidden');
+  // Drop the cockpit console while a screen is up. Nothing on a screen needs
+  // the scanner or the gauges, and the console was costing the screen a third
+  // of the viewport: #screen sat at top 40% with max-height 66vh purely to
+  // clear it, which is why the short-range chart had to be squeezed.
+  document.body.classList.add('screen-open');
 }
 
 export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText = ''): void {
