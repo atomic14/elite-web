@@ -13,7 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy';
 import { LivingGalaxy } from '../galaxy/living';
-import { generateContractOffers, applyMarketPressure, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts';
+import { generateContractOffers, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene';
 import { createStarfield, SpaceDust } from '../world/starfield';
 import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
@@ -30,6 +30,9 @@ import {
   SavesScreen, exportCommanderFile, importCommanderFile, startNewCommander,
   type SavesContext, type SavesOutcome,
 } from './saves-screen';
+import {
+  TradeScreen, makeLocalMarket, type TradeContext, type TradeOutcome,
+} from './trade-screen';
 /**
  * Player gunnery: a real ray against the hull, plus a small graze tolerance.
  *
@@ -120,13 +123,13 @@ function assistAt(dist: number): number {
  */
 const SIGHT_Y = 0.42;
 import {
-  loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
+  loadCommander, saveCommander, formatCredits, MAX_FUEL,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
   type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
-  hideScreen, renderDockedMenu, renderNewGameConfirm, renderMarket, renderStatus, renderChart, drawChart,
-  renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
+  hideScreen, renderDockedMenu, renderNewGameConfirm, renderStatus, renderChart, drawChart,
+  renderLocalChart, drawLocalChart, renderMarketEstimate,
   renderGameOver, renderSystemData, renderContracts, describeContract, nearestSystem,
   renderBriefing, BRIEFING_PAGES,
   distanceTenths, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE, type ChartState,
@@ -214,8 +217,7 @@ export class Game {
   private returnMode: 'docked' | 'flight' = 'docked';
   readonly chart: ChartState = { cursorX: 0, cursorY: 0, targetIndex: null };
   market: MarketEntry[] = [];
-  marketSelected = 0;
-  private equipSelected = 0;
+  private readonly trade = new TradeScreen();
   private tracers: Tracer[] = [];
 
   targetLock: NpcShip | null = null;
@@ -411,10 +413,51 @@ export class Game {
    * dearer. Baseline prices are untouched — this is a ±25% delta.
    */
   private localMarket(): MarketEntry[] {
-    return applyMarketPressure(
-      generateMarket(this.system, Math.floor(Math.random() * 256)),
+    return makeLocalMarket(this.system,
       (i) => this.living.priceMultiplier(this.commander.systemIndex, i));
   }
+
+  /** The only slice of the Game the market and outfitters are allowed to see. */
+  private tradeContext(): TradeContext {
+    return {
+      commander: this.commander,
+      system: this.system,
+      market: this.market,
+      atHermit: this.hermitTrading,
+      cheat: cheatMode(),
+      message: (text, seconds) => this.hud.showMessage(text, seconds),
+      addNotoriety: (amount) => this.living.addNotoriety(this.commander.systemIndex, amount),
+    };
+  }
+
+  /** Apply what the trade screens decided. They never set `mode` themselves. */
+  private applyTradeOutcome(outcome: TradeOutcome): void {
+    if (outcome === 'leave-hermit') {
+      this.hermitTrading = false;
+      this.hermitCooldown = true;
+      this.hud.showMessage('LEAVING THE HERMIT', 3);
+      this.closeOverlay();
+    } else if (outcome === 'close') {
+      this.closeOverlay();
+    }
+  }
+
+  /**
+   * Selected market row. A property rather than a field because it now lives
+   * on TradeScreen, and test/playtest.js assigns it before calling buyCargo.
+   */
+  /** @internal — driven by test/playtest.js */
+  get marketSelected(): number { return this.trade.marketSelected; }
+  set marketSelected(v: number) { this.trade.marketSelected = v; }
+
+  /** @internal — driven by test/playtest.js */
+  buyCargo(want: number): void { this.trade.buy(want, this.tradeContext()); }
+
+  /** @internal — driven by test/playtest.js */
+  sellCargo(want: number): void { this.trade.sell(want, this.tradeContext()); }
+
+  /** @internal — driven by test/playtest.js */
+  buyEquipment(id: string): void { this.trade.buyEquipment(id, this.tradeContext()); }
 
   // --- world lifecycle -----------------------------------------------------
 
@@ -2075,12 +2118,12 @@ export class Game {
         return m;
       });
     this.market = this.hermitMarket;
-    this.marketSelected = 0;
+    this.trade.marketSelected = 0;
     this.mode = 'market';
     this.returnMode = 'flight';
     this.player.speed = 0;
     sfx.dock();
-    renderMarket({ ...this.system, name: 'Rock Hermit' }, this.market, this.commander, this.marketSelected);
+    this.trade.renderMarket(this.tradeContext());
   }
 
   private assignNpcTargets(): void {
@@ -2224,16 +2267,14 @@ export class Game {
         if (i.pressed('KeyL')) this.launch();
         else if (i.pressed('KeyM')) {
           this.mode = 'market';
-          this.marketSelected = 0;
-          renderMarket(this.system, this.market, this.commander, this.marketSelected);
+          this.trade.openMarket(this.tradeContext());
         } else if (i.pressed('KeyC')) {
           this.mode = 'contracts';
           this.contractSelected = 0;
           renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
         } else if (i.pressed('KeyE')) {
           this.mode = 'equip';
-          this.equipSelected = 0;
-          renderEquip(this.system, this.commander, this.equipSelected, cheatMode());
+          this.trade.openEquip(this.tradeContext());
         // Q, not a shifted N. ⇧N shared a key with the local chart, and
         // cancelling the confirm with N while still holding shift re-opened it
         // on the very next tap — you could get stuck in a loop you couldn't
@@ -2284,11 +2325,11 @@ export class Game {
       }
 
       case 'market':
-        this.handleMarketInput();
+        this.applyTradeOutcome(this.trade.handleMarketInput(this.input, this.tradeContext()));
         break;
 
       case 'equip':
-        this.handleEquipInput();
+        this.applyTradeOutcome(this.trade.handleEquipInput(this.input, this.tradeContext()));
         break;
 
       case 'saves':
@@ -2505,11 +2546,11 @@ export class Game {
       if (row !== undefined) {
         const index = Number(row);
         if (this.mode === 'market') {
-          this.marketSelected = index;
-          renderMarket(this.system, this.market, this.commander, this.marketSelected);
+          // via the screen, so a click while trading at a rock hermit keeps
+          // the hermit's title instead of quietly reverting to the system's
+          this.trade.selectMarketRow(index, this.tradeContext());
         } else if (this.mode === 'equip') {
-          this.equipSelected = index;
-          renderEquip(this.system, this.commander, this.equipSelected, cheatMode());
+          this.trade.selectEquipRow(index, this.tradeContext());
         } else if (this.mode === 'contracts') {
           this.contractSelected = index;
           renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
@@ -2644,89 +2685,6 @@ export class Game {
     }
   }
 
-  private handleMarketInput(): void {
-    const i = this.input;
-    const shift = i.held('ShiftLeft', 'ShiftRight');
-    let changed = false;
-    if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
-      this.marketSelected = (this.marketSelected + this.market.length - 1) % this.market.length;
-      changed = true;
-    }
-    if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
-      this.marketSelected = (this.marketSelected + 1) % this.market.length;
-      changed = true;
-    }
-    if (i.pressed('KeyB')) { this.buyCargo(shift ? Infinity : 1); changed = true; }
-    if (i.pressed('VirtBuyMax')) { this.buyCargo(Infinity); changed = true; }
-    if (i.pressed('KeyV')) { this.sellCargo(shift ? Infinity : 1); changed = true; }
-    if (i.pressed('VirtSellAll')) { this.sellCargo(Infinity); changed = true; }
-    if (i.pressed('Escape')) {
-      if (this.hermitTrading) {
-        this.hermitTrading = false;
-        this.hermitCooldown = true;
-        this.hud.showMessage('LEAVING THE HERMIT', 3);
-      }
-      this.closeOverlay();
-      return;
-    }
-    if (changed) {
-      renderMarket(
-        this.hermitTrading ? { ...this.system, name: 'Rock Hermit' } : this.system,
-        this.market, this.commander, this.marketSelected);
-    }
-  }
-
-  /** Buy up to `want` units of the selected commodity (Infinity = fill up). */
-  /** @internal — driven by test/playtest.js */
-  buyCargo(want: number): void {
-    const idx = this.marketSelected;
-    const m = this.market[idx];
-    const cost = Math.round(m.price * 10);
-    let bought = 0;
-    while (bought < want) {
-      if (m.quantity <= 0 || this.commander.credits < cost) break;
-      if (m.unit === 't' && cargoTonnes(this.commander) >= cargoCapacity(this.commander)) break;
-      m.quantity -= 1;
-      this.commander.cargo[idx] += 1;
-      this.commander.credits -= cost;
-      bought += 1;
-    }
-    if (bought > 0) {
-      sfx.beep(900, 0.05);
-      this.hud.showMessage(`BOUGHT ${bought}${m.unit} ${m.name.toUpperCase()}`, 2);
-    } else {
-      sfx.beep(220);
-    }
-  }
-
-  /** Sell up to `want` units of the selected commodity (Infinity = all). */
-  /** @internal — driven by test/playtest.js */
-  sellCargo(want: number): void {
-    const idx = this.marketSelected;
-    const m = this.market[idx];
-    let sold = 0;
-    let revenue = 0;
-    while (sold < want && this.commander.cargo[idx] > 0) {
-      this.commander.cargo[idx] -= 1;
-      m.quantity += 1;
-      revenue += Math.round(m.price * 10);
-      sold += 1;
-    }
-    if (sold > 0) {
-      this.commander.credits += revenue;
-      sfx.beep(700, 0.05);
-      this.hud.showMessage(`SOLD ${sold}${m.unit} FOR ${formatCredits(revenue)}`, 2);
-      // Word gets around. A big payday — or any quantity of contraband — makes
-      // you worth watching for, here and in the systems within a jump. This is
-      // why smuggling raises the temperature of your *next* arrival.
-      const contraband = idx === 3 || idx === 6 || idx === 10;
-      const notice = revenue / 40_000 + (contraband ? sold * 0.04 : 0);
-      this.living.addNotoriety(this.commander.systemIndex, Math.min(0.5, notice));
-    } else {
-      sfx.beep(220);
-    }
-  }
-
   /**
    * Dump a tonne over the side. Pirates came for cargo, not for you — give
    * them enough of it and the opportunists break off and go collect, which
@@ -2787,88 +2745,6 @@ export class Game {
     } else {
       this.hud.showMessage(`JETTISONED ${dumped}t ${lastName}`, 2);
     }
-  }
-
-  /** @internal — driven by test/playtest.js */
-  private handleEquipInput(): void {
-    const i = this.input;
-    const rows = equipRows(this.system, this.commander, cheatMode());
-    let changed = false;
-    if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
-      this.equipSelected = (this.equipSelected + rows.length - 1) % rows.length;
-      changed = true;
-    }
-    if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
-      this.equipSelected = (this.equipSelected + 1) % rows.length;
-      changed = true;
-    }
-    if (i.pressed('KeyB') || i.pressed('Enter')) {
-      this.buyEquipment(rows[this.equipSelected].id);
-      changed = true;
-    }
-    if (i.pressed('Escape')) {
-      this.closeOverlay();
-      return;
-    }
-    if (changed) renderEquip(this.system, this.commander, this.equipSelected, cheatMode());
-  }
-
-  /** @internal — driven by test/playtest.js */
-  buyEquipment(id: string): void {
-    const c = this.commander;
-    const cheat = cheatMode();
-    // `.find(...)!` used to be a non-null assertion, so an unknown id threw a
-    // TypeError instead of failing politely — reachable from the test harness
-    // and from any stale data-key in the DOM.
-    const row = equipRows(this.system, c, cheat).find((r) => r.id === id);
-    if (!row) {
-      sfx.beep(220);
-      return;
-    }
-    if (row.status !== '' || (row.price <= 0 && id !== 'fuel')) {
-      sfx.beep(220);
-      return;
-    }
-    if (!cheat && c.credits < row.price) {
-      this.hud.showMessage('INSUFFICIENT CREDITS', 2);
-      sfx.beep(220);
-      return;
-    }
-    // Cheat purchases are free rather than deducted-from-nothing: letting
-    // credits go negative would break the save, the status screen and the
-    // campaign simulator's "credits never go negative" assertion.
-    if (!cheat) c.credits -= row.price;
-    switch (id) {
-      case 'fuel': c.fuel = MAX_FUEL; break;
-      case 'missile': c.missiles = Math.min(MAX_MISSILES, c.missiles + 1); break;
-      case 'largeBay': c.equipment.largeBay = true; break;
-      case 'ecm': c.equipment.ecm = true; break;
-      case 'rearLaser': c.equipment.rearLaser = true; break;
-      case 'leftLaser': c.equipment.leftLaser = true; break;
-      case 'rightLaser': c.equipment.rightLaser = true; break;
-      case 'beam':
-        c.credits += 4000; // pulse laser refunded, as per the manual
-        c.equipment.laser = 'beam';
-        break;
-      case 'military':
-        c.credits += c.equipment.laser === 'beam' ? 10000 : 4000; // old laser refunded
-        c.equipment.laser = 'military';
-        break;
-      case 'scoops': c.equipment.scoops = true; break;
-      case 'escapePod': c.equipment.escapePod = true; break;
-      case 'energyBomb': c.equipment.energyBomb = true; break;
-      case 'energyUnit': c.equipment.energyUnit = true; break;
-      case 'dockingComputer': c.equipment.dockingComputer = true; break;
-      case 'miningLaser': c.equipment.miningLaser = true; break;
-      case 'combatComputer': c.equipment.combatComputer = true; break;
-      case 'trumble':
-        c.trumbles = 1;
-        this.hud.showMessage('IT PURRS. WHAT COULD POSSIBLY GO WRONG?', 5);
-        break;
-      case 'galacticDrive': c.equipment.galacticDrive = true; break;
-    }
-    saveCommander(c);
-    sfx.beep(600, 0.08);
   }
 
   // --- HUD -----------------------------------------------------------------
