@@ -1069,3 +1069,42 @@ The default game is untouched and healthy: shipped brain, toggle off, closes
 `window.__sharpPirates` and none of it is fit to ship, for a reason that only
 appeared when a human flew: they were all trained against targets that move
 like ships, and a human in a dogfight moves like a turret.
+
+### Run 11 postmortem — two independent faults, and the end of this thread
+
+Chris flew `__arena.wave({ n: 3, tier: 1, brain: 'sharp' })` again and the
+ships still did nothing. Instrumenting the policy's own output rather than its
+effects finally separated the causes.
+
+Control outputs, one tier-1 pirate, player stopped, 15 seconds:
+
+| | throttle | wants to fire | resulting speed |
+| --- | --- | --- | --- |
+| shipped | 50% forward | 17% | 270 |
+| run 11 | **69% reverse** | **0%** | 8 |
+
+And the same brain in the SIM against a stationary target: fire 100%, throttle
+**100% reverse**. So:
+
+1. **The braking is the brain.** It reproduces in the sim with no game code
+   involved. Adding `playerCobraSlow` at 90 max taught it "slow target, slow
+   down", and it generalised that into stopping dead. My fix caused this.
+2. **The not-firing is the plumbing, and it is unfixable without a choice.**
+   In the sim it wants to fire 100% of the time; in the game, 0%. The game
+   hands it `target.speed = 300` while the geometry says the target is
+   stationary, a contradiction it never trained on. Feed the true speed instead
+   and the SHIPPED brains break, because they only ever saw about 0.55. The two
+   generations of brain want incompatible observations.
+
+The toggle now points back at run 9's `pirate-attack-r5-varied`, the last
+experimental brain that actually flies and shoots in the game. Runs 10 and 11
+stay committed as evidence and are not wired to anything.
+
+**Stopping here.** Three training rounds produced large sim gains; the first
+did not transfer, the second regressed against a human, the third regressed
+further. The bottleneck was never the training. It is that the sim's target
+model and the game's observation plumbing both differ from what a human
+actually does, and no amount of evolution against the wrong opponent fixes
+that. The next useful step is not a retrain: it is making the game feed the
+same observation the sim does, and only then fitting an opponent to Chris's
+recorded envelope.

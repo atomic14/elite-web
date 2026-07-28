@@ -13,7 +13,7 @@ import { TURN } from '../sim/core';
 import { planDocking, makeDockPlan, type DockPlan } from './docking';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
-import sharpBrainFile from '../sim/brains/pirate-attack-r11-slow.json';
+import sharpBrainFile from '../sim/brains/pirate-attack-r5-varied.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
@@ -31,13 +31,17 @@ const PIRATE_BRAIN: Brain | null = (() => {
 })();
 
 /**
- * Run 10's attacker. Trained against a rotation of six opponents, two of which
- * fly the PLAYER's hull rather than a freighter, which is the thing every
- * previous brain was missing (docs/TRAINING-LOG.md).
+ * Run 9's attacker, and the last experimental brain that actually works in the
+ * game. It does not ram (0 self-destructions in 4 ships over a minute, against
+ * 3 of 4 for the shipped brain) and it flies and shoots normally.
  *
- * Against a player-agility target it holds a firing line for 90% of the fight
- * and kills 100% of the time, where the shipped brain manages 30% and never
- * kills at all. It also inherits run 9's fix: it does not ram.
+ * Runs 10 and 11 scored better in the sim and are NOT wired here, because they
+ * fail against a human. Both were trained against player-agility targets and
+ * run 11 additionally against a 90-max-speed one, and the result brakes to a
+ * standstill when the target slows: measured in the sim against a stationary
+ * target, run 11 chooses full reverse on 100% of frames. Chris flies at a
+ * median of 66 and stops dead to turn, so from the cockpit they simply hang
+ * there spinning. See docs/TRAINING-LOG.md run 11.
  *
  * NOT the default, and the reason is worth reading before switching it on. As
  * the ordinary pirate it kills a fully shielded commander 100% of the time in
