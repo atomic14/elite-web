@@ -837,7 +837,19 @@ export class NpcShip {
     this.advance(dt);
 
     this.fireCooldown -= dt;
-    if (c.fire && fireAt && this.fireCooldown <= 0 && dist < NPC_LASER_RANGE
+    // The policy's own `fire` output is deliberately NOT consulted.
+    //
+    // An NPC needed two independent yeses to shoot: the geometric gate below,
+    // which is the game's balance lever, and the brain's trigger, which is an
+    // artifact of training nobody ever tuned. r2 is lined up on the player 38%
+    // of the time and fires 0.6 shots an engagement, because it was fitted
+    // when firing required a 0.027 rad cone and it learned never to trust a
+    // loose line. That is the "they point right at me and never shoot" bug.
+    //
+    // So: the brain decides where to be, the gun decides when to shoot. Rate
+    // is now exactly what NPC_COOLDOWN_LO/SPREAD and the 0.25 gate say it is,
+    // which makes it a number that can be tuned instead of an emergent one.
+    if (fireAt && this.fireCooldown <= 0 && dist < NPC_LASER_RANGE
         && this.facing(targetPos) < 0.25) {
       this.fireCooldown = NPC_COOLDOWN_LO + Math.random() * NPC_COOLDOWN_SPREAD;
       return fireAt === 'player' ? { at: 'player' } : { at: fireAt };

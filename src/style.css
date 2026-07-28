@@ -34,14 +34,38 @@ html, body {
   width: 0; height: 0;
   pointer-events: none;
 }
-#crosshair::before, #crosshair::after {
+/*
+ * A ring, not a cross, and the radius is set from JS (--sight-r) to the exact
+ * angle of the aim assist in game.ts. Anything inside the ring is inside the
+ * envelope the shot will reach for, so the sight teaches the mechanic instead
+ * of decorating it. The centre pip keeps it reading as a gunsight, and the
+ * four ticks keep the 1984 silhouette.
+ */
+#crosshair::before {
   content: "";
   position: absolute;
-  background: var(--hud-green);
-  opacity: 0.8;
+  left: calc(var(--sight-r, 24px) * -1);
+  top: calc(var(--sight-r, 24px) * -1);
+  width: calc(var(--sight-r, 24px) * 2);
+  height: calc(var(--sight-r, 24px) * 2);
+  border: 1px solid var(--hud-green);
+  border-radius: 50%;
+  opacity: 0.45;
+  box-sizing: border-box;
+  transition: opacity 90ms linear, box-shadow 90ms linear;
 }
-#crosshair::before { left: -14px; top: 0; width: 8px; height: 1px; box-shadow: 20px 0 0 var(--hud-green); }
-#crosshair::after  { left: 0; top: -14px; width: 1px; height: 8px; box-shadow: 0 20px 0 var(--hud-green); }
+#crosshair::after {
+  content: "";
+  position: absolute;
+  left: -1px; top: -1px; width: 2px; height: 2px;
+  background: var(--hud-green);
+  opacity: 0.9;
+}
+/* a target is inside the envelope: the shot will reach for it */
+#crosshair.locked::before {
+  opacity: 1;
+  box-shadow: 0 0 8px var(--hud-green), inset 0 0 6px rgba(77, 255, 92, 0.35);
+}
 
 #topbar {
   position: absolute;

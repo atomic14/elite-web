@@ -105,3 +105,33 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   1984 game; **generation ships** come from the Elite fiction (Ian Bell
   notes they were never coded). This project is a homage, not a museum
   piece — see the deviations above.
+
+## Aim assist and the ring sight (deliberate deviation, 2026-07)
+
+The 1984 game had a cross and no assist: a shot hit if the target's silhouette
+covered the sight. We keep the ray test that does exactly that, and add an
+angular allowance on top — a fixed 2 degrees at knife range, tapering to
+nothing by 2400 units so distance shooting still demands precision.
+
+Why deviate. A Sidewinder at 500 units subtends 1.9 degrees. Holding a mouse
+or a key inside that while both ships manoeuvre is most of why fights read as
+flailing, and it is the half of the combat problem that belongs to the player
+rather than to the AI — the NPCs got their fix in the same change (they now
+fire whenever the geometric gate allows, instead of also needing the trained
+policy's trigger).
+
+Two things keep it honest rather than a cheat:
+
+- The cross became a **ring**, drawn from the projection to the exact angle of
+  the assist. Anything inside the ring is inside the envelope, so the sight
+  states the rule instead of hiding it. The ring lights when a shot would
+  actually connect at the current range.
+- The cockpit beams **bend onto the target** they found. Chris's point, and
+  the right one: an allowance that silently converts a near miss into a hit
+  reads as a bug, where beams that visibly converge read as the gunsight doing
+  its job.
+
+Recognisability was the constraint (CLAUDE.md: homage, not museum piece). The
+sight keeps a centre pip so it still reads as a gunsight rather than a modern
+soft-lock, and nothing tracks or snaps — the ship's nose still has to be put
+near the target.

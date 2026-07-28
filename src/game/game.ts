@@ -82,6 +82,33 @@ const LASER_GRAZE = 0.9;
 const CANISTER_GRAZE = 20;
 
 /**
+ * Aim assist: an angular allowance ON TOP of the target's silhouette, so a
+ * shot that is nearly right still connects.
+ *
+ * Chris's idea, and it is the player's half of the same problem the NPCs
+ * have. A Sidewinder at 500 units subtends 1.9 degrees; holding a human hand
+ * inside that while both ships manoeuvre is most of why fights felt like
+ * flailing. The assist is a fixed 2 degrees at knife range, tapering to
+ * nothing by ASSIST_FADE_END so that distance shooting still demands
+ * precision and nobody snipes across three kilometres.
+ *
+ * The reticle is drawn to this exact angle (see #crosshair), which is the
+ * point: the circle is not decoration, it is the envelope.
+ */
+const AIM_ASSIST = 0.035;
+/** Depth in camera space at which the cockpit beams converge. */
+const BEAM_Z = 2.6;
+const ASSIST_FADE_START = 900;
+const ASSIST_FADE_END = 2400;
+
+/** The assist allowance at a given range, in radians. */
+function assistAt(dist: number): number {
+  if (dist <= ASSIST_FADE_START) return AIM_ASSIST;
+  if (dist >= ASSIST_FADE_END) return 0;
+  return AIM_ASSIST * (1 - (dist - ASSIST_FADE_START) / (ASSIST_FADE_END - ASSIST_FADE_START));
+}
+
+/**
  * Where the sight sits, as a fraction of canvas height. The cockpit console
  * covers the bottom ~22%, so the centre of what you can actually see is above
  * the middle of the canvas. The camera projection is shifted to match (see
@@ -308,8 +335,8 @@ export class Game {
     // corrected the beams had to come down to match.
     const beamGeo = new THREE.BufferGeometry();
     beamGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-      -0.85, -0.75, -1.2, 0, 0, -2.6,
-      0.85, -0.75, -1.2, 0, 0, -2.6,
+      -0.85, -0.75, -1.2, 0, 0, -BEAM_Z,
+      0.85, -0.75, -1.2, 0, 0, -BEAM_Z,
     ], 3));
     this.beams = new THREE.LineSegments(
       beamGeo,
@@ -362,6 +389,14 @@ export class Game {
     this.camera.setViewOffset(w, h, 0, lift, w, h);
     this.camera.updateProjectionMatrix();
     this.hud.resizeOverlay(w, h);
+
+    // Draw the sight to the assist envelope, so the circle means something:
+    // a target inside it is a target the shot will reach for. Derived from the
+    // real projection rather than picked by eye, so it stays honest if the
+    // fov or the assist angle ever change.
+    const pxPerRad = (h / 2) / Math.tan((this.camera.fov * Math.PI) / 360);
+    document.documentElement.style.setProperty(
+      '--sight-r', `${Math.round(Math.tan(AIM_ASSIST) * pxPerRad)}px`);
   }
 
   private get system(): StarSystem {
@@ -1073,7 +1108,7 @@ export class Game {
         const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
         const dist = to.length();
         if (dist > bestDist) continue;
-        const cone = Math.max(0.012, Math.atan((npc.radius * LASER_GRAZE) / dist));
+        const cone = Math.max(0.012, Math.atan((npc.radius * LASER_GRAZE) / dist)) + assistAt(dist);
         if (forward.angleTo(to.normalize()) < cone) {
           best = npc;
           bestDist = dist;
@@ -1091,6 +1126,13 @@ export class Game {
         }
       }
     }
+    // Aim assist, the visible half: bend the cockpit beams onto whatever the
+    // shot found. Chris's point — an allowance that silently counts a near
+    // miss as a hit reads as a bug, where beams that visibly converge on the
+    // target read as the gunsight doing its job. The shot has already been
+    // resolved above; this only makes the resolution legible.
+    this.aimBeams(best ? best.object.position : hitCanister ? hitCanister.object.position : null);
+
     if (hitCanister) {
       sfx.hit();
       this.addExplosion(hitCanister.object.position.clone(), 0x8ad0ff,
@@ -2935,7 +2977,62 @@ export class Game {
 
   // --- HUD -----------------------------------------------------------------
 
+  /**
+   * Light the sight when the aim assist would actually reach the target.
+   *
+   * The circle shows the envelope at knife range; this tells the truth for
+   * the target in front of you right now, since the assist tapers with
+   * distance. Together they answer "will this shot land?" without the player
+   * having to learn the numbers.
+   */
+  private updateSight(): void {
+    const el = document.getElementById('crosshair');
+    if (!el) return;
+    let on = false;
+    if (this.mode === 'flight') {
+      const forward = this.viewDir(this.tmp);
+      for (const npc of this.npcs) {
+        if (!npc.alive || npc.role === 'asteroid') continue;
+        const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
+        const dist = to.length();
+        if (dist > LASER_RANGE) continue;
+        const cone = Math.max(0.012, Math.atan((npc.radius * LASER_GRAZE) / dist)) + assistAt(dist);
+        if (forward.angleTo(to.normalize()) < cone) { on = true; break; }
+      }
+    }
+    el.classList.toggle('locked', on);
+  }
+
+  /**
+   * Point the cockpit beams at `target`, or straight down the gun axis when
+   * there is nothing to converge on.
+   *
+   * The beams are children of the camera and meet at (0, 0, -BEAM_Z), so the
+   * convergence point is simply the target direction in camera space at the
+   * same depth. Only the meeting point moves — the emitters stay on the hull
+   * corners, which is what sells the beams as bending.
+   */
+  private aimBeams(target: THREE.Vector3 | null): void {
+    const pos = this.beams.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const arr = pos.array as Float32Array;
+    let x = 0, y = 0, z = -BEAM_Z;
+    if (target) {
+      const local = this.camera.worldToLocal(this.tmp2.copy(target));
+      const len = local.length();
+      if (len > 1e-3) {
+        x = (local.x / len) * BEAM_Z;
+        y = (local.y / len) * BEAM_Z;
+        z = (local.z / len) * BEAM_Z;
+      }
+    }
+    // vertices 1 and 3 are the convergence point (0 and 2 are the emitters)
+    arr[3] = x; arr[4] = y; arr[5] = z;
+    arr[9] = x; arr[10] = y; arr[11] = z;
+    pos.needsUpdate = true;
+  }
+
   private renderHud(dt: number): void {
+    this.updateSight();
     const contacts: ScannerContact[] = [{ position: this.world.station.position, kind: 'station' }];
     for (const npc of this.npcs) {
       if (!npc.alive) continue;

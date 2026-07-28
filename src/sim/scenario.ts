@@ -152,7 +152,13 @@ export class Episode {
         wantsFire = control.fire;
       }
       stepShip(p, control, dt);
-      if (wantsFire && this.trader.alive) {
+      // The policy's trigger is NOT consulted — mirroring npc.ts. The gun
+      // gates itself on range, the 0.25 rad cone and its own cooldown, so a
+      // pirate shoots exactly as often as being lined up allows. Training a
+      // separate trigger produced brains that sat on a firing line without
+      // using it: r2 is aligned 38% of the time and fires 0.6 shots.
+      void wantsFire;
+      if (this.trader.alive) {
         const hpBefore = this.trader.hp;
         const beforeShots = p.shotsFired;
         fireLaser(p, this.trader, dt, this.rng);
@@ -312,7 +318,6 @@ export class Episode {
       (killed ? 8 + 4 * (1 - this.t / this.maxTime) : 0) +
       0.05 * this.engagedTime[i] +
       0.6 * this.tailTime[i] -
-      0.03 * p.shotsFired -
       2 * p.damageTaken -
       (this.escaped ? 6 : 0)
     );
