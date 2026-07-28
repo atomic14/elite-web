@@ -91,6 +91,8 @@ interface PoolEntry {
   ctrl: Controller;
   /** does this trader shoot back? */
   armed: boolean;
+  /** hull it flies; playerCobra has the commander's speed and agility */
+  hull?: 'traderCobra' | 'playerCobra';
   label: string;
 }
 
@@ -123,14 +125,21 @@ const traderPool: PoolEntry[] = (() => {
   const pool: PoolEntry[] = [scripted];
   // an armed scripted trader: predictable flying, but it shoots
   pool.push({ ctrl: { kind: 'scripted' }, armed: true, label: 'scripted, armed' });
-  for (const [name, armed] of [
-    ['trader-evade', false],       // r1 runner
-    ['trader-evade-r2', false],    // r2 runner, a different style
-    ['jameson-defend', true],      // turns and fights
+  // The last two fly the PLAYER's hull. Every brain in this project was
+  // trained against traderCobra, which is 1.8x slower and less than half as
+  // agile as the commander it actually hunts, so a pursuit curve fitted to a
+  // freighter overshoots a player on every pass. Measured in the game, a
+  // Sidewinder is lined up on the player for about 5% of a fight.
+  for (const [name, armed, hull] of [
+    ['trader-evade', false, 'traderCobra'],      // r1 runner, freighter
+    ['trader-evade-r2', false, 'traderCobra'],   // r2 runner, freighter
+    ['trader-evade-r2', false, 'playerCobra'],   // the same evasion, player agility
+    ['jameson-defend', true, 'playerCobra'],     // shoots back, player agility
   ] as const) {
     if (name === HOLD_OUT) { console.log(`(pool) holding out ${name}`); continue; }
     try {
-      pool.push({ ctrl: { kind: 'policy', brain: loadBrain(name) }, armed, label: name });
+      pool.push({ ctrl: { kind: 'policy', brain: loadBrain(name) }, armed, hull,
+        label: `${name}/${hull}` });
     } catch {
       console.log(`(pool) ${name} unavailable — skipping`);
     }
@@ -161,6 +170,7 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
       pirates: [{ kind: 'policy', brain: genome }],
       trader: pick.ctrl,
       traderArmed: pick.armed,
+      traderClass: pick.hull,
     });
   }
   if (phase === 'evade') {

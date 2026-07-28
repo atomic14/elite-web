@@ -13,7 +13,7 @@ import { TURN } from '../sim/core';
 import { planDocking, makeDockPlan, type DockPlan } from './docking';
 import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
-import sharpBrainFile from '../sim/brains/pirate-attack-r5-varied.json';
+import sharpBrainFile from '../sim/brains/pirate-attack-r6-playerlike.json';
 import defendBrainFile from '../sim/brains/jameson-defend.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
@@ -31,11 +31,13 @@ const PIRATE_BRAIN: Brain | null = (() => {
 })();
 
 /**
- * Run 9's attacker, trained against a rotation of five opponents including two
- * that shoot back (docs/TRAINING-LOG.md). It stopped ramming (0.94 contacts an
- * episode down to 0.01) and it generalises: held out of its own training,
- * jameson-defend still dies to it 44.5% of the time against the shipped
- * brain's 4.0%.
+ * Run 10's attacker. Trained against a rotation of six opponents, two of which
+ * fly the PLAYER's hull rather than a freighter, which is the thing every
+ * previous brain was missing (docs/TRAINING-LOG.md).
+ *
+ * Against a player-agility target it holds a firing line for 90% of the fight
+ * and kills 100% of the time, where the shipped brain manages 30% and never
+ * kills at all. It also inherits run 9's fix: it does not ram.
  *
  * NOT the default, and the reason is worth reading before switching it on. As
  * the ordinary pirate it kills a fully shielded commander 100% of the time in
@@ -180,6 +182,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 export interface PlayerRef {
   position: THREE.Vector3;
   quaternion: THREE.Quaternion;
+  /** current speed. The brain's observation needs it to lead a shot. */
+  speed: number;
 }
 
 export type FireEvent = { at: 'player' } | { at: NpcShip };
@@ -477,8 +481,12 @@ export class NpcShip {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
         const solo = sharpBrainFor(this.threatTier) ? SHARP_BRAIN! : PIRATE_BRAIN;
+        // The player's REAL speed. This was hardcoded 300 whatever the
+        // player was doing, so the observation fed the brain a constant where
+        // the sim feeds the target's actual speed — the one input a pursuer
+        // most needs to lead its shot.
         return this.brainFly(pack ? PACK_BRAIN : solo, dt,
-          player.position, player.quaternion, 300, distPlayer, 'player',
+          player.position, player.quaternion, player.speed, distPlayer, 'player',
           pack ? fleet : null);
       }
       // Inside knife range the scripted break-off takes over — see RAM_GUARD.

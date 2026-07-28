@@ -919,3 +919,59 @@ no measured outcome), and both are named constants now rather than magic
 numbers in an expression. Widening the 0.25 rad firing gate is the lever that
 would actually raise their output, and it would do it by granting shots at
 angles they have not earned.
+
+## Run 10 — they weave because they have never met a player
+
+Chris's question, and it is the right one: if they were trained to shoot, why
+are they weaving instead of shooting?
+
+Because every pirate brain in this project was trained against
+`CLASSES.traderCobra`, and the commander is not one:
+
+| | training target | the player |
+| --- | --- | --- |
+| max speed | 220 | 400 |
+| pitch | 0.70 | 1.45 |
+| roll | 1.20 | 2.50 |
+
+A pursuit curve fitted to a freighter overshoots something twice as agile on
+every pass, and the pirate spends the fight re-acquiring rather than firing.
+Measured against a player-agility target, share of the fight actually lined up
+inside the game's firing gate:
+
+| brain | lined up | kills |
+| --- | --- | --- |
+| pirate-attack-r2 (shipped) | 30.5% | **0%** |
+| r5-varied (run 9) | 94.6% | 43% |
+| **r6-playerlike (this run)** | 90.3% | **100%** |
+
+The shipped brain cannot beat a player-agility target at all. Adding two pool
+opponents that fly `playerCobra` — the same evader and the same armed defender,
+on the commander's hull — fixes it outright.
+
+A real bug fell out of the same investigation. `PlayerRef` had no `speed`, so
+`brainFly` was handed the literal **300** whatever the player was doing. The
+sim feeds the target's true speed, and speed is the one input a pursuer needs
+to lead a shot. Now passed properly.
+
+### And it makes no difference in the game
+
+Two pirates, eight trials, the player flown by the defence brain:
+
+| | commander killed | pirates killed |
+| --- | --- | --- |
+| shipped | 0% | 0.3 of 2 |
+| run 10 | 0% | 0.3 of 2 |
+
+Identical. The game's own gates — a 0.25 rad firing cone, a 1.3s cooldown,
+shields that regenerate faster than two Sidewinders can shoot — dominate
+whatever the brain does. This is the third time in two days that a large sim
+improvement has vanished on contact with the game, and it is worth stating
+plainly: **the sim is now a poor predictor of in-game combat**, and any further
+AI work should be judged in the game first.
+
+A methodological note, because it nearly fooled me twice. My first in-game
+comparison flew the "player" in a straight line and reported run 10 as far
+WORSE (0% lined up against the shipped brain's 9%). A drifting target is
+exactly the freighter the shipped brain was trained on, so the test flattered
+it. Only the harness that flies the ship evasively gives an honest answer.

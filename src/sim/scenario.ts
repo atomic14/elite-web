@@ -28,6 +28,12 @@ export interface EpisodeOptions {
   /** one brain per pirate; scripted pirates use game-style chase AI */
   pirates: Controller[];
   trader: Controller;
+  /**
+   * Hull for the trader. Defaults to `traderCobra`, the freighter every brain
+   * has ever been trained against. `playerCobra` gives it the commander's own
+   * speed and agility, which is the thing pirates actually have to track.
+   */
+  traderClass?: keyof typeof CLASSES;
   /** armed traders shoot back (used for pack scenarios) */
   traderArmed?: boolean;
   maxTime?: number;
@@ -57,7 +63,7 @@ export class Episode {
     this.maxTime = opts.maxTime ?? 45;
     this.rng = makeRng(opts.seed);
 
-    this.trader = makeShip(CLASSES.traderCobra, v3(0, 0, 0), q4());
+    this.trader = makeShip(CLASSES[opts.traderClass ?? 'traderCobra'], v3(0, 0, 0), q4());
     // random initial trader orientation
     steerToward(this.trader, vScale(randDir(this.rng), 1000), 10);
 
