@@ -1,0 +1,96 @@
+/* The landing page.
+   Deliberately loads no game code: it exists to be read (and indexed), and the
+   three.js bundle has no business blocking that. Shares the phosphor palette
+   with the game and the manual, set for reading rather than for a cockpit. */
+
+:root {
+  --hud-green: #4dff5c;
+  --hud-dim: #1d6b26;
+  --hud-amber: #ffb444;
+  --paper: #040a05;
+  --ink: #a8e8b0;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #0d2410 0%, transparent 70%),
+    var(--paper);
+  color: var(--ink);
+  font: 17px/1.75 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+main { max-width: 900px; margin: 0 auto; padding: 0 24px 80px; }
+section { margin: 56px 0; }
+p { margin: 0 0 18px; }
+a { color: var(--hud-green); }
+
+/* --- hero ---------------------------------------------------------------- */
+
+.hero { text-align: center; padding: 80px 0 44px; }
+h1 {
+  font-family: Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  font-size: clamp(56px, 13vw, 128px);
+  letter-spacing: clamp(10px, 4vw, 40px);
+  margin: 0 0 8px;
+  /* the letter-spacing pads the right side only; nudge back to optical centre */
+  text-indent: clamp(10px, 4vw, 40px);
+  color: var(--hud-green);
+  text-shadow: 0 0 40px rgba(77, 255, 92, 0.45);
+}
+.tagline { font-size: 21px; color: var(--hud-green); margin-bottom: 22px; }
+.blurb { max-width: 620px; margin: 0 auto 32px; }
+
+.cta { text-align: center; }
+.cta.bottom { margin: 64px 0 40px; }
+.play {
+  display: inline-block;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 22px; letter-spacing: 6px;
+  padding: 16px 42px;
+  color: var(--paper); background: var(--hud-green);
+  text-decoration: none; font-weight: bold;
+  box-shadow: 0 0 34px rgba(77, 255, 92, 0.35);
+}
+.play:hover { background: #7dff88; box-shadow: 0 0 46px rgba(77, 255, 92, 0.6); }
+.cta-note { display: block; margin-top: 12px; font-size: 13px; color: var(--hud-dim); }
+
+/* --- content ------------------------------------------------------------- */
+
+h2 {
+  font-family: Menlo, Consolas, monospace;
+  font-size: 23px; letter-spacing: 2px; color: var(--hud-green);
+  border-bottom: 1px solid var(--hud-dim); padding-bottom: 10px; margin-bottom: 20px;
+}
+
+.shot { margin: 0 0 8px; }
+.shot img {
+  width: 100%; height: auto; display: block;
+  border: 1px solid var(--hud-dim);
+}
+.shot figcaption { font-size: 13px; color: var(--hud-dim); padding-top: 8px; }
+.shot.wide { margin: 40px 0; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+@media (max-width: 680px) { .two { grid-template-columns: 1fr; } }
+
+.card {
+  display: block; text-decoration: none; color: var(--ink);
+  border: 1px solid var(--hud-dim); padding: 20px 22px;
+  background: rgba(77, 255, 92, 0.04);
+}
+.card:hover { background: rgba(77, 255, 92, 0.1); border-color: var(--hud-green); }
+.card h3 { margin: 0 0 8px; color: var(--hud-amber); font-size: 17px; letter-spacing: 1px; }
+.card p { margin: 0; font-size: 15px; }
+
+.features { padding-left: 20px; }
+.features li { margin-bottom: 8px; }
+.linkline { font-family: Menlo, Consolas, monospace; font-size: 15px; }
+
+footer {
+  border-top: 1px solid var(--hud-dim);
+  padding-top: 22px; font-size: 13px; color: var(--hud-dim);
+}
+footer a { color: var(--hud-dim); }

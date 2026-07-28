@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://elite.atomic14.com/sitemap.xml

@@ -8,7 +8,8 @@ framing intact.
 ## Commands
 
 ```sh
-npm run dev        # game at localhost:5173, viewer at /viewer.html
+npm run dev        # landing at localhost:5173 · game at /play.html
+                   # viewer at /viewer.html · manual + novella at /manual.html, /novella.html
 npm run lint       # tsc --noEmit over src/, train/ and test/
 npm run check      # lint + tests — what `prebuild` runs
 npm run build      # prebuild (lint + test) then vite build → dist/
@@ -29,6 +30,11 @@ that fails lint or tests fails the Cloudflare build and never deploys.
 stopping a broken commit reaching the live site.
 
 Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
+
+**Site layout**: `/` is a static landing page (no game bundle — it exists to
+be read and indexed), the game is `play.html`, and `manual.html` /
+`novella.html` carry the long-form text. All are Vite entries in
+vite.config.ts; add new pages there or they won't build.
 
 ## Read these before big changes
 
