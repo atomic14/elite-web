@@ -367,6 +367,31 @@ html, body {
 
 #chart-canvas, #local-canvas { cursor: crosshair; }
 
+/* DATA ON <SYSTEM>: portrait beside the statistics, stacking when narrow. */
+#screen .sysbody {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  flex-wrap: wrap;
+}
+#screen .portrait { margin: 0; text-align: center; }
+#screen .portrait img {
+  width: 192px;
+  height: 192px;
+  /* The portraits are 256px of hard-edged 2x2 blocks in the game's own
+     greens. Any smoothing here would interpolate colours that are not in
+     that palette and soften the blocks, undoing the whole posterise step. */
+  image-rendering: pixelated;
+  border: 1px solid var(--hud-dim);
+  display: block;
+}
+#screen .portrait figcaption {
+  color: var(--hud-amber);
+  font-size: 12px;
+  margin-top: 6px;
+  max-width: 192px;
+}
 #screen table.sysdata { width: auto; margin: 0 auto; font-size: 13px; line-height: 1.9; }
 #screen table.sysdata td:first-child { color: var(--hud-amber); text-align: right; padding-right: 18px; }
 #screen .sysdesc {

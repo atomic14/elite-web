@@ -2451,7 +2451,7 @@ export class Game {
     this.dataReturn = from;
     this.mode = 'data';
     // the living galaxy's latest word on this system, when it has one
-    renderSystemData(sys, this.system, this.living.headline(sys.index));
+    renderSystemData(sys, this.system, this.living.headline(sys.index), this.commander.galaxy);
   }
 
   private openStatus(from: 'docked' | 'flight'): void {

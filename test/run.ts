@@ -7,7 +7,7 @@
 // must stay deterministic, and the shipped brains must still beat their
 // baselines. Everything here is headless (no three.js, no DOM).
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
 } from '../src/galaxy/galaxy.ts';
@@ -313,6 +313,28 @@ for (const name of ['pirate-attack', 'pirate-attack-r2', 'trader-evade',
   const expected = obs * hidden + hidden + hidden * hidden + hidden + hidden * 11 + 11;
   check(`${name}: ${f.weights.length} weights match its declared shape`,
     f.weights.length === expected && f.weights.every((w) => Number.isFinite(w)));
+}
+
+// --- inhabitant portraits ---------------------------------------------------
+
+// The game builds these paths at runtime from a system's index and name
+// (screens.ts portraitUrl), while the files are written offline by
+// tools/generate-species.py. That is a filename convention shared by two
+// programs with nothing connecting them: rename a system, change the padding,
+// or regenerate half a galaxy, and the portraits silently stop appearing —
+// there is no error, just the old text-only page. So assert the mapping.
+
+console.log('\ninhabitant portraits');
+{
+  const dir = new URL('../public/species/', import.meta.url);
+  const url = (s: { index: number; name: string }) =>
+    `${String(s.index).padStart(3, '0')}-${s.name.toLowerCase()}.png`;
+  const have = new Set(readdirSync(dir).filter((f) => f.endsWith('.png')));
+  const missing = g1.filter((s) => !have.has(url(s)));
+  const stray = [...have].filter((f) => !g1.some((s) => url(s) === f));
+  check(`every galaxy 1 system has a portrait (${g1.length - missing.length}/${g1.length})`,
+    missing.length === 0);
+  check(`no unreferenced portrait files (${stray.length} stray)`, stray.length === 0);
 }
 
 // --- result -----------------------------------------------------------------

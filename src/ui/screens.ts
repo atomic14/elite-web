@@ -574,14 +574,46 @@ export function localCoordsFromClick(
 }
 
 /**
+ * Where an inhabitant portrait lives, or '' if there isn't one.
+ *
+ * Galaxy 1 only, and that guard is doing real work rather than being cautious.
+ * The filename carries both the index and the system name, so a galaxy 2 world
+ * almost always 404s and hides itself — but "almost always" is the problem:
+ * the eight galaxies share a name pool, so a system could land on the same
+ * index AND name as a galaxy 1 world and confidently display the wrong
+ * species. Cheaper to check the galaxy than to reason about the collision.
+ *
+ * The images are generated offline and committed (tools/generate-species.py),
+ * so this is a plain static asset — nothing runs at build time or in the
+ * browser.
+ */
+export function portraitUrl(sys: StarSystem, galaxy: number): string {
+  if (galaxy !== 1) return '';
+  return `species/${String(sys.index).padStart(3, '0')}-${sys.name.toLowerCase()}.png`;
+}
+
+/**
  * The original's "DATA ON <SYSTEM>" page: the full statistics block plus
  * the procedurally generated planet description.
  */
-export function renderSystemData(sys: StarSystem, current: StarSystem, news = ''): void {
+export function renderSystemData(
+  sys: StarSystem, current: StarSystem, news = '', galaxy = 1,
+): void {
   const d = distanceTenths(current, sys);
+  const portrait = portraitUrl(sys, galaxy);
+  // onerror rather than a manifest: 256 files exist today, but a half-finished
+  // regeneration should degrade to the old text-only page, not a broken icon.
+  const face = portrait ? `
+    <figure class="portrait">
+      <img src="${portrait}" alt="Inhabitant of ${sys.name}" loading="lazy"
+           onerror="this.parentElement.remove()"/>
+      <figcaption>${speciesName(sys)}</figcaption>
+    </figure>` : '';
   show(`
     <h2>DATA ON ${sys.name.toUpperCase()}</h2>
     <div class="rule"></div>
+    <div class="sysbody">
+    ${face}
     <table class="sysdata">
       <tr><td>Distance:</td><td>${(d / 10).toFixed(1)} Light Years</td></tr>
       <tr><td>Economy:</td><td>${ECONOMY_NAMES[sys.economy]}</td></tr>
@@ -592,6 +624,7 @@ export function renderSystemData(sys: StarSystem, current: StarSystem, news = ''
       <tr><td>Gross Productivity:</td><td>${sys.productivity} M CR</td></tr>
       <tr><td>Average Radius:</td><td>${sys.radius} km</td></tr>
     </table>
+    </div>
     <div class="rule"></div>
     <div class="info sysdesc">${planetDescription(sys)}</div>
     ${news ? `<div class="info sysdesc" style="color:var(--hud-amber);margin-top:8px">${news}</div>` : ''}
