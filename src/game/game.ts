@@ -121,12 +121,13 @@ const MISSILE_SPEED = 700;
  * hanging in front of you rather than a world you have yet to reach — and the
  * clean torus run to the station took 17.8 seconds.
  *
- * At 24 the planet is 4.8 degrees, a disc you fly towards, and the run is
- * about 37 seconds. Long enough to be a journey, short enough not to be a
- * chore, and the arrival pirates scatter along the corridor proportionally
+ * 24 turned out to be too far the other way — a 43 second cruise before
+ * anything happens. 16 puts the planet at 7.2 degrees and the clean run at
+ * about 28 seconds: still a journey you notice, no longer one you resent.
+ * The arrival pirates scatter along the corridor proportionally
  * (populateSystem uses the route length) so the ambush spread scales with it.
  */
-const WITCHPOINT_RADII = 24;
+const WITCHPOINT_RADII = 16;
 
 const SUN_HEAT_START = 110_000; // cabin temp begins to climb
 const SUN_SCOOP_RANGE = 80_000; // fuel scoops gather inside this
@@ -1756,19 +1757,20 @@ export class Game {
     // frame rather than shrinking underneath the loop.
     for (const npc of [...this.npcs]) {
       const event = npc.update(dt, this.player, this.commander.legalStatus,
-        this.world.station, this.npcs);
+        this.world.station, this.npcs, this.world.stationDockZ);
       if (event) this.resolveNpcFire(npc, event);
 
       if (npc.wantsDespawn) {
-        // a trader that put in at the station slips into the slot; one that
-        // jumped out gets the witch-flash
-        this.addExplosion(
-          npc.object.position.clone(),
-          npc.docked ? 0xd8ffe0 : 0x9adfff,
-          npc.docked
-            ? { count: 5, speed: 35, duration: 0.4 }
-            : { count: 10, speed: 120, duration: 0.7 },
-        );
+        // A ship that JUMPED OUT gets the witch-flash. A ship that DOCKED gets
+        // nothing: it flew into the slot, which is not an event that emits
+        // particles. It used to get a smaller, paler burst from the same
+        // explosion system, and from outside that is indistinguishable from
+        // watching it blow up — reported as exactly that, by someone watching
+        // a trader line up perfectly and then apparently detonate.
+        if (!npc.docked) {
+          this.addExplosion(npc.object.position.clone(), 0x9adfff,
+            { count: 10, speed: 120, duration: 0.7 });
+        }
         this.scene.remove(npc.object);
         this.npcs = this.npcs.filter((n) => n !== npc);
         continue;
@@ -2384,6 +2386,10 @@ export class Game {
             sfx.beep(220);
           } else {
             this.torusEngaged = !this.torusEngaged;
+            // Engaging the drive opens the throttle. Nobody engages a jump
+            // drive in order to crawl, and having to hold the accelerator
+            // afterwards was busywork with one sensible answer.
+            if (this.torusEngaged) this.player.speed = this.player.maxSpeed;
             this.hud.showMessage(this.torusEngaged ? 'TORUS DRIVE ENGAGED' : 'TORUS DRIVE OFF', 2);
             if (this.torusEngaged) sfx.beep(1000, 0.15);
           }

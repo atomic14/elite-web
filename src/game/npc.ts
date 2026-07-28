@@ -200,6 +200,12 @@ export type NpcRole =
 const ZERO = new THREE.Vector3();
 /** scratch for the docking gate, module-level to keep update() allocation-free */
 /** station half-width; both hulls use 160 (world/system-scene.ts) */
+/**
+ * Fallback slot depth. The real figure comes from the world (a Coriolis is
+ * 160, a Dodo 135), and using this constant for both meant traders at
+ * high-tech stations "arrived" 22 units short of the hull and vanished in open
+ * space — which, with the docking flash, read as a ship exploding on approach.
+ */
 const DOCK_Z = 160;
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -368,6 +374,8 @@ export class NpcShip {
   docked = false;
   /** on final approach into the slot — the station must not shove it away */
   docking = false;
+  /** the live station's slot depth, handed down by the Game each frame */
+  private stationDockZ = DOCK_Z;
   private readonly dockPlan: DockPlan = makeDockPlan();
   /** decided at spawn: does this one have business at the station? */
   readonly docksHere = Math.random() < 0.5;
@@ -475,7 +483,9 @@ export class NpcShip {
     playerLegal: number,
     station: THREE.Object3D,
     fleet: readonly NpcShip[] = [],
+    stationDockZ?: number,
   ): FireEvent | null {
+    if (stationDockZ !== undefined) this.stationDockZ = stationDockZ;
     if (!this.alive) return null;
 
     if (this.role === 'asteroid' || this.role === 'hermit') {
@@ -623,7 +633,7 @@ export class NpcShip {
       case 'docking': {
         // Shared with the player's docking computer — see game/docking.ts.
         const plan = planDocking(
-          this.object.position, station, DOCK_Z, this.maxSpeed, this.dockPlan);
+          this.object.position, station, this.stationDockZ, this.maxSpeed, this.dockPlan);
         this.docking = plan.phase === 'run';
         this.speed = approach(this.speed, plan.speed, 90 * dt);
         // orientation from the plan's heading AND the station's up, so the
