@@ -135,9 +135,11 @@ because browsers claim the function keys.
 ### Docked
 
 L launch · M market · E equip ship · N local chart · G galactic chart ·
-C contracts · D data on system · I status · B switch keyboard layout ·
-S commander file (4 save slots · rename) · X export save · Z import save ·
-**Q start a new commander** (confirms first)
+C contracts · D data on system · I status · **H new pilot's briefing** ·
+B switch keyboard layout · S commander file (4 save slots · rename) ·
+X export save · Z import save · **Q start a new commander** (confirms first)
+
+↑↓ and ENTER work on the menu as well as the letter keys.
 
 ### Market
 
@@ -152,11 +154,14 @@ F find a system by name · ESC exit
 
 ### Docking and the console
 
-Fly into the station's slot with your wings matched to the slot's rotation,
-using the alignment aid that appears as you line up: the dot shows your
-lateral offset (green when you'd fit through), the bar shows the slot's
-rotation (green when your roll matches). Get it wrong and you'll bounce off
+Fly into the station's docking port with your wings matched to its rotation.
+An amber marker shows where the port is, with an arrow at the screen edge
+when it's behind you; it turns green and reads DOCKING PORT — LINED UP when
+you're on the axis and rolled to match. Get it wrong and you'll bounce off
 with shield damage — or buy the docking computer.
+
+In a fight, a red arrow at the screen edge points at the nearest hostile you
+can't currently see.
 
 The console lights an **S** while the station is in scanner range (its
 defences cover you there) and an **E** when an E.C.M. broadcast is
