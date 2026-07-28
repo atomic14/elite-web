@@ -26,6 +26,10 @@ import { sfx } from '../audio';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import { planDocking, makeDockPlan } from './docking';
+import {
+  SavesScreen, exportCommanderFile, importCommanderFile, startNewCommander,
+  type SavesContext, type SavesOutcome,
+} from './saves-screen';
 /**
  * Player gunnery: a real ray against the hull, plus a small graze tolerance.
  *
@@ -118,11 +122,10 @@ const SIGHT_Y = 0.42;
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL, MAX_MISSILES,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
-  SAVE_SLOTS, DEFAULT_NAME, currentSlot, setCurrentSlot, readSlot, deleteSlot,
   type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
-  hideScreen, renderDockedMenu, renderNewGameConfirm, renderSaves, renderNaming, renderMarket, renderStatus, renderChart, drawChart,
+  hideScreen, renderDockedMenu, renderNewGameConfirm, renderMarket, renderStatus, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderEquip, equipRows, renderMarketEstimate,
   renderGameOver, renderSystemData, renderContracts, describeContract, nearestSystem,
   renderBriefing, BRIEFING_PAGES,
@@ -242,8 +245,7 @@ export class Game {
   private menuSelected = 0;
   /** page of the new pilot's briefing */
   private briefPage = 0;
-  private saveSelected = 0;
-  private nameBuffer = '';
+  private readonly saves = new SavesScreen();
   /** the reception the current system laid on — surfaced for the HUD/tests */
   lastThreat: PirateThreat | null = null;
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
@@ -686,59 +688,43 @@ export class Game {
   }
 
   /** Download the commander as a JSON file (portable saves, bug reports). */
-  private exportSave(): void {
-    const blob = new Blob([JSON.stringify(this.commander, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `elite-commander-${this.system.name.toLowerCase()}-${formatCredits(this.commander.credits).replace(' ', '')}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    this.hud.showMessage('COMMANDER EXPORTED', 3);
-  }
-
-  /**
-   * Throw the current commander away and boot a fresh one at Lave. Reloads
-   * rather than resetting in place: a career leaves state in the living
-   * galaxy, contract offers, chart target and mission progress, and a clean
-   * boot is far more trustworthy than trying to zero all of it by hand.
-   */
   /** @internal — driven by test/playtest.js */
   newCommanderGame(): void {
-    // deleteSlot, NOT removeItem('elite-web-commander'). That was the key
-    // saves lived at before slots existed; since the refactor they live at
-    // 'elite-web-commander:<slot>', so this deleted nothing at all and the
-    // reload loaded the same commander straight back — you asked to start
-    // again and got your old ship, cargo and equipment.
-    deleteSlot(currentSlot());
-    location.reload();
+    startNewCommander();
   }
 
-  /** Load a commander from a JSON file (replaces the current save). */
+  openSaves(): void {
+    this.mode = 'saves';
+    this.saves.open(this.savesContext());
+  }
+
+  /** The only slice of the Game the saves screens are allowed to see. */
+  private exportSave(): void {
+    exportCommanderFile(this.commander, this.system.name,
+      (text, seconds) => this.hud.showMessage(text, seconds));
+  }
+
   private importSave(): void {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        const parsed = JSON.parse(await file.text()) as Partial<CommanderData>;
-        if (typeof parsed.credits !== 'number' || typeof parsed.systemIndex !== 'number') {
-          throw new Error('not a commander file');
-        }
-        // Same stale key as newCommanderGame had, and worse here: writing to
-        // the legacy key meant the import was ignored (slot 1 already exists,
-        // so the migration skips it) AND then deleted, because
-        // migrateLegacySave clears that key on the next boot. The imported
-        // commander vanished without a word.
-        saveCommander(parsed as CommanderData, currentSlot());
-        location.reload(); // boot cleanly from the imported save
-      } catch {
-        this.hud.showMessage('IMPORT FAILED — NOT A COMMANDER FILE', 4);
-        sfx.beep(220);
-      }
+    importCommanderFile(() => {
+      this.hud.showMessage('IMPORT FAILED — NOT A COMMANDER FILE', 4);
+      sfx.beep(220);
+    });
+  }
+
+  /** The only slice of the Game the saves screens are allowed to see. */
+  private savesContext(): SavesContext {
+    return {
+      commander: this.commander,
+      systems: this.systems,
+      message: (text, seconds) => this.hud.showMessage(text, seconds),
     };
-    input.click();
+  }
+
+  /** Apply what the saves screens decided. They never set `mode` themselves. */
+  private applySavesOutcome(outcome: SavesOutcome): void {
+    if (outcome === 'close') this.enterDocked();
+    else if (outcome === 'saves') this.mode = 'saves';
+    else if (outcome === 'naming') this.mode = 'naming';
   }
 
   /** @internal — driven by test/playtest.js */
@@ -2306,11 +2292,11 @@ export class Game {
         break;
 
       case 'saves':
-        this.handleSavesInput();
+        this.applySavesOutcome(this.saves.handleSlotInput(this.input, this.savesContext()));
         break;
 
       case 'naming':
-        this.handleNamingInput();
+        this.applySavesOutcome(this.saves.handleNamingInput(this.input, this.savesContext()));
         break;
 
       case 'contracts': {
@@ -2804,98 +2790,6 @@ export class Game {
   }
 
   /** @internal — driven by test/playtest.js */
-  openSaves(): void {
-    saveCommander(this.commander); // so the slot you're on is up to date
-    this.mode = 'saves';
-    this.saveSelected = currentSlot() - 1;
-    this.renderSaves();
-  }
-
-  private renderSaves(): void {
-    const slots = Array.from({ length: SAVE_SLOTS }, (_, i) => readSlot(i + 1));
-    renderSaves(this.systems, slots, this.saveSelected, currentSlot());
-  }
-
-  private handleSavesInput(): void {
-    const i = this.input;
-    if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
-      this.saveSelected = (this.saveSelected + SAVE_SLOTS - 1) % SAVE_SLOTS;
-      this.renderSaves();
-    }
-    if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
-      this.saveSelected = (this.saveSelected + 1) % SAVE_SLOTS;
-      this.renderSaves();
-    }
-    if (i.pressed('KeyR')) {
-      // start blank: pre-filling looks helpful but there is no way to select
-      // it, so typing a new name just appends to the old one
-      this.nameBuffer = '';
-      this.mode = 'naming';
-      renderNaming(this.nameBuffer, this.commander.name);
-      return;
-    }
-    if (i.pressed('KeyD')) {
-      const slot = this.saveSelected + 1;
-      if (slot === currentSlot()) {
-        this.hud.showMessage('CANNOT DELETE THE COMMANDER YOU ARE FLYING', 3);
-        sfx.beep(220);
-      } else {
-        deleteSlot(slot);
-        this.renderSaves();
-        sfx.beep(400, 0.1);
-      }
-      return;
-    }
-    if (i.pressed('Enter')) {
-      const slot = this.saveSelected + 1;
-      if (slot === currentSlot()) {
-        this.enterDocked();
-        return;
-      }
-      // Switch commanders by reloading: a career leaves state across the
-      // living galaxy, contracts, chart target and mission progress, and a
-      // clean boot is far more trustworthy than zeroing all of it by hand.
-      saveCommander(this.commander);
-      setCurrentSlot(slot);
-      location.reload();
-      return;
-    }
-    if (i.pressed('Escape')) this.enterDocked();
-  }
-
-  /** Elite-style name entry: letters straight in, no DOM focus to fight. */
-  private handleNamingInput(): void {
-    const i = this.input;
-    if (i.pressed('Escape')) {
-      this.mode = 'saves';
-      this.renderSaves();
-      return;
-    }
-    if (i.pressed('Enter')) {
-      const name = this.nameBuffer.trim() || DEFAULT_NAME;
-      this.commander.name = name;
-      saveCommander(this.commander);
-      this.mode = 'saves';
-      this.renderSaves();
-      this.hud.showMessage(`COMMANDER ${name}`, 3);
-      sfx.beep(700, 0.1);
-      return;
-    }
-    let changed = false;
-    if (i.pressed('Backspace')) {
-      this.nameBuffer = this.nameBuffer.slice(0, -1);
-      changed = true;
-    }
-    for (const code of i.drainPresses()) {
-      const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
-      if (!m) continue;
-      if (this.nameBuffer.length >= 12) break;
-      this.nameBuffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
-      changed = true;
-    }
-    if (changed) renderNaming(this.nameBuffer, this.commander.name);
-  }
-
   private handleEquipInput(): void {
     const i = this.input;
     const rows = equipRows(this.system, this.commander, cheatMode());
