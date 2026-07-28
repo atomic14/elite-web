@@ -315,6 +315,64 @@ for (const name of ['pirate-attack', 'pirate-attack-r2', 'trader-evade',
     f.weights.length === expected && f.weights.every((w) => Number.isFinite(w)));
 }
 
+// --- sim/game combat parity (invariant 2) -----------------------------------
+
+// The combat numbers exist twice — src/sim/core.ts and src/game/{npc,game}.ts
+// — and CLAUDE.md asks you to change both together. That has been a manual
+// promise until now, and it is exactly the kind nobody keeps: the two files
+// are edited months apart, drift is silent, and every trained brain was
+// fitted to the sim's copy. A balance conclusion drawn from the tournament is
+// only as good as this parity.
+//
+// Read as text rather than imported: npc.ts pulls in three.js and touches
+// window, neither of which belongs in this test.
+
+console.log('\nsim/game combat parity');
+{
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  const core = read('../src/sim/core.ts');
+  const npc = read('../src/game/npc.ts');
+  const game = read('../src/game/game.ts');
+
+  const num = (src: string, re: RegExp): number | null => {
+    const m = src.match(re);
+    return m ? Number(m[1]) : null;
+  };
+
+  // laser: the sim fires a flat 0.16; the game rolls 0.1 + rand*0.12, whose
+  // MEAN must be the same or every trained policy was fitted to a different
+  // weapon than the one it flies.
+  const simLaser = num(core, /damage:\s*([\d.]+),[\s\S]{0,80}?cooldown/);
+  const lo = num(game, /applyPlayerDamage\(([\d.]+) \+ Math\.random\(\)/);
+  const spread = num(game, /applyPlayerDamage\([\d.]+ \+ Math\.random\(\) \* ([\d.]+)/);
+  check(`laser damage: sim ${simLaser} == game mean ${lo! + spread! / 2}`,
+    simLaser !== null && Math.abs(simLaser - (lo! + spread! / 2)) < 1e-9);
+
+  const simCollision = num(core, /COLLISION = \{[\s\S]{0,400}?damage:\s*([\d.]+)/);
+  check(`collision damage: sim ${simCollision} appears in game.ts`,
+    simCollision !== null && game.includes(`applyPlayerDamage(${simCollision}`));
+
+  // hulls the sim models, and their game counterparts
+  for (const [simKey, gameDef, role] of [
+    ['pirateCobra', 'COBRA_MK3', 'pirate'],
+    ['pirateSidewinder', 'SIDEWINDER', 'pirate'],
+    ['traderCobra', 'COBRA_MK3', 'trader'],
+  ] as const) {
+    const simRow = core.match(new RegExp(`${simKey}:\\s*\\{([^}]+)\\}`))?.[1] ?? '';
+    const simHp = Number(simRow.match(/hp:\s*([\d.]+)/)?.[1]);
+    const simSpeed = Number(simRow.match(/maxSpeed:\s*([\d.]+)/)?.[1]);
+    const simTurn = Number(simRow.match(/turnRate:\s*([\d.]+)/)?.[1]);
+    // the game's table is grouped by role, so search within that group
+    const group = npc.match(new RegExp(`${role}:\\s*\\[([\\s\\S]*?)\\n  \\]`))?.[1] ?? '';
+    const row = group.split('\n').find((l) => l.includes(`def: ${gameDef},`)) ?? '';
+    const hp = Number(row.match(/hp:\s*([\d.]+)/)?.[1]);
+    const speed = Number(row.match(/maxSpeed:\s*([\d.]+)/)?.[1]);
+    const turn = Number(row.match(/turnRate:\s*([\d.]+)/)?.[1]);
+    check(`${simKey}: hp ${simHp}/${hp}, speed ${simSpeed}/${speed}, turn ${simTurn}/${turn} match`,
+      simHp === hp && simSpeed === speed && simTurn === turn);
+  }
+}
+
 // --- inhabitant portraits ---------------------------------------------------
 
 // The game builds these paths at runtime from a system's index and name
