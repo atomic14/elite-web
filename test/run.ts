@@ -397,6 +397,31 @@ console.log('\nsim/game combat parity');
   check(`laser damage: sim ${simLaser} == game mean ${lo! + spread! / 2}`,
     simLaser !== null && Math.abs(simLaser - (lo! + spread! / 2)) < 1e-9);
 
+  // NPC FIRE RATE — the largest sim/game divergence in the project, and the
+  // reason sim lethality numbers overstate NPC threat by roughly five times.
+  //
+  // The sim gives every ship the player's pulse laser: cooldown 0.24s. The
+  // game gates an NPC to `0.9 + random*0.8`, a mean of 1.3s, so a trained
+  // brain fires 5.4x slower in the game than in the world it was trained in.
+  // Two Sidewinders shooting a stationary player for 30 seconds land 0.75
+  // damage, against 1.05 of shield regeneration over the same period: they
+  // cannot out-damage the shields they are shooting at.
+  //
+  // Asserted as a RATIO rather than equality, because the handicap looks
+  // deliberate (NPCs are meant to be less dangerous than the player's own
+  // gun). The point is that changing either side becomes visible instead of
+  // silent, since every brain's behaviour is fitted to the sim's number.
+  const simCooldown = num(core, /LASER = \{[\s\S]{0,200}?cooldown:\s*([\d.]+)/);
+  // `this.` anchors on the brainFly assignment. Without it this matched the
+  // field initialiser (2 + random*2) and reported 12.5x instead of 5.4x.
+  const npcLo = num(npc, /this\.fireCooldown = ([\d.]+) \+ Math\.random\(\)/);
+  const npcSpread = num(npc, /this\.fireCooldown = [\d.]+ \+ Math\.random\(\) \* ([\d.]+)/);
+  const npcMean = npcLo! + npcSpread! / 2;
+  const ratio = npcMean / simCooldown!;
+  check(`NPC fire rate is ${ratio.toFixed(1)}x slower than the sim trains for `
+    + `(sim ${simCooldown}s, NPC mean ${npcMean.toFixed(2)}s) — known gap`,
+    ratio > 4 && ratio < 7);
+
   const simCollision = num(core, /COLLISION = \{[\s\S]{0,400}?damage:\s*([\d.]+)/);
   check(`collision damage: sim ${simCollision} appears in game.ts`,
     simCollision !== null && game.includes(`applyPlayerDamage(${simCollision}`));

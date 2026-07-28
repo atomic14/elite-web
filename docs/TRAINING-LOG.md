@@ -778,3 +778,53 @@ The obvious use, if it is wanted, is the tier ladder that already exists:
 opportunists keep `pirate-attack-r2`, professionals fly r5-varied, gangs keep
 the pack brain. That gives three genuine steps of escalation instead of two,
 and it is a playtest away.
+
+## The number that explains why sim lethality never matches play
+
+Reported from flying run 9's brain: "a couple of Sidewinders on the way to
+Lave, pretty easy to kill, I don't think they even shot at me."
+
+They barely did. NPC fire rate and the sim's are not the same number and never
+have been:
+
+| | cooldown | shots/second |
+| --- | --- | --- |
+| player's pulse laser (`game.ts` LASERS) | 0.24s | 4.2 |
+| **the sim** (`core.ts` LASER.cooldown) | 0.24s | 4.2 |
+| **a brain-flown NPC** (`npc.ts` brainFly) | 0.9 + rand*0.8, mean 1.30s | 0.8 |
+| a scripted NPC (`npc.ts` attack) | 1.4 + rand*1.8, mean 2.30s | 0.4 |
+
+The sim arms every ship with the player's own gun. The game gates an NPC to
+roughly one shot every 1.3 seconds, so **every brain this project has trained
+fires 5.4x slower in the game than in the world it was fitted to.**
+
+Measured in the game, player flying straight, 30 seconds:
+
+| attackers | hits landed | damage |
+| --- | --- | --- |
+| 2 Sidewinders, shipped brain | 5 | 0.75 |
+| 2 Sidewinders, run 9 brain | 3 | 0.47 |
+| 3 tier-2 pirates, run 9 brain | 5 | 2.06 (missiles carry most of it) |
+
+Shields regenerate 0.035/s each, which is **1.05 over those same 30 seconds**.
+Two Sidewinders cannot out-damage the shields they are shooting at. That is not
+a brain being weak; it is arithmetic.
+
+### What this reframes
+
+Every lethality figure derived from the sim overstates the in-game threat by
+about five times. That covers run 7's "kills a player-like target in 1.5-2.9s",
+run 9's "100% in 6.8s", and the survivability tables. Those numbers are correct
+*about the sim* and should not be read as predictions about play.
+
+It also explains the one measurement that did look alarming in the real game:
+run 9's brain killing the commander in 63% of gang trials. Those were tier-2
+hulls, which carry **missiles** at 1.3 damage each against a commander who soaks
+3.0. The lasers were never the threat.
+
+Not changed. Bringing NPC fire rate to the sim's would make every pirate in the
+game five times deadlier, which is a design decision and a large one. The
+handicap also looks deliberate: NPCs are meant to be less dangerous than the
+player's own gun. What has changed is that it is now asserted in `npm test` as
+a ratio, so altering either side is visible rather than silent — and every
+brain's behaviour is fitted to the sim's side of it.
