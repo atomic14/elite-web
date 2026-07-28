@@ -619,3 +619,51 @@ ECM, escape pod, torus drive, RAM_GUARD breaking pirates off at knife range,
 and a player Cobra more agile than `traderCobra`'s 0.5 turn rate — so 50%
 is a floor, not an estimate. Regeneration is ignored for the same reason
 (0.035/s per shield is under a tenth of a point across a fight this short).
+
+### Flown, at last — and the sim was wrong in the other direction
+
+    fetch('/test/gang-trial.js').then(r => r.text()).then(eval)
+    await __gangTrial.run({ trials: 12, gang: 3, maxT: 30 })
+    await __gangTrial.run({ trials: 12, gang: 4, maxT: 60 })
+
+`test/gang-trial.js` spawns real tier-2 gangs in the real game — real hull
+table (imported from npc.ts, not copied, so it cannot drift), real missiles,
+real collision and RAM_GUARD — and flies the player with the same
+`jameson-defend` policy the tournament used. 12 trials per row:
+
+| commander | gang | for | died | killed | energy left |
+| --- | --- | --- | --- | --- | --- |
+| military laser, energy unit | 3 | 30s | **0%** | 0.2 of 3 | 3.99 of 4 |
+| military laser, energy unit | 4 | 60s | **0%** | 0.9 of 4 | 4.00 of 4 |
+| pulse laser, NO energy unit | 3 | 60s | **0%** | 0.1 of 3 | 4.00 of 4 |
+
+Not one death in 36 fights. The energy bank was never meaningfully touched —
+in most trials the fore shield alone absorbed everything, and it dipped below
+half in only 5 of 36. A gang of four for a full minute did not land a single
+point of hull damage.
+
+**Both earlier estimates were wrong, and in opposite directions.** The
+tournament said 100% dead in 0.7s, because its defender was a shieldless
+traderCobra. survivability.ts corrected the durability and said 50% dead in
+4.5s. The real game says 0%.
+
+The factor both missed is **shield regeneration**. Each shield recovers
+0.035/s, so a 60-second fight regenerates 2.1 per shield — more than a
+commander's entire nominal durability of 3.0-4.0. I explicitly dismissed
+regeneration in survivability.ts as "under a tenth of a point across a fight
+this short", reasoning from the sim's 4.5s kill time. That was circular: the
+fight is only short *if* the model is right about lethality. Real fights last
+minutes, and over minutes regeneration is not a correction to the durability
+number, it dominates it.
+
+The pulse-laser row is the one that matters for balance, because it is the
+commander who can *just* start meeting gangs. Even that one is in no danger.
+So the concern recorded in CLAUDE.md — that gangs might be unsurvivable — is
+refuted. If anything the tier-2 gang is now too weak, and that is the question
+worth taking to a real playtest.
+
+Caveats, both pointing the same way this time: the defence brain evades
+expertly and shoots badly (0.1-0.9 kills per fight), so these are stalemates
+rather than wins — a human flying aggressively would take far more hits than
+this policy does, and would also kill far faster. And the harness caps
+pitch/roll at 0.7/1.2 where the real player has 1.45/2.5.
