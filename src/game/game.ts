@@ -42,6 +42,23 @@ import { planDocking, makeDockPlan } from './docking';
  * NOT shared with the sim, and deliberately so: sim/core.ts models NPC
  * gunnery, which stays the cone both sides use. The player's own gun is never
  * simulated in training, so this can't break parity (invariant 2).
+ *
+ * 0.9, raised from 0.35, because the ships you most want to shoot out-turn
+ * you. A Sidewinder pitches and rolls at 106% of the player's rates, an Asp
+ * 116%, a Viper 126% — they are SUPPOSED to weave, and that is the fight
+ * working. At 0.35 the tolerance was the central 12% of a hull's area, so a
+ * target doing its job correctly was close to unhittable.
+ *
+ * Measured rather than guessed, against a weaving pirate with 200ms of
+ * reaction lag standing in for a human:
+ *
+ *              0.35            0.9
+ *   tier 1     12% acc, 230    33% acc, 85 shots, killed 5 of 5
+ *   tier 0      6% acc          7%
+ *
+ * The Sidewinder barely moves, and that is the honest limit of this dial: it
+ * is small AND more agile than you, so its defence is tracking rather than
+ * tolerance. Widening further would start granting hits on empty space.
  */
 /**
  * Playtesting cheat: `window.__cheat = true` fits anything from the catalogue
@@ -53,7 +70,7 @@ function cheatMode(): boolean {
   return !!(window as unknown as Record<string, unknown>).__cheat;
 }
 
-const LASER_GRAZE = 0.35;
+const LASER_GRAZE = 0.9;
 
 /**
  * Grazing radius for drifting cargo, in world units. Canisters are ~12 units
