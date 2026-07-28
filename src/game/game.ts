@@ -27,12 +27,13 @@ import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirate
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import { planDocking, makeDockPlan } from './docking';
 import {
-  SavesScreen, exportCommanderFile, importCommanderFile, startNewCommander,
-  type SavesContext, type SavesOutcome,
+  SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
+  type SavesContext,
 } from './saves-screen';
 import {
-  TradeScreen, makeLocalMarket, type TradeContext, type TradeOutcome,
+  MarketScreen, EquipScreen, buyEquipment, makeLocalMarket, type TradeContext,
 } from './trade-screen';
+import { ScreenHost } from '../ui/screen-host';
 import {
   daysForJump, nearestSystemTo, witchspaceChance, WITCHSPACE_ESCAPE_COST,
 } from '../galaxy/navigation';
@@ -216,11 +217,30 @@ export class Game {
   private readonly hud = new Hud();
   private readonly tunnel = new TunnelEffect();
 
-  mode: Mode = 'docked';
-  private returnMode: 'docked' | 'flight' = 'docked';
+  /**
+   * Where the SHIP is. Flight, docked, or dead — the states that are not
+   * screens. Overlays live on the screen stack; `mode` is the two combined.
+   */
+  private baseMode: 'docked' | 'flight' | 'dead' = 'docked';
+
+  /**
+   * The screen stack. Single source of truth for which overlay is open, and
+   * for what Escape returns to — it replaced both `mode`'s overlay values and
+   * the one-deep `dataReturn` hack that existed for the system-data screen.
+   */
+  readonly screens = new ScreenHost(() => this.showBaseScreen());
+
+  /**
+   * What is on screen: the top overlay, or the base state when there is none.
+   * DERIVED — assign `baseMode` or push/pop the stack instead.
+   */
+  get mode(): Mode {
+    return (this.screens.topId ?? this.baseMode) as Mode;
+  }
+
   readonly chart: ChartState = { cursorX: 0, cursorY: 0, targetIndex: null };
   market: MarketEntry[] = [];
-  private readonly trade = new TradeScreen();
+
   private tracers: Tracer[] = [];
 
   targetLock: NpcShip | null = null;
@@ -247,10 +267,9 @@ export class Game {
   /** waiting on the player to confirm erasing their commander */
   private pendingNewGame = false;
   /** cursor position for arrow-key menu navigation (see handleMenuCursor) */
-  private menuSelected = 0;
   /** page of the new pilot's briefing */
   private briefPage = 0;
-  private readonly saves = new SavesScreen();
+  private readonly market_ = new MarketScreen(() => this.tradeContext());
   /** the reception the current system laid on — surfaced for the HUD/tests */
   lastThreat: PirateThreat | null = null;
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
@@ -368,6 +387,16 @@ export class Game {
     // docs/JAMESON-TRIALS.md) drives the whole game through this
     (window as unknown as Record<string, unknown>).__game = this;
 
+    // Screens register themselves with the host and are addressed by id from
+    // then on. Adding one is a new file plus a line here and a line in
+    // ScreenId — deliberately the whole shared surface.
+    for (const screen of [
+      this.market_,
+      new EquipScreen(() => this.tradeContext()),
+      new SavesScreen(() => this.savesContext()),
+      new NamingScreen(() => this.savesContext()),
+    ]) this.screens.register(screen);
+
     let last = performance.now();
     const frame = (now: number): void => {
       const dt = Math.min((now - last) / 1000, 0.1);
@@ -430,19 +459,12 @@ export class Game {
       cheat: cheatMode(),
       message: (text, seconds) => this.hud.showMessage(text, seconds),
       addNotoriety: (amount) => this.living.addNotoriety(this.commander.systemIndex, amount),
+      leaveHermit: () => {
+        this.hermitTrading = false;
+        this.hermitCooldown = true;
+        this.hud.showMessage('LEAVING THE HERMIT', 3);
+      },
     };
-  }
-
-  /** Apply what the trade screens decided. They never set `mode` themselves. */
-  private applyTradeOutcome(outcome: TradeOutcome): void {
-    if (outcome === 'leave-hermit') {
-      this.hermitTrading = false;
-      this.hermitCooldown = true;
-      this.hud.showMessage('LEAVING THE HERMIT', 3);
-      this.closeOverlay();
-    } else if (outcome === 'close') {
-      this.closeOverlay();
-    }
   }
 
   /**
@@ -450,17 +472,17 @@ export class Game {
    * on TradeScreen, and test/playtest.js assigns it before calling buyCargo.
    */
   /** @internal — driven by test/playtest.js */
-  get marketSelected(): number { return this.trade.marketSelected; }
-  set marketSelected(v: number) { this.trade.marketSelected = v; }
+  get marketSelected(): number { return this.market_.selected; }
+  set marketSelected(v: number) { this.market_.selected = v; }
 
   /** @internal — driven by test/playtest.js */
-  buyCargo(want: number): void { this.trade.buy(want, this.tradeContext()); }
+  buyCargo(want: number): void { this.market_.buy(want); }
 
   /** @internal — driven by test/playtest.js */
-  sellCargo(want: number): void { this.trade.sell(want, this.tradeContext()); }
+  sellCargo(want: number): void { this.market_.sell(want); }
 
   /** @internal — driven by test/playtest.js */
-  buyEquipment(id: string): void { this.trade.buyEquipment(id, this.tradeContext()); }
+  buyEquipment(id: string): void { buyEquipment(id, this.tradeContext()); }
 
   // --- world lifecycle -----------------------------------------------------
 
@@ -687,8 +709,8 @@ export class Game {
     // whatever flew us in, we're down: drop the autopilot and cut the music
     this.dcEngaged = false;
     sfx.stopDockingMusic();
-    this.mode = 'docked';
-    this.returnMode = 'docked';
+    this.baseMode = 'docked';
+    this.baseMode = 'docked';
     this.clearNpcs();
     this.foreShield = 1;
     this.aftShield = 1;
@@ -740,8 +762,7 @@ export class Game {
   }
 
   openSaves(): void {
-    this.mode = 'saves';
-    this.saves.open(this.savesContext());
+    this.screens.open('saves');
   }
 
   /** The only slice of the Game the saves screens are allowed to see. */
@@ -766,21 +787,14 @@ export class Game {
     };
   }
 
-  /** Apply what the saves screens decided. They never set `mode` themselves. */
-  private applySavesOutcome(outcome: SavesOutcome): void {
-    if (outcome === 'close') this.enterDocked();
-    else if (outcome === 'saves') this.mode = 'saves';
-    else if (outcome === 'naming') this.mode = 'naming';
-  }
-
   /** @internal — driven by test/playtest.js */
   launch(): void {
     const n = this.slotNormal();
     this.player.position.copy(this.world.station.position).addScaledVector(n, 450);
     this.lookAlong(n);
     this.player.speed = 120;
-    this.mode = 'flight';
-    this.returnMode = 'flight';
+    this.baseMode = 'flight';
+    this.baseMode = 'flight';
     this.view = 0;
     hideScreen();
     this.populateSystem('launch');
@@ -814,7 +828,7 @@ export class Game {
       this.hud.showMessage('ESCAPE POD DEPLOYED — CARGO LOST', 6);
       return;
     }
-    this.mode = 'dead';
+    this.baseMode = 'dead';
     this.hud.showMessage(reason, 6);
     renderGameOver(this.commander);
   }
@@ -2111,12 +2125,12 @@ export class Game {
         return m;
       });
     this.market = this.hermitMarket;
-    this.trade.marketSelected = 0;
-    this.mode = 'market';
-    this.returnMode = 'flight';
+
+    this.screens.open('market');
+    this.baseMode = 'flight';
     this.player.speed = 0;
     sfx.dock();
-    this.trade.renderMarket(this.tradeContext());
+    this.screens.open('market');
   }
 
   private assignNpcTargets(): void {
@@ -2243,7 +2257,12 @@ export class Game {
       document.getElementById('help')!.classList.toggle('hidden');
     }
 
-    this.handleMenuCursor();
+    // The host runs the menu cursor and gives the frame to the top screen.
+    // It returns false for screens that have not migrated to the Screen
+    // contract yet, which fall through to the switch below. That switch
+    // shrinks with every screen that moves; when it is empty, this method is
+    // just flight keys.
+    if (this.screens.update(i)) return;
 
     switch (this.mode) {
       case 'docked':
@@ -2259,15 +2278,13 @@ export class Game {
         }
         if (i.pressed('KeyL')) this.launch();
         else if (i.pressed('KeyM')) {
-          this.mode = 'market';
-          this.trade.openMarket(this.tradeContext());
+          this.screens.open('market');
         } else if (i.pressed('KeyC')) {
-          this.mode = 'contracts';
+          this.screens.open('contracts');
           this.contractSelected = 0;
           renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
         } else if (i.pressed('KeyE')) {
-          this.mode = 'equip';
-          this.trade.openEquip(this.tradeContext());
+          this.screens.open('equip');
         // Q, not a shifted N. ⇧N shared a key with the local chart, and
         // cancelling the confirm with N while still holding shift re-opened it
         // on the very next tap — you could get stuck in a loop you couldn't
@@ -2278,7 +2295,7 @@ export class Game {
           renderNewGameConfirm(this.system, this.commander);
         }
         else if (i.pressed('KeyH')) {
-          this.mode = 'briefing';
+          this.screens.open('briefing');
           this.briefPage = 0;
           renderBriefing(this.briefPage);
         }
@@ -2311,26 +2328,22 @@ export class Game {
           this.briefPage = Math.max(0, this.briefPage - 1);
           renderBriefing(this.briefPage);
         } else if (i.pressed('Escape') || i.pressed('KeyH')) {
-          this.mode = 'docked';
+          this.baseMode = 'docked';
           renderDockedMenu(this.system, this.commander, this.missionText());
         }
         break;
       }
 
       case 'market':
-        this.applyTradeOutcome(this.trade.handleMarketInput(this.input, this.tradeContext()));
         break;
 
       case 'equip':
-        this.applyTradeOutcome(this.trade.handleEquipInput(this.input, this.tradeContext()));
         break;
 
       case 'saves':
-        this.applySavesOutcome(this.saves.handleSlotInput(this.input, this.savesContext()));
         break;
 
       case 'naming':
-        this.applySavesOutcome(this.saves.handleNamingInput(this.input, this.savesContext()));
         break;
 
       case 'contracts': {
@@ -2400,10 +2413,10 @@ export class Game {
 
       case 'data':
         if (i.pressed('Escape') || i.pressed('KeyD')) {
-          if (this.dataReturn === 'chart') this.openChart(this.returnMode);
-          else if (this.dataReturn === 'local') this.openLocalChart(this.returnMode);
+          if (this.dataReturn === 'chart') this.openChart(this.baseMode as 'docked' | 'flight');
+          else if (this.dataReturn === 'local') this.openLocalChart(this.baseMode as 'docked' | 'flight');
           else {
-            this.mode = 'docked';
+            this.baseMode = 'docked';
             renderDockedMenu(this.system, this.commander, this.missionText());
           }
         }
@@ -2469,8 +2482,8 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   openChart(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
-    this.mode = 'chart';
-    this.returnMode = from;
+    this.screens.open('chart');
+    this.baseMode = from;
     this.chartFind = null;
     this.chartEstimate = false;
     const cur = this.system;
@@ -2482,47 +2495,14 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   openLocalChart(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
-    this.mode = 'local';
-    this.returnMode = from;
+    this.screens.open('local');
+    this.baseMode = from;
     this.chartFind = null;
     this.chartEstimate = false;
     const cur = this.system;
     this.chart.cursorX = cur.x;
     this.chart.cursorY = cur.y;
     renderLocalChart(this.systems, this.commander, this.chart);
-  }
-
-  /**
-   * Arrow-key cursor over any screen menu, with Enter to choose.
-   *
-   * Generic on purpose. Menu rows already carry a `data-key` so that a click
-   * can be turned into a synthetic key press (see handleScreenClick), which
-   * means Enter needs to do exactly one thing: inject the selected row's key.
-   * No per-screen wiring, and any menu added later gets this for free.
-   *
-   * It never consumes anything the letter keys need — the shortcuts printed
-   * beside each row keep working, and this is an addition to them, not a
-   * replacement. Only ArrowUp/ArrowDown/Enter are touched, and only while a
-   * menu is actually on screen.
-   */
-  private handleMenuCursor(): void {
-    const items = [...document.querySelectorAll<HTMLElement>('#screen .menu div[data-key]')];
-    if (!items.length) return;
-    const i = this.input;
-    const down = i.pressed('ArrowDown');
-    const up = i.pressed('ArrowUp');
-    if (down || up) {
-      this.menuSelected = (this.menuSelected + (down ? 1 : -1) + items.length) % items.length;
-      sfx.beep(520, 0.03);
-    }
-    if (this.menuSelected >= items.length) this.menuSelected = 0;
-    // re-applied every frame rather than only on movement: these screens
-    // re-render on all sorts of events and would otherwise lose the highlight
-    items.forEach((el, n) => el.classList.toggle('sel', n === this.menuSelected));
-    if (i.pressed('Enter')) {
-      const key = items[this.menuSelected].dataset.key;
-      if (key) i.injectPress(key);
-    }
   }
 
   /**
@@ -2534,22 +2514,16 @@ export class Game {
   private handleScreenClick(e: MouseEvent): void {
     const el = (e.target as HTMLElement).closest('[data-key],[data-row]') as HTMLElement | null;
     if (el) {
-      const key = el.dataset.key;
+      // The host owns this: data-key becomes a keystroke so a click and the
+      // printed shortcut take the same path, and data-row goes to the top
+      // screen's select(). Screens that have not migrated yet fall through to
+      // the per-mode handling below.
+      if (this.screens.click(el, this.input)) return;
       const row = el.dataset.row;
-      if (row !== undefined) {
-        const index = Number(row);
-        if (this.mode === 'market') {
-          // via the screen, so a click while trading at a rock hermit keeps
-          // the hermit's title instead of quietly reverting to the system's
-          this.trade.selectMarketRow(index, this.tradeContext());
-        } else if (this.mode === 'equip') {
-          this.trade.selectEquipRow(index, this.tradeContext());
-        } else if (this.mode === 'contracts') {
-          this.contractSelected = index;
-          renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
-        }
+      if (row !== undefined && this.mode === 'contracts') {
+        this.contractSelected = Number(row);
+        renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
       }
-      if (key) this.input.injectPress(key);
       return;
     }
     this.handleChartClick(e);
@@ -2628,26 +2602,31 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   openSystemData(sys: StarSystem, from: 'docked' | 'chart' | 'local'): void {
     this.dataReturn = from;
-    this.mode = 'data';
+    this.screens.open('data');
     // the living galaxy's latest word on this system, when it has one
     renderSystemData(sys, this.system, this.living.headline(sys.index), this.commander.galaxy);
   }
 
   private openStatus(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
-    this.mode = 'status';
-    this.returnMode = from;
+    this.screens.open('status');
+    this.baseMode = from;
     renderStatus(this.systems, this.commander, this.chart.targetIndex, LEGAL_NAMES[this.commander.legalStatus]);
   }
 
-  private closeOverlay(): void {
-    if (this.returnMode === 'docked') {
-      this.mode = 'docked';
+  /** Nothing on the stack: show the docked menu, or clear back to flight. */
+  private showBaseScreen(): void {
+    if (this.baseMode === 'docked') {
       renderDockedMenu(this.system, this.commander, this.missionText());
     } else {
-      this.mode = 'flight';
       hideScreen();
     }
+  }
+
+  private closeOverlay(): void {
+    // the host calls showBaseScreen() as the last screen pops
+    if (this.screens.depth) this.screens.exit();
+    else this.showBaseScreen();
   }
 
   private updateChartCursor(dt: number): void {

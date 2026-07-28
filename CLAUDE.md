@@ -180,6 +180,39 @@ vite.config.ts; add new pages there or they won't build.
   destructive tests and restore after; saves happen on dock/equip-purchase
   only.
 
+## Screens: the contract to build against
+
+`src/ui/screen-host.ts` routes every overlay. A screen owns its rendering, its
+keys and its own state **in one file**, behind `open()`, `render()`,
+`input(i)` and optionally `select(row)`. It never sets the mode, never touches
+the Game and never reaches for another screen — it returns an OUTCOME
+(`'stay' | 'back' | 'exit' | { open: id }`) and the host acts on it. Same
+discipline as `NpcShip` returning a `FireEvent`.
+
+- **`Game.mode` is DERIVED** — `screens.topId ?? baseMode`. Assign `baseMode`
+  (`docked`/`flight`/`dead`) or push/pop the stack. There is no other writer.
+- **The stack replaced two hacks**: the overlay half of `mode`, and the
+  one-deep `dataReturn` that existed so the system-data screen could remember
+  whether it came from the chart. `back` handles both.
+- **Clicks are input**: `data-key` becomes a keystroke, `data-row` goes to
+  `select()`. A screen has ONE input surface. The old parallel click path
+  drifted from the key path and produced a real bug (the market showed the
+  system's name instead of the hermit's).
+- **Adding a screen** = a new file, one line in `ScreenId`, one line in the
+  registration list in `game.ts`. That is the whole shared surface, so two
+  people adding two screens collide on one line rather than on a switch.
+- **Migration is incremental**: an id with no registered screen still occupies
+  the stack, and `update()` returns false so `game.ts` handles it the old way.
+  Migrated so far: market, equip, saves, naming. Still legacy: chart, local,
+  status, data, contracts, briefing.
+- **NO PARAMETER PROPERTIES** in a screen or the host — `npm test` runs under
+  `--experimental-strip-types`, which rejects `constructor(private readonly x)`.
+  Vite compiles it fine, so this only fails in the test run. Assign fields
+  explicitly; it is what keeps screens unit-testable outside a browser.
+- The menu cursor runs BEFORE the top screen, and `Input.pressed()` consumes.
+  It is safe only because it touches nothing unless a `.menu` is on screen, and
+  even then only arrows and Enter. Don't widen it.
+
 ## Style
 
 - Module-header comments state each file's role — maintain them.

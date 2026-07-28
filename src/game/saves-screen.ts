@@ -19,20 +19,10 @@ import {
   type CommanderData,
 } from './commander';
 import { renderSaves, renderNaming } from '../ui/screens';
+import type { Screen, ScreenOutcome } from '../ui/screen-host';
 import type { StarSystem } from '../galaxy/galaxy';
 import type { Input } from '../engine/input';
 import { sfx } from '../audio';
-
-/** What the Game should do next. The screen never changes mode itself. */
-export type SavesOutcome =
-  /** nothing to do — stay on the current screen */
-  | 'stay'
-  /** show the slot list */
-  | 'saves'
-  /** show name entry */
-  | 'naming'
-  /** leave the saves screens entirely, back to the docked menu */
-  | 'close';
 
 /** The slice of the Game these screens are allowed to see. */
 export interface SavesContext {
@@ -110,39 +100,45 @@ export function startNewCommander(): void {
   location.reload();
 }
 
-/** The slot list and the name-entry screen, and the little state they need. */
-export class SavesScreen {
+/** The slot list. Name entry is a separate screen pushed on top of it. */
+export class SavesScreen implements Screen {
+  readonly id = 'saves' as const;
   private selected = 0;
-  private nameBuffer = '';
+
+  private readonly ctx: () => SavesContext;
+
+  constructor(ctx: () => SavesContext) {
+    this.ctx = ctx;
+  }
 
   /** Save where we are, then show the list with the current slot highlighted. */
-  open(ctx: SavesContext): void {
-    saveCommander(ctx.commander); // so the slot you're on is up to date
+  open(): void {
+    saveCommander(this.ctx().commander); // so the slot you're on is up to date
     this.selected = currentSlot() - 1;
-    this.render(ctx);
+    this.render();
   }
 
-  render(ctx: SavesContext): void {
+  render(): void {
     const slots = Array.from({ length: SAVE_SLOTS }, (_, i) => readSlot(i + 1));
-    renderSaves(ctx.systems, slots, this.selected, currentSlot());
+    renderSaves(this.ctx().systems, slots, this.selected, currentSlot());
   }
 
-  handleSlotInput(i: Input, ctx: SavesContext): SavesOutcome {
+  select(row: number): void {
+    this.selected = Math.max(0, Math.min(SAVE_SLOTS - 1, row));
+    this.render();
+  }
+
+  input(i: Input): ScreenOutcome {
+    const ctx = this.ctx();
     if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
       this.selected = (this.selected + SAVE_SLOTS - 1) % SAVE_SLOTS;
-      this.render(ctx);
+      this.render();
     }
     if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
       this.selected = (this.selected + 1) % SAVE_SLOTS;
-      this.render(ctx);
+      this.render();
     }
-    if (i.pressed('KeyR')) {
-      // start blank: pre-filling looks helpful but there is no way to select
-      // it, so typing a new name just appends to the old one
-      this.nameBuffer = '';
-      renderNaming(this.nameBuffer, ctx.commander.name);
-      return 'naming';
-    }
+    if (i.pressed('KeyR')) return { open: 'naming' };
     if (i.pressed('KeyD')) {
       const slot = this.selected + 1;
       if (slot === currentSlot()) {
@@ -150,14 +146,14 @@ export class SavesScreen {
         sfx.beep(220);
       } else {
         deleteSlot(slot);
-        this.render(ctx);
+        this.render();
         sfx.beep(400, 0.1);
       }
       return 'stay';
     }
     if (i.pressed('Enter')) {
       const slot = this.selected + 1;
-      if (slot === currentSlot()) return 'close';
+      if (slot === currentSlot()) return 'back';
       // Switch commanders by reloading: a career leaves state across the
       // living galaxy, contracts, chart target and mission progress, and a
       // clean boot is far more trustworthy than zeroing all of it by hand.
@@ -166,38 +162,64 @@ export class SavesScreen {
       location.reload();
       return 'stay';
     }
-    if (i.pressed('Escape')) return 'close';
+    if (i.pressed('Escape')) return 'back';
     return 'stay';
   }
+}
 
-  /** Elite-style name entry: letters straight in, no DOM focus to fight. */
-  handleNamingInput(i: Input, ctx: SavesContext): SavesOutcome {
-    if (i.pressed('Escape')) {
-      this.render(ctx);
-      return 'saves';
-    }
+/**
+ * Elite-style name entry: letters straight in, no DOM focus to fight.
+ *
+ * Pushed on top of the slot list rather than sitting beside it as a peer
+ * mode, so cancelling is just `back` and the list underneath re-paints
+ * itself. It owns its own buffer — nothing else has any business reading a
+ * half-typed name.
+ */
+export class NamingScreen implements Screen {
+  readonly id = 'naming' as const;
+  private buffer = '';
+
+  private readonly ctx: () => SavesContext;
+
+  constructor(ctx: () => SavesContext) {
+    this.ctx = ctx;
+  }
+
+  open(): void {
+    // start blank: pre-filling looks helpful but there is no way to select
+    // it, so typing a new name just appends to the old one
+    this.buffer = '';
+    this.render();
+  }
+
+  render(): void {
+    renderNaming(this.buffer, this.ctx().commander.name);
+  }
+
+  input(i: Input): ScreenOutcome {
+    const ctx = this.ctx();
+    if (i.pressed('Escape')) return 'back';
     if (i.pressed('Enter')) {
-      const name = this.nameBuffer.trim() || DEFAULT_NAME;
+      const name = this.buffer.trim() || DEFAULT_NAME;
       ctx.commander.name = name;
       saveCommander(ctx.commander);
-      this.render(ctx);
       ctx.message(`COMMANDER ${name}`, 3);
       sfx.beep(700, 0.1);
-      return 'saves';
+      return 'back';
     }
     let changed = false;
     if (i.pressed('Backspace')) {
-      this.nameBuffer = this.nameBuffer.slice(0, -1);
+      this.buffer = this.buffer.slice(0, -1);
       changed = true;
     }
     for (const code of i.drainPresses()) {
       const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
       if (!m) continue;
-      if (this.nameBuffer.length >= 12) break;
-      this.nameBuffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
+      if (this.buffer.length >= 12) break;
+      this.buffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
       changed = true;
     }
-    if (changed) renderNaming(this.nameBuffer, ctx.commander.name);
+    if (changed) this.render();
     return 'stay';
   }
 }

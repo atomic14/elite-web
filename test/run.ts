@@ -8,6 +8,7 @@
 // baselines. Everything here is headless (no three.js, no DOM).
 
 import { readFileSync, readdirSync } from 'node:fs';
+import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
 } from '../src/galaxy/galaxy.ts';
@@ -372,6 +373,90 @@ console.log('\ncollision rates');
     }), 40);
     check(`shipped pirate vs trained evader rarely collides (${vEvader.toFixed(2)}/episode)`,
       vEvader < 1.2);
+  }
+}
+
+// --- the screen contract ----------------------------------------------------
+
+// Real unit tests, not source-regex ones: screen-host.ts touches the DOM only
+// inside methods, so it imports cleanly under node. That is deliberate — the
+// host is the piece several people will build screens against at once, so its
+// behaviour needs to be pinned rather than described.
+
+console.log('\nscreen host');
+{
+  // enough DOM for runMenuCursor to no-op
+  (globalThis as unknown as { document: unknown }).document = {
+    querySelectorAll: () => [],
+  };
+
+  const made: string[] = [];
+  const fake = (id: string, out: ScreenOutcome = 'stay'): Screen => ({
+    id: id as Screen['id'],
+    open: () => made.push(`open:${id}`),
+    render: () => made.push(`render:${id}`),
+    input: () => out,
+    select: (row: number) => made.push(`select:${id}:${row}`),
+  });
+  const noInput = { pressed: () => false, injectPress: () => {} } as unknown as Parameters<ScreenHost['update']>[0];
+
+  {
+    let base = 0;
+    const h = new ScreenHost(() => { base += 1; });
+    h.register(fake('market'));
+    check('empty stack has no top', h.topId === null && h.depth === 0);
+    h.open('market');
+    check('open pushes and calls open()', h.topId === 'market' && h.depth === 1 && made.includes('open:market'));
+    check('a registered screen is handled', h.handled);
+    h.back();
+    check('back pops to empty', h.depth === 0 && h.topId === null);
+    check('showBase fires when the last screen closes', base === 1);
+    h.back();
+    check('back on an empty stack does not re-paint the base', base === 1);
+  }
+
+  {
+    let base = 0;
+    const h = new ScreenHost(() => { base += 1; });
+    h.register(fake('saves'));
+    h.register(fake('naming'));
+    h.open('saves'); h.open('naming');
+    check('screens stack', h.depth === 2 && h.topId === 'naming');
+    h.back();
+    check('back returns to the screen underneath', h.topId === 'saves' && h.depth === 1);
+    check('the uncovered screen re-paints', made.includes('render:saves'));
+    check('showBase does NOT fire while a screen remains', base === 0);
+    h.exit();
+    check('exit clears the stack and paints the base', h.depth === 0 && base === 1);
+  }
+
+  {
+    // an id with no implementation: the stack still tracks it, but the caller
+    // is told to handle it — this is what lets screens migrate one at a time
+    const h = new ScreenHost(() => {});
+    h.open('chart');
+    check('an unmigrated id still occupies the stack', h.topId === 'chart' && h.depth === 1);
+    check('but reports itself unhandled', !h.handled);
+    check('update() returns false so the caller falls through', h.update(noInput) === false);
+  }
+
+  {
+    const h = new ScreenHost(() => {});
+    h.register(fake('market', { open: 'data' }));
+    h.register(fake('data'));
+    h.open('market');
+    h.update(noInput);
+    check('an { open } outcome pushes', h.topId === 'data' && h.depth === 2);
+  }
+
+  {
+    const h = new ScreenHost(() => {});
+    h.register(fake('market'));
+    h.open('market');
+    const row = { dataset: { row: '7' } } as unknown as HTMLElement;
+    check('a data-row click reaches select()', h.click(row, noInput) && made.includes('select:market:7'));
+    const key = { dataset: { key: 'KeyB' } } as unknown as HTMLElement;
+    check('a data-key click is consumed as a keystroke', h.click(key, noInput));
   }
 }
 
