@@ -397,32 +397,38 @@ console.log('\nsim/game combat parity');
   check(`laser damage: sim ${simLaser} == game mean ${lo! + spread! / 2}`,
     simLaser !== null && Math.abs(simLaser - (lo! + spread! / 2)) < 1e-9);
 
-  // NPC FIRE RATE — the largest sim/game divergence in the project, and the
-  // reason sim lethality numbers overstate NPC threat by roughly five times.
+  // NPC FIRE RATE — for six training rounds the largest sim/game divergence in
+  // the project, and now closed. The sim used to give every ship the player's
+  // pulse laser (0.24s cooldown) while the game gates an NPC to `0.9 +
+  // random*0.8`, a mean of 1.30s: brains were fitted to a weapon firing 5.4x
+  // faster than the one they would actually carry. core.ts now models the
+  // game's gun as NPC_GUN, and pirate hulls declare `gun: 'npc'`.
   //
-  // The sim gives every ship the player's pulse laser: cooldown 0.24s. The
-  // game gates an NPC to `0.9 + random*0.8`, a mean of 1.3s, so a trained
-  // brain fires 5.4x slower in the game than in the world it was trained in.
-  // Two Sidewinders shooting a stationary player for 30 seconds land 0.75
-  // damage, against 1.05 of shield regeneration over the same period: they
-  // cannot out-damage the shields they are shooting at.
-  //
-  // Asserted as a RATIO rather than equality, because the handicap looks
-  // deliberate (NPCs are meant to be less dangerous than the player's own
-  // gun). The point is that changing either side becomes visible instead of
-  // silent, since every brain's behaviour is fitted to the sim's number.
-  const simCooldown = num(core, /LASER = \{[\s\S]{0,200}?cooldown:\s*([\d.]+)/);
-  // Read the named constants, not the expression. This used to parse
-  // `this.fireCooldown = 0.9 + Math.random() * 0.8` directly and broke the
-  // moment those numbers were given names — which is the test working, but a
-  // constant is the more stable thing to read.
+  // These now assert EQUALITY, not a ratio. The whole point of the change is
+  // that the two numbers are one number.
   const npcLo = num(npc, /const NPC_COOLDOWN_LO = ([\d.]+);/);
   const npcSpread = num(npc, /const NPC_COOLDOWN_SPREAD = ([\d.]+);/);
-  const npcMean = npcLo! + npcSpread! / 2;
-  const ratio = npcMean / simCooldown!;
-  check(`NPC fire rate is ${ratio.toFixed(1)}x slower than the sim trains for `
-    + `(sim ${simCooldown}s, NPC mean ${npcMean.toFixed(2)}s) — known gap`,
-    ratio > 4 && ratio < 7);
+  const gunLo = num(core, /NPC_GUN = \{[\s\S]{0,400}?cooldownLo:\s*([\d.]+)/);
+  const gunSpread = num(core, /NPC_GUN = \{[\s\S]{0,400}?cooldownSpread:\s*([\d.]+)/);
+  check(`NPC fire rate: sim ${gunLo}+${gunSpread} == game ${npcLo}+${npcSpread}`,
+    gunLo === npcLo && gunSpread === npcSpread);
+
+  // The firing gate, which was the bigger of the two mismatches: the sim's
+  // cone at 2000 range is ~0.027 rad against the game's 0.25.
+  const gunGate = num(core, /NPC_GUN = \{[\s\S]{0,400}?gate:\s*([\d.]+)/);
+  const npcGate = num(npc, /this\.facing\(targetPos\) < ([\d.]+)/);
+  check(`NPC firing gate: sim ${gunGate} rad == game ${npcGate} rad`,
+    gunGate !== null && gunGate === npcGate);
+
+  // And the hit roll, which lives in game.ts resolveNpcFire.
+  const gunCap = num(core, /NPC_GUN = \{[\s\S]{0,400}?hitCap:\s*([\d.]+)/);
+  const gameCap = num(game, /Math\.min\(([\d.]+), Math\.max\(/);
+  check(`NPC hit cap: sim ${gunCap} == game ${gameCap}`,
+    gunCap !== null && gunCap === gameCap);
+
+  const gunDmg = num(core, /NPC_GUN = \{[\s\S]{0,400}?damageLo:\s*([\d.]+)/);
+  check(`NPC laser damage: sim ${gunDmg} appears in game.ts`,
+    gunDmg !== null && game.includes(`applyPlayerDamage(${gunDmg} + Math.random()`));
 
   const simCollision = num(core, /COLLISION = \{[\s\S]{0,400}?damage:\s*([\d.]+)/);
   check(`collision damage: sim ${simCollision} appears in game.ts`,

@@ -88,12 +88,18 @@ export interface ShipClass {
   turnRate: number;
   radius: number;
   accel: number;
+  /**
+   * Which weapon this hull carries. 'npc' is the game's pirate gun (NPC_GUN);
+   * 'player' is the commander's pulse laser (LASER). Defaults to 'player' for
+   * hulls that predate the split.
+   */
+  gun?: 'player' | 'npc';
 }
 
 export const CLASSES: Record<string, ShipClass> = {
-  pirateCobra: { name: 'Cobra Mk III', hp: 1.1, maxSpeed: 260, turnRate: 0.8, radius: 34, accel: 120 },
-  pirateSidewinder: { name: 'Sidewinder', hp: 0.55, maxSpeed: 300, turnRate: 1.1, radius: 18, accel: 140 },
-  traderCobra: { name: 'Cobra Mk III', hp: 1.0, maxSpeed: 220, turnRate: 0.5, radius: 34, accel: 100 },
+  pirateCobra: { name: 'Cobra Mk III', hp: 1.1, maxSpeed: 260, turnRate: 0.8, radius: 34, accel: 120, gun: 'npc' },
+  pirateSidewinder: { name: 'Sidewinder', hp: 0.55, maxSpeed: 300, turnRate: 1.1, radius: 18, accel: 140, gun: 'npc' },
+  traderCobra: { name: 'Cobra Mk III', hp: 1.0, maxSpeed: 220, turnRate: 0.5, radius: 34, accel: 100, gun: 'npc' },
   /**
    * The player, as a target. Mirrors player.ts: MAX_SPEED 400, MAX_PITCH 1.45
    * and MAX_ROLL 2.5, which at TURN.pitch 1.4 works out as turnRate 1.036.
@@ -184,6 +190,40 @@ export const LASER = {
   aim: 1.6,
 };
 
+/**
+ * The gun the game's NPCs actually carry — which is not the one above.
+ *
+ * `LASER` is the player's pulse laser, and the sim was handing it to pirates
+ * too. That made training a different problem from the game in both directions
+ * at once. In the sim a pirate needed to aim inside atan(34*1.6/2000) = 0.027
+ * rad and then hit every time, firing every 0.24s. In the game it needs only
+ * facing < 0.25 rad — nine times looser — fires every 1.30s on average, and
+ * then rolls dice on range. Lined up, the sim's gun does 0.667 damage/second
+ * and the game's does 0.041.
+ *
+ * So the sim paid for precision aim the game never asks for, and the game
+ * needed patience the sim never modelled. Every attack run since round 1 was
+ * fitted to a weapon that does not exist, which is the likeliest reason none
+ * of them transferred (docs/TRAINING-LOG.md runs 9-14).
+ *
+ * Mirrors npc.ts (NPC_COOLDOWN_LO/SPREAD, the 0.25 gate, NPC_LASER_RANGE) and
+ * game.ts resolveNpcFire (the hit roll and 0.1 + rand*0.12 damage). Invariant
+ * 2: change one, change the other.
+ */
+export const NPC_GUN = {
+  cooldownLo: 0.9,
+  cooldownSpread: 0.8,
+  /** npc.ts refuses to shoot outside this, and does not spend its cooldown */
+  gate: 0.25,
+  range: 3500,
+  damageLo: 0.1,
+  damageSpread: 0.12,
+  hitBase: 0.9,
+  hitFalloff: 3500,
+  hitCap: 0.85,
+  hitFloor: 0.15,
+};
+
 // --- ship state -------------------------------------------------------------
 
 export interface SimShip {
@@ -258,8 +298,14 @@ export function stepShip(s: SimShip, c: Control, dt: number): void {
  * Deterministic — a policy can genuinely learn to aim.
  * @returns damage dealt (0 on miss / not able to fire)
  */
-export function fireLaser(s: SimShip, target: SimShip, dt: number): number {
+export function fireLaser(
+  s: SimShip,
+  target: SimShip,
+  dt: number,
+  rng: () => number = () => 0.5,
+): number {
   void dt;
+  if (s.cls.gun === 'npc') return fireNpcLaser(s, target, rng);
   if (s.laserCooldown > 0 || s.laserTemp >= 0.98) return 0;
   s.laserCooldown = LASER.cooldown;
   s.laserTemp = Math.min(1, s.laserTemp + LASER.heat);
@@ -276,6 +322,36 @@ export function fireLaser(s: SimShip, target: SimShip, dt: number): number {
   target.hp -= LASER.damage;
   if (target.hp <= 0) target.alive = false;
   return LASER.damage;
+}
+
+/**
+ * The NPC gun: loose gate, slow cadence, probabilistic hit by range.
+ *
+ * `rng` is the episode's seeded stream, not Math.random, so episodes stay
+ * reproducible — the shots are stochastic, the *run* is not.
+ */
+function fireNpcLaser(s: SimShip, target: SimShip, rng: () => number): number {
+  if (s.laserCooldown > 0) return 0;
+  const to = vSub(target.pos, s.pos);
+  const dist = vLen(to);
+  const angle = Math.acos(Math.min(1, Math.max(-1, vDot(forward(s), vNorm(to)))));
+  // as in npc.ts: outside the gate or out of range it never pulls the trigger,
+  // so it does not spend the cooldown either
+  if (angle >= NPC_GUN.gate || dist > NPC_GUN.range || !target.alive) return 0;
+
+  s.laserCooldown = NPC_GUN.cooldownLo + rng() * NPC_GUN.cooldownSpread;
+  s.shotsFired += 1;
+  const chance = Math.min(NPC_GUN.hitCap,
+    Math.max(NPC_GUN.hitFloor, NPC_GUN.hitBase - dist / NPC_GUN.hitFalloff));
+  if (rng() >= chance) return 0;
+
+  const damage = NPC_GUN.damageLo + rng() * NPC_GUN.damageSpread;
+  s.shotsHit += 1;
+  s.damageDealt += damage;
+  target.damageTaken += damage;
+  target.hp -= damage;
+  if (target.hp <= 0) target.alive = false;
+  return damage;
 }
 
 /**

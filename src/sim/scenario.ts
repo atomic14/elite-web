@@ -133,7 +133,7 @@ export class Episode {
       if (wantsFire && this.trader.alive) {
         const hpBefore = this.trader.hp;
         const beforeShots = p.shotsFired;
-        fireLaser(p, this.trader, dt);
+        fireLaser(p, this.trader, dt, this.rng);
         if (p.shotsFired > beforeShots) {
           events.push({ from: p, to: this.trader, hit: this.trader.hp < hpBefore });
         }
@@ -165,7 +165,7 @@ export class Episode {
           if (policyWantsFire && threat) {
             const hpBefore = threat.hp;
             const beforeShots = this.trader.shotsFired;
-            fireLaser(this.trader, threat, dt);
+            fireLaser(this.trader, threat, dt, this.rng);
             if (this.trader.shotsFired > beforeShots) {
               events.push({ from: this.trader, to: threat, hit: threat.hp < hpBefore });
             }
@@ -175,7 +175,7 @@ export class Episode {
           if (threat && this.traderFireCooldown <= 0 && facingAngle(this.trader, threat.pos) < 0.15) {
             this.traderFireCooldown = 1.2;
             const hpBefore = threat.hp;
-            fireLaser(this.trader, threat, dt);
+            fireLaser(this.trader, threat, dt, this.rng);
             events.push({ from: this.trader, to: threat, hit: threat.hp < hpBefore });
           }
         }
