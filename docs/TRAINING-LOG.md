@@ -975,3 +975,52 @@ comparison flew the "player" in a straight line and reported run 10 as far
 WORSE (0% lined up against the shipped brain's 9%). A drifting target is
 exactly the freighter the shipped brain was trained on, so the test flattered
 it. Only the harness that flies the ship evasively gives an honest answer.
+
+## The human data: they were never allowed to shoot
+
+Chris flew three waves with test/arena.js and test/combat-recorder.js. First
+combat numbers in this project that a person actually produced.
+
+| wave | ships | brain | secs | he killed | their shots | damage to him |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 2x tier-0 | shipped | 48 | 2 of 2 | **1** | 0 |
+| 2 | 3x tier-1 | shipped | 87 | 3 of 3 | **4** | 0.97 |
+| 3 | 3x tier-1 | run 10 | 33 | 3 of 3 | **0** | 0 |
+
+Three ships, thirty-three seconds, not one shot fired. His words: "the ships
+didn't do anything."
+
+### His flight envelope explains it exactly
+
+| | Chris | what the brains trained against |
+| --- | --- | --- |
+| median speed | **66** (p90 400) | 220, constant |
+| median pitch rate | **1.36** of 1.45 | 0.70 max |
+| median engagement range | **260** | n/a |
+| 10th percentile range | **214** | n/a |
+
+`RAM_GUARD` is **220**. He fights at a median of 260, forty units outside the
+line where control passes to `attack()`, which steers away and returns no fire
+event — guns off. He is inside it a tenth of the time. He turns nearly on the
+spot at 66 speed and near-maximum pitch while pirates come past at 290-310, so
+every single pass crosses the dead zone.
+
+The guard was added because the brains kamikazed, and it was right then. Run
+10's brain does not ram: 0 self-destructions in 4 ships over a minute, against
+3 of 4 for the shipped brain. So under that brain the guard drops to 90 units,
+close enough that a collision really is imminent, and the ship keeps its guns
+until then.
+
+### A measurement bug of mine, corrected
+
+The arena reported 3-5% player accuracy. It was counting `fireLaser()` calls
+rather than discharges, and the function is called every frame the trigger is
+held while refusing internally until the laser cools. Wave 3 recorded 460
+"shots" in 33 seconds against a pulse laser that can manage 4.2 a second. Real
+figure for that wave is 138 shots and **12%**. Waves 1 and 2 were tapped rather
+than held, at 3.7 shots a second, so those were already true.
+
+Worth noting what this does to the earlier bot-flown accuracy numbers: the bot
+fires once per cooldown by construction, so its 33% was never inflated. A human
+holding the trigger through a turn is simply a different measurement, and only
+the human's is the one that matters.

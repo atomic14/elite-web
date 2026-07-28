@@ -115,6 +115,26 @@ function brainsEnabled(): boolean {
 const RAM_GUARD = 220;
 
 /**
+ * Knife-range guard for a brain that does not ram.
+ *
+ * RAM_GUARD hands control to attack(), which steers away and returns no fire
+ * event, so a pirate inside 220 units has its guns switched off. That was the
+ * right trade when the brains kamikazed.
+ *
+ * It is the wrong trade against a human. Chris's recorded flying: median
+ * engagement range 260 units, 10th percentile 214, median speed 66 with the
+ * pitch held at 1.36 of a possible 1.45. He turns on the spot at knife range
+ * while pirates come past at 290-310, so every pass crosses the dead zone and
+ * three tier-1 ships managed ZERO shots in 33 seconds.
+ *
+ * Run 10's brain does not need the guard: measured at 0 self-destructions in
+ * 4 ships over a minute, against 3 of 4 for the shipped brain. So when it is
+ * flying, the guard shrinks to the point where a collision is actually
+ * imminent and the ship keeps its guns until then.
+ */
+const RAM_GUARD_NO_RAM = 90;
+
+/**
  * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
  * LASER.range in sim/core.ts, and it has to: a brain trained to open fire at
  * 3000 units was silently refused the shot by a 2600 gate, so it would sit
@@ -476,11 +496,13 @@ export class NpcShip {
     const aggressiveToPlayer = isHostileToPlayer(this, playerLegal) && distPlayer < 9000;
 
     if (aggressiveToPlayer) {
+      const sharp = sharpBrainFor(this.threatTier);
+      const guard = sharp ? RAM_GUARD_NO_RAM : RAM_GUARD;
       if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()
-          && distPlayer >= RAM_GUARD) {
+          && distPlayer >= guard) {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
-        const solo = sharpBrainFor(this.threatTier) ? SHARP_BRAIN! : PIRATE_BRAIN;
+        const solo = sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
         // The player's REAL speed. This was hardcoded 300 whatever the
         // player was doing, so the observation fed the brain a constant where
         // the sim feeds the target's actual speed — the one input a pursuer

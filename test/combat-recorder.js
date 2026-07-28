@@ -129,7 +129,13 @@
     g.fireLaser = (...a) => {
       if (!rec.running) return origFire(...a);
       const before = g.npcs.map((n) => ({ n, hp: n.hp, alive: n.alive }));
+      // Count DISCHARGES, not trigger polls. fireLaser is called every frame
+      // the trigger is held and refuses internally while the laser is hot, so
+      // counting calls reported 14 shots a second against a pulse laser that
+      // can manage 4.2 — and turned a 12% hit rate into 3%.
+      const wasReady = g.laserCooldown <= 0;
       const r = origFire(...a);
+      if (!wasReady || g.laserCooldown <= 0) return r;   // did not actually fire
       rec.playerShots++;
       for (const b of before) {
         if (b.n.hp < b.hp) { rec.playerHits++; rec.damageDealt += b.hp - b.n.hp; }
