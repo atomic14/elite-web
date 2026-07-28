@@ -1,4 +1,4 @@
-# CLAUDE.md — working on elite-web
+# CLAUDE.md — working on HARMLESS
 
 **HARMLESS** — an unofficial browser tribute to Elite (1984) (TypeScript +
 Vite + three.js) with ship AI trained by neuroevolution self-play. Owner:
@@ -10,8 +10,14 @@ Developments trademark, so it is not used as this project's NAME anywhere —
 not in titles, H1s, Open Graph, JSON-LD or the domain. It IS used in prose to
 say what this is a tribute to ("a browser tribute to Elite (1984)"), which is
 nominative use and is the point. The in-game `E L I T E` combat rank stays: it
-describes gameplay, not the product. Site is harmless.atomic14.com. The repo
-and npm package are still named elite-web, deliberately left alone.
+describes gameplay, not the product. Site is https://harmless.atomic14.com, repo is
+github.com/atomic14/harmless.
+
+**The `elite-web-*` localStorage keys are NOT branding and must never be
+renamed** — `elite-web-commander:<slot>`, `elite-web-slot`, `elite-web-keymap`.
+They are where every existing player's commander lives; renaming them orphans
+every save silently, which is exactly the bug class that ate New Commander and
+Import earlier. They stay as they are, forever.
 
 ## Commands
 

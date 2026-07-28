@@ -1,4 +1,4 @@
-# Elite (1984) → elite-web — Gap Analysis
+# Elite (1984) → HARMLESS — Gap Analysis
 
 Feature parity against the original game manual (elitehomepage.org),
 Wikipedia's Elite article, and the byte-level algorithm references used for
