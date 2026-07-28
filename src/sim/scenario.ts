@@ -21,7 +21,15 @@ export interface ShotEvent {
 
 export type Controller =
   | { kind: 'policy'; brain: Brain }
-  | { kind: 'scripted' };
+  | { kind: 'scripted' }
+  /**
+   * A target that simply leaves: nose away from the nearest pirate, throttle
+   * open. Not clever, and not meant to be — it exists so that "do nothing"
+   * stops being a winning pirate policy. No evolved trader has ever learned to
+   * run (all of them orbit at ~2100 and die), so the pressure to give chase
+   * has to be put into the pool by hand.
+   */
+  | { kind: 'runner' };
 
 export interface EpisodeOptions {
   seed: number;
@@ -37,6 +45,15 @@ export interface EpisodeOptions {
   /** armed traders shoot back (used for pack scenarios) */
   traderArmed?: boolean;
   maxTime?: number;
+  /**
+   * How far the target has to get before it is gone for good. Without this the
+   * episode is a box: the trader could neither be lost nor escape, so closing
+   * the distance was worth nothing and only aiming paid. A pirate that never
+   * touched its throttle killed 99% of targets, armed or not — and the trainer
+   * duly evolved pirates that stand still and pivot, which is useless in a game
+   * where the player can simply leave.
+   */
+  escapeRange?: number;
 }
 
 const IDLE: Control = { pitch: 0, roll: 0, throttle: 0, fire: false };
@@ -47,6 +64,9 @@ export class Episode {
   t = 0;
   readonly maxTime: number;
   done = false;
+  /** the target got clear — the pirates lost it, and no one gets paid */
+  escaped = false;
+  readonly escapeRange: number;
   /** proximity shaping accumulator per pirate */
   readonly engagedTime: number[];
 
@@ -61,6 +81,9 @@ export class Episode {
   constructor(opts: EpisodeOptions) {
     this.opts = opts;
     this.maxTime = opts.maxTime ?? 45;
+    // 6000 against a 3500 laser and a 1500-2700 spawn: comfortably outside
+    // weapons reach, and reachable in a few seconds of running flat out.
+    this.escapeRange = opts.escapeRange ?? 6000;
     this.rng = makeRng(opts.seed);
 
     this.trader = makeShip(CLASSES[opts.traderClass ?? 'traderCobra'], v3(0, 0, 0), q4());
@@ -128,6 +151,8 @@ export class Episode {
         control = act(tCtrl.brain, observe(this.trader, threat, this.obs), this.scratch);
         policyWantsFire = control.fire && !!this.opts.traderArmed; // armed policies may shoot
         control = { ...control, fire: false };
+      } else if (tCtrl.kind === 'runner') {
+        control = this.runningTrader(dt);
       } else {
         control = this.scriptedTrader(dt);
       }
@@ -168,7 +193,13 @@ export class Episode {
       }
     }
 
-    if (this.t >= this.maxTime || !this.trader.alive || this.pirates.every((p) => !p.alive)) {
+    const nearest = this.nearestPirate();
+    if (this.trader.alive && nearest
+        && vLen(vSub(this.trader.pos, nearest.pos)) > this.escapeRange) {
+      this.escaped = true;
+    }
+    if (this.t >= this.maxTime || !this.trader.alive || this.escaped
+        || this.pirates.every((p) => !p.alive)) {
       this.done = true;
     }
     return events;
@@ -186,6 +217,15 @@ export class Episode {
       }
     }
     return best;
+  }
+
+  /** Nose away from the nearest threat, throttle open, and keep going. */
+  private runningTrader(dt: number): Control {
+    const threat = this.nearestPirate();
+    if (!threat) return { pitch: 0, roll: 0, throttle: 1, fire: false };
+    const away = vAdd(this.trader.pos, vSub(this.trader.pos, threat.pos));
+    steerToward(this.trader, away, dt);
+    return { pitch: 0, roll: 0, throttle: 1, fire: false };
   }
 
   /** Game-style chase AI (the pre-RL scripted tier), as a discrete control. */
@@ -230,7 +270,8 @@ export class Episode {
       (killed ? 8 + 4 * (1 - this.t / this.maxTime) : 0) +
       0.05 * this.engagedTime[i] -
       0.03 * p.shotsFired -
-      2 * p.damageTaken
+      2 * p.damageTaken -
+      (this.escaped ? 6 : 0)
     );
   }
 
@@ -278,10 +319,14 @@ export class Episode {
 
   /** Fitness for a policy trader, evade phase. */
   fitnessEvade(): number {
-    const survived = this.t; // episode ends at death, so t IS time survived
+    // Escaping ends the episode, so counting raw `t` would pay a runner LESS
+    // than one that dawdles for the full 45s. Getting clear is a win: credit
+    // it with the whole episode, or the escape bonus below is self-defeating.
+    const survived = this.escaped ? this.maxTime : this.t;
     const distBonus = this.trader.alive
       ? Math.min(2, vLen(vSub(this.trader.pos, (this.nearestPirate() ?? this.pirates[0]).pos)) / 3000)
       : 0;
-    return (survived / this.maxTime) * 10 + this.trader.hp * 5 + distBonus;
+    return (survived / this.maxTime) * 10 + this.trader.hp * 5 + distBonus
+      + (this.escaped ? 6 : 0);
   }
 }

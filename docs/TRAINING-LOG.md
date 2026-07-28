@@ -1187,3 +1187,75 @@ need to shoot more often; they need to keep missing at the current rate. If
 anything is worth tuning it is the 0.85 cap and the 0.25 rad gate, both of
 which are legible numbers, rather than the flying, which is emergent and would
 take the balance with it.
+
+## Run 12-14 — the sim was a box, and nobody noticed for six runs
+
+Chris, on why the attack runs kept collapsing into brains that never move:
+*"it sounds like the problem is that the opponent is not fighting back?"* Half
+right, and the half that was wrong is the interesting part.
+
+The first fix followed his reading: five of eight pool opponents were unarmed,
+so a pirate that parked and sniped took no damage at all, and `fitnessAttack`
+punishes passivity only through `- 2 * damageTaken`. Arming the pool
+(`pirate-attack-r13-armed`) changed almost nothing — the `flies()` guard still
+rejected 309 of 372 champions for never accelerating.
+
+So the pressure wasn't missing, it was *unreachable*. One measurement settled
+it. A pirate forced to `speed = 0` for the whole episode:
+
+| target | statue pirate kills |
+| --- | --- |
+| unarmed | 99% |
+| armed | 99% |
+
+`Episode.step()` ended only on timeout, trader death, or all pirates dead.
+There was no escape condition. The target could neither be lost nor get away,
+so closing the distance was worth exactly nothing and only aiming paid.
+**Standing still was the optimal policy, and six runs of evolution had been
+correctly finding it.** The `flies()` guard added in run 12 was suppressing a
+symptom of a broken environment.
+
+Worse, the capture was mutual. Given an escape range of 6000 and a stationary
+attacker, every trader brain — including the two whose entire job is evasion:
+
+| trader brain | hull | escaped | died | furthest it got |
+| --- | --- | --- | --- | --- |
+| jameson-defend | traderCobra | 1% | 99% | 2107 |
+| trader-evade | traderCobra | 0% | 100% | 2151 |
+| trader-evade-r2 | playerCobra | 0% | 100% | 2177 |
+
+A forced perfect retreat escapes 92% of the time, so the door was real. No
+evolved trader had ever opened it, because orbiting at 2100 already scored
+100% survival. The evaders never ran, so the attackers never had to chase.
+
+### What changed
+
+- `Episode` gained `escapeRange` (default 6000): the target getting clear ends
+  the episode. `fitnessAttack` pays `- 6` for losing it.
+- `fitnessEvade` credits an escape with the full episode time. Without that,
+  escaping *early* scored lower than dawdling, and the bonus was self-defeating.
+- A new `{ kind: 'runner' }` controller — nose away, throttle open. Retraining
+  the evader (`trader-evade-r3`) still didn't produce one, so the pressure is
+  supplied by hand instead of hoped for.
+
+Pool rejections fell from 83% to 60%, and `pirate-attack-r14` throttles forward
+100% of the time where run 12's best managed 10%. On held-out seeds:
+
+| opponent | r2 | r14 |
+| --- | --- | --- |
+| runner, player speed | 0% | 14% |
+| jameson, knife-fight (playerCobraSlow) | 0% | 100% |
+| jameson, player speed | 1% | 36% |
+
+### Why r14 still isn't shipped
+
+It kills the knife-fighter in 2.1s, opening fire at 2071 — the spawn range. It
+never closes; it holds the throttle down and empties the magazine from where it
+starts. Eight shots at the sim's 0.24s cooldown is 2.1 seconds. The same eight
+shots at the game's NPC cooldown (0.9-1.7s, mean 1.30) take about ten.
+
+That gap is asserted in `test/run.ts` as a known one, and it is now the prime
+suspect for why nothing transfers: **a policy whose win condition is a burst
+the game's guns cannot produce.** Aligning the sim's laser to the NPC fire rate
+invalidates all six shipped brains, so it is a decision rather than a fix.
+Shipped brains are unchanged: pirates still fly `pirate-attack-r2`.

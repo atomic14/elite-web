@@ -131,13 +131,23 @@ const traderPool: PoolEntry[] = (() => {
   // agile as the commander it actually hunts, so a pursuit curve fitted to a
   // freighter overshoots a player on every pass. Measured in the game, a
   // Sidewinder is lined up on the player for about 5% of a fight.
+  // Two runners, added after the sim was found to be a box. The episode had
+  // no escape condition, so the target could neither be lost nor get away:
+  // closing the distance was worth nothing and only aiming paid. A pirate that
+  // never touched its throttle killed 99% of targets, armed or not, and the
+  // trainer duly evolved pirates that stand still and pivot — useless against
+  // a player who can simply leave.
+  //
+  // No evolved trader ever learned to run (all of them orbit at ~2100 and
+  // die), so the pressure has to be supplied by hand. The catchable runner
+  // teaches pursuit; the one on the player's hull cannot be caught at all
+  // (260/300 against 400) and teaches the only lesson that is actually true in
+  // this game — make the intercept count, because there will not be another.
   for (const [name, armed, hull] of [
-    ['trader-evade', false, 'traderCobra'],      // r1 runner, freighter
-    ['trader-evade-r2', false, 'traderCobra'],   // r2 runner, freighter
-    ['trader-evade-r2', false, 'playerCobra'],   // the same evasion, player agility
-    ['jameson-defend', true, 'playerCobra'],     // shoots back, player agility
-    ['trader-evade-r2', false, 'playerCobraSlow'], // slow knife-fighter, as humans fly
-    ['jameson-defend', true, 'playerCobraSlow'],   // and one that shoots while doing it
+    ['trader-evade', false, 'traderCobra'],       // the one free target left
+    ['trader-evade-r2', true, 'playerCobra'],     // player agility, shoots back
+    ['jameson-defend', true, 'playerCobra'],      // fights properly
+    ['jameson-defend', true, 'playerCobraSlow'],  // slow knife-fight, shoots
   ] as const) {
     if (name === HOLD_OUT) { console.log(`(pool) holding out ${name}`); continue; }
     try {
@@ -146,6 +156,9 @@ const traderPool: PoolEntry[] = (() => {
     } catch {
       console.log(`(pool) ${name} unavailable — skipping`);
     }
+  }
+  for (const hull of ['traderCobra', 'playerCobra'] as const) {
+    pool.push({ ctrl: { kind: 'runner' }, armed: false, hull, label: `runner/${hull}` });
   }
   console.log(`(pool) ${pool.length} opponents: ${pool.map((e) => e.label).join(', ')}`);
   return pool;
