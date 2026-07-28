@@ -63,12 +63,20 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 8. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
    import at build time. `git checkout src/sim/brains` restores shipped
    weights. Shipped-in-game: `pirate-attack-r2` (pirates), `jameson-defend`
-   (armed traders + anything player-assist). `pirate-pack-r4-selectonly` is
-   loaded but **off by default** — `window.__packBrain = true` switches
-   pirates to it. It is genuinely better (100% vs the shipped trio's 41%
-   against a trader that shoots back) but 4-7x faster to kill, so making it
-   the default is a **balance** decision awaiting playtest, not a metrics
-   one. See docs/TRAINING-LOG.md run 7.
+   (armed traders + anything player-assist). `pirate-pack-r4-selectonly`
+   **now ships, for organised gangs only** (`npc.ts` — `this.organised ||
+   packBrainEnabled()`): opportunists and professionals fly the solo brain,
+   a tier-2 gang of 3+ flies the pack policy. `window.__packBrain = true`
+   still forces it on everyone, for A/B.
+   That split is the balance answer, because the brain is brutal: against a
+   trader that fights back it kills 100% in **0.7s** losing 0.02 ships,
+   where the solo trio manages 60% in 14.3s and loses 1.52. Roughly 20x, not
+   the 4-7x measured against softer targets.
+   Gangs are gated on fame, so a new commander never meets one; by E L I T E
+   they are 34-45% of receptions. **The campaign cannot check this** — it
+   abstracts flight, so it validates the economy, not a 0.7s kill. If gangs
+   feel unsurvivable in real flight, the lever is `organised` in
+   contracts.ts, not the brain. See docs/TRAINING-LOG.md runs 7 and 8.
 9. **The trainer's `--validate-select` flag matters more than it looks.**
    Without it, the final brain is chosen by comparing scores across
    generations that used *different* episode seeds — that picks the luckiest

@@ -492,3 +492,79 @@ Fixed instead by raising the **player** (`MAX_PITCH` 1.1 → 1.45, `MAX_ROLL`
 because the player's flight model is not simulated. The player now out-turns
 a pirate Cobra and a Krait, matches a Mamba, and is still edged by a
 Sidewinder and an Asp.
+
+## Run 8 — validating run 7 and shipping the pack brain to gangs
+
+    npm run evaluate
+    npm run campaign
+    npm run campaign -- 4 45000 all
+
+No training. Run 7 had already produced the brain and the ablation; what was
+outstanding was the thing run 7 explicitly deferred — "whether Elite's pirates
+should be that deadly is a game-design question, not a tournament question" —
+and the documentation, which still said nothing shipped.
+
+### Validation reproduces run 7
+
+Held-out tournament, re-run from scratch today:
+
+| pack of 3 vs jameson-defend | kill | t-kill | pirates lost |
+| --- | --- | --- | --- |
+| 3x solo r2 brains (previous default) | 60% | 14.3s | 1.52 |
+| pack r2 (run 4) | 100% | 0.7s | 0.00 |
+| **r4 +kill-rate ranking (selectonly)** | **100%** | **0.7s** | **0.02** |
+
+The ordering from run 7 holds. One number is worth restating more sharply
+than run 7 did: against a target that *fights back*, the pack brain is not
+"4-7x faster to kill", it is **20x** — 0.7s against 14.3s — and it stops
+losing ships entirely (1.52 per episode down to 0.02). Run 7's 4-7x figure
+came from the softer traders.
+
+### What ships, and the reasoning
+
+`pirate-pack-r4-selectonly` is now live for **organised gangs only**:
+
+```ts
+const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
+```
+
+Opportunists and professionals keep the solo brain. A tier-2 gang of three or
+more flies the pack policy. This reuses the threat tiers rather than adding a
+switch: `organised` already means "they had both a reason and the numbers to
+bother forming", which is exactly the fight that should be terrifying.
+
+The escalation this produces, measured over 20,000 receptions per row:
+
+| commander | anarchy system | democracy system |
+| --- | --- | --- |
+| new | 0.0% organised | 0.0% |
+| Competent | 7.5% | 2.7% |
+| Dangerous | 25.6% | 18.3% |
+| E L I T E | 33.1% | 33.0% |
+
+A new commander never meets one, which matters more than the top of the
+table: the most lethal AI in the project is unreachable until the player has
+earned the attention. Confirmed against full careers — an ordinary 60-leg
+trader sees **0.6 organised gangs per career**, while a bounty hunter run all
+the way to E L I T E sees 34% of receptions as gangs and a privateer 45%.
+
+### The limit of this evidence — read before trusting it
+
+`npm run campaign` passes every balance check at both scales, and that is
+worth **less than it appears**. The campaign abstracts flight. It models the
+economy, the market, contracts and the living galaxy, so it can tell us that
+gang encounters do not bankrupt anyone and that careers still complete. It
+cannot model a 0.7-second time-to-kill, because it never simulates the
+dogfight at all.
+
+So the shipped configuration is validated on frequency and on economics, and
+is **unvalidated on survivability in real flight**. The tournament says a
+gang of three kills a competent defender in under a second; whether the
+player, in a Cobra with military lasers and an energy unit, fares better than
+the sim's trader hull is untested. If gangs turn out to be unsurvivable, the
+lever is the `organised` roll in contracts.ts — make gangs rarer, or smaller,
+or drop the pack brain to tier 2 groups of 4+ — not the brain, which is doing
+exactly what it was trained to do.
+
+test/playtest.js is the harness that could answer it, since it flies the real
+game with the defence brain.
