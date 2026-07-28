@@ -11,27 +11,40 @@ import {
 } from '../sim/policy';
 import { TURN } from '../sim/core';
 import { planDocking, makeDockPlan, type DockPlan } from './docking';
-import pirateBrainFile from '../sim/brains/pirate-attack-r2.json';
+import pirateBrainFile from '../sim/brains/pirate-attack-g3.json';
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
 import sharpBrainFile from '../sim/brains/pirate-attack-g2.json';
+import legacyBrainFile from '../sim/brains/pirate-attack-r2.json';
 import defendBrainFile from '../sim/brains/jameson-defend-g1.json';
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
 //
-// The league round-2 brain, and it is the default again after generation 1
-// was measured, shipped, flown and rejected. g1/g2 are better by every number
-// this project can produce — they fire 17 shots an engagement against r2's
-// 1.3, and kill a target flown the way Chris flies 93% of the time against
-// 0%. He played both and said the old one was more fun, which outranks all of
-// it.
+// Generation 3, and the first one aimed at how the game FEELS rather than at
+// how lethal it is.
 //
-// The reason is worth keeping. Chris's own observation early on: slowing down
-// or stopping lets you pivot and hold a firing line, because you stop
-// translating past the target. That is true, the sim models it faithfully,
-// and evolution therefore discovers it — so a well-optimised pirate is a
-// turret that hangs in space and snipes. r2 is fun BECAUSE it is bad at that:
-// it flies attack runs, weaves, overshoots, and gives you a dogfight you can
-// win. Lethality was a proxy for threat, and threat is not the same as fun.
+// Generation 1 and 2 won every measurement and lost the only one that counts:
+// Chris played them and asked for the old brain back. The cause is structural
+// and it was his own observation — stopping lets you pivot and hold a firing
+// line, because you stop translating past the target. It is true, the sim
+// models it faithfully, so evolution finds it, and a well-optimised pirate is
+// a turret that hangs in space and snipes.
+//
+// So g3 is trained where that move does not exist: pirate hulls carry a
+// `minSpeed` (sim/core.ts) and cannot throttle below about 43% of top speed,
+// and the fitness pays for time spent ON THE TARGET'S SIX rather than for
+// damage by any route. Measured against a target that stops to fight:
+//
+//   brain  speed  lined up  on your six  range  shots/engagement
+//   r2      235      38%         2%       822        0.6
+//   g2      133      96%         1%      1135        7.3   <- the turret
+//   g3      220      27%        10%       543        4.5
+//
+// It flies at r2's speed, closes 280 units nearer, works onto your six five
+// times as often and shoots seven times as much, while a gang of three still
+// only kills a shielded commander 1% of the time. r2's 0.6 shots is also the
+// answer to "they point right at me and never fire": it is aligned 38% of the
+// time but was trained when firing needed a 0.027 rad cone, so it learned
+// never to trust a loose line.
 //
 // Pirates fly with it at a 10 Hz decision rate; set `window.__scriptedPirates
 // = true` to compare against the old scripted AI.
@@ -66,6 +79,29 @@ const SHARP_BRAIN: Brain | null = (() => {
     return null;
   }
 })();
+
+/**
+ * The pre-generation brain, for an instant A/B in a live session.
+ *
+ *   window.__legacyPirates = true    every pirate flies r2
+ *
+ * It gets the wide ram guard and the old constant target speed, so this is
+ * the game exactly as it played before any of this work.
+ */
+const LEGACY_BRAIN: Brain | null = (() => {
+  try {
+    return brainFromFile(legacyBrainFile as unknown as BrainFile);
+  } catch {
+    return null;
+  }
+})();
+
+/** Which pirates, if any, fly the pre-generation brain. See LEGACY_BRAIN. */
+function legacyBrainFor(tier: number): boolean {
+  const flag = (window as unknown as Record<string, unknown>).__legacyPirates;
+  if (!flag || !LEGACY_BRAIN) return false;
+  return flag === 'pro' ? tier >= 1 : true;
+}
 
 export const DEFEND_BRAIN: Brain | null = (() => {
   try {
@@ -165,6 +201,13 @@ const RAM_GUARD_NO_RAM = 150;
  * and a commander who slows to fight gets pirates that hang in space.
  */
 const TARGET_SPEED_FLOOR = 150;
+
+/**
+ * Hostiles cannot throttle below this fraction of their top speed. Mirrors
+ * `minSpeed` on the pirate hulls in sim/core.ts (110/260 and 130/300, both
+ * about 0.43) — invariant 2.
+ */
+const MIN_CRUISE_FRACTION = 0.43;
 
 /**
  * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
@@ -539,14 +582,15 @@ export class NpcShip {
 
     if (aggressiveToPlayer) {
       const sharp = sharpBrainFor(this.threatTier);
-      // r2 kamikazes and needs the wide guard; g2 does not, and keeps its
-      // guns down to knife range. See RAM_GUARD_NO_RAM.
-      const guard = sharp ? RAM_GUARD_NO_RAM : RAM_GUARD;
+      const legacy = legacyBrainFor(this.threatTier);
+      // r2 kamikazes and needs the wide guard; the generation brains do not,
+      // and keep their guns down to knife range. See RAM_GUARD_NO_RAM.
+      const guard = legacy ? RAM_GUARD : RAM_GUARD_NO_RAM;
       if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()
           && distPlayer >= guard) {
         // organised gangs fly the pack policy; opportunists fly solo
         const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
-        const solo = sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
+        const solo = legacy ? LEGACY_BRAIN! : sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
         // The player's speed, with a FLOOR under it.
         //
         // This was hardcoded to 300 for years because observe() feeds
@@ -572,7 +616,7 @@ export class NpcShip {
         // entirely is the honest fix and costs a retrain of every brain.
         return this.brainFly(pack ? PACK_BRAIN : solo, dt,
           player.position, player.quaternion,
-          sharp ? Math.max(TARGET_SPEED_FLOOR, player.speed) : 300,
+          legacy ? 300 : Math.max(TARGET_SPEED_FLOOR, player.speed),
           distPlayer, 'player',
           pack ? fleet : null);
       }
@@ -779,7 +823,15 @@ export class NpcShip {
     this.brainPitchRate = rampTo(this.brainPitchRate, c.pitch * maxPitch, c.pitch !== 0);
     this.brainRollRate = rampTo(this.brainRollRate, c.roll * maxRoll, c.roll !== 0);
     if (c.throttle > 0) this.speed = Math.min(this.maxSpeed, this.speed + 120 * dt);
-    if (c.throttle < 0) this.speed = Math.max(0, this.speed - 120 * dt);
+    // Floor, mirroring ShipClass.minSpeed in sim/core.ts — invariant 2. A
+    // fighter that can stop dead becomes a turret, because standing still is
+    // how you hold a firing line. Only hostiles get it; traders and haulers
+    // are allowed to come to rest.
+    if (c.throttle < 0) {
+      const floor = this.role === 'pirate' || this.role === 'thargoid' || this.role === 'thargon'
+        ? this.maxSpeed * MIN_CRUISE_FRACTION : 0;
+      this.speed = Math.max(floor, this.speed - 120 * dt);
+    }
     if (this.brainRollRate !== 0) this.object.rotateZ(this.brainRollRate * dt);
     if (this.brainPitchRate !== 0) this.object.rotateX(this.brainPitchRate * dt);
     this.advance(dt);

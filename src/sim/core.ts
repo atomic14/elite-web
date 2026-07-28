@@ -89,6 +89,18 @@ export interface ShipClass {
   radius: number;
   accel: number;
   /**
+   * Floor under this hull's speed: it cannot be throttled below this.
+   *
+   * Fighters have one, targets do not. Without it, evolution finds the
+   * genuinely optimal pirate — a turret that stops dead and pivots, because
+   * standing still is how you hold a firing line (you stop translating past
+   * the target). Correct, lethal, and no fun at all to fly against: Chris
+   * played a generation of brains that did exactly this and asked for the old
+   * ones back. A pirate that must keep moving has to solve the interesting
+   * problem instead — get behind the target and stay there.
+   */
+  minSpeed?: number;
+  /**
    * Which weapon this hull carries. 'npc' is the game's pirate gun (NPC_GUN);
    * 'player' is the commander's pulse laser (LASER). Defaults to 'player' for
    * hulls that predate the split.
@@ -97,8 +109,8 @@ export interface ShipClass {
 }
 
 export const CLASSES: Record<string, ShipClass> = {
-  pirateCobra: { name: 'Cobra Mk III', hp: 1.1, maxSpeed: 260, turnRate: 0.8, radius: 34, accel: 120, gun: 'npc' },
-  pirateSidewinder: { name: 'Sidewinder', hp: 0.55, maxSpeed: 300, turnRate: 1.1, radius: 18, accel: 140, gun: 'npc' },
+  pirateCobra: { name: 'Cobra Mk III', hp: 1.1, maxSpeed: 260, turnRate: 0.8, radius: 34, accel: 120, gun: 'npc', minSpeed: 110 },
+  pirateSidewinder: { name: 'Sidewinder', hp: 0.55, maxSpeed: 300, turnRate: 1.1, radius: 18, accel: 140, gun: 'npc', minSpeed: 130 },
   traderCobra: { name: 'Cobra Mk III', hp: 1.0, maxSpeed: 220, turnRate: 0.5, radius: 34, accel: 100, gun: 'npc' },
   /**
    * The player, as a target. Mirrors player.ts: MAX_SPEED 400, MAX_PITCH 1.45
@@ -282,7 +294,7 @@ export function stepShip(s: SimShip, c: Control, dt: number): void {
   s.pitchRate = ramp(s.pitchRate, c.pitch * maxPitch, c.pitch !== 0, dt);
   s.rollRate = ramp(s.rollRate, c.roll * maxRoll, c.roll !== 0, dt);
   if (c.throttle > 0) s.speed = Math.min(s.cls.maxSpeed, s.speed + s.cls.accel * dt);
-  if (c.throttle < 0) s.speed = Math.max(0, s.speed - s.cls.accel * dt);
+  if (c.throttle < 0) s.speed = Math.max(s.cls.minSpeed ?? 0, s.speed - s.cls.accel * dt);
 
   if (s.rollRate !== 0) s.quat = qMul(s.quat, qAxisAngle(v3(0, 0, 1), s.rollRate * dt));
   if (s.pitchRate !== 0) s.quat = qMul(s.quat, qAxisAngle(v3(1, 0, 0), s.pitchRate * dt));

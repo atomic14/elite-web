@@ -5,7 +5,7 @@
 
 import {
   CLASSES, makeShip, stepShip, fireLaser, steerToward, facingAngle, resolveCollision, COLLISION,
-  makeRng, randDir, vAdd, vSub, vScale, vLen, v3, q4,
+  makeRng, randDir, vAdd, vSub, vScale, vLen, vNorm, vDot, forward, v3, q4,
   type SimShip, type Control, type V3,
 } from './core.ts';
 import {
@@ -82,6 +82,14 @@ export class Episode {
   readonly escapeRange: number;
   /** proximity shaping accumulator per pirate */
   readonly engagedTime: number[];
+  /**
+   * Time each pirate spent ON THE TARGET'S SIX — behind it, and pointed at
+   * it. Chris's ask, and the thing neither generation of brain does: r2
+   * weaves without ever converging, g2 converges by parking. Paying for the
+   * tail position asks for the manoeuvre that is actually threatening, rather
+   * than for damage by whatever route.
+   */
+  readonly tailTime: number[];
 
   private readonly opts: EpisodeOptions;
   private readonly rng: () => number;
@@ -115,6 +123,7 @@ export class Episode {
       this.pirates.push(ship);
     }
     this.engagedTime = this.pirates.map(() => 0);
+    this.tailTime = this.pirates.map(() => 0);
   }
 
   /** @returns shot events for this step (for the viewer's tracers) */
@@ -151,7 +160,16 @@ export class Episode {
           events.push({ from: p, to: this.trader, hit: this.trader.hp < hpBefore });
         }
       }
-      if (vLen(vSub(this.trader.pos, p.pos)) < 1500) this.engagedTime[i] += dt;
+      const toTarget = vSub(this.trader.pos, p.pos);
+      const range = vLen(toTarget);
+      if (range < 1500) this.engagedTime[i] += dt;
+      // on its six: behind the target's tail AND nose-on to it
+      if (range < 1800 && range > 120) {
+        const dir = vNorm(toTarget);
+        const behind = vDot(forward(this.trader), dir) > 0.35;   // we are astern
+        const pointed = vDot(forward(p), dir) > 0.9;             // and lined up
+        if (behind && pointed) this.tailTime[i] += dt;
+      }
     }
 
     // --- trader ---
@@ -292,7 +310,8 @@ export class Episode {
     return (
       6 * p.damageDealt +
       (killed ? 8 + 4 * (1 - this.t / this.maxTime) : 0) +
-      0.05 * this.engagedTime[i] -
+      0.05 * this.engagedTime[i] +
+      0.6 * this.tailTime[i] -
       0.03 * p.shotsFired -
       2 * p.damageTaken -
       (this.escaped ? 6 : 0)

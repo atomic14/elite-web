@@ -1355,3 +1355,71 @@ Fly it before tuning it. If it needs a lever, the legible numbers are
 `NPC_COOLDOWN_LO/SPREAD`, the 0.85 hit cap and the 0.25 gate — all now mirrored
 in `NPC_GUN` and asserted equal by the tests — not the flying, which is
 emergent and would take the balance with it.
+
+## Run 16 — generation 3: training for fun instead of for kills
+
+Chris, after flying g1/g2: *"I think our old AI was more fun to play with"*,
+then *"there's definitely some work to do to make them shoot more often and
+try and line up with the ship"*, then *"we need to find some balance in the
+weaving and them trying to line up on our six."*
+
+That is the whole brief, and it retires the objective the previous fifteen
+runs were optimising. Generation 1 and 2 won every measurement available —
+17 shots an engagement against r2's 1.3, 93% kills against a target flown the
+way Chris flies against 0% — and they were **not fun**, which outranks all of
+it. Rolled back the same day they shipped.
+
+The cause is structural rather than a bad fit, and it was Chris's own
+observation weeks earlier: slowing down or stopping lets you pivot and hold a
+firing line, because you stop translating past the target. That is true, the
+sim models it faithfully, so evolution finds it — and a fully-optimised pirate
+is a turret that hangs in space and snipes. r2 is fun BECAUSE it is bad at
+that: it flies attack runs, weaves, overshoots, and gives a dogfight that can
+be won.
+
+**Lethality was a proxy for threat, and threat is not the same as fun.**
+
+### Making the boring move unavailable
+
+Two changes, neither of them to the network:
+
+- `ShipClass.minSpeed` — pirate hulls cannot throttle below ~43% of top speed
+  (110 of 260, 130 of 300), mirrored in `npc.ts` as `MIN_CRUISE_FRACTION`
+  (invariant 2). The turret is no longer in the search space.
+- `Episode.tailTime` — fitness pays 0.6 per second spent **on the target's
+  six**: astern of it (`forward(target) · dir > 0.35`) and lined up on it
+  (`forward(pirate) · dir > 0.9`). Asking for the threatening manoeuvre
+  directly, instead of for damage by whatever route.
+
+The population stopped collapsing immediately: `flies()` rejected **30 of 379**
+champions against 171 of 395 for g2.
+
+### Measured against a target that stops and turns to fight
+
+| brain | mean speed | lined up | on your six | mean range | shots | kills |
+| --- | --- | --- | --- | --- | --- | --- |
+| r2 | 235 | 38% | 2% | 822 | 0.6 | 0% |
+| g2 | 133 | 96% | 1% | 1135 | 7.3 | 7% |
+| **g3** | **220** | 27% | **10%** | **543** | **4.5** | 1% |
+
+g3 flies at r2's speed, closes 280 units nearer, works onto the six five times
+as often, and shoots seven and a half times as much — while a gang of three
+still kills a shielded commander only 1% of the time (`npm run survivability`),
+against g2's 100%. Old harmlessness, new aggression.
+
+r2's row also answers a question open since the first playtest: *"they seemed
+to point right at me and never shot"*. It is aligned 38% of the time and fires
+0.6 times an engagement, because it was trained when firing required a 0.027
+rad cone. It learned never to trust a loose line, and the game's gate is 0.25.
+
+`window.__legacyPirates = true` restores r2 exactly (wide ram guard, constant
+target speed); `window.__sharpPirates` flies g2. Both are one console line, so
+the comparison can be made in a single session rather than argued about.
+
+### What is still open
+
+`lined up` fell from r2's 38% to 27%. Pursuit improved and instantaneous
+alignment did not, which suggests the tail term is doing the work and the
+firing gate is still where the shots are lost. The next lever is the policy's
+own trigger discipline rather than its flying — and, as always, the answer
+comes from flying it, not from this table.
