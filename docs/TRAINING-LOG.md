@@ -1134,3 +1134,56 @@ constant.
 
 The practical consequence is unchanged. r5-varied is safe on this test and is
 what the toggle points at. r11 stays committed as evidence of the failure mode.
+
+## The reference fight — a human, 215 seconds, six kills
+
+Chris flew a real reception with the recorder running. This is the first
+combat measurement in the project taken from a person rather than a bot, and it
+supersedes the bot-derived numbers above for anything about game feel.
+
+| | |
+| --- | --- |
+| flight time / under attack | 215s / 178s |
+| **his** shots / hits / accuracy | 62 / 19 / **31%** |
+| his kills | 6 |
+| **their** shots / hits / accuracy | 17 / 15 / **88%** |
+| their damage to him | **3.46** (he soaks 3.0-4.0) |
+| within laser range | 95% |
+| **lined up on him** | **5%** |
+| mean facing error | **79.7 degrees** |
+| mean distance | 978 |
+
+31% for the player confirms the LASER_GRAZE change: the 3-5% reported earlier
+was my broken shot counter, not his aim.
+
+### Their gunnery is a dice roll, not aim
+
+    const hit = Math.random() < Math.min(0.85, Math.max(0.15, 0.9 - dist / 3500));
+
+Once an NPC decides to fire, whether it hits depends **only on range**, capped
+at 85%. Aim decides *whether it shoots*, never whether it connects. So 15 of 17
+is exactly on model for shots taken close in, and "make them aim better" would
+change nothing at all. The only lever is how often they line up.
+
+### The balance is resting on 5%
+
+They are in range 95% of the time and pointed at him 5% of the time. Every
+extra point of alignment converts almost directly into damage, at 62-85% per
+shot:
+
+| alignment | shots in that fight | damage to him |
+| --- | --- | --- |
+| 5% (today) | 17 | 3.5 |
+| 10% | 34 | 6.9 — dead |
+| 15% | 51 | 10.4 — dead |
+
+He survived on 3.46 damage against 3.0-4.0 of durability. **Doubling how often
+pirates point at the player kills him.** The game is balanced, and balanced
+tightly, on brains that cannot track a human — which is accidental rather than
+designed, and worth knowing before anyone "improves" pursuit.
+
+That also retires the idea that pirates need to be more aggressive. They do not
+need to shoot more often; they need to keep missing at the current rate. If
+anything is worth tuning it is the 0.85 cap and the 0.25 rad gate, both of
+which are legible numbers, rather than the flying, which is emergent and would
+take the balance with it.
