@@ -2,6 +2,7 @@ import {
   type StarSystem, type MarketEntry, ECONOMY_NAMES, GOVERNMENT_NAMES, COMMODITIES, speciesName,
 } from '../galaxy/galaxy';
 import { planetDescription } from '../galaxy/goatsoup';
+import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation';
 import {
   type CommanderData, type Contract, type SlotSummary,
   rating, cargoTonnes, formatCredits, cargoCapacity,
@@ -384,16 +385,11 @@ export function renderStatus(
   `);
 }
 
-/**
- * Chart distance in tenths of a light-year, after the original's asymmetric
- * metric: y counts half (the chart is drawn half-height), scaled so max fuel
- * 70 = the classic 7.0 LY range.
- */
-export function distanceTenths(a: StarSystem, b: StarSystem): number {
-  const dx = a.x - b.x;
-  const dy = (a.y - b.y) / 2;
-  return Math.round(4 * Math.sqrt(dx * dx + dy * dy));
-}
+// The chart metric now lives in galaxy/navigation.ts, which owns it for the
+// game, the contracts and the campaign alike. Re-exported here because the
+// charts are its heaviest user and every caller already reaches for it from
+// this module.
+export { distanceTenths };
 
 export interface ChartState {
   cursorX: number;
@@ -414,9 +410,7 @@ export function nearestSystem(
   let best: StarSystem | null = null;
   let bestD = radius * radius;
   for (const s of systems) {
-    const dx = s.x - x;
-    const dy = (s.y - y) / 2;
-    const d = dx * dx + dy * dy;
+    const d = distanceSqToPoint(s, x, y);
     if (d < bestD) {
       bestD = d;
       best = s;

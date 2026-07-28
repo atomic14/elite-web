@@ -11,15 +11,13 @@
 // .ts extension: this module is run directly by Node (--experimental-strip-types)
 // for the campaign simulator, and COMMODITIES is a value import, not a type.
 import { COMMODITIES, type StarSystem, type MarketEntry } from '../galaxy/galaxy.ts';
+import { distanceTenths } from '../galaxy/navigation.ts';
 import type { Contract } from './commander';
 
 /** Chart distance in tenths of a light-year (the original's metric). */
-export function chartDistanceTenths(a: StarSystem, b: StarSystem): number {
-  const dx = a.x - b.x;
-  const dy = (a.y - b.y) / 2;
-  return Math.round(4 * Math.sqrt(dx * dx + dy * dy));
-}
-
+// Was a second copy of the chart metric. It now comes from the one owner, and
+// keeps the old name so the campaign harness's imports still read naturally.
+export { distanceTenths as chartDistanceTenths };
 /**
  * Work on offer at a station today. Deliberately more generous than the
  * original, which gated every mission behind a high combat rating: a new
@@ -33,7 +31,7 @@ export function generateContractOffers(
   rng: () => number = Math.random,
 ): Contract[] {
   const reachable = systems.filter((s) => {
-    const d = chartDistanceTenths(sys, s);
+    const d = distanceTenths(sys, s);
     return s.index !== sys.index && d > 0 && d <= 68;
   });
   if (!reachable.length) return [];
@@ -42,7 +40,7 @@ export function generateContractOffers(
   const count = 2 + Math.floor(rng() * 3);
   for (let i = 0; i < count; i++) {
     const dest = reachable[Math.floor(rng() * reachable.length)];
-    const dist = chartDistanceTenths(sys, dest);
+    const dist = distanceTenths(sys, dest);
     const roll = rng();
     if (roll < 0.55) {
       // cargo run: they supply the goods, you supply the nerve

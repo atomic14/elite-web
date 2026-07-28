@@ -375,6 +375,44 @@ console.log('\ncollision rates');
   }
 }
 
+// --- one owner for the chart metric -----------------------------------------
+
+// The 1984 distance rule had grown three implementations — ui/screens.ts,
+// game/contracts.ts and a hand-inlined squared copy in game.ts galacticJump —
+// all correct, none the owner, kept in step by nothing. That is invariant 2's
+// failure mode, and it bites harder here: test/campaign.ts validates the whole
+// economy against its own copy, so a drift would leave the balance harness
+// measuring a different game from the one that ships.
+//
+// galaxy/navigation.ts owns it now. These checks stop it re-forking.
+
+console.log('\nchart metric has one owner');
+{
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  const files = [
+    ['src/ui/screens.ts', read('../src/ui/screens.ts')],
+    ['src/game/contracts.ts', read('../src/game/contracts.ts')],
+    ['src/game/game.ts', read('../src/game/game.ts')],
+    ['test/campaign.ts', read('../test/campaign.ts')],
+  ] as const;
+  // the metric itself: 4 * sqrt(dx^2 + (dy/2)^2)
+  const forked = files.filter(([, src]) => /4 \* Math\.sqrt/.test(src)).map(([n]) => n);
+  check(`only navigation.ts implements the distance metric${forked.length ? ' — found in ' + forked.join(', ') : ''}`,
+    forked.length === 0);
+  // the half-weight-y comparison, which galacticJump used to inline
+  const inlined = files.filter(([, src]) => /\(s\.y - from\.y\) \/ 2|dy \* dy/.test(src)).map(([n]) => n);
+  check(`nobody re-inlines the squared form${inlined.length ? ' — found in ' + inlined.join(', ') : ''}`,
+    inlined.length === 0);
+  // and the jump-day formula, which game.ts and campaign.ts each had a copy of
+  const days = files.filter(([, src]) => /1 \+ Math\.ceil\([a-zA-Z.()\[\] ]*\/ 20\)/.test(src)).map(([n]) => n);
+  check(`only navigation.ts computes jump days${days.length ? ' — found in ' + days.join(', ') : ''}`,
+    days.length === 0);
+
+  const nav = read('../src/galaxy/navigation.ts');
+  check('navigation.ts imports nothing but the system type',
+    (nav.match(/^import /gm) ?? []).length === 1 && /import type \{ StarSystem \}/.test(nav));
+}
+
 // --- police only care about what YOU did ------------------------------------
 
 // takeDamage() sets `provoked` for damage from ANY source, including another

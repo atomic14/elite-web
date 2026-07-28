@@ -25,6 +25,7 @@ import {
   equipmentOwned, MAX_FUEL, type CommanderData, type Contract,
 } from '../src/game/commander.ts';
 import { makeRng } from '../src/sim/core.ts';
+import { daysForJump } from '../src/galaxy/navigation.ts';
 
 const COMMANDERS = Number(process.argv[2] ?? 40);
 const LEGS = Number(process.argv[3] ?? 60);
@@ -260,7 +261,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     const dist = chartDistanceTenths(here, destSys);
     if (dist > c.fuel) break; // shouldn't happen; pickDestination respects range
     c.fuel -= dist;
-    const days = 1 + Math.ceil(dist / 20);
+    const days = daysForJump(dist);
     c.day += days;
     living.advance(days, GRADIENTS, rng);
     c.systemIndex = dest;

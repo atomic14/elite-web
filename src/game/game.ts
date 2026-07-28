@@ -33,6 +33,9 @@ import {
 import {
   TradeScreen, makeLocalMarket, type TradeContext, type TradeOutcome,
 } from './trade-screen';
+import {
+  daysForJump, nearestSystemTo, witchspaceChance, WITCHSPACE_ESCAPE_COST,
+} from '../galaxy/navigation';
 /**
  * Player gunnery: a real ray against the hull, plus a small graze tolerance.
  *
@@ -954,7 +957,8 @@ export class Game {
       sfx.beep(220);
       return;
     }
-    const cost = this.witchspace ? 10 : distanceTenths(this.system, this.systems[t]);
+    const cost = this.witchspace
+      ? WITCHSPACE_ESCAPE_COST : distanceTenths(this.system, this.systems[t]);
     if (cost > this.commander.fuel) {
       this.hud.showMessage(
         this.witchspace ? 'INSUFFICIENT FUEL — STRANDED IN WITCH-SPACE' : 'TARGET OUT OF FUEL RANGE', 4);
@@ -970,16 +974,15 @@ export class Game {
     const t = this.chart.targetIndex!;
     if (this.witchspace) {
       // escaping the mis-jump costs a flat 1.0 LY
-      this.commander.fuel -= Math.min(this.commander.fuel, 10);
+      this.commander.fuel -= Math.min(this.commander.fuel, WITCHSPACE_ESCAPE_COST);
     } else {
       this.commander.fuel -= distanceTenths(this.system, this.systems[t]);
-      const witchChance = this.commander.mission.stage === 3 ? 0.22 : 0.09;
-      if (Math.random() < witchChance) {
+      if (Math.random() < witchspaceChance(this.commander.mission.stage)) {
         this.enterWitchspace(); // target retained for the escape jump
         return;
       }
     }
-    const daysPassed = 1 + Math.ceil(distanceTenths(this.system, this.systems[t]) / 20);
+    const daysPassed = daysForJump(distanceTenths(this.system, this.systems[t]));
     this.commander.day += daysPassed;
     this.living.advance(daysPassed, COMMODITIES.map((c) => c.gradient));
     this.commander.systemIndex = t;
@@ -1740,19 +1743,9 @@ export class Game {
     this.commander.equipment.galacticDrive = false;
     this.commander.galaxy = (this.commander.galaxy % 8) + 1;
     this.systems = generateGalaxy(this.commander.galaxy);
-    let best = 0;
-    let bestD = Infinity;
-    for (const s of this.systems) {
-      // same half-weight-y chart metric as ui/screens.ts distanceTenths
-      const dx = s.x - from.x;
-      const dy = (s.y - from.y) / 2;
-      const d = dx * dx + dy * dy;
-      if (d < bestD) {
-        bestD = d;
-        best = s.index;
-      }
-    }
-    this.commander.systemIndex = best;
+    // you arrive at whichever system in the new galaxy sits nearest the
+    // coordinates you left from
+    this.commander.systemIndex = nearestSystemTo(from, this.systems).index;
     this.chart.targetIndex = null;
     this.arriveInSystem();
     this.hud.showMessage(`GALAXY ${this.commander.galaxy} — ${this.system.name.toUpperCase()}`, 5);
