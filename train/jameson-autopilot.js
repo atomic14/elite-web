@@ -39,7 +39,7 @@
   const { applyMarketPressure } = contractsMod;
   const { isContraband } = lawMod;
   const { CC_MAX_PITCH, CC_MAX_ROLL, CC_MAX_SPEED, CC_ACCEL, ccRamp } = ccMod;
-  const { slotKeys } = storageMod;
+  const { slotKeys, currentSlot, setCurrentSlot, SAVE_SLOTS } = storageMod;
 
   const isTonne = (i) => COMMODITIES[i].unit === 't';
 
@@ -303,8 +303,14 @@
       // since slots arrived, so `respawn()` reloaded the player's OWN
       // commander rather than a fresh Jameson, every dock overwrote the real
       // save, and the restore put it somewhere nothing looks.
-      const keys = Object.values(slotKeys());
+      // Run in the LAST slot, never the player's — the game autosaves the
+      // whole world every 20 seconds of flight, so backing up their slot and
+      // restoring it in a finally still loses to a tab left running. Switching
+      // slots means their save is never opened at all.
+      const playerSlot = currentSlot();
+      const keys = Object.values(slotKeys(SAVE_SLOTS));
       const backup = keys.map((k) => localStorage.getItem(k));
+      setCurrentSlot(SAVE_SLOTS);
       try {
         for (const k of keys) localStorage.removeItem(k);
         g.respawn(); // fresh 100.0 Cr Jameson at Lave
@@ -328,6 +334,7 @@
           if (backup[i] === null) localStorage.removeItem(k);
           else localStorage.setItem(k, backup[i]);
         });
+        setCurrentSlot(playerSlot);
         console.log('your commander save is restored — reload the page');
       }
     },

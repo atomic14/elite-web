@@ -183,8 +183,13 @@ vite.config.ts; add new pages there or they won't build.
   Both back up and restore the player's save.
 - Browser automation gotchas: key taps can collapse into one frame — put
   waits between scripted keypresses, or drive via __game directly. The
-  player's save is `localStorage['elite-web-commander:<slot>']` — back it up
-  before destructive tests and restore after. **There are TWO stores**: the
+  player's save is `localStorage['elite-web-commander:<slot>']`. **Backing it
+  up and restoring it is NOT enough** — the world autosaves every 20 seconds of
+  flight, so a tab left running writes over the restore, and that is how a real
+  commander was lost during this refactor. `test/playtest.js` and
+  `train/jameson-autopilot.js` now switch to slot 4 (`SAVE_SLOTS`) for the
+  duration and put the pointer back, so the player's slot is never opened. Do
+  the same in any new harness, and in console work of your own. **There are TWO stores**: the
   commander, written on dock and on an equipment purchase, and the world
   (`elite-web-world:<slot>`), a full snapshot written by `autoSave()` every 20
   seconds of flight and replayed by `resumeSavedWorld()` at boot. Saving is

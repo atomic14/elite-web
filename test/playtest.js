@@ -50,7 +50,7 @@
   const { applyMarketPressure } = contractsMod;
   const { isContraband } = lawMod;
   const { cargoTonnes: holdTonnes, cargoCapacity: holdCapacity } = commanderMod;
-  const { slotKeys } = storageMod;
+  const { slotKeys, currentSlot, setCurrentSlot, SAVE_SLOTS } = storageMod;
   const { PLAYER_FLIGHT, rampFlightRate } = playerMod;
 
   const V = g.player.position.clone().constructor;
@@ -464,8 +464,18 @@
       // player's OWN commander instead of a fresh Jameson, every dock
       // overwrote the real save, docking cleared the real saved world, and the
       // restore at the end put the backup somewhere no loader looks.
-      const keys = Object.values(slotKeys());
+      // Run in the LAST slot, never the player's.
+      //
+      // Backing up the player's slot and restoring it in a finally was still
+      // not safe: the game autosaves the whole world every 20 seconds of
+      // flight, so a tab left running after the harness finishes writes over
+      // the restore. That is how a real commander was lost. Switching slots
+      // means the player's save is never opened, never written, and there is
+      // nothing to restore — the harness cannot reach it even if it crashes.
+      const playerSlot = currentSlot();
+      const keys = Object.values(slotKeys(SAVE_SLOTS));
       const backup = keys.map((k) => localStorage.getItem(k));
+      setCurrentSlot(SAVE_SLOTS);
       this.violations = [];
       this.seen = new Set();
       const history = [];
@@ -562,7 +572,9 @@
           if (backup[i] === null) localStorage.removeItem(k);
           else localStorage.setItem(k, backup[i]);
         });
-        console.log('commander save restored — reload the page');
+        setCurrentSlot(playerSlot);
+        console.log(`ran in slot ${SAVE_SLOTS}; your slot ${playerSlot} was never touched`
+          + ' — reload the page');
       }
     },
   };
