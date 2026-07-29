@@ -37,6 +37,7 @@ import { StatusScreen, type StatusContext } from './screens/status';
 import { DataScreen, type DataContext } from './screens/data';
 import { BriefingScreen } from './screens/briefing';
 import { ContractsScreen, type ContractsContext } from './screens/contracts';
+import { ChartScreen, type ChartContext } from './screens/chart';
 import { ScreenHost } from '../ui/screen-host';
 import {
   daysForJump, nearestSystemTo, witchspaceChance, WITCHSPACE_ESCAPE_COST,
@@ -136,10 +137,9 @@ import {
   type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
-  hideScreen, renderDockedMenu, renderNewGameConfirm, renderChart, drawChart,
-  renderLocalChart, drawLocalChart, renderMarketEstimate,
-  renderGameOver, renderContracts, describeContract, nearestSystem,
-  distanceTenths, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE, type ChartState,
+  hideScreen, renderDockedMenu, renderNewGameConfirm,
+  renderGameOver, describeContract,
+  distanceTenths, type ChartState,
 } from '../ui/screens';
 
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
@@ -231,10 +231,7 @@ export class Game {
    * for what Escape returns to — it replaced both `mode`'s overlay values and
    * the one-deep `dataReturn` hack that existed for the system-data screen.
    */
-  readonly screens = new ScreenHost(
-    () => this.showBaseScreen(),
-    (id) => this.repaintLegacyScreen(id),
-  );
+  readonly screens = new ScreenHost(() => this.showBaseScreen());
 
   /**
    * What is on screen: the top overlay, or the base state when there is none.
@@ -285,6 +282,16 @@ export class Game {
 
   /** Which system the data screen is reading about. */
   private dataSubject: StarSystem | null = null;
+
+  private chartContext(): ChartContext {
+    return {
+      commander: this.commander,
+      systems: this.systems,
+      system: this.system,
+      chart: this.chart,
+      viewData: (sys) => { this.dataSubject = sys; },
+    };
+  }
   /** the reception the current system laid on — surfaced for the HUD/tests */
   lastThreat: PirateThreat | null = null;
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
@@ -305,9 +312,7 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   get contractSelected(): number { return this.contracts_.selected; }
   set contractSelected(v: number) { this.contracts_.selected = v; }
-  private chartFind: string | null = null;
   private paused = false;
-  private chartEstimate = false;
   /** where ESC returns to from the DATA ON screen */
   private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
@@ -428,6 +433,8 @@ export class Game {
       } satisfies DataContext)),
       new BriefingScreen(),
       this.contracts_,
+      new ChartScreen('chart', () => this.chartContext()),
+      new ChartScreen('local', () => this.chartContext()),
     ]) this.screens.register(screen);
 
     let last = performance.now();
@@ -1820,9 +1827,6 @@ export class Game {
       this.updateFlight(dt, elapsed);
     }
 
-    if ((this.mode === 'chart' || this.mode === 'local') && this.chartFind === null && !this.chartEstimate) {
-      this.updateChartCursor(dt);
-    }
 
     this.camera.position.copy(this.player.position);
     this.camera.quaternion.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
@@ -2283,7 +2287,6 @@ export class Game {
   // --- input ---------------------------------------------------------------
 
   private handleInput(dt: number): void {
-    void dt;
     const i = this.input;
     // ? toggles the controls guide (plain / is the classic decelerate key)
     if (i.pressed('Question')) {
@@ -2295,7 +2298,7 @@ export class Game {
     // contract yet, which fall through to the switch below. That switch
     // shrinks with every screen that moves; when it is empty, this method is
     // just flight keys.
-    if (this.screens.update(i)) return;
+    if (this.screens.update(i, dt)) return;
 
     switch (this.mode) {
       case 'docked':
@@ -2341,61 +2344,6 @@ export class Game {
           this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
           renderDockedMenu(this.system, this.commander, this.missionText());
         }
-        break;
-
-      case 'market':
-        break;
-
-      case 'equip':
-        break;
-
-      case 'saves':
-        break;
-
-      case 'naming':
-        break;
-
-      case 'chart':
-      case 'local':
-        if (this.chartEstimate) {
-          if (i.pressed('Escape') || i.pressed('KeyM')) {
-            this.chartEstimate = false;
-            if (this.mode === 'local') renderLocalChart(this.systems, this.commander, this.chart);
-            else renderChart(this.systems, this.commander, this.chart);
-          }
-          break;
-        }
-        if (this.chartFind !== null) {
-          this.handleChartFind();
-          break;
-        }
-        if (i.pressed('KeyM')) {
-          const near = nearestSystem(this.systems, this.chart.cursorX, this.chart.cursorY);
-          if (near) {
-            this.chartEstimate = true;
-            renderMarketEstimate(near, this.commander);
-          }
-          break;
-        }
-        if (i.pressed('KeyD')) {
-          const near = nearestSystem(this.systems, this.chart.cursorX, this.chart.cursorY);
-          if (near) this.openSystemData(near, this.mode === 'local' ? 'local' : 'chart');
-          break;
-        }
-        if (i.pressed('KeyF')) {
-          this.chartFind = '';
-          this.redrawChart();
-          break;
-        }
-        if (i.pressed('Enter')) {
-          const near = nearestSystem(this.systems, this.chart.cursorX, this.chart.cursorY);
-          if (near) {
-            this.chart.targetIndex = near.index;
-            sfx.beep(900, 0.1);
-            this.redrawChart();
-          }
-        }
-        if (i.pressed('Escape')) this.closeOverlay();
         break;
 
       case 'flight':
@@ -2458,27 +2406,15 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   openChart(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
-    this.screens.open('chart');
     this.baseMode = from;
-    this.chartFind = null;
-    this.chartEstimate = false;
-    const cur = this.system;
-    this.chart.cursorX = cur.x;
-    this.chart.cursorY = cur.y;
-    renderChart(this.systems, this.commander, this.chart);
+    this.screens.open('chart');
   }
 
   /** @internal — driven by test/playtest.js */
   openLocalChart(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
-    this.screens.open('local');
     this.baseMode = from;
-    this.chartFind = null;
-    this.chartEstimate = false;
-    const cur = this.system;
-    this.chart.cursorX = cur.x;
-    this.chart.cursorY = cur.y;
-    renderLocalChart(this.systems, this.commander, this.chart);
+    this.screens.open('local');
   }
 
   /**
@@ -2488,58 +2424,15 @@ export class Game {
    * `data-row` selection index; charts map clicks back to chart coordinates.
    */
   private handleScreenClick(e: MouseEvent): void {
+    // The host owns all of it: data-key becomes a keystroke so a click and the
+    // printed shortcut take exactly the same path, data-row goes to the top
+    // screen's select(), and anything else — a chart canvas — reaches its
+    // clickAt() with the raw event so it can map pixels to its own space.
     const el = (e.target as HTMLElement).closest('[data-key],[data-row]') as HTMLElement | null;
-    if (el) {
-      // The host owns this: data-key becomes a keystroke so a click and the
-      // printed shortcut take the same path, and data-row goes to the top
-      // screen's select(). Screens that have not migrated yet fall through to
-      // the per-mode handling below.
-      if (this.screens.click(el, this.input)) return;
-      const row = el.dataset.row;
-      if (row !== undefined && this.mode === 'contracts') {
-        this.contractSelected = Number(row);
-        renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
-      }
-      return;
-    }
-    this.handleChartClick(e);
+    this.screens.click(el ?? (e.target as HTMLElement), this.input, e);
   }
 
-  private handleChartClick(e: MouseEvent): void {
-    if (this.mode !== 'chart' && this.mode !== 'local') return;
-    if (this.chartEstimate || this.chartFind !== null) return;
-    const canvas = e.target as HTMLElement;
-    if (!(canvas instanceof HTMLCanvasElement)) return;
 
-    const local = this.mode === 'local';
-    const coords = local
-      ? localCoordsFromClick(canvas, e.clientX, e.clientY, this.system)
-      : chartCoordsFromClick(canvas, e.clientX, e.clientY);
-    this.chart.cursorX = Math.max(0, Math.min(255, coords.x));
-    this.chart.cursorY = Math.max(0, Math.min(255, coords.y));
-
-    // snap radius of ~28 screen px on either chart, so clicking a star
-    // targets it while clicking empty sky just moves the cursor
-    const pxPerUnit = local ? LOCAL_SCALE : canvas.width / 256;
-    const near = nearestSystem(
-      this.systems, this.chart.cursorX, this.chart.cursorY, 28 / pxPerUnit);
-    if (near) {
-      this.chart.cursorX = near.x;
-      this.chart.cursorY = near.y;
-      this.chart.targetIndex = near.index;
-      sfx.beep(900, 0.1);
-    }
-    this.redrawChart();
-  }
-
-  private redrawChart(): void {
-    if (this.mode === 'local') drawLocalChart(this.systems, this.commander, this.chart);
-    else drawChart(this.systems, this.commander, this.chart);
-    if (this.chartFind !== null) {
-      const info = document.getElementById(this.mode === 'local' ? 'local-info' : 'chart-info');
-      if (info) info.textContent = `FIND: ${this.chartFind}_`;
-    }
-  }
 
   private setView(v: number): void {
     if (this.view === v) return;
@@ -2547,33 +2440,6 @@ export class Game {
     sfx.beep(600, 0.04);
   }
 
-  /** Type-to-find on the charts: letters filter, the cursor jumps to matches. */
-  private handleChartFind(): void {
-    const i = this.input;
-    let changed = false;
-    for (const code of i.drainPresses()) {
-      if (code.startsWith('Key')) {
-        this.chartFind += code.slice(3);
-        changed = true;
-      } else if (code === 'Backspace') {
-        this.chartFind = this.chartFind!.slice(0, -1);
-        changed = true;
-      } else if (code === 'Enter' || code === 'Escape') {
-        this.chartFind = null;
-        this.redrawChart();
-        return;
-      }
-    }
-    if (changed && this.chartFind) {
-      const match = this.systems.find((s) =>
-        s.name.toUpperCase().startsWith(this.chartFind!.toUpperCase()));
-      if (match) {
-        this.chart.cursorX = match.x;
-        this.chart.cursorY = match.y;
-      }
-    }
-    if (changed) this.redrawChart();
-  }
 
   /** @internal — driven by test/playtest.js */
   /**
@@ -2593,15 +2459,6 @@ export class Game {
     this.screens.open('status');
   }
 
-  /**
-   * Repaint a screen that has not migrated to the Screen contract, after
-   * something on top of it closed. Goes away with the last legacy screen.
-   */
-  private repaintLegacyScreen(id: string): void {
-    if (id === 'chart') renderChart(this.systems, this.commander, this.chart);
-    else if (id === 'local') renderLocalChart(this.systems, this.commander, this.chart);
-  }
-
   /** Nothing on the stack: show the docked menu, or clear back to flight. */
   private showBaseScreen(): void {
     if (this.baseMode === 'docked') {
@@ -2611,39 +2468,7 @@ export class Game {
     }
   }
 
-  private closeOverlay(): void {
-    // the host calls showBaseScreen() as the last screen pops
-    if (this.screens.depth) this.screens.exit();
-    else this.showBaseScreen();
-  }
 
-  private updateChartCursor(dt: number): void {
-    const i = this.input;
-    // the local chart is ~13x zoomed, so the cursor moves proportionally finer
-    const tapStep = this.mode === 'local' ? 1 : 3;
-    const speed = (this.mode === 'local' ? 12 : 55) * dt;
-    let moved = false;
-    // discrete step per tap + continuous motion while held
-    const taps = {
-      left: i.pressedCount('ArrowLeft'),
-      right: i.pressedCount('ArrowRight'),
-      up: i.pressedCount('ArrowUp'),
-      down: i.pressedCount('ArrowDown'),
-    };
-    if (taps.left) { this.chart.cursorX -= tapStep * taps.left; moved = true; }
-    if (taps.right) { this.chart.cursorX += tapStep * taps.right; moved = true; }
-    if (taps.up) { this.chart.cursorY -= 2 * tapStep * taps.up; moved = true; }
-    if (taps.down) { this.chart.cursorY += 2 * tapStep * taps.down; moved = true; }
-    if (i.held('ArrowLeft', 'KeyA')) { this.chart.cursorX -= speed; moved = true; }
-    if (i.held('ArrowRight', 'KeyD')) { this.chart.cursorX += speed; moved = true; }
-    if (i.held('ArrowUp', 'KeyW')) { this.chart.cursorY -= speed * 2; moved = true; }
-    if (i.held('ArrowDown', 'KeyS')) { this.chart.cursorY += speed * 2; moved = true; }
-    if (moved) {
-      this.chart.cursorX = Math.max(0, Math.min(255, this.chart.cursorX));
-      this.chart.cursorY = Math.max(0, Math.min(255, this.chart.cursorY));
-      this.redrawChart();
-    }
-  }
 
   /**
    * Dump a tonne over the side. Pirates came for cargo, not for you — give

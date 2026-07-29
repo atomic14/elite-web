@@ -67,6 +67,18 @@ export interface Screen {
    * you were.
    */
   select?(row: number): void;
+  /**
+   * Continuous motion, given the frame's dt. Only screens with held-key
+   * behaviour need it — the charts move a cursor while an arrow is down,
+   * where every other screen acts on discrete taps.
+   */
+  tick?(dt: number, i: Input): void;
+  /**
+   * A click that is neither a shortcut nor a row: canvases and maps, which
+   * need the raw event to turn pixels into their own coordinates.
+   * @returns true if consumed.
+   */
+  clickAt?(target: HTMLElement, e: MouseEvent): boolean;
 }
 
 /**
@@ -188,10 +200,11 @@ export class ScreenHost {
    * @returns false when the top screen has no implementation yet, so the
    * caller should fall through to its own handling.
    */
-  update(i: Input): boolean {
+  update(i: Input, dt = 0): boolean {
     this.runMenuCursor(i);
     const top = this.top;
     if (!top?.screen) return false;
+    top.screen.tick?.(dt, i);
     this.apply(top.screen.input(i));
     return true;
   }
@@ -241,7 +254,7 @@ export class ScreenHost {
    *
    * @returns true if the click was consumed.
    */
-  click(el: HTMLElement, i: Input): boolean {
+  click(el: HTMLElement, i: Input, e?: MouseEvent): boolean {
     const key = el.dataset.key;
     if (key !== undefined) {
       i.injectPress(key);
@@ -255,6 +268,8 @@ export class ScreenHost {
         return true;
       }
     }
+    const screen = this.top?.screen;
+    if (screen?.clickAt && e) return screen.clickAt(el, e);
     return false;
   }
 }
