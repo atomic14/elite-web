@@ -1,437 +1,211 @@
 # CLAUDE.md — working on HARMLESS
 
-**HARMLESS** — an unofficial browser tribute to Elite (1984) (TypeScript +
-Vite + three.js) with ship AI trained by neuroevolution self-play. Owner:
-Chris (atomic14.com). Public repo; MIT + fan-project notice in LICENSE — keep
+**HARMLESS** — an unofficial browser tribute to Elite (1984). TypeScript, Vite,
+three.js, with ship AI trained by neuroevolution self-play. Owner: Chris
+(atomic14.com). Site https://harmless.atomic14.com, repo
+github.com/atomic14/harmless. Public repo; MIT plus a fan-project notice — keep
 the non-commercial homage framing intact.
 
-**The name is deliberate and load-bearing.** "Elite" is a live Frontier
-Developments trademark, so it is not used as this project's NAME anywhere —
-not in titles, H1s, Open Graph, JSON-LD or the domain. It IS used in prose to
-say what this is a tribute to ("a browser tribute to Elite (1984)"), which is
-nominative use and is the point. The in-game `E L I T E` combat rank stays: it
-describes gameplay, not the product. Site is https://harmless.atomic14.com, repo is
-github.com/atomic14/harmless.
+This file is the **rules and the north star**. Where code lives is
+`docs/ARCHITECTURE.md`'s 30-second map, a complete one-line-per-file index. How
+we got here is `docs/DEVLOG.md` and `docs/TRAINING-LOG.md`. Nothing here needs
+re-arguing — if a rule looks wrong, say so and we will change it.
 
-**Link to pages WITHOUT the .html.** Cloudflare Pages serves clean URLs and
-308-redirects `/play.html` to `/play`, so a canonical or sitemap entry ending
-in .html points at a redirect — which is an SEO error, not a cosmetic one.
-Vite's dev server serves both forms, so extensionless links work locally too.
+## The north star
 
-**The `elite-web-*` localStorage keys are NOT branding and must never be
-renamed** — `elite-web-commander:<slot>`, `elite-web-slot`, `elite-web-keymap`.
-They are where every existing player's commander lives; renaming them orphans
-every save silently, which is exactly the bug class that ate New Commander and
-Import earlier. They stay as they are, forever.
+**One world state. A pure step that advances it. A renderer that only reads it.**
 
-**`src/ai-training/` is the neuroevolution training setup; `train/` is the
-scripts that drive it.** It was `src/sim`, which said nothing about who it was
-for and read as "the simulation" beside `src/game` — which is also a
-simulation. It is no longer a simulator at all: `scenario.ts` chooses who
-fights whom and scores it, `policy.ts` is the network and the observation
-encoder, and the physics under both is `src/game` (invariant 2). The game
-imports `policy.ts`; the trainer imports the game.
+Everything follows from that:
+
+- The world advances in fixed 1/60 slices from one seeded PRNG, so the same
+  inputs give the same run — which is what makes a replay, a regression test and
+  a training run possible at all.
+- The trainer flies the **real game**. There is no second physics.
+- One rule has one home. The recurring failure this defends against is one rule
+  with two homes, kept in step by hope.
+- A module decides and reports; the orchestrator applies. Modules return events;
+  `game.ts` has one small `apply*` per module.
+- Anything that drives behaviour and is not a constant is state, and state is
+  saved. AI state is game state.
+- `npm run portability` measures how much of `src` would survive a move to
+  another shell. `game.ts` is the last file holding engine and shell together;
+  that number should keep falling.
+
+**For the AI: threat is not fun.** A well-optimised pirate is a turret that hangs
+in space and snipes, and evolution will find it. We want a dogfight the player
+can win — attack runs, weaving, overshoots. Lethality is a proxy for threat, and
+a brain that wins every measurement can still be the wrong brain. **Fly it
+before tuning it.**
 
 ## Commands
 
 ```sh
-npm run dev        # landing at localhost:5173 · game at /play
-                   # viewer at /viewer · manual + novella at /manual, /novella
+npm run dev        # landing at localhost:5173 · game at /play · viewer at /viewer
 npm run lint       # tsc --noEmit over src/, train/ and test/
+npm test           # invariant + unit tests (test/run.ts, no framework)
 npm run check      # lint + tests — what `prebuild` runs
-npm run build      # prebuild (lint + test) then vite build → dist/
-npm run train -- <attack|evade|pack|defend> [--gens N --pop N ...]
-npm run evaluate   # held-out tournament for the current brains
-npm run survivability  # can a *shielded* commander survive a gang? (see invariant 8)
-npm test           # invariant + sim tests (test/run.ts, no framework)
+npm run build      # prebuild then vite build → dist/
 npm run campaign   # headless balance playtest (test/campaign.ts)
                    # `-- <commanders> <legs> <trader|hunter|privateer|both|all>`
-                   # `-- 4 45000 all` runs full careers to E L I T E (~70s)
-npm run portability  # could this port to another shell? one tracked number
+npm run portability   # how much of src would port to another shell
+npm run train -- <attack|evade|pack|defend> [--gens N --pop N --out NAME ...]
+npm run evaluate   # held-out tournament
+npm run survivability # can a shielded commander survive a gang? (a BOT answer)
 ```
 
-**`npm run train` writes to `src/ai-training/brains/<out>.json` and defaults
-`--out` to the phase's real brain**, so a run with no `--out` overwrites a
-shipped one. `git checkout src/ai-training/brains` restores it. Use a scratch
-name for experiments and delete it afterwards. Also: `--pool` rotates the
-TRADER, so it is refused for phases where the genome IS the trader — it used to
-silently score the wrong thing for eight minutes.
+Node >= 22.6 (train and evaluate run TS directly via
+`--experimental-strip-types`).
 
-CI (.github/workflows/ci.yml) lints, tests, builds and runs the campaign.
-Deployment is Cloudflare Pages, auto-deploying from the repo with build
-command `npm run build` — and because npm runs `prebuild` first, a commit
-that fails lint or tests fails the Cloudflare build and never deploys.
-**Don't move lint/test out of `prebuild`**: that gate is the only thing
-stopping a broken commit reaching the live site.
+CI lints, tests, builds and runs the campaign. Deployment is Cloudflare Pages
+from the repo, and because npm runs `prebuild` first, a commit that fails lint or
+tests never deploys. **Don't move lint/test out of `prebuild`** — that gate is
+the only thing stopping a broken commit reaching the live site.
 
-Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
+**Site layout**: `/` is a static landing page with no game bundle, the game is
+`play.html`, and `manual.html` / `novella.html` carry the long-form text. All are
+Vite entries in `vite.config.ts`; add new pages there or they won't build.
 
-**Site layout**: `/` is a static landing page (no game bundle — it exists to
-be read and indexed), the game is `play.html`, and `manual.html` /
-`novella.html` carry the long-form text. All are Vite entries in
-vite.config.ts; add new pages there or they won't build.
+## Invariants that MUST hold
 
-**Where things live is `docs/ARCHITECTURE.md`'s 30-second map, not this file.**
-It is a complete one-line-per-file index and it is kept current; duplicating it
-here would only produce a second copy to go stale. What this file holds is the
-things that are *not* discoverable by reading the code: the invariants below,
-and why a decision was made rather than what it was.
-
-One thing that IS worth stating here, because it changed recently and a stale
-mental model is expensive: `game.ts` is ~1600 lines and is now only the
-orchestrator — the fixed-timestep loop, the step order, the mode machine and
-constructor wiring. The world step is `world-step.ts`, saves are
-`persistence.ts`, the station is `station.ts`, input is `controls.ts`, the two
-autopilots are `autopilot.ts`, hit consequences are `combat.ts`, prices are
-`shop.ts`, storage is `storage.ts`, contraband and fines are `law.ts`. If you
-are about to add something to `game.ts`, it probably belongs in one of those.
-
-## Read these before big changes
-
-- `docs/ARCHITECTURE.md` — the five core ideas + conventions checklist. The
-  fastest way to orient; keep it updated when structure changes.
-- `docs/TRAINING-LOG.md` — every AI run, exact commands, results. Append new
-  runs here; never edit old entries.
-- `docs/GAP-ANALYSIS.md` — feature parity vs the 1984 manual.
-- `train/README.md` — reproducing training; brain-overwrite footgun.
-
-## Invariants that MUST hold (things that silently break)
-
-1. **Galaxy fidelity**: `generateGalaxy(1)[7]` must be LAVE TL:5 Rich
-   Agricultural Dictatorship. Never "fix" galaxy.ts math; it is byte-matched
-   to the 1984 algorithm. `npm test` asserts this (plus the market model,
-   sim determinism, and that the shipped brains still beat their baselines).
-2. **One combat model — the trainer flies the game.** There is no second
-   physics to keep in step. `src/ai-training/scenario.ts` builds episodes out
-   of `NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts` and `rng.ts`, and
-   steps them at `FIXED_DT`; `src/ai-training/core.ts` — 450 lines of the
-   game written a second time — is **deleted**.
-
-   The invariant this replaces read "combat numbers exist twice, change one →
-   change the other". It cost six training rounds to an NPC gun firing 5.4x
-   too fast, a player model accelerating at 120 against the real 220, and a
-   turn decay 35% out at the two files' step rates. Every one was invisible
-   while each file agreed with ITSELF.
-
-   So: **a combat number now has one home, and changing it changes the game
-   and the training environment together.** That is the point, and it is the
-   new hazard — a balance tweak to `NPC_COOLDOWN_LO` or `RAM_DAMAGE` silently
-   invalidates every shipped brain, where before it only desynced them.
-   Retraining is the response, not a second copy.
-
-   Two seams keep it honest: `NpcShip.brainFly`/`attack` are PUBLIC so an
-   episode can fly a candidate genome through the real flight model, and
-   `PlayerShip` takes a `FlightDemand` so the target is the commander's own
-   ship however it is piloted. Don't grow a private copy of either.
-3. **No logarithmicDepthBuffer** on the renderer: it disables polygonOffset,
+1. **The name.** "Elite" is a live Frontier trademark, so it is never this
+   project's NAME — not in titles, H1s, Open Graph, JSON-LD or the domain. It IS
+   used in prose to say what this is a tribute to, which is nominative use and is
+   the point. The in-game `E L I T E` combat rank stays: it describes gameplay,
+   not the product.
+2. **Link to pages WITHOUT `.html`.** Cloudflare serves clean URLs and
+   308-redirects `/play.html` → `/play`, so a canonical or sitemap entry ending
+   in `.html` points at a redirect, which is an SEO error rather than a cosmetic
+   one.
+3. **The `elite-web-*` localStorage keys are never renamed** —
+   `elite-web-commander:<slot>`, `elite-web-world:<slot>`, `elite-web-slot`,
+   `elite-web-keymap`. They are where every existing player's commander lives.
+   `storage.ts` is the only file that may touch localStorage.
+4. **Galaxy fidelity**: `generateGalaxy(1)[7]` is LAVE, TL:5, Rich Agricultural
+   Dictatorship. Never "fix" `galaxy.ts` maths; it is byte-matched to the 1984
+   algorithm. `npm test` asserts it.
+5. **One combat model.** `src/ai-training/scenario.ts` builds episodes out of
+   `NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts` and `rng.ts`. A change
+   to a combat number therefore changes the game and the training world
+   together — so nothing desyncs, but it **invalidates the brains**. Retrain
+   deliberately.
+6. **No `logarithmicDepthBuffer`** on the renderer: it disables polygonOffset,
    which is what keeps black hull fills behind wireframe edges.
-4. **Ship defs use +Z nose**; buildShip() mirrors Z (three.js forward is −Z).
-   Hulls must stay left/right symmetric or the mirror becomes visible.
-5. **Money is integer tenths of a credit; fuel is tenths of a LY (max 70).**
-6. **Key bindings live in four places**: src/engine/keymap.ts (flight keys,
-   classic 1984 default + modern toggle), `BINDINGS` in
-   src/game/controls.ts (the command keys — a table now, not an if/else
-   chain in game.ts), the `?` help panel (flight rows are rewritten by
-   keymap.refreshHelpPanel), and the README table. Change them together.
-7. **Contract/market rules live in `src/game/contracts.ts`**, not game.ts,
-   so the headless campaign simulator runs the *same* code the game does.
-   Keep new economic rules there.
-8. Retraining overwrites `src/ai-training/brains/*.json` which the game/viewer
-   import at build time. `git checkout src/ai-training/brains` restores shipped
-   weights. Shipped-in-game: **`pirate-attack-g3`** (pirates — NOT r2, which is
-   the legacy control behind `window.__legacyPirates`; this line said r2 for
-   months and an agent tuned against the wrong brain because of it),
-   **`jameson-defend-g1`** (armed traders + anything player-assist),
-   **`pirate-pack-r4-selectonly`** (organised gangs only — `npc.ts`,
-   `this.organised || packBrainEnabled()`). `window.__sharpPirates = true`
-   flies generation 2 (`= 'pro'` only on tier >= 1); `window.__packBrain =
-   true` forces the pack policy on everyone.
+7. **Ship defs use +Z nose**; `buildShip()` mirrors Z. Hulls must stay
+   left/right symmetric or the mirror becomes visible.
+8. **Money is integer tenths of a credit; fuel is tenths of a LY (max 70).**
+9. **Key bindings live in four places** and change together:
+   `engine/keymap.ts` (flight keys, classic and modern layouts), `BINDINGS` in
+   `game/controls.ts` (command keys, per mode), the `?` help panel in
+   `play.html`, and the README table.
+10. **Economic rules live in `game/contracts.ts`**, not `game.ts`, so the
+    headless campaign runs the same code the game does. Likewise prices in
+    `shop.ts`, contraband and fines in `law.ts`.
+11. **`Math.random` is banned in world code and `npm test` enforces it** —
+    including bare references, THREE's own generators, and destructuring it out
+    of `Math`. `game/rng.ts` is the only source of chance. `starfield.ts` and
+    `audio.ts` are exempt because nothing reads them back.
+12. **Screens**: a screen owns its rendering, its keys and its state in one file,
+    behind `open()` / `render()` / `input(i)` / optional `select(row)`. It never
+    sets the mode, never touches the Game, and returns an outcome
+    (`'stay' | 'back' | 'exit' | { open: id }`). `Game.mode` is DERIVED —
+    `screens.topId ?? baseMode` — and has no other writer. Adding a screen is one
+    file, one line in `ScreenId`, one registration. **No parameter properties**:
+    `npm test` runs under `--experimental-strip-types`, which rejects
+    `constructor(private readonly x)`.
 
-   **The generation-1/2 attackers were measured, shipped, flown and rolled
-   back.** They win on every number this project can produce — 17 shots an
-   engagement against r2's 1.3, 93% kills against a target flown the way
-   Chris flies against 0% — and he played them and said the old brain was
-   more fun. That outranks the numbers. The reason is structural, and it is
-   Chris's own observation: stopping lets you pivot and hold a firing line
-   because you stop translating past the target. It is true, the sim models
-   it faithfully, so evolution finds it — and a well-optimised pirate is a
-   turret that hangs in space and snipes. r2 is fun BECAUSE it is bad at
-   that: it flies attack runs, weaves, overshoots, and gives you a dogfight
-   you can win. **Lethality is a proxy for threat, and threat is not fun.**
-   The open problem is r2's flying with g2's gunnery.
+    Two related rules. **Clicks are input** — `data-key` becomes a keystroke and
+    `data-row` goes to `select()`, so a screen has ONE input surface; a parallel
+    click path drifts from the key path. And `tick(dt, i)` (cursor motion while
+    a key is held) plus `clickAt(el, e)` (a canvas mapping pixels to its own
+    coordinates) exist **for the charts and only the charts** — discrete taps
+    and `select(row)` cover everything else.
+13. **The menu cursor runs BEFORE the top screen**, and `Input.pressed()`
+    consumes. That is safe only because it touches nothing unless a `.menu` is on
+    screen, and even then only arrows and Enter. Don't widen it.
+14. **NPCs return `FireEvent`s; the Game resolves all consequences.** Don't give
+    an NPC a side effect. `ui/screens.ts` renders and nothing else, and the HUD
+    is a dumb painter.
 
-   **Generation 1 is the first set trained against the gun a pirate actually
-   carries**, and that is the whole story of runs 9-14 failing to transfer.
-   The sim handed every ship the player's pulse laser — 0.24s cadence through
-   a ~0.027 rad cone, deterministic hits — where `npc.ts` gives an NPC 1.30s
-   through a 0.25 rad gate and then rolls dice on range. Lined up, 0.667
-   damage/second against 0.041. The simulator grew an `NPC_GUN` beside its
-   `LASER` to close that; **it now fires the real one** — an episode's pirate
-   pulls the same trigger `npc.ts` does, through `gunnery.ts`, and the parity
-   tests that policed the two copies are gone with the copies (invariant 2).
+## Training
 
-   Balance is NOT settled, and **every number that used to be quoted here is
-   now stale.** They were measured in `ai-training/core.ts`, which is deleted.
-   Since episodes moved onto the real engine the same brains measure very
-   differently — `pirate-attack-g3` went from 43% to 93% kills against a
-   scripted trader, `jameson-defend-g1` from 48% to 33% deaths 2v1, and
-   `npm run survivability` now reports 0% against a shielded commander for a
-   gang of three or four. Do not treat any of those as a balance verdict: the
-   brains were fitted in the copy and are stale by construction. Retrain
-   first, then measure. See docs/TRAINING-LOG.md run 18. **Fly it before tuning it** (`test/arena.js`, `test/combat-recorder.js`).
-   If it needs a lever, prefer the legible numbers — `NPC_COOLDOWN_LO/SPREAD`,
-   the 0.85 hit cap, the 0.25 gate, all mirrored in `NPC_GUN` — over the
-   flying, which is emergent. See docs/TRAINING-LOG.md runs 12-15.
-9. **The trainer's `--validate-select` flag matters more than it looks.**
-   Without it, the final brain is chosen by comparing scores across
-   generations that used *different* episode seeds — that picks the luckiest
-   generation, not the best genome, and it silently ruined runs 4 and 6. Use
-   it for any new run.
+- `npm run train` writes `src/ai-training/brains/<out>.json` and **defaults
+  `--out` to the phase's real brain**, so a run with no `--out` overwrites a
+  shipped one. `git checkout src/ai-training/brains` restores.
+- Always use **`--validate-select`**. Without it the final brain is chosen by
+  comparing scores across generations that used different episode seeds, which
+  picks the luckiest generation rather than the best genome.
+- `--pool` rotates the TRADER, so it is refused for phases where the genome IS
+  the trader.
+- Shipped: **`pirate-attack-g3`** (pirates), **`jameson-defend-g1`** (armed
+  traders and anything player-assist), **`pirate-pack-r4-selectonly`**
+  (organised gangs). `pirate-attack-r2` is the legacy control behind
+  `window.__legacyPirates`, not a shipped brain.
+- Balance is not settled, and a figure quoted in any doc may predate a physics
+  change. Measure; don't cite.
 
-## Verification workflow (what has worked well)
+## State
 
-- `window.__game` is the Game instance; `window.__policyKit` exposes
-  {act, observe, makeScratch, pirateBrain, defendBrain}. Drive the real game
-  headlessly from the console/javascript-tool: call `g.update(1/60, t)` in a
-  loop to simulate time (browser rAF throttles in background tabs — manual
-  stepping is the reliable way in automation).
+**`Game.state`** (`GameState`, `state.ts`) holds everything the step may change —
+galaxy, commander, living galaxy, world, player, session, ship systems, dock
+plan, encounter timers, markets, charts. `freshState(commander)` builds it under
+node with no browser.
+
+Two objects inside it are walked **generically** by `snapshot.ts`, so adding a
+field to either saves it for free: **`NpcShip.state`** (`NpcState`) and
+**`state.session`** (`SessionState`). `NpcState.pos` and `.quat` ARE the mesh's
+own vectors, so the renderer reads the state and there is no sync pass to forget.
+
+**The top-level snapshot is a hand-written list** (`persistence.ts`), so it is
+not free — but a test asserts every `GameState` field appears by name in both
+capture and restore.
+
+Restore may differ from an unbroken run in ways a player cannot observe or
+exploit; it is not required to be byte-identical. Seeded reproducibility from a
+given seed IS required, because training and the regression gate depend on it.
+
+## Running game code under node
+
+Most of it already does — `World.build()`, the world step, `NpcShip` and fifteen
+pure rule modules are asserted browser-free by `npm test`. To keep it that way:
+
+- **No side effects at module scope.** Install debug globals from a function
+  (`installPolicyKit()`), never a bare assignment.
+- **Explicit `.ts` on relative imports**, and `with { type: 'json' }` on JSON
+  imports. Vite infers both; node does not.
+- **Everything needing a GPU stays in `engine/render-stack.ts`.** `Game`'s
+  constructor still calls it, so constructing a `Game` needs a browser; the world
+  does not.
+
+## Verification
+
+- `window.__game` is the Game; `window.__policyKit` exposes the trained policies.
+  Drive the game headlessly by calling `g.update(1/60, t)` in a loop — background
+  tabs throttle rAF, so manual stepping is the reliable way.
 - `window.__scriptedPirates = true` disables all NPC brains (A/B testing).
-- `window.__legacyPirates = true` flies the pre-gun-fix `pirate-attack-r2` on
-  every pirate (`= 'pro'` only on tier >= 1). It is the control, not a
-  difficulty setting: under the real gun it fires about one shot per
-  engagement and dies in 65% of its own ambushes. Use it to A/B the new
-  brains in one session with test/gang-trial.js.
-- `window.__cheat = true` fits anything from the equipment catalogue, free and
-  at any tech level — playtesting only. A console handle rather than a key
-  binding, deliberately: nobody should reach it by accident.
-- `npm run campaign` is the **balance playtest**: hundreds of full careers
-  through the real galaxy/market/living-galaxy/contract modules (only flight
-  is abstracted). Run it after touching prices, rewards, equipment or the
-  living galaxy — it asserts the economy still works and prints the wealth
-  curve, bankruptcy rate and equipment progression.
-- `test/playtest.js` (paste into console, or `fetch('/test/playtest.js')`
-  then eval) is the **autonomous playtest agent**: it plays the real game —
-  contracts, trading, equipping, jumping, combat via the trained defence
-  brain, docking, hermits — while asserting invariants every 30 frames, and
-  prints a report of what it exercised plus any violations. Run it after
-  gameplay changes: `await __playtest.run({ legs: 8 })` (~4 min).
-  Inspect `__playtest.history` for the per-leg ledger.
-- `test/combat-recorder.js` records a fight a HUMAN flew, which every other
-  harness cannot: `__rec.start()`, fly, `__rec.report()`. It logs your accuracy
-  and theirs, damage both ways, and the geometry that decides whether an NPC
-  can shoot at all (distance, facing error, share of the fight lined up).
-  **Prefer it to bot-flown measurements.** Both bots mislead in opposite
-  directions: flying straight flatters freighter-trained brains, and the
-  defence policy evades superbly while shooting badly, so everything looks
-  survivable. Read-only, restores its patches on stop().
-- `train/jameson-autopilot.js` is the narrower trade-run harness behind
-  docs/JAMESON-TRIALS.md: `await __auto.runTrial('Lave','Leesti',6)`.
-  Both back up and restore the player's save.
-- Browser automation gotchas: key taps can collapse into one frame — put
-  waits between scripted keypresses, or drive via __game directly. The
-  player's save is `localStorage['elite-web-commander:<slot>']`. **Backing it
-  up and restoring it is NOT enough** — the world autosaves every 20 seconds of
-  flight, so a tab left running writes over the restore, and that is how a real
-  commander was lost during this refactor. `test/playtest.js` and
-  `train/jameson-autopilot.js` now switch to slot 4 (`SAVE_SLOTS`) for the
-  duration and put the pointer back, so the player's slot is never opened. Do
-  the same in any new harness, and in console work of your own. **There are TWO stores**: the
-  commander, written on dock and on an equipment purchase, and the world
-  (`elite-web-world:<slot>`), a full snapshot written by `autoSave()` every 20
-  seconds of flight and replayed by `resumeSavedWorld()` at boot. Saving is
-  NOT dock-only and has not been for some time; note that `autoSave` writes
-  the commander too, so death rolls you back ~20 seconds rather than to the
-  last station.
-
-## State lives in one place
-
-**`Game.state`** (`GameState`, in `state.ts`) holds everything the world step
-may change: the galaxy, the commander, the living galaxy, the world, the player,
-the flight session, the ship systems, the dock plan, the encounter timers, the
-markets and the charts. `freshState(commander)` builds it under node with no
-canvas and no browser. Game keeps delegating accessors, so `g.commander` still
-works at ~500 call sites.
-
-Inside it, two objects are walked GENERICALLY by `snapshot.ts`
-(`serialiseState`/`restoreState`), so adding a field to either saves it:
-
-- **`NpcShip.state`** (`NpcState`) — transform, speed, hp, flags, timers, and
-  the brain's cached decision. `state.pos` and `state.quat` ARE the mesh's own
-  `Vector3`/`Quaternion`, not copies, so the renderer reads the state and
-  there is no sync pass to forget. Accessors keep `npc.hp` working at the ~80
-  call sites that say it.
-- **`state.session`** (`SessionState`, in `session.ts`) — every flight flag and
-  timer.
-
-**The top-level snapshot is NOT a generic walk** — `Persistence.capture()` is a
-hand-written list, and three `GameState` fields (`dockPlan`, `lastThreat`,
-`ecmDetectedTimer`) were silently unsaved until an audit found them. An earlier
-version of this file implied the whole thing was walked generically; it is not.
-What protects it now is a test: every `GameState` field must appear by name in
-BOTH capture and restore, and `npm test` fails otherwise.
-
-**AI state is game state.** Chris's test for it: a human's brain persists
-across a reload on its own, an NPC's does not — so the NPC's decision cache
-and timers have to be in the save, or ships come back with no brain. Anything
-the step READS is state, however transient it looks.
-
-The hand-written version was wrong four times in a row: it forgot the trigger
-and trade clocks, then the pack station and ramped turn rates, then
-`brainControl` (excluded on purpose as "not really state"), then the STATION'S
-ORIENTATION — simulation state living in the scene, which the slot normal, the
-docking box and `npcsVsStation` all read. Each time two reloads agreed with
-each other but not with the run they came from. **If you add a field to
-`NpcState` or `SessionState` it is saved; if you add one beside them it is
-not.**
-
-## Determinism: the world steps, and it repeats
-
-Two rules, and they only work together:
-
-- **Fixed timestep.** The world advances in `FIXED_DT` (1/60) slices via an
-  accumulator, never in variable frame deltas. `Game.step(dt, elapsed)` reads
-  no clock and draws nothing; `Game.draw(dt)` changes nothing. `update()` is
-  both, kept for the console harnesses.
-- **One seeded PRNG.** `game/rng.ts` is the world's only source of chance,
-  reseeded per arrival from galaxy/system/day. **`Math.random` is banned in
-  world code and `npm test` enforces it** — including bare references, because
-  `rng: () => number = Math.random` is an unseeded stream hiding behind an
-  injectable-looking signature, and that is exactly how five of them survived
-  the first sweep. `THREE.Vector3.randomDirection()` is banned for the same
-  reason: it reaches for `Math.random` internally.
-
-Verified end to end: arriving in the same system on the same day and flying
-600 steps produces byte-identical NPC counts, roles and positions, three times
-running. That property is what a replay, a regression test and a training run
-all need.
-
-Pure rule modules (`encounters.ts`, `population.ts`, `systems.ts`,
-`contracts.ts`) take an **injectable** rng defaulting to the seeded one, so
-their tests can drive them directly.
-
-## Headless: what it takes to run game code under node
-
-**This is done.** Training runs against the real engine: `npm run train` builds
-`NpcShip`s and a `PlayerShip` under node, flies them with `gunnery.ts`,
-`collisions.ts` and `rng.ts`, and the parallel model is deleted. It costs
-nothing — the same fixed workload runs slightly FASTER than the old simulator
-did while stepping at 1/60 instead of 1/15, because the MLP forward pass
-dominates and the decision cache caps it at 10 Hz.
-
-three.js was NOT the obstacle — `worldToLocal`, quaternions and `rotateOnAxis`
-all work in node with no canvas and no WebGL (measured, not assumed). Four
-things were, and all four are fixed:
-
-- **No side effects at module scope.** `npc.ts` assigned `window.__policyKit`
-  as a bare statement, so importing the file touched `window`. It is
-  `installPolicyKit()` now, called by the Game. Don't reintroduce the pattern.
-- **Explicit `.ts` on relative imports.** Vite resolves extensionless, node
-  does not. `src/ai-training` always had them; the rest of `src` does now.
-- **`with { type: 'json' }` on JSON imports.** Same story — Vite infers, node
-  requires the attribute. The brain files carry it.
-- **Everything needing a GPU is confined to `engine/render-stack.ts`** —
-  WebGLRenderer, the post chain, the camera, the cockpit beams and the
-  projection lift. It is the only file the world step cannot reach for.
-  `Game` still calls it from its constructor, so constructing a `Game` still
-  needs a browser — which the trainer no longer minds, because an episode
-  builds the ships it needs directly rather than a whole `Game`.
-
-  This was *not* the only blocker, despite saying so for months. `sun.ts`
-  painted the corona sprite into a `document.createElement('canvas')` at build
-  time, so **`World.build()` itself** — the station, planet and sun that
-  `massLocked()`, the hazard checks, the docking tests and the compass all read
-  — threw under node. An audit found it; the texture is optional now and
-  `npm test` builds and steps a whole world headlessly. Giving `Game` an
-  optional render stack would not have been sufficient on its own.
-
-  `Game.step()` is still not renderer-free: it reaches for `document` for the
-  help panel, the bomb flash, the menu cursor in `screen-host.ts`, and the
-  docked-menu repaints. **The WORLD step is** — `src/game/world-step.ts` holds
-  the five phases of flight (`flyPlayer`, `stepNpcs`,
-  `stepProjectilesAndEffects`, `stepShipSystems`, `checkHazards`) and is in the
-  purity block. It takes a `FlightDemand` and returns `StepEvent`s instead of
-  calling the HUD; the consequences it cannot own — a bounty, a legal status, a
-  save, a screen, the end of the run — it asks for through `StepHost`, which
-  `game.ts` implements in one object literal (`stepHost()`). `npm test` builds
-  the pieces by hand and flies 600 steps under node with no Hud at all, and
-  asserts the run is byte-identical from the same seed. **Don't put a
-  `hud`/`document`/`Input` reference back into that file** — the trainer is the
-  whole point of it.
-
-Pieces of the world step that are already out, pure and unit-tested:
-`game/collisions.ts` (who is overlapping whom), `game/systems.ts` (energy,
-shields, laser heat, cabin temperature, and the damage model),
-`galaxy/navigation.ts` (distances and jump costs), `hud/hud-model.ts` (what
-the HUD needs computing). **`train/survivability.ts` imports the damage model
-now** rather than transcribing it — every balance figure this project quotes
-depends on that model, and it used to live in a comment.
-
-The payoff is already real: the police-hostility checks were four regexes
-against source text because npc.ts could not be imported. They are now ten
-tests that call `isHostileToPlayer` directly.
-
-## Screens: the contract to build against
-
-`src/ui/screen-host.ts` routes every overlay. A screen owns its rendering, its
-keys and its own state **in one file**, behind `open()`, `render()`,
-`input(i)` and optionally `select(row)`. It never sets the mode, never touches
-the Game and never reaches for another screen — it returns an OUTCOME
-(`'stay' | 'back' | 'exit' | { open: id }`) and the host acts on it. Same
-discipline as `NpcShip` returning a `FireEvent`.
-
-- **`Game.mode` is DERIVED** — `screens.topId ?? baseMode`. Assign `baseMode`
-  (`docked`/`flight`/`dead`) or push/pop the stack. There is no other writer.
-- **The stack replaced two hacks**: the overlay half of `mode`, and the
-  one-deep `dataReturn` that existed so the system-data screen could remember
-  whether it came from the chart. `back` handles both.
-- **Clicks are input**: `data-key` becomes a keystroke, `data-row` goes to
-  `select()`. A screen has ONE input surface. The old parallel click path
-  drifted from the key path and produced a real bug (the market showed the
-  system's name instead of the hermit's).
-- **Adding a screen** = a new file, one line in `ScreenId`, one line in the
-  registration list in `game.ts`. That is the whole shared surface, so two
-  people adding two screens collide on one line rather than on a switch.
-- **Migration is incremental**: an id with no registered screen still occupies
-  the stack, and `update()` returns false so `game.ts` handles it the old way.
-  Screens live in `src/game/screens/`, one file each. **All ten have
-  migrated**, so `handleInput`'s switch is down to the three non-screen states
-  (docked, flight, dead) and the legacy fall-through is gone.
-- Two optional contract methods exist for the charts and only the charts:
-  `tick(dt, i)` for cursor motion while a key is HELD, and `clickAt(el, e)`
-  for a canvas that must map pixels to its own coordinates. Don't reach for
-  them otherwise — discrete taps and `select(row)` cover every other screen.
-- **NO PARAMETER PROPERTIES** in a screen or the host — `npm test` runs under
-  `--experimental-strip-types`, which rejects `constructor(private readonly x)`.
-  Vite compiles it fine, so this only fails in the test run. Assign fields
-  explicitly; it is what keeps screens unit-testable outside a browser.
-- The menu cursor runs BEFORE the top screen, and `Input.pressed()` consumes.
-  It is safe only because it touches nothing unless a `.menu` is on screen, and
-  even then only arrows and Enter. Don't widen it.
+  `window.__cheat = true` fits anything from the catalogue, free.
+- `npm run campaign` after touching prices, rewards, equipment or the living
+  galaxy. `test/playtest.js` plays the real game and asserts invariants.
+- **Never write save slots 1-3.** Harnesses run in slot 4 (`SAVE_SLOTS`) and
+  restore the pointer; do the same in console work. Backing up and restoring is
+  NOT enough, because the world autosaves every 20 seconds and a tab left
+  running will overwrite the restore.
+- Prefer a fight a human flew to a bot-flown measurement. Bots mislead in both
+  directions: flying straight flatters freighter-trained brains, and the defence
+  policy evades superbly while shooting badly.
+- When verifying a refactor, prove **equivalence with the previous code** (same
+  seed, identical outcome), not merely that the new code is self-consistent.
+  Freshly spawned NPCs need one settling step before their world matrices are
+  valid, or the fixture diverges for reasons that are not the code's.
 
 ## Style
 
-- Module-header comments state each file's role — maintain them.
-- `game/game.ts` is deliberately the single orchestrator; NPCs return
-  FireEvents, the Game resolves all consequences. Don't give NPCs side
-  effects.
-- Screens (`ui/screens.ts`) are pure render functions; HUD is a dumb painter.
-- This is a **homage, not a museum piece** (Chris's framing): it must stay
-  instantly recognisable to anyone who played the original — never "they've
-  ruined it" — but we apply what game design has learned since 1984.
-  Prices/behaviour follow the original unless there's a good reason;
-  docs/GAP-ANALYSIS.md records every deliberate deviation.
+- Module-header comments state each file's role — maintain them. A file that
+  needs a paragraph in `ARCHITECTURE.md` to make sense has the wrong name.
+- `game/game.ts` is the orchestrator and nothing else: the fixed-timestep loop,
+  the step order, the mode machine, constructor wiring. If you are about to add a
+  rule to it, it belongs somewhere else.
+- This is a **homage, not a museum piece**: it must stay instantly recognisable
+  to anyone who played the original, but we apply what game design has learned
+  since 1984. Prices and behaviour follow the original unless there is a good
+  reason; `docs/GAP-ANALYSIS.md` records every deliberate deviation.
 - Commit per milestone with a descriptive message.
-
-## Current state & direction
-
-Core game complete and validated end-to-end (see docs/JAMESON-TRIALS.md).
-Brains ship for pirates, gangs, armed traders and evaders; viewer at
-/viewer.html showcases them. `pirate-attack-e1` and `trader-evade-e1` (run 18)
-are the first trained on the real engine and are NOT yet wired into the game —
-`brains.ts` still imports g3/g2/r2/pack-r4/jameson-g1. Open
-direction (Chris's priorities): new-player QoL (docking aid — pause and
-mid-flight autosave already ship, they are just not advertised), target
-market from chart, purchasable Combat Computer (defence brain flies the
-player), remaining hulls, README screenshots, deploy workflow for an
-atomic14.com CNAME, then the two-level "living galaxy" (design in
-docs/AI-TRAINING.md) and AI round 3 (notes in docs/TRAINING-LOG.md).
