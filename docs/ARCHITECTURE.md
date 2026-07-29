@@ -83,7 +83,7 @@ an NPC's does not.
 
 ### Known gaps against it
 
-- `game.ts` is 1871 lines, down from 3244. It is the orchestrator, and what
+- `game.ts` is 1648 lines, down from 3244. It is the orchestrator, and what
   is left is mostly orchestration: the fixed-timestep loop, input routing, the
   docked/flight mode machine, and the consequences the modules report. The
   rules have moved to the ~30 files around it — and the **world step itself**
@@ -94,6 +94,21 @@ an NPC's does not.
   trainer needs. What it cannot own it asks for through `StepHost` — eleven
   verbs and one question, all of them consequences that reach outside the sky
   (a bounty, a legal status, a save, a screen, the end of the run).
+- **The same shape three times over.** `persistence.ts` (capture, restore,
+  autosave, resume) and `station.ts` (dock, launch, the menu between them) came
+  out the same way: a module that decides and reports, one host object literal
+  in `game.ts` naming the verbs it may ask for, and one small `apply*` switch.
+  The save can now be taken and put back under node — `npm test` flies a world,
+  captures it through JSON, restores into a fresh state and demands the
+  restored world *continues* the run rather than merely resembling it, which is
+  the property all four historical snapshot bugs broke.
+- **The rule for what may be an event, and it is not style:** anything that
+  DRAWS from the seeded rng must stay a direct call, made where it was made
+  before. Deferring a draw moves it across a branch and silently changes every
+  seeded outcome after it. That is why `StepHost` and `StationHost` are lists of
+  verbs rather than richer return values — `populateSystem`, the Navy mission
+  step and the market roll all draw. Messages draw nothing, so messages are
+  events.
 - `npc.ts` is 786 lines and holds behaviour and brain flight. The explosions,
   the ship roster and the brain selection have moved to `effects.ts`,
   `ship-specs.ts` and `brains.ts`.
@@ -140,10 +155,12 @@ src/
                             mode machine, and every consequence modules report
     world-step.ts           one slice of the world, with nothing on screen:
                             the five phases of flight, reporting StepEvents
+    station.ts              docking, launching, and the menu between them
     state.ts                GameState: everything the step may change, in one
                             object. freshState() builds it with no browser
     session.ts              SessionState: the flight flags and timers
     snapshot.ts             that state as plain JSON — save anywhere, replay
+    persistence.ts          that JSON taken from a running world, and put back
     rng.ts                  THE seeded generator. Math.random is banned in
                             world code and npm test enforces it
 
@@ -167,7 +184,8 @@ src/
     combat-computer.ts      the defence brain flying the PLAYER's ship
 
     law.ts                  contraband, fines, and how far your standing falls
-    contracts.ts            work on offer, market pressure, and pirate economics
+    contracts.ts            work on offer, taking it, being paid for it,
+                            market pressure, and pirate economics
     missions.ts             the Navy Constrictor arc (NOT the bulletin board)
     commander.ts            who you are: stats, cargo, rank — PURE, no browser
     shop.ts                 what things cost and what you may fit
@@ -275,10 +293,11 @@ Screens (`ui/screens.ts`) are pure render functions over DOM, routed by
 object per frame, computed by `hud/hud-model.ts`.
 
 **Still mixed up in game.ts**, and worth knowing before you go looking: laser
-fire, spawning, the docking and hyperspace *transitions*, and missions. The
-flight loop itself has moved to `world-step.ts` and runs headless; what is left
-blocking a fully browser-free `Game` is its constructor, which builds a
-renderer and DOM listeners, and the command keys `step()` still reads directly.
+fire, spawning, and the hyperspace *transition*. The flight loop has moved to
+`world-step.ts`, the save to `persistence.ts` and the docking/launch transitions
+to `station.ts`, and all three run headless; what is left blocking a fully
+browser-free `Game` is its constructor, which builds a renderer and DOM
+listeners, and the command keys `step()` still reads directly.
 
 Two intentional oddities inside it:
 

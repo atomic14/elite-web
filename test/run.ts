@@ -22,7 +22,11 @@ import {
   WorldStep, massLocked, type StepEvent, type StepHost,
 } from '../src/game/world-step.ts';
 import { freshState } from '../src/game/state.ts';
-import { newCommander, MAX_FUEL } from '../src/game/commander.ts';
+import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
+import type { WorldSnapshot } from '../src/game/snapshot.ts';
+import {
+  newCommander, cargoCapacity, MAX_FUEL, type Contract,
+} from '../src/game/commander.ts';
 import {
   FUEL_PRICE, fuelNeeded, refuelCost, fuelQuote,
 } from '../src/game/shop.ts';
@@ -61,7 +65,7 @@ import {
 } from '../src/game/npc.ts';
 import { PLAYER_SPEED_KEPT, NPC_SPEED_KEPT, RAM_DAMAGE } from '../src/game/collisions.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
-import { SPECS } from '../src/game/ship-specs.ts';
+import { SPECS, pirateSpecForTier } from '../src/game/ship-specs.ts';
 import { PlayerShip, PLAYER_FLIGHT, rampFlightRate, type FlightDemand } from '../src/player.ts';
 import { flightDemand, type FlightControls } from '../src/engine/flight-controls.ts';
 import { keymap } from '../src/engine/keymap.ts';
@@ -93,7 +97,10 @@ import {
 } from '../src/galaxy/galaxy.ts';
 import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
-import { pirateThreat, markOf, memberTier } from '../src/game/contracts.ts';
+import {
+  pirateThreat, markOf, memberTier, MAX_CONTRACTS,
+  settleContracts, acceptContract, contractMessage,
+} from '../src/game/contracts.ts';
 import { killValue } from '../src/game/commander.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/ai-training/policy.ts';
@@ -890,6 +897,104 @@ console.log('\nheadless world step');
     check('mass lock is a free function over the state', massLocked(run.state));
     run.state.player.position.set(1e7, 1e7, 1e7);
     check('...and out in the deep it is clear', !massLocked(run.state));
+  }
+
+  // --- ...and it SAVES without a browser -------------------------------------
+  //
+  // captureSnapshot/restoreSnapshot were private methods of game.ts, so the
+  // only thing this file could say about the save was a grep for field NAMES —
+  // which is exactly the check that passed through all four historical "two
+  // reloads agree with each other but not with the run they came from" bugs.
+  //
+  // They are persistence.ts now, behind a six-method host, so the real save can
+  // be taken and put back under node: fly a world, capture it THROUGH JSON,
+  // restore into a FRESH state, and demand the restored world continues the run
+  // rather than merely resembling it.
+  {
+    const stubHost = (state: ReturnType<typeof freshState>, log: string[]): PersistenceHost => ({
+      baseMode: () => 'flight',
+      enterMode: (mode) => { log.push(`mode:${mode}`); },
+      buildWorld: () => {
+        state.world.build(state.systems[state.commander.systemIndex]);
+        log.push('build');
+      },
+      enterWitchspace: () => { log.push('witchspace'); },
+      isDead: () => false,
+      message: (text) => { log.push(`say:${text}`); },
+    });
+
+    const a = arrival(31_337);
+    // Re-spawn the pirates the way the GAME spawns them: with the hull their
+    // threat tier calls for. The restore picks a pirate's hull back out of
+    // `pirateSpecForTier(state.threatTier, seed)` — the tier is saved, the hull
+    // is not — so a pirate spawned off the default roster comes back with a
+    // different turn rate and flies a different fight. That is a real property
+    // of the save, and the harness has to spawn the way the game does to test
+    // it rather than trip over it.
+    a.state.world.clearNpcs();
+    for (let i = 0; i < 3; i++) {
+      const p = a.state.world.spawn('pirate',
+        a.state.player.position.clone().add(new THREE.Vector3(320 * (i - 1), 140, -1500)),
+        i, pirateSpecForTier(1, i));
+      p.threatTier = 1;
+    }
+    a.state.world.spawn('trader',
+      a.state.player.position.clone().add(new THREE.Vector3(-900, -200, -2600)), 7);
+    a.state.commander.credits = 12_345;
+    a.state.chart.targetIndex = 42;
+    fly(a, 300);
+    const aLog: string[] = [];
+    const snap = new Persistence(a.state, a.ordnance, new CombatComputer(), stubHost(a.state, aLog))
+      .capture();
+
+    check('the real save is taken with no Hud, no screens and no localStorage',
+      snap.mode === 'flight' && snap.npcs.length > 0 && aLog.length === 0);
+    // through JSON, because that is what a save IS
+    const wire = JSON.stringify(snap);
+    check('...and it is plain JSON', wire.length > 1000 && !wire.includes('undefined'));
+
+    seedWorld(1);   // deliberately the WRONG stream: the restore must fix it
+    const b = arrival(99);
+    const bLog: string[] = [];
+    new Persistence(b.state, b.ordnance, new CombatComputer(), stubHost(b.state, bLog))
+      .restore(JSON.parse(wire) as WorldSnapshot);
+
+    check('restoring rebuilds the scene before it places the ships',
+      bLog[0] === 'build');
+    check('...and hands the mode back to the orchestrator',
+      bLog.includes('mode:flight'));
+    check('...the commander came back', b.state.commander.credits === 12_345);
+    check('...every flight flag and timer came back',
+      JSON.stringify(b.state.session) === JSON.stringify(a.state.session));
+    check('...the chart came back', b.state.chart.targetIndex === 42);
+    check('...the sky came back',
+      b.state.world.npcs.length === a.state.world.npcs.length
+      && b.state.world.npcs.every((n, i) => n.role === a.state.world.npcs[i].role
+        && n.object.position.distanceTo(a.state.world.npcs[i].object.position) === 0));
+    check('...and the ship is where it was',
+      b.state.player.position.distanceTo(a.state.player.position) === 0
+      && b.state.player.speed === a.state.player.speed);
+    check('...including the station\'s own orientation, which lives in the scene',
+      b.state.world.station.quaternion.toArray().join()
+      === a.state.world.station.quaternion.toArray().join());
+
+    // THE property. A field-by-field comparison passes through every bug this
+    // has ever had; continuing the run does not.
+    const mark = rngState();
+    fly(a, 200);
+    restoreRng(mark);
+    fly(b, 200);
+    check('a restored world replays the run it came from, byte for byte',
+      trace(b) === trace(a));
+
+    // the negative control: an unrestored world must NOT match
+    {
+      const c = arrival(99);
+      restoreRng(mark);
+      fly(c, 200);
+      check('...and a world that was not restored does not (the control)',
+        trace(c) !== trace(a));
+    }
   }
 }
 
@@ -2095,6 +2200,134 @@ console.log('\nNavy mission');
   }
 }
 
+// --- taking work, and being paid for it -------------------------------------
+//
+// `settleContracts` and `acceptContract` were private methods of game.ts, so
+// the rules that decide whether a job pays had NO tests at all — and
+// test/campaign.ts, the harness the project quotes its balance figures from,
+// carried its own transcription of the settlement rather than calling them.
+// That is the exact arrangement CLAUDE.md's invariant 7 forbids. They are in
+// contracts.ts now, and this is the coverage that was missing.
+
+console.log('\ncontracts');
+{
+  const systems = generateGalaxy(1);
+  const cargoRun = (over: Partial<Contract> = {}): Contract => ({
+    kind: 'cargo', destination: 7, commodity: 0, qty: 5,
+    reward: 500, deadlineDay: 10, progress: 0, ...over,
+  });
+  const cmdr = (over: Record<string, unknown> = {}): CommanderData => ({
+    ...newCommander(), systemIndex: 7, day: 0, credits: 1000, contracts: [], ...over,
+  } as CommanderData);
+
+  // --- settlement ----------------------------------------------------------
+  {
+    const c = cmdr();
+    c.contracts = [cargoRun()];
+    c.cargo[0] = 5;
+    const ev = settleContracts(c);
+    check('a consignment delivered on time pays', ev[0]?.kind === 'paid');
+    check('...the reward lands in the account', c.credits === 1500);
+    check('...the goods leave the hold', c.cargo[0] === 0);
+    check('...and the job leaves the list', c.contracts.length === 0);
+  }
+  {
+    const c = cmdr();
+    c.contracts = [cargoRun()];
+    c.cargo[0] = 4;              // sold one on the way
+    const ev = settleContracts(c);
+    check('a short consignment is void, not paid', ev[0]?.kind === 'incomplete');
+    check('...pays nothing and takes nothing', c.credits === 1000 && c.cargo[0] === 4);
+    check('...and is off the list for good', c.contracts.length === 0);
+  }
+  {
+    const c = cmdr({ day: 11 });
+    c.contracts = [cargoRun()];
+    c.cargo[0] = 5;
+    const ev = settleContracts(c);
+    check('a late delivery expires even standing on the doorstep',
+      ev[0]?.kind === 'expired' && c.credits === 1000 && c.contracts.length === 0);
+  }
+  {
+    const c = cmdr({ systemIndex: 8 });
+    c.contracts = [cargoRun()];
+    c.cargo[0] = 5;
+    check('a job for somewhere else is left alone',
+      settleContracts(c).length === 0 && c.contracts.length === 1 && c.cargo[0] === 5);
+  }
+  {
+    const c = cmdr({ day: 11, systemIndex: 8 });
+    c.contracts = [cargoRun()];
+    check('...unless the deadline has passed, wherever you are',
+      settleContracts(c)[0]?.kind === 'expired' && c.contracts.length === 0);
+  }
+  {
+    // THE branch a re-implementation gets wrong, and the reason this is one
+    // function now: an unfinished bounty job at its destination is neither
+    // settled nor dropped — you may come back to it until the deadline.
+    const c = cmdr();
+    c.contracts = [cargoRun({ kind: 'bounty', qty: 3, progress: 1 })];
+    check('an unfilled bounty at its destination is kept, not failed',
+      settleContracts(c).length === 0 && c.contracts.length === 1);
+    c.contracts[0].progress = 3;
+    check('...and pays once the count is filled',
+      settleContracts(c)[0]?.kind === 'paid' && c.credits === 1500);
+  }
+  {
+    const c = cmdr();
+    c.contracts = [cargoRun({ commodity: 0 }), cargoRun({ commodity: 1, reward: 300 })];
+    c.cargo[0] = 5; c.cargo[1] = 5;
+    check('several jobs settle in one dock', settleContracts(c).length === 2);
+    check('...and both rewards are paid', c.credits === 1800);
+  }
+
+  // --- taking it on --------------------------------------------------------
+  {
+    const c = cmdr();
+    const offers = [cargoRun({ destination: 8 })];
+    const ev = acceptContract(c, offers, 0);
+    check('accepting a cargo run loads the consignment on the spot',
+      ev[0]?.kind === 'accepted' && c.cargo[0] === 5);
+    check('...puts it on your list', c.contracts.length === 1);
+    check('...and takes it off the board', offers.length === 0);
+  }
+  {
+    const c = cmdr();
+    c.contracts = [cargoRun(), cargoRun(), cargoRun()];   // MAX_CONTRACTS
+    const offers = [cargoRun({ destination: 8 })];
+    const ev = acceptContract(c, offers, 0);
+    check(`no more than ${MAX_CONTRACTS} jobs at once`,
+      ev[0]?.kind === 'refused' && ev[0].reason === 'tooMuchWork');
+    check('...and a refusal changes nothing at all',
+      c.contracts.length === 3 && offers.length === 1 && c.cargo[0] === 0);
+  }
+  {
+    const c = cmdr();
+    c.cargo[0] = cargoCapacity(c);   // hold already full
+    const offers = [cargoRun({ destination: 8 })];
+    const ev = acceptContract(c, offers, 0);
+    check('a consignment that will not fit is refused',
+      ev[0]?.kind === 'refused' && ev[0].reason === 'noHoldSpace');
+    check('...and nothing is loaded', c.cargo[0] === cargoCapacity(c) && offers.length === 1);
+  }
+  {
+    check('accepting nothing is nothing', acceptContract(cmdr(), [], 0).length === 0);
+  }
+
+  // --- phrasing lives with the rule, away from the AudioContext -------------
+  {
+    const paid = contractMessage({ kind: 'paid', contract: cargoRun() }, systems);
+    check('a payment is announced with the money',
+      paid.text.includes('CONTRACT PAID') && paid.beep?.hz === 1100);
+    const acc = contractMessage(
+      { kind: 'accepted', contract: cargoRun({ destination: 7 }) }, systems);
+    check('...and an acceptance names the destination',
+      acc.text.includes('LAVE') && acc.text === acc.text.toUpperCase());
+    check('a void consignment does not beep',
+      contractMessage({ kind: 'incomplete', contract: cargoRun() }, systems).beep === null);
+  }
+}
+
 // --- NPCs actually fly ------------------------------------------------------
 
 // The first executable tests of NPC behaviour. Until now npc.ts read `window`
@@ -2313,17 +2546,21 @@ console.log('\nbehaviour-driving values are state');
     check('...and the session is flat, so serialiseState can walk it',
       Object.values(st.session).every((v) => typeof v !== 'object'));
 
-    // THE check this file was missing. captureSnapshot is a hand-written list,
-    // not a generic walk — the comment in game.ts claimed otherwise and was
-    // wrong. Three GameState fields (dockPlan, lastThreat, ecmDetectedTimer)
-    // were silently unsaved, which is the fifth time this project has shipped
-    // a snapshot that forgot a field. Naming them here means the sixth is a
+    // THE check this file was missing. The capture is a hand-written list, not
+    // a generic walk — a comment in game.ts claimed otherwise and was wrong.
+    // Three GameState fields (dockPlan, lastThreat, ecmDetectedTimer) were
+    // silently unsaved, which is the fifth time this project has shipped a
+    // snapshot that forgot a field. Naming them here means the sixth is a
     // failing test rather than a bug report.
-    const src = readFileSync(new URL('../src/game/game.ts', import.meta.url), 'utf8');
-    const capture = src.slice(src.indexOf('captureSnapshot(): WorldSnapshot {'),
-      src.indexOf('restoreSnapshot(snap'));
-    const restore = src.slice(src.indexOf('restoreSnapshot(snap'),
-      src.indexOf('private autoSave'));
+    //
+    // It reads persistence.ts now: the two methods left game.ts, and that is
+    // the point of them leaving — the save is a module with a name rather than
+    // two private methods only a grep could find.
+    const src = readFileSync(new URL('../src/game/persistence.ts', import.meta.url), 'utf8');
+    const capture = src.slice(src.indexOf('capture(): WorldSnapshot {'),
+      src.indexOf('restore(snap'));
+    const restore = src.slice(src.indexOf('restore(snap'),
+      src.indexOf('autoSave(): void'));
     // `world` and `player` are objects the snapshot saves piecewise under
     // other names; every other field must appear by name on BOTH sides.
     const piecewise = new Set(['world', 'player']);

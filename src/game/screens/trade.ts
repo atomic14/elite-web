@@ -19,9 +19,7 @@ import {
 import { fuelQuote } from '../shop.ts';
 import { saveCommander } from '../storage.ts';
 import { renderMarket, renderEquip, equipRows } from '../../ui/screens.ts';
-import { applyMarketPressure } from '../contracts.ts';
-import { randomInt } from '../rng.ts';
-import { COMMODITIES, generateMarket, type MarketEntry, type StarSystem } from '../../galaxy/galaxy.ts';
+import { COMMODITIES, type MarketEntry, type StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import { sfx } from '../../audio.ts';
@@ -42,24 +40,6 @@ export interface TradeContext {
   message(text: string, seconds: number): void;
   /** word gets around: see sell() */
   addNotoriety(amount: number): void;
-}
-
-/**
- * Prices for the system you are standing in.
- *
- * The 1984 baseline, then the living galaxy's ±25% delta on top: a world that
- * has been buying computers all week pays less for the next batch, and one
- * that has been shipping them out is dearer. Baseline prices are untouched.
- */
-export function makeLocalMarket(
-  system: StarSystem,
-  priceMultiplier: (commodity: number) => number,
-): MarketEntry[] {
-  return applyMarketPressure(
-    // seeded: an unseeded market seed means a reload rerolls prices, which is
-    // exactly the save-scum this game now has to be robust to
-    generateMarket(system, randomInt(256)),
-    priceMultiplier);
 }
 
 /** The commodity market. */

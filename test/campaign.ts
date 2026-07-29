@@ -19,7 +19,7 @@ import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '..
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import {
   generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat,
-  markOf, memberTier, MAX_CONTRACTS,
+  markOf, memberTier, MAX_CONTRACTS, settleContracts,
 } from '../src/game/contracts.ts';
 import {
   newCommander, cargoCapacity, cargoTonnes, rating, killValue, MAX_FUEL,
@@ -123,21 +123,15 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     dangerSum += living.danger(c.systemIndex);
 
     // --- settle contracts due here ---
-    c.contracts = c.contracts.filter((k) => {
-      if (k.destination !== c.systemIndex) {
-        if (c.day > k.deadlineDay) { contractsFailed += 1; return false; }
-        return true;
-      }
-      if (c.day > k.deadlineDay) { contractsFailed += 1; return false; }
-      if (k.kind === 'cargo') {
-        if (c.cargo[k.commodity] < k.qty) { contractsFailed += 1; return false; }
-        c.cargo[k.commodity] -= k.qty;
-      }
-      if (k.kind === 'bounty' && k.progress < k.qty) return true; // not finished yet
-      c.credits += k.reward;
-      contractsDone += 1;
-      return false;
-    });
+    //
+    // The GAME's rule, not a transcription of it. This was a hand-written
+    // filter that resembled game.ts's settleContracts and drifted from it in
+    // the details — which is the whole failure mode invariant 7 exists to stop,
+    // in the very harness that is supposed to be checking the shipped balance.
+    for (const e of settleContracts(c)) {
+      if (e.kind === 'paid') contractsDone += 1;
+      else contractsFailed += 1;   // expired, or the consignment was not aboard
+    }
 
     // --- sell everything not promised to a contract ---
     const committed = new Map<number, number>();

@@ -12,6 +12,7 @@ import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';
 import type { SlotSummary } from '../game/storage.ts';
+import { describeContract } from '../game/contracts.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.
@@ -807,12 +808,11 @@ export function renderSystemData(
   `);
 }
 
-export function describeContract(k: Contract, systems: StarSystem[]): string {
-  const dest = systems[k.destination].name.toUpperCase();
-  if (k.kind === 'cargo') return `Deliver ${k.qty}t ${COMMODITIES[k.commodity].name} to ${dest}`;
-  if (k.kind === 'courier') return `Carry sealed data to ${dest}`;
-  return `Destroy ${k.qty} pirates around ${dest}`;
-}
+// describeContract lives in game/contracts.ts with the rest of the contract
+// rules (invariant 7) — a job's one-line description is not a property of the
+// screen that happens to draw it. Re-exported so the screens' importers, and
+// this file's own two uses below, still read naturally.
+export { describeContract };
 
 /** The station bulletin board: jobs on offer, and the ones you've taken. */
 export function renderContracts(

@@ -7,9 +7,16 @@
 //
 // The world's own motion is NOT here. `world-step.ts` owns the five phases of
 // flight and steps them with no HUD, no keyboard and no renderer; this file
-// hands it a FlightDemand and applies the events it returns. What that leaves
-// behind is orchestration: the frame, the mode machine, input routing, and the
-// consequences listed in `stepHost()`.
+// hands it a FlightDemand and applies the events it returns. Neither is the
+// save (`persistence.ts`) nor the two station transitions (`station.ts`). What
+// that leaves behind is orchestration: the frame, the mode machine, input
+// routing, and the consequences the three of them report.
+//
+// The shape repeats deliberately. Each of those modules gets ONE host object
+// literal — `stepHost()`, `persistenceHost()`, `stationHost()` — listing the
+// verbs it may ask of the Game, and returns events the matching `apply*` puts
+// on the HUD. Anything that DRAWS from the seeded rng is a host CALL and never
+// a deferred event, because the order of draws is the world's determinism.
 //
 // `window.__game` exposes the instance for the autopilot test harness
 // (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
@@ -18,7 +25,9 @@ import * as THREE from 'three';
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
 import {
-  generateContractOffers, pirateThreat, markOf, MAX_CONTRACTS, type PirateThreat,
+  generateContractOffers, pirateThreat, markOf,
+  acceptContract, settleContracts, contractMessage,
+  type PirateThreat, type ContractEvent,
 } from './contracts.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
 import { PlayerShip, type FlightDemand } from '../player.ts';
@@ -32,7 +41,7 @@ import { sfx } from '../audio.ts';
 import { NpcShip } from './npc.ts';
 import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
 import {
-  CONSTRICTOR_SPEC, pirateSpecForTier, type NpcSpec, type NpcRole,
+  type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
 import { type DockPlan } from './docking.ts';
 import { type Canister } from './cargo.ts';
@@ -40,20 +49,17 @@ import { spawnPopulation } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
 import { Combat, BEAM_FLASH, type CombatEvent } from './combat.ts';
 import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.ts';
-import {
-  stepMissionAtDock, constrictorLurksHere, missionHeadline,
-} from './missions.ts';
+import { constrictorLurksHere } from './missions.ts';
 import { World } from './world.ts';
 import {
   WorldStep, viewDirection, massLocked, VIEW_QUATS,
   type StepEvent, type StepHost,
 } from './world-step.ts';
-import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
-import { saveWorld, readWorld, clearWorld, loadCommander, saveCommander } from './storage.ts';
-import {
-  SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState,
-  type WorldSnapshot,
-} from './snapshot.ts';
+import { random, randomInt, randomDirection, seedWorld } from './rng.ts';
+import { clearWorld, loadCommander } from './storage.ts';
+import { type WorldSnapshot } from './snapshot.ts';
+import { Persistence, type PersistenceHost } from './persistence.ts';
+import { Station, slotNormal, type StationHost, type StationEvent } from './station.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer } from './combat-computer.ts';
 import {
@@ -68,7 +74,7 @@ import {
   type SavesContext,
 } from './screens/saves.ts';
 import {
-  MarketScreen, EquipScreen, buyEquipment, makeLocalMarket, type TradeContext,
+  MarketScreen, EquipScreen, buyEquipment, type TradeContext,
 } from './screens/trade.ts';
 import { StatusScreen, type StatusContext } from './screens/status.ts';
 import { DataScreen, type DataContext } from './screens/data.ts';
@@ -115,15 +121,15 @@ function cheatMode(): boolean {
 
 
 import {
-  formatCredits, cargoCapacity, cargoTonnes,
+  formatCredits,
   type CommanderData, type Contract,
 } from './commander.ts';
 import {
-  LEGAL_NAMES, fineFor, CLEAN, DEFENCE_RANGE,
+  LEGAL_NAMES, CLEAN, DEFENCE_RANGE,
 } from './law.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
-  renderGameOver, describeContract, type ChartState,
+  renderGameOver, type ChartState,
 } from '../ui/screens.ts';
 import { freshState, type GameState } from './state.ts';
 import type { SessionState } from './session.ts';
@@ -352,6 +358,25 @@ export class Game {
   private readonly worldStep = new WorldStep(this.state, this.ordnance, this.stepHost());
 
   /**
+   * Saving the world and putting it back — see persistence.ts.
+   *
+   * The snapshot's shape lives in snapshot.ts and its home in storage.ts; this
+   * is the part that knows how a running world becomes one, which is why it
+   * needs the ordnance and the autopilot as well as the state.
+   */
+  private readonly persistence = new Persistence(
+    this.state, this.ordnance, this.combatComputer, this.persistenceHost());
+
+  /**
+   * Docking, launching, and the menu between them — see station.ts.
+   *
+   * The two transitions that switch `baseMode`, and the only two places the
+   * station's own rules (the fine, the market roll, the bulletin board) are
+   * applied.
+   */
+  private readonly station = new Station(this.state, this.ordnance, this.stationHost());
+
+  /**
    * What the world step may ask of the Game — the consequences that reach
    * outside the sky, and nothing else it can get at.
    *
@@ -568,16 +593,6 @@ export class Game {
     return this.systems[this.commander.systemIndex];
   }
 
-  /**
-   * The 1984 market, nudged by the living galaxy: supply that actually
-   * arrived makes things cheaper here, cargo lost to pirates makes them
-   * dearer. Baseline prices are untouched — this is a ±25% delta.
-   */
-  private localMarket(): MarketEntry[] {
-    return makeLocalMarket(this.system,
-      (i) => this.living.priceMultiplier(this.commander.systemIndex, i));
-  }
-
   /** The only slice of the Game the market and outfitters are allowed to see. */
   private tradeContext(): TradeContext {
     return {
@@ -643,11 +658,6 @@ export class Game {
     this.hud.showMessage('WITCH-SPACE — THARGOID AMBUSH', 6);
   }
 
-  private clearNpcs(): void {
-    this.world.clearNpcs();
-    this.ordnance.clear();
-  }
-
   /** @internal — driven by test/playtest.js */
   spawnNpc(role: NpcRole, position: THREE.Vector3, seed: number, spec?: NpcSpec): NpcShip {
     return this.world.spawn(role, position, seed, spec);
@@ -701,69 +711,40 @@ export class Game {
 
   // --- mode transitions ----------------------------------------------------
 
+  /**
+   * What the station transitions may ask of the Game.
+   *
+   * Same shape and same reason as `stepHost()` and `persistenceHost()`.
+   * `populateSystem` is a call rather than a returned event because it DRAWS
+   * from the seeded stream (see station.ts); `settleContracts` is one because
+   * paying a contract beeps, and contracts.ts has never heard of an
+   * AudioContext.
+   */
+  private stationHost(): StationHost {
+    return {
+      baseMode: () => this.baseMode,
+      setBaseMode: (mode) => { this.baseMode = mode; },
+      lookAlong: (dir) => this.lookAlong(dir),
+      tunnel: (way) => this.tunnel.start(1.4, way),
+      releaseMouseFlight: () => this.input.releaseMouseFlight(),
+      populateSystem: (situation) => this.populateSystem(situation),
+      settleContracts: () => this.settleContracts(),
+      resetContractSelection: () => { this.contractSelected = 0; },
+    };
+  }
+
+  /** The station decides; the Game says it. Same shape as applyStep. */
+  private applyStation(events: readonly StationEvent[]): void {
+    for (const e of events) {
+      switch (e.kind) {
+        case 'message': this.hud.showMessage(e.text, e.seconds); break;
+      }
+    }
+  }
+
   /** @internal — driven by test/playtest.js */
   enterDocked(booting = false): void {
-    // whatever flew us in, we're down: drop the autopilot and cut the music
-    this.dcEngaged = false;
-    sfx.stopDockingMusic();
-    this.baseMode = 'docked';
-    // Docking supersedes the mid-flight world. Leaving it behind meant a
-    // reload resumed the snapshot from BEFORE the dock: the cargo you had
-    // just sold was back in the hold, the equipment you bought was gone, and
-    // the next dock wrote that rolled-back commander over the good one.
-    if (!booting) clearWorld();
-    this.clearNpcs();
-    this.foreShield = 1;
-    this.aftShield = 1;
-    this.energy = 4;
-    this.laserTemp = 0;
-    this.hyperCountdown = -1;
-    this.torusEngaged = false;
-    this.ccEngaged = false;
-    this.missileArmed = false;
-    this.input.releaseMouseFlight();
-    // Hand over anyone you pulled out of a capsule. Without this they occupy
-    // a bay for the rest of the career, which is the failure mode the old
-    // `cargo[3]` at least avoided by being sellable.
-    if (this.commander.survivors > 0) {
-      const n = this.commander.survivors;
-      this.commander.survivors = 0;
-      this.hud.showMessage(
-        `${n} SURVIVOR${n > 1 ? 'S' : ''} HANDED TO STATION MEDICAL`, 4);
-    }
-
-    const fine = fineFor(this.commander.legalStatus, this.commander.credits);
-    if (fine > 0 || this.commander.legalStatus > CLEAN) {
-      this.commander.credits -= fine;
-      this.commander.legalStatus = CLEAN;
-      this.hud.showMessage(`OFFENCE FINE PAID: ${formatCredits(fine)}`, 5);
-    }
-    this.policeScanned = false;
-    this.defenceLaunched = false;
-    this.view = 0;
-    this.cabinTemp = 0;
-    this.witchspace = false;
-    this.beaconTimer = -1;
-    this.world.cargo.clear();
-    this.checkMissionAtDock();
-    this.hermitTrading = false;
-    this.market = this.localMarket();
-    this.settleContracts();
-    this.contractOffers = this.generateContractOffers();
-    this.contractSelected = 0;
-    this.commander.galaxyState = this.living.save();
-    saveCommander(this.commander);
-    if (!booting) {
-      sfx.stopDockingMusic();
-      sfx.dock();
-      sfx.tunnel();
-      this.tunnel.start(1.4, 'in'); // the bay shuts around you
-    }
-    // park just outside the slot so the backdrop behind the menu is the station
-    this.player.position.copy(this.world.spawnPosition);
-    this.lookAlong(this.world.station.position.clone().sub(this.player.position));
-    this.player.speed = 0;
-    renderDockedMenu(this.system, this.commander, this.missionText());
+    this.applyStation(this.station.dock(booting));
   }
 
   /** Download the commander as a JSON file (portable saves, bug reports). */
@@ -799,172 +780,43 @@ export class Game {
   }
 
   /**
-   * The whole world as plain data — see snapshot.ts.
+   * What saving and restoring a world may ask of the Game.
    *
-   * This is what lets a commander be saved anywhere rather than only at a
-   * station: the station save is the commander alone, and mid-flight there is
-   * a great deal more that matters.
+   * The same shape and the same reason as `stepHost()`: an object literal, so
+   * the methods behind it stay private and this list IS the surface. Four of
+   * the six are the mode machine and the scene rebuild, which are the two
+   * things a snapshot cannot put back by assignment.
    */
-  captureSnapshot(): WorldSnapshot {
+  private persistenceHost(): PersistenceHost {
     return {
-      version: SNAPSHOT_VERSION,
-      mode: this.baseMode === 'flight' ? 'flight' : 'docked',
-      commander: structuredClone(this.commander),
-      galaxyState: this.living.save(),
-      player: {
-        pos: v3(this.player.position),
-        quat: q4(this.player.quaternion),
-        speed: this.player.speed,
-        pitchRate: this.player.pitchRate,
-        rollRate: this.player.rollRate,
+      baseMode: () => this.baseMode,
+      enterMode: (mode) => {
+        this.baseMode = mode;
+        this.screens.exit();
+        if (mode === 'docked') this.enterDocked(true);
+        else hideScreen();
       },
-      systems: { ...this.sys },
-      // Each object saves ITSELF. These three methods were written months ago
-      // and had ZERO callers, because captureSnapshot hand-inlined all three
-      // while the restore side used the module methods. Capture and restore
-      // living in different files is precisely the failure this keeps having.
-      npcs: this.world.captureNpcs(),
-      canisters: this.world.cargo.capture(),
-      encounterTimers: { ...this.encounterTimers },
-      dockPlan: serialiseState(this.dockPlan as unknown as Record<string, unknown>),
-      combatComputer: serialiseState(
-        this.combatComputer.state as unknown as Record<string, unknown>),
-      lastThreat: this.lastThreat ? { ...this.lastThreat } : null,
-      ecmDetectedTimer: this.ecmDetectedTimer,
-      session: serialiseState(this.session as unknown as Record<string, unknown>),
-      rng: rngState(),
-      chartTarget: this.chart.targetIndex,
-      chartCursor: [this.chart.cursorX, this.chart.cursorY],
-      stationQuat: q4(this.world.station.quaternion),
-      missiles: this.ordnance.capture((npc) => this.world.npcs.indexOf(npc)),
-      market: structuredClone(this.market),
-      hermitMarket: structuredClone(this.hermitMarket),
-      contractOffers: structuredClone(this.contractOffers),
-      targetLock: this.targetLock ? this.world.npcs.indexOf(this.targetLock) : -1,
-      missileArmed: this.missileArmed,
+      buildWorld: () => this.buildWorld(),
+      enterWitchspace: () => this.enterWitchspace(),
+      isDead: () => this.mode === 'dead',
+      message: (text, seconds) => this.hud.showMessage(text, seconds),
     };
   }
 
-  /**
-   * Put the world back exactly as a snapshot found it.
-   *
-   * Order matters: the galaxy is rebuilt first because NPCs are placed
-   * relative to a station that has to exist, and the rng is restored LAST so
-   * that nothing rebuilt along the way consumes from the stream the snapshot
-   * was about to use.
-   */
-  restoreSnapshot(snap: WorldSnapshot): void {
-    if (snap.version !== SNAPSHOT_VERSION) {
-      throw new Error(`snapshot version ${snap.version}, expected ${SNAPSHOT_VERSION}`);
-    }
-    this.commander = structuredClone(snap.commander);
-    this.systems = generateGalaxy(this.commander.galaxy);
-    this.living = new LivingGalaxy(this.systems);
-    this.living.load(snap.galaxyState as Parameters<LivingGalaxy['load']>[0]);
-    restoreState(this.session as unknown as Record<string, unknown>, snap.session);
-    this.buildWorld();
-    if (this.witchspace) this.enterWitchspace();
+  /** @internal — driven by test/playtest.js and the console harnesses */
+  captureSnapshot(): WorldSnapshot { return this.persistence.capture(); }
 
-    this.player.position.set(...snap.player.pos);
-    this.player.quaternion.set(...snap.player.quat);
-    this.player.speed = snap.player.speed;
-    this.player.pitchRate = snap.player.pitchRate;
-    this.player.rollRate = snap.player.rollRate;
-    Object.assign(this.sys, snap.systems);
+  /** @internal — driven by test/playtest.js and the console harnesses */
+  restoreSnapshot(snap: WorldSnapshot): void { this.persistence.restore(snap); }
 
-    // Which hull each ship gets is a GAME rule — the tier tables and the
-    // Constrictor — so the World asks rather than deciding. Both inputs are
-    // in the state about to be applied, so no extra snapshot field is needed;
-    // without this a restored tier-2 ship came back as the default hull, with
-    // a different flight envelope and a fraction of the bounty.
-    this.ordnance.clear();
-    this.world.restoreNpcs(snap.npcs, (n) => (
-      n.state.isMissionTarget ? CONSTRICTOR_SPEC
-        : n.role === 'pirate' ? pirateSpecForTier(Number(n.state.threatTier ?? 0), n.seed)
-          : undefined));
-    this.world.cargo.restoreAll(snap.canisters);
-    this.ordnance.restoreAll(snap.missiles, (i) => this.world.npcs[i] ?? null);
+  private autoSave(): void { this.persistence.autoSave(); }
 
-    this.encounterTimers = { ...snap.encounterTimers };
-    restoreState(this.dockPlan as unknown as Record<string, unknown>, snap.dockPlan);
-    restoreState(
-      this.combatComputer.state as unknown as Record<string, unknown>, snap.combatComputer);
-    this.lastThreat = snap.lastThreat as PirateThreat | null;
-    this.ecmDetectedTimer = snap.ecmDetectedTimer;
-    this.chart.targetIndex = snap.chartTarget;
-    [this.chart.cursorX, this.chart.cursorY] = snap.chartCursor;
-    this.market = structuredClone(snap.market) as MarketEntry[];
-    this.hermitMarket = structuredClone(snap.hermitMarket) as MarketEntry[];
-    this.contractOffers = structuredClone(snap.contractOffers) as Contract[];
-    this.targetLock = snap.targetLock >= 0 ? (this.world.npcs[snap.targetLock] ?? null) : null;
-    this.missileArmed = snap.missileArmed;
-    this.world.station.quaternion.set(...snap.stationQuat);
-    this.world.station.updateMatrixWorld(true);
-    this.baseMode = snap.mode;
-    this.screens.exit();
-    if (snap.mode === 'docked') this.enterDocked(true);
-    else hideScreen();
-
-    // LAST: anything above that spawns or builds draws from the stream
-    restoreRng(snap.rng);
-  }
-
-  /**
-   * Write the world down. Cheap enough to do on a timer, because the whole
-   * point is that closing the tab mid-fight is not punished.
-   */
-  private autoSave(): void {
-    if (this.mode === 'dead') return;
-    saveCommander(this.commander);
-    try {
-      saveWorld(JSON.stringify(this.captureSnapshot()));
-    } catch {
-      // a world that will not serialise is a bug, but it must never take the
-      // session down — the commander save above is already safe
-    }
-  }
-
-  /**
-   * Pick up exactly where the last session stopped, mid-flight if that is
-   * where it was.
-   *
-   * @returns false if there was nothing to resume, so the caller boots
-   * normally at the station.
-   */
-  private resumeSavedWorld(): boolean {
-    const json = readWorld();
-    if (!json) return false;
-    try {
-      const snap = JSON.parse(json) as WorldSnapshot;
-      if (snap.version !== SNAPSHOT_VERSION) return false;
-      if (snap.commander.name !== this.commander.name) return false; // different career
-      this.restoreSnapshot(snap);
-      if (snap.mode === 'flight') {
-        this.hud.showMessage('RESUMING FLIGHT', 3);
-      }
-      return true;
-    } catch {
-      // a corrupt or stale world must never cost you the commander
-      clearWorld();
-      return false;
-    }
-  }
+  private resumeSavedWorld(): boolean { return this.persistence.resume(); }
 
 
   /** @internal — driven by test/playtest.js */
   launch(): void {
-    const n = this.slotNormal();
-    this.player.position.copy(this.world.station.position).addScaledVector(n, 450);
-    this.lookAlong(n);
-    this.player.speed = 120;
-    this.baseMode = 'flight';
-    this.view = 0;
-    hideScreen();
-    this.populateSystem('launch');
-    sfx.launch();
-    sfx.tunnel();
-    this.tunnel.start(1.4, 'out'); // and opens again on the way out
-    this.hud.showMessage(`LEAVING ${this.system.name.toUpperCase()} STATION`, 3);
+    this.applyStation(this.station.launch());
   }
 
   /** @internal — driven by test/playtest.js */
@@ -972,11 +824,6 @@ export class Game {
     // Matrix4.lookAt uses camera convention: -Z (our nose) points at target.
     this.tmpM.lookAt(ZERO, dir, UP);
     this.player.quaternion.setFromRotationMatrix(this.tmpM);
-  }
-
-  /** World-space outward normal of the station's slot face. */
-  private slotNormal(): THREE.Vector3 {
-    return new THREE.Vector3(0, 0, -1).applyQuaternion(this.world.station.quaternion);
   }
 
   private die(reason: string): void {
@@ -1030,89 +877,34 @@ export class Game {
     return generateContractOffers(this.system, this.systems, this.commander.day);
   }
 
+  /**
+   * The bulletin board decides; the Game says it and beeps it.
+   *
+   * Messages come back as StationEvents rather than going straight to the HUD
+   * because docking says several things in a row and the last one is the one
+   * the player reads — see station.ts.
+   */
+  private applyContracts(events: readonly ContractEvent[]): StationEvent[] {
+    return events.map((e) => {
+      const m = contractMessage(e, this.systems);
+      if (m.beep) sfx.beep(m.beep.hz, m.beep.seconds);
+      return { kind: 'message', text: m.text, seconds: m.seconds } satisfies StationEvent;
+    });
+  }
+
   /** @internal — driven by test/playtest.js */
   acceptContract(): void {
-    const k = this.contractOffers[this.contractSelected];
-    if (!k) return;
-    if (this.commander.contracts.length >= MAX_CONTRACTS) {
-      this.hud.showMessage('YOU ARE CARRYING ENOUGH WORK ALREADY', 3);
-      sfx.beep(220);
-      return;
+    const events = acceptContract(this.commander, this.contractOffers, this.contractSelected);
+    if (events.some((e) => e.kind === 'accepted')) {
+      this.contractSelected = Math.max(0, this.contractSelected - 1);
     }
-    if (k.kind === 'cargo') {
-      if (cargoTonnes(this.commander) + k.qty > cargoCapacity(this.commander)) {
-        this.hud.showMessage('NOT ENOUGH HOLD SPACE FOR THAT CONSIGNMENT', 3);
-        sfx.beep(220);
-        return;
-      }
-      this.commander.cargo[k.commodity] += k.qty;
-    }
-    this.commander.contracts.push(k);
-    this.contractOffers.splice(this.contractSelected, 1);
-    this.contractSelected = Math.max(0, this.contractSelected - 1);
-    this.hud.showMessage(`ACCEPTED: ${describeContract(k, this.systems).toUpperCase()}`, 4);
-    sfx.beep(900, 0.1);
+    this.applyStation(this.applyContracts(events));
   }
 
   /** Pay out anything delivered here; drop anything overdue. */
-  /** @internal — driven by test/playtest.js */
-  settleContracts(): void {
-    const c = this.commander;
-    const kept: Contract[] = [];
-    for (const k of c.contracts) {
-      const here = k.destination === c.systemIndex;
-      const late = c.day > k.deadlineDay;
-      if (here && !late && (k.kind !== 'bounty' || k.progress >= k.qty)) {
-        if (k.kind === 'cargo') {
-          // the consignment must still be aboard
-          if (c.cargo[k.commodity] < k.qty) {
-            this.hud.showMessage('CONSIGNMENT INCOMPLETE — CONTRACT VOID', 5);
-            continue;
-          }
-          c.cargo[k.commodity] -= k.qty;
-        }
-        c.credits += k.reward;
-        this.hud.showMessage(`CONTRACT PAID: ${formatCredits(k.reward)}`, 5);
-        sfx.beep(1100, 0.15);
-        continue;
-      }
-      if (late) {
-        this.hud.showMessage('CONTRACT EXPIRED', 4);
-        sfx.beep(220, 0.2);
-        continue;
-      }
-      kept.push(k);
-    }
-    c.contracts = kept;
+  private settleContracts(): StationEvent[] {
+    return this.applyContracts(settleContracts(this.commander));
   }
-
-  // --- missions ------------------------------------------------------------
-
-  private missionText(): string {
-    // contracts first — they're the everyday work
-    const k = this.commander.contracts[0];
-    if (k) {
-      const more = this.commander.contracts.length - 1;
-      return `${describeContract(k, this.systems).toUpperCase()}` +
-        ` — ${k.deadlineDay - this.commander.day} DAYS` +
-        (more > 0 ? ` (+${more} MORE)` : '');
-    }
-    return missionHeadline(this.commander, this.systems);
-  }
-
-  /** Advance the Navy mission on docking, and say so. */
-  private checkMissionAtDock(): void {
-    for (const e of stepMissionAtDock(this.commander, this.systems)) {
-      if (e.kind === 'briefed') this.hud.showMessage('INCOMING NAVY TRANSMISSION', 5);
-      else if (e.kind === 'courierOrders') {
-        this.hud.showMessage('NAVY: COURIER RUN — EXPECT THARGOID INTERFERENCE', 6);
-      } else if (e.kind === 'delivered') {
-        this.hud.showMessage(
-          `PLANS DELIVERED — ${formatCredits(e.payment)}, RIGHT ON COMMANDER`, 6);
-      }
-    }
-  }
-
 
 
   /** @internal — driven by test/playtest.js */
@@ -1203,7 +995,7 @@ export class Game {
     const station = this.world.station;
     if (this.player.position.distanceTo(station.position) > DEFENCE_RANGE) return;
     this.defenceLaunched = true;
-    const slotN = this.tmp.set(0, 0, -1).applyQuaternion(station.quaternion);
+    const slotN = slotNormal(station, this.tmp);
     const count = 1 + randomInt(2);
     for (let i = 0; i < count; i++) {
       const pos = station.position.clone()
@@ -1583,7 +1375,7 @@ export class Game {
       else if (i.pressed('KeyX')) this.exportSave(); // back it up first
       else if (i.pressed('Escape') || i.pressed('KeyQ')) {
         this.pendingNewGame = false;
-        renderDockedMenu(this.system, this.commander, this.missionText());
+        renderDockedMenu(this.system, this.commander, this.station.missionText());
       }
       return;
     }
@@ -1617,7 +1409,7 @@ export class Game {
     else if (i.pressed('KeyB')) {
       const layout = toggleLayout();
       this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
-      renderDockedMenu(this.system, this.commander, this.missionText());
+      renderDockedMenu(this.system, this.commander, this.station.missionText());
     }
   }
 
@@ -1735,13 +1527,7 @@ if (i.pressed('Enter')) this.respawn();
   }
 
   /** Nothing on the stack: show the docked menu, or clear back to flight. */
-  private showBaseScreen(): void {
-    if (this.baseMode === 'docked') {
-      renderDockedMenu(this.system, this.commander, this.missionText());
-    } else {
-      hideScreen();
-    }
-  }
+  private showBaseScreen(): void { this.station.showBaseScreen(); }
 
 
 
