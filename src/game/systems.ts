@@ -16,6 +16,7 @@
 // No three.js: a hit needs to know only whether it came from in front.
 
 import { random } from './rng.ts';
+import type { Equipment } from './commander.ts';
 
 /** Everything about the ship that a fight changes. */
 export interface ShipSystems {
@@ -160,4 +161,60 @@ export function scoopFuel(
 ): number {
   if (!hasScoops || fuel >= maxFuel || sunDist >= SUN_SCOOP_RANGE) return 0;
   return Math.min(maxFuel - fuel, SCOOP_RATE * dt);
+}
+
+
+// --- what a hull hit costs you ---------------------------------------------
+
+/**
+ * The fittings a hull breach can knock out, in the order they are offered.
+ *
+ * A table rather than seven `if (e.x) push(...)` lines, which is what this was
+ * inside game.ts. Adding equipment meant remembering to add it here too; now
+ * the only question is whether it belongs in the list.
+ */
+const BREAKABLE: readonly (readonly [keyof Equipment, string])[] = [
+  ['ecm', 'E.C.M. SYSTEM'],
+  ['scoops', 'FUEL SCOOPS'],
+  ['rearLaser', 'REAR LASER'],
+  ['leftLaser', 'LEFT LASER'],
+  ['rightLaser', 'RIGHT LASER'],
+  ['dockingComputer', 'DOCKING COMPUTER'],
+  ['combatComputer', 'COMBAT COMPUTER'],
+];
+
+/** Cargo is lost this often when there is any aboard — equipment is rarer. */
+export const CARGO_LOSS_CHANCE = 0.7;
+
+export type BreachLoss =
+  | { kind: 'cargo'; commodity: number }
+  | { kind: 'equipment'; key: keyof Equipment; name: string }
+  | { kind: 'nothing' };
+
+/**
+ * A hull hit destroys a tonne of cargo, or knocks out a fitting.
+ *
+ * Mutates the commander. Returns what was lost so the Game can announce it —
+ * and so the caller knows to disengage the combat computer if that was what
+ * went.
+ */
+export function breachLoss(
+  commander: { cargo: number[]; equipment: Equipment },
+  rng: () => number,
+): BreachLoss {
+  const carried: number[] = [];
+  commander.cargo.forEach((qty, i) => { if (qty > 0) carried.push(i); });
+  const fittings = BREAKABLE.filter(([key]) => commander.equipment[key]);
+
+  if (carried.length && (!fittings.length || rng() < CARGO_LOSS_CHANCE)) {
+    const commodity = carried[Math.floor(rng() * carried.length)];
+    commander.cargo[commodity] -= 1;
+    return { kind: 'cargo', commodity };
+  }
+  if (fittings.length) {
+    const [key, name] = fittings[Math.floor(rng() * fittings.length)];
+    (commander.equipment as unknown as Record<string, boolean>)[key] = false;
+    return { kind: 'equipment', key, name };
+  }
+  return { kind: 'nothing' };
 }

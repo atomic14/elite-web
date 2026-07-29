@@ -21,6 +21,10 @@ import { World } from '../src/game/world.ts';
 import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';
 import { compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
 import {
+  dumpCargo, offerBribe, appetiteOf, OPPORTUNIST_FLOOR, GANG_FLOOR,
+} from '../src/game/jettison.ts';
+import { breachLoss, CARGO_LOSS_CHANCE } from '../src/game/systems.ts';
+import {
   CONTRABAND, isContraband, contrabandTonnes, carryingContraband,
   fineFor, offenceFor, LEGAL_NAMES,
   CLEAN, OFFENDER, FUGITIVE, OFFENDER_FINE, FUGITIVE_FINE,
@@ -579,6 +583,123 @@ console.log('\nsystem population');
     const launching = planPopulation(sys(0), 'launch', 1, threat, half);
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
+  }
+}
+
+// --- buying your way out ----------------------------------------------------
+//
+// A balance lever (how much cargo buys off a gang) that lived inside a 65-line
+// method and had never been asserted.
+
+console.log('\njettison');
+{
+  const hold = () => {
+    const c = new Array(COMMODITIES.length).fill(0);
+    c[0] = 3;                       // food, cheap
+    c[10] = 2;                      // firearms, dear
+    return c;
+  };
+
+  {
+    const c = hold();
+    const d = dumpCargo(c, 1);
+    // the rule that makes jettisoning a real choice: it costs you the good stuff
+    const dearest = c.map((_, i) => i)
+      .reduce((a, b) => (COMMODITIES[a].basePrice > COMMODITIES[b].basePrice ? a : b));
+    check('the most valuable tonne goes first', d.tonnes[0] === 10
+      && COMMODITIES[10].basePrice >= COMMODITIES[0].basePrice
+      && dearest !== undefined);
+    check('...and it leaves the hold', c[10] === 1);
+    check('...valued as markOf values it', d.value === COMMODITIES[10].basePrice * 4);
+  }
+  {
+    const c = hold();
+    const d = dumpCargo(c, 99);
+    check('dumping more than you have empties the hold, not the array',
+      d.tonnes.length === 5 && c.every((q) => q === 0));
+  }
+  {
+    const d = dumpCargo(new Array(COMMODITIES.length).fill(0), 3);
+    check('an empty hold dumps nothing', d.tonnes.length === 0 && d.value === 0);
+  }
+
+  {
+    check('a gang wants more than an opportunist',
+      appetiteOf(true, 10_000) > appetiteOf(false, 10_000));
+    check('...and the demand scales with what you arrived carrying',
+      appetiteOf(false, 100_000) > appetiteOf(false, 10_000));
+    check('...but a near-empty hold is not a free pass',
+      appetiteOf(false, 0) === OPPORTUNIST_FLOOR && appetiteOf(true, 0) === GANG_FLOOR);
+  }
+
+  {
+    const pirate = (organised: boolean) => ({ alive: true, organised, satisfied: false });
+    const gang = [pirate(false), pirate(false), pirate(true)];
+    const arrival = 10_000;
+
+    const tooLittle = offerBribe(gang, 100, arrival);
+    check('a token handful buys nobody off',
+      tooLittle.bought === 0 && tooLittle.stillWant !== null);
+    check('...and it tells you the SMALLEST top-up that would work',
+      tooLittle.stillWant === appetiteOf(false, arrival) - 100);
+
+    const enough = offerBribe(gang, appetiteOf(false, arrival), arrival);
+    check('paying the opportunist price peels off the opportunists',
+      enough.bought === 2 && gang[0].satisfied && gang[1].satisfied);
+    check('...but the gang leader is still coming', !gang[2].satisfied);
+
+    // the toll accumulates across dumps — a second handful finishes the job
+    const rest = offerBribe(gang, appetiteOf(true, arrival), arrival);
+    check('a second dump finishes what the first started',
+      rest.bought === 1 && gang[2].satisfied && rest.stillWant === null);
+    check('...and nobody is bought twice', offerBribe(gang, 1e9, arrival).bought === 0);
+  }
+  {
+    const dead = [{ alive: false, organised: false, satisfied: false }];
+    check('the dead are not bribable', offerBribe(dead, 1e9, 0).bought === 0);
+  }
+}
+
+// --- a hull breach costs you something ---------------------------------------
+
+console.log('\nhull breach');
+{
+  const kit = (over: Record<string, boolean> = {}) => ({
+    cargo: new Array(COMMODITIES.length).fill(0),
+    equipment: { ecm: false, scoops: false, rearLaser: false, leftLaser: false,
+      rightLaser: false, dockingComputer: false, combatComputer: false, ...over },
+  }) as unknown as Parameters<typeof breachLoss>[0];
+
+  {
+    const c = kit();
+    check('with nothing to lose, nothing is lost', breachLoss(c, () => 0).kind === 'nothing');
+  }
+  {
+    const c = kit(); c.cargo[4] = 2;
+    const lost = breachLoss(c, () => 0);
+    check('cargo goes when there is cargo',
+      lost.kind === 'cargo' && c.cargo[4] === 1);
+  }
+  {
+    const c = kit({ ecm: true });
+    const lost = breachLoss(c, () => 0);
+    check('with an empty hold, equipment goes instead',
+      lost.kind === 'equipment' && c.equipment.ecm === false);
+  }
+  {
+    // equipment is rarer to lose than cargo: above the threshold, cargo survives
+    const c = kit({ ecm: true }); c.cargo[4] = 1;
+    check('a high roll takes the equipment',
+      breachLoss(c, () => CARGO_LOSS_CHANCE).kind === 'equipment' && c.cargo[4] === 1);
+    const c2 = kit({ ecm: true }); c2.cargo[4] = 1;
+    check('...a low roll takes the cargo',
+      breachLoss(c2, () => 0).kind === 'cargo' && c2.equipment.ecm === true);
+  }
+  {
+    const c = kit({ combatComputer: true });
+    const lost = breachLoss(c, () => 0);
+    check('losing the combat computer is reported by key, so it can be disengaged',
+      lost.kind === 'equipment' && lost.key === 'combatComputer');
   }
 }
 

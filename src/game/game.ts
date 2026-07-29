@@ -27,6 +27,7 @@ import {
 import { planDocking, makeDockPlan, dockingOutcome } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
+import { dumpCargo, offerBribe } from './jettison.ts';
 import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import {
@@ -56,7 +57,8 @@ import {
   stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
 } from './encounters.ts';
 import {
-  applyDamage, regenerate, updateCabinTemp, scoopFuel, freshSystems, type ShipSystems,
+  applyDamage, regenerate, updateCabinTemp, scoopFuel, freshSystems, breachLoss,
+  type ShipSystems,
 } from './systems.ts';
 import {
   SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
@@ -1431,30 +1433,15 @@ export class Game {
 
   /** A hull hit destroys a tonne of cargo, or knocks out a fitting. */
   private damageSomething(): void {
-    const e = this.commander.equipment;
-    const carried = this.commander.cargo
-      .map((qty, i) => ({ qty, i }))
-      .filter((x) => x.qty > 0);
-    // equipment is rarer to lose than cargo
-    const fittings: { name: string; clear: () => void }[] = [];
-    if (e.ecm) fittings.push({ name: 'E.C.M. SYSTEM', clear: () => { e.ecm = false; } });
-    if (e.scoops) fittings.push({ name: 'FUEL SCOOPS', clear: () => { e.scoops = false; } });
-    if (e.rearLaser) fittings.push({ name: 'REAR LASER', clear: () => { e.rearLaser = false; } });
-    if (e.leftLaser) fittings.push({ name: 'LEFT LASER', clear: () => { e.leftLaser = false; } });
-    if (e.rightLaser) fittings.push({ name: 'RIGHT LASER', clear: () => { e.rightLaser = false; } });
-    if (e.dockingComputer) fittings.push({ name: 'DOCKING COMPUTER', clear: () => { e.dockingComputer = false; } });
-    if (e.combatComputer) fittings.push({ name: 'COMBAT COMPUTER', clear: () => { e.combatComputer = false; } });
-
-    if (carried.length && (!fittings.length || random() < 0.7)) {
-      const pick = carried[Math.floor(random() * carried.length)];
-      this.commander.cargo[pick.i] -= 1;
-      this.hud.showMessage(`CARGO LOST: 1${COMMODITIES[pick.i].unit} ${COMMODITIES[pick.i].name.toUpperCase()}`, 3);
+    const lost = breachLoss(this.commander, random);
+    if (lost.kind === 'cargo') {
+      const c = COMMODITIES[lost.commodity];
+      this.hud.showMessage(`CARGO LOST: 1${c.unit} ${c.name.toUpperCase()}`, 3);
       sfx.beep(300, 0.12);
-    } else if (fittings.length) {
-      const pick = fittings[Math.floor(random() * fittings.length)];
-      pick.clear();
-      if (this.ccEngaged) this.ccEngaged = false;
-      this.hud.showMessage(`${pick.name} DESTROYED`, 4);
+    } else if (lost.kind === 'equipment') {
+      // it cannot fly the ship with its computer shot off
+      if (lost.key === 'combatComputer') this.ccEngaged = false;
+      this.hud.showMessage(`${lost.name} DESTROYED`, 4);
       sfx.beep(240, 0.2);
     }
   }
@@ -2251,56 +2238,32 @@ if (i.pressed('Enter')) this.respawn();
   /** @internal — driven by test/playtest.js */
   jettisonCargo(tonnes = 1): void {
     if (this.mode !== 'flight') { sfx.beep(220); return; }
-    let dumped = 0;
-    let lastName = '';
-    for (let t = 0; t < tonnes; t++) {
-      // dump the most valuable thing aboard first — that's what buys you peace
-      let best = -1;
-      let bestValue = 0;
-      for (let i = 0; i < this.commander.cargo.length; i++) {
-        if (this.commander.cargo[i] <= 0) continue;
-        const value = COMMODITIES[i].basePrice;
-        if (value > bestValue) { bestValue = value; best = i; }
-      }
-      if (best < 0) break;
-      this.commander.cargo[best] -= 1;
-      this.jettisonedValue += bestValue * 4; // tenths of a credit, as markOf values it
-      this.world.cargo.spawn(this.player.position.clone(), 1, [best]);
-      lastName = COMMODITIES[best].name.toUpperCase();
-      dumped += 1;
-    }
-    if (dumped === 0) {
+
+    const dumped = dumpCargo(this.commander.cargo, tonnes);
+    if (dumped.tonnes.length === 0) {
       this.hud.showMessage('HOLD EMPTY', 1.5);
       sfx.beep(220);
       return;
     }
+    for (const commodity of dumped.tonnes) {
+      this.world.cargo.spawn(this.player.position.clone(), 1, [commodity]);
+    }
+    this.jettisonedValue += dumped.value;
     sfx.beep(320, 0.08);
 
-    // Does it buy them off? They wanted a share of what you arrived carrying,
-    // so the demand scales with the prize rather than being a flat toll — and
-    // a gang that organised for you wants considerably more than an
-    // opportunist who happened to be passing.
-    let bought = 0;
-    let stillWant = Infinity;
-    for (const npc of this.world.npcs) {
-      if (!npc.alive || npc.role !== 'pirate') continue;
-      if (npc.satisfied) continue;
-      const share = npc.organised ? 0.3 : 0.12;
-      const appetite = Math.max(npc.organised ? 1_500 : 400, this.arrivalCargoValue * share);
-      if (this.jettisonedValue >= appetite) {
-        npc.satisfied = true;
-        bought += 1;
-      } else {
-        stillWant = Math.min(stillWant, appetite - this.jettisonedValue);
-      }
-    }
-    if (bought > 0) {
-      this.hud.showMessage(`${bought} ATTACKER${bought > 1 ? 'S' : ''} BREAKING OFF`, 3);
-    } else if (Number.isFinite(stillWant)) {
+    const n = dumped.tonnes.length;
+    const bribe = offerBribe(
+      this.world.npcs.filter((npc) => npc.role === 'pirate'),
+      this.jettisonedValue, this.arrivalCargoValue);
+    if (bribe.bought > 0) {
       this.hud.showMessage(
-        `JETTISONED ${dumped}t ${lastName} — THEY WANT MORE (${formatCredits(Math.ceil(stillWant))})`, 3);
+        `${bribe.bought} ATTACKER${bribe.bought > 1 ? 'S' : ''} BREAKING OFF`, 3);
+    } else if (bribe.stillWant !== null) {
+      this.hud.showMessage(
+        `JETTISONED ${n}t ${dumped.lastName} — THEY WANT MORE `
+        + `(${formatCredits(Math.ceil(bribe.stillWant))})`, 3);
     } else {
-      this.hud.showMessage(`JETTISONED ${dumped}t ${lastName}`, 2);
+      this.hud.showMessage(`JETTISONED ${n}t ${dumped.lastName}`, 2);
     }
   }
 

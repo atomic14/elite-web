@@ -12,7 +12,7 @@ Everything else is a consequence, and each consequence is testable:
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
 | the renderer never writes state | you can delete it and still simulate | done for the HUD (hud-binding.ts) |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 317 tests, no browser | done |
+| every rule is unit-testable headless | 338 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
@@ -51,9 +51,10 @@ an NPC's does not.
 
 ### Known gaps against it
 
-- `game.ts` is 2458 lines. It is the orchestrator, but it still implements
-  docking, the law, and the death/respawn path. Hyperspace, missions,
-  missiles, trumbles, spawning and the ten screens have moved out.
+- `game.ts` is 2355 lines, down from 3244. It is the orchestrator, and what
+  is left is mostly orchestration: the fixed-timestep loop, the step order,
+  input routing and the docked/flight mode machine. The rules have moved to
+  the ~30 files around it.
 - `npc.ts` is 786 lines and holds behaviour and brain flight. The explosions,
   the ship roster and the brain selection have moved to `effects.ts`,
   `ship-specs.ts` and `brains.ts`.
