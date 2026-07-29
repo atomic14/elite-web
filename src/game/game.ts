@@ -29,6 +29,7 @@ import { sfx } from '../audio';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
 import { planDocking, makeDockPlan } from './docking';
+import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions';
 import {
   SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
   type SavesContext,
@@ -347,6 +348,8 @@ export class Game {
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
   private readonly tmp3 = new THREE.Vector3();
+  /** scratch for collisions.ts, so a per-frame call allocates nothing */
+  private readonly scratch = { a: new THREE.Vector3(), b: new THREE.Vector3() };
   /** reused for player gunnery — see LASER_GRAZE */
   private readonly shotRay = new THREE.Raycaster();
   /** docking computer flying the ship in — see dockingComputerStep */
@@ -1896,78 +1899,29 @@ export class Game {
         continue;
       }
 
-      // ramming: ships are solid
-      if (npc.alive) {
-        const gap = npc.object.position.distanceTo(this.player.position);
-        if (gap < npc.radius + 25) {
-          const away = this.tmp2.copy(this.player.position).sub(npc.object.position).normalize();
-          this.player.position.copy(npc.object.position).addScaledVector(away, npc.radius + 120);
-          this.player.speed *= 0.3;
-          this.applyPlayerDamage(0.45, npc.object.position);
-          this.hud.showMessage('COLLISION', 2);
-          if (npc.takeDamage(0.45, this.player.position, true)) this.destroyNpc(npc);
-        }
-      }
     }
 
-    // ...and solid to each other, not just to the player. Without this, ships
-    // visibly fly through one another in a dogfight. Mirrors the sim's
-    // pirate-vs-pirate rule (resolveCollision in sim/core.ts): symmetric,
-    // because neither party has the player's shields.
-    // Snapshot the list: wrecking a ship rebuilds this.npcs, and mutating it
-    // mid-loop would shift the indices we're iterating.
-    const fleet = this.npcs;
-    const wrecked: NpcShip[] = [];
-    for (let i = 0; i < fleet.length; i++) {
-      const a = fleet[i];
-      if (!a.alive || a.inert || a.role === 'hermit' || a.role === 'generation') continue;
-      for (let j = i + 1; j < fleet.length; j++) {
-        const b = fleet[j];
-        if (!b.alive || b.inert || b.role === 'hermit' || b.role === 'generation') continue;
-        const contact = a.radius + b.radius;
-        const gap = a.object.position.distanceTo(b.object.position);
-        if (gap >= contact) continue;
-        // shove them apart around their midpoint, then bill them both
-        this.tmp2.copy(a.object.position).sub(b.object.position);
-        if (this.tmp2.lengthSq() < 1e-6) this.tmp2.set(1, 0, 0);
-        this.tmp2.normalize();
-        this.tmp3.copy(a.object.position).add(b.object.position).multiplyScalar(0.5);
-        const push = (contact + 40) / 2;
-        a.object.position.copy(this.tmp3).addScaledVector(this.tmp2, push);
-        b.object.position.copy(this.tmp3).addScaledVector(this.tmp2, -push);
-        a.speed *= 0.3;
-        b.speed *= 0.3;
-        const aPos = a.object.position.clone();
-        // wreckNpc, NOT destroyNpc: two NPCs colliding has nothing to do with
-        // the player. destroyNpc credits kills, pays the bounty and — the part
-        // that actually bit — calls raiseLegal(2) when the casualty is a
-        // trader, police or bounty hunter. Two ships in a dogfight bumping
-        // into each other was making the player a FUGITIVE and scrambling the
-        // station's Vipers at them, for something they had no part in.
-        if (a.takeDamage(0.45, b.object.position, false)) wrecked.push(a);
-        if (b.takeDamage(0.45, aPos, false)) wrecked.push(b);
-      }
+    // Ships are solid. The geometry lives in collisions.ts; what it costs is
+    // decided here, because the price is not symmetric — the player's shields
+    // absorb a ram, two NPCs bumping must not credit the player with anything,
+    // and bouncing off the station is free.
+    for (const npc of playerVsNpcs(
+      this.player.position, (k) => { this.player.speed *= k; }, this.npcs, this.scratch)) {
+      this.applyPlayerDamage(RAM_DAMAGE, npc.object.position);
+      this.hud.showMessage('COLLISION', 2);
+      if (npc.takeDamage(RAM_DAMAGE, this.player.position, true)) this.destroyNpc(npc);
     }
+
+    const wrecked: NpcShip[] = [];
+    for (const [a, b] of npcVsNpcs(this.npcs, this.scratch)) {
+      const aPos = a.object.position.clone();
+      if (a.takeDamage(RAM_DAMAGE, b.object.position, false)) wrecked.push(a);
+      if (b.takeDamage(RAM_DAMAGE, aPos, false)) wrecked.push(b);
+    }
+    // wreckNpc, NOT destroyNpc — see npcVsNpcs
     for (const n of wrecked) this.wreckNpc(n);
 
-    // ...and solid to the station, which they were flying straight through.
-    // A bounce only, deliberately: damaging them here would kill traffic at
-    // random right outside the docking slot, and the problem being fixed is
-    // that ships visibly passed through the hull.
-    const stn = this.world.station;
-    const stBox = this.world.stationDockZ + 40;
-    for (const npc of fleet) {
-      if (!npc.alive || npc.inert || npc.role === 'hermit') continue;
-      if (npc.docking) continue; // a trader on final approach is *meant* to go in
-      const local = this.tmp2.copy(npc.object.position);
-      stn.worldToLocal(local);
-      if (Math.abs(local.x) > stBox || Math.abs(local.y) > stBox || Math.abs(local.z) > stBox) continue;
-      this.tmp3.copy(npc.object.position).sub(stn.position);
-      if (this.tmp3.lengthSq() < 1e-6) this.tmp3.set(0, 1, 0);
-      npc.object.position.copy(stn.position)
-        .addScaledVector(this.tmp3.normalize(), stBox + npc.radius);
-      npc.speed *= 0.4;
-    }
+    npcsVsStation(this.npcs, this.world.station, this.world.stationDockZ + 40, this.scratch);
 
     // occasional new trader arriving from deep space keeps the lanes alive —
     // busier at productive systems (the living-galaxy Level-1 hook)

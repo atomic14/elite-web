@@ -592,9 +592,14 @@ console.log('\nsim/game combat parity');
   check(`NPC laser damage: sim ${gunDmg} appears in game.ts`,
     gunDmg !== null && game.includes(`applyPlayerDamage(${gunDmg} + Math.random()`));
 
+  // Ram damage moved out of game.ts into collisions.ts as a named constant,
+  // which is an improvement on a bare 0.45 appearing three times — and this
+  // check noticed the moment it moved, which is the check working.
   const simCollision = num(core, /COLLISION = \{[\s\S]{0,400}?damage:\s*([\d.]+)/);
-  check(`collision damage: sim ${simCollision} appears in game.ts`,
-    simCollision !== null && game.includes(`applyPlayerDamage(${simCollision}`));
+  const collisions = read('../src/game/collisions.ts');
+  const gameCollision = num(collisions, /export const RAM_DAMAGE = ([\d.]+);/);
+  check(`collision damage: sim ${simCollision} == RAM_DAMAGE ${gameCollision}`,
+    simCollision !== null && simCollision === gameCollision);
 
   // hulls the sim models, and their game counterparts
   for (const [simKey, gameDef, role] of [
