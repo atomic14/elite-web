@@ -86,7 +86,9 @@ lint or tests fails the deploy build rather than shipping.
 > that the game imports — `git checkout src/ai-training/brains` restores them.
 
 You start docked at Lave Station with 100.0 Cr, a full tank and 3 missiles.
-Progress saves automatically every time you dock.
+Progress saves automatically when you dock, and the whole world — your ship,
+your cargo, every NPC in the sky — autosaves every 20 seconds in flight. Close
+the tab mid-fight and you resume where you left off.
 
 ## New to Elite?
 
@@ -194,8 +196,9 @@ detected — as on the original's dashboard.
   or traders and you become a fugitive (police attack; fine on docking).
 - **Hyperspace** — 7.0 LY fuel range, per-jump fuel cost by real chart
   distance, 5-second countdown.
-- **Death** — ship destroyed → reload your last station save (unless an
-  escape pod saves you, at the cost of your cargo).
+- **Death** — ship destroyed → reload your last save (unless an escape pod
+  saves you, at the cost of your cargo). Because the world autosaves in
+  flight, that is at most ~20 seconds back, not the last station.
 - **Legal system** — CLEAN → OFFENDER → FUGITIVE; police scan for contraband
   (slaves, narcotics, firearms), bounty hunters stalk offenders, fines on
   docking.

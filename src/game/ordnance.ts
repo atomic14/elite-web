@@ -1,5 +1,12 @@
 // Missiles, E.C.M. and the energy bomb — everything that is not the laser.
 //
+// This file owns missiles IN FLIGHT: spawn, homing, E.C.M. defeat, impact. It
+// does NOT decide who launches one — whether an NPC reaches for a missile
+// rather than its laser is `npcPrefersMissile` in gunnery.ts, and the launch
+// itself is `Game.enemyLaunchMissile`. "Ordnance" and "gunnery" are both
+// period-correct words for the same thing, so this pointer is here because
+// anyone hunting a missile rule starts in this file.
+//
 // One subsystem, previously eight methods scattered through game.ts between
 // docking and the trumbles. It owns the missiles in flight and the target
 // lock, because those are its state and nothing else writes them.

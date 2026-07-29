@@ -22,7 +22,8 @@ import {
 } from '../src/game/contracts.ts';
 import {
   newCommander, cargoCapacity, cargoTonnes, rating, killValue, EQUIPMENT_CATALOGUE,
-  equipmentOwned, MAX_FUEL, type CommanderData, type Contract,
+  equipmentOwned, MAX_FUEL, fuelNeeded, refuelCost,
+  type CommanderData, type Contract,
 } from '../src/game/commander.ts';
 import { makeRng } from '../src/ai-training/core.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
@@ -158,9 +159,9 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     }
 
     // --- refuel ---
-    const need = MAX_FUEL - c.fuel;
+    const need = fuelNeeded(c);
     if (need > 0) {
-      const cost = Math.round(need * 0.4);
+      const cost = refuelCost(c);
       if (c.credits >= cost) { c.credits -= cost; c.fuel = MAX_FUEL; }
     }
 

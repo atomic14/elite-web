@@ -727,6 +727,16 @@ export class Game {
     this.ccEngaged = false;
     this.missileArmed = false;
     this.input.releaseMouseFlight();
+    // Hand over anyone you pulled out of a capsule. Without this they occupy
+    // a bay for the rest of the career, which is the failure mode the old
+    // `cargo[3]` at least avoided by being sellable.
+    if (this.commander.survivors > 0) {
+      const n = this.commander.survivors;
+      this.commander.survivors = 0;
+      this.hud.showMessage(
+        `${n} SURVIVOR${n > 1 ? 'S' : ''} HANDED TO STATION MEDICAL`, 4);
+    }
+
     const fine = fineFor(this.commander.legalStatus, this.commander.credits);
     if (fine > 0 || this.commander.legalStatus > CLEAN) {
       this.commander.credits -= fine;
@@ -1662,8 +1672,11 @@ export class Game {
         this.hud.showMessage(
           c.kind === 'capsule' ? 'HOLD FULL — CAPSULE LOST' : 'HOLD FULL — CANISTER LOST', 3);
       } else if (c.kind === 'capsule') {
-        this.commander.cargo[3] += 1; // the occupant, now inventory
-        this.hud.showMessage('CAPSULE ABOARD — SURVIVOR LOGGED AS CARGO', 4);
+        // A person, not stock. See CommanderData.survivors — this was
+        // `cargo[3] += 1` and commodity 3 is Slaves, so rescuing someone made
+        // you a smuggler and the next police scan made you an Offender.
+        this.commander.survivors += 1;
+        this.hud.showMessage('SURVIVOR ABOARD', 4);
         sfx.beep(600, 0.12);
       } else {
         this.commander.cargo[c.commodity] += 1;

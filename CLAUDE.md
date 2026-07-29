@@ -183,9 +183,14 @@ vite.config.ts; add new pages there or they won't build.
   Both back up and restore the player's save.
 - Browser automation gotchas: key taps can collapse into one frame — put
   waits between scripted keypresses, or drive via __game directly. The
-  player's save is `localStorage['elite-web-commander']` — back it up before
-  destructive tests and restore after; saves happen on dock/equip-purchase
-  only.
+  player's save is `localStorage['elite-web-commander:<slot>']` — back it up
+  before destructive tests and restore after. **There are TWO stores**: the
+  commander, written on dock and on an equipment purchase, and the world
+  (`elite-web-world:<slot>`), a full snapshot written by `autoSave()` every 20
+  seconds of flight and replayed by `resumeSavedWorld()` at boot. Saving is
+  NOT dock-only and has not been for some time; note that `autoSave` writes
+  the commander too, so death rolls you back ~20 seconds rather than to the
+  last station.
 
 ## State lives in one place
 
@@ -338,7 +343,8 @@ discipline as `NpcShip` returning a `FireEvent`.
 
 Core game complete and validated end-to-end (see docs/JAMESON-TRIALS.md).
 Six trained brains ship; viewer at /viewer.html showcases them. Open
-direction (Chris's priorities): new-player QoL (docking aid, pause), target
+direction (Chris's priorities): new-player QoL (docking aid — pause and
+mid-flight autosave already ship, they are just not advertised), target
 market from chart, purchasable Combat Computer (defence brain flies the
 player), remaining hulls, README screenshots, deploy workflow for an
 atomic14.com CNAME, then the two-level "living galaxy" (design in

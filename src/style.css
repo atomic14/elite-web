@@ -87,6 +87,20 @@ html, body {
 body.screen-open #hud { display: none; }
 body.screen-open #screen { top: 50%; max-height: 88vh; }
 
+/*
+ * With a screen open, the transient line drops below the panel instead of
+ * sitting at 27vh, where it landed on top of the menu's own keyline and both
+ * became unreadable. Raising the z-index made the message visible; this is
+ * what makes it legible. It gets a plate because the starfield behind it is
+ * not a reliable backdrop for amber text.
+ */
+body.screen-open #message {
+  bottom: 3vh;
+  background: rgba(0, 10, 2, 0.92);
+  border: 1px solid rgba(255, 180, 68, 0.35);
+  padding: 6px 16px;
+}
+
 /* Chart screens: map on the left, readout on the right. Stacked, the readout
    sat directly under a map that draws to its own bottom edge, so the two
    always looked like they were touching however much height the box had. */
@@ -277,10 +291,25 @@ body.screen-open #screen { top: 50%; max-height: 88vh; }
   pointer-events: none;
 }
 
+/*
+ * The transient HUD line — "CONTRACT PAID", "BOUNTY: 6.5 Cr", "MISSILE ARMED".
+ *
+ * The z-index is load-bearing, and it is the only one in the project. #message
+ * is line 23 of play.html and #screen is line 52, so with no stacking context
+ * declared anywhere, paint order was DOM order and the 92%-opaque docked menu
+ * covered this element completely. Every message shown while a screen is open
+ * was drawn and then hidden: CONTRACT PAID, OFFENCE FINE PAID, CONTRACT
+ * EXPIRED, CONSIGNMENT INCOMPLETE and all three Navy mission lines. The only
+ * contract feedback anyone had ever seen was the one that fires in flight.
+ *
+ * Sits just above #screen (10), below nothing — it is pointer-events: none, so
+ * it cannot intercept a click on the menu underneath.
+ */
 #message {
   position: absolute;
   left: 50%; bottom: 27vh;
   transform: translateX(-50%);
+  z-index: 20;
   font-size: 15px;
   letter-spacing: 3px;
   color: var(--hud-amber);
@@ -301,6 +330,7 @@ body.screen-open #screen { top: 50%; max-height: 88vh; }
 #damage-flash.hit { opacity: 1; transition: none; }
 
 #screen {
+  z-index: 10;
   position: absolute;
   /*
    * Centred in the space you can actually see, not the canvas: the cockpit

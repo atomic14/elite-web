@@ -95,6 +95,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   no such out. They came for the goods; dumping a proportional share makes
   them break off — turning an unwinnable fight into a decision.
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
+  The rate is `FUEL_PRICE` in `src/game/commander.ts` — change it there.
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands
   your ship to the trained defence policy for as long as you hold a fight.
 - **Contracts from day one.** The original gated missions behind a high

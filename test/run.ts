@@ -19,7 +19,11 @@ import {
 } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
 import { freshState } from '../src/game/state.ts';
-import { newCommander } from '../src/game/commander.ts';
+import {
+  newCommander, MAX_FUEL, FUEL_PRICE, fuelNeeded, refuelCost,
+} from '../src/game/commander.ts';
+import { equipRows } from '../src/ui/screens.ts';
+import { cargoTonnes } from '../src/game/commander.ts';
 import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';
 import { compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
 import {
@@ -946,6 +950,76 @@ console.log('\nhud binding');
     check('...and each view reads its own mount',
       hasLaserInView(kit({ leftLaser: true }), 2)
       && !hasLaserInView(kit({ leftLaser: true }), 3));
+  }
+}
+
+// --- rescuing someone is not smuggling ---------------------------------------
+//
+// The occupant of an escape capsule used to be stored as `cargo[3] += 1`, and
+// commodity 3 is Slaves — which law.ts lists as contraband. Rescuing a pilot
+// therefore tripped the police scan and made you an Offender for a good deed.
+
+console.log('\nsurvivors');
+{
+  check('commodity 3 really is the one that would have bitten',
+    COMMODITIES[3].name === 'Slaves' && isContraband(3));
+
+  const c = newCommander();
+  c.survivors = 2;
+  check('a rescued pilot is not contraband',
+    !carryingContraband(c.cargo) && contrabandTonnes(c.cargo) === 0);
+  check('...but still takes up a bay', cargoTonnes(c) === 2);
+
+  const withCargo = newCommander();
+  withCargo.cargo[0] = 3;
+  withCargo.survivors = 1;
+  check('...and shares the hold with real cargo', cargoTonnes(withCargo) === 4);
+
+  // a save written before the fix must still load
+  const old = JSON.parse(JSON.stringify(newCommander())) as Record<string, unknown>;
+  delete old.survivors;
+  check('an old save with no survivors field is repaired, not NaN',
+    cargoTonnes(old as never) === 0);
+}
+
+// --- the fuel price has one home ---------------------------------------------
+//
+// It had four: a bare `* 0.4` inside equipRows in the RENDER layer, plus
+// copies in test/campaign.ts, train/jameson-autopilot.js and a doc.
+
+console.log('\nrefuelling');
+{
+  const tank = (fuel: number) => ({ fuel }) as never;
+  check('an empty tank costs the full rate',
+    refuelCost(tank(0)) === Math.round(MAX_FUEL * FUEL_PRICE));
+  check('a full tank is free', refuelCost(tank(MAX_FUEL)) === 0);
+  check('...and needs nothing', fuelNeeded(tank(MAX_FUEL)) === 0);
+  check('half a tank is half the price',
+    refuelCost(tank(MAX_FUEL / 2)) === Math.round((MAX_FUEL / 2) * FUEL_PRICE));
+  // money is integer tenths (invariant 5), and a sun-skim leaves a fraction
+  check('a scooped fractional tank still costs a whole number of tenths',
+    Number.isInteger(refuelCost(tank(41.3))));
+
+  // the outfitters' row must quote exactly what the rule says
+  const c = newCommander();
+  c.fuel = 20;
+  const row = equipRows(generateGalaxy(1)[7], c).find((r) => r.id === 'fuel')!;
+  check('the equipment screen quotes the shared rule', row.price === refuelCost(c));
+  c.fuel = MAX_FUEL;
+  check('...and reads OWNED at a full tank',
+    equipRows(generateGalaxy(1)[7], c).find((r) => r.id === 'fuel')!.status === 'OWNED');
+
+  // nobody may re-derive it. Deliberately fuel-specific: a bare /\* 0\.4/
+  // also matches the commodity byte-to-credits scale, which is a different
+  // 0.4 doing a different job.
+  const reFuel = /(fuel|need)[A-Za-z]*\s*\*\s*0\.4/i;
+  for (const f of ['../src/ui/screens.ts', '../src/game/screens/trade.ts',
+    '../test/campaign.ts', '../train/jameson-autopilot.js']) {
+    // comments stripped first — the explanatory note in jameson-autopilot.js
+    // says `need * 0.4` while explaining why it must not, and tripped this.
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8')
+      .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+    check(`${f.split('/').pop()} does not re-derive the fuel price`, !reFuel.test(src));
   }
 }
 

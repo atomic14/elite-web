@@ -102,7 +102,9 @@ src/
     systems.ts                energy, shields, laser heat, cabin temperature,
                               and the damage model (imported by survivability.ts)
     collisions.ts             who is overlapping whom, and how to separate them
-    gunnery.ts                which mount fires, heat/cooldown, the aim assist
+    gunnery.ts                BOTH guns: which mount the player fires, heat and
+                              cooldown, the aim assist — and the NPC's gun, its
+                              hit rolls, damage, and when it reaches for a missile
     shot.ts                   what the shot hit: ray first, then the graze cone
     encounters.ts             what turns up and when: traders, pirate waves, drones
     population.ts             how busy a system is when you arrive
@@ -287,9 +289,13 @@ ships.
   analogue" steering (see `player.ts`).
 - **Distances on the chart**: `4·sqrt(dx² + (dy/2)²)` in tenths of a LY —
   the original's asymmetric formula; chart Y is drawn half-scale.
-- **Saves**: one JSON blob in localStorage (`elite-web-commander`), written
-  on every successful dock and on equipment purchase. Delete it for a fresh
-  commander.
+- **Saves**: TWO JSON blobs in localStorage, and confusing them is a real bug
+  class. `elite-web-commander:<slot>` is who you are — written on every
+  successful dock and on equipment purchase. `elite-web-world:<slot>` is the
+  whole sky — a `WorldSnapshot` written by `autoSave()` every 20 seconds of
+  flight and replayed by `resumeSavedWorld()` at boot, which is what lets you
+  close the tab mid-fight. Docking and dying clear the world blob. Delete both
+  for a fresh commander.
 - **Debug handles** (deliberate, documented): `window.__game` (the Game
   instance — used by the autopilot test harness, see
   docs/JAMESON-TRIALS.md), `window.__policyKit` (trained brains + inference

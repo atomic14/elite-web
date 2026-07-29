@@ -7,6 +7,30 @@ import type { GalaxyStateSave } from '../galaxy/living.ts';
 // localStorage on every successful docking, classic "save at station" style.
 
 export const MAX_FUEL = 70; // tenths of a light year
+
+/**
+ * What refuelling costs, in tenths of a credit per tenth of a LY.
+ *
+ * The only price in the game that was NOT in this file. It lived as a bare
+ * `* 0.4` inside `equipRows` in ui/screens.ts — a pricing rule in the render
+ * layer, in a codebase whose own CLAUDE.md says that layer is pure rendering —
+ * and had been copied into test/campaign.ts, train/jameson-autopilot.js and
+ * docs/GAP-ANALYSIS.md. Four homes. A fresh reader asked "what does fuel cost
+ * here?" and could not answer it from the prices file.
+ *
+ * Deliberately 2x the 1984 manual's implied 0.2 — see docs/GAP-ANALYSIS.md.
+ */
+export const FUEL_PRICE = 0.4;
+
+/** Tenths of a LY needed to fill the tank. */
+export function fuelNeeded(c: { fuel: number }): number {
+  return MAX_FUEL - c.fuel;
+}
+
+/** What filling the tank costs right now, in tenths of a credit. */
+export function refuelCost(c: { fuel: number }): number {
+  return Math.round(fuelNeeded(c) * FUEL_PRICE);
+}
 /** The original's own commander, and still the default here. */
 export const DEFAULT_NAME = 'JAMESON';
 export const MAX_MISSILES = 4;
@@ -160,6 +184,16 @@ export interface CommanderData {
    */
   combatScore: number;
   cargo: number[]; // quantity per commodity index
+  /**
+   * Pilots pulled out of escape capsules, awaiting delivery to a station.
+   *
+   * NOT cargo. This used to be `cargo[3] += 1`, and commodity 3 is SLAVES —
+   * which law.ts lists as contraband. Rescuing a survivor therefore made you a
+   * smuggler: the police scan flagged you and you went to Offender for a good
+   * deed. They still take up a bay (see cargoTonnes) but they are not stock,
+   * cannot be sold, and are nobody's business but yours.
+   */
+  survivors: number;
   equipment: Equipment;
   legalStatus: number; // 0 clean, 1 offender, 2 fugitive
   mission: MissionState;
@@ -263,6 +297,7 @@ export function newCommander(): CommanderData {
     kills: 0,
     combatScore: 0,
     cargo: COMMODITIES.map(() => 0),
+    survivors: 0,
     equipment: defaultEquipment(),
     legalStatus: 0,
     mission: { stage: 0, targetIndex: null },
@@ -312,6 +347,8 @@ export function loadCommander(slot = currentSlot()): CommanderData {
     if (!Array.isArray(parsed.contracts)) parsed.contracts = [];
     if (typeof parsed.day !== 'number') parsed.day = 0;
     if (typeof parsed.trumbles !== 'number') parsed.trumbles = 0;
+    // saves written before survivors stopped being logged as slaves
+    if (typeof parsed.survivors !== 'number') parsed.survivors = 0;
     if (!Array.isArray(parsed.cargo) || parsed.cargo.length !== COMMODITIES.length) {
       parsed.cargo = COMMODITIES.map(() => 0);
     }
@@ -347,7 +384,8 @@ export function killValue(tier: number): number {
 
 /** Tonnes currently used (kg/g commodities don't count against the hold). */
 export function cargoTonnes(c: CommanderData): number {
-  return c.cargo.reduce((sum, qty, i) => sum + (COMMODITIES[i].unit === 't' ? qty : 0), 0);
+  return c.cargo.reduce((sum, qty, i) => sum + (COMMODITIES[i].unit === 't' ? qty : 0), 0)
+    + (c.survivors ?? 0);   // a rescued pilot takes up a bay
 }
 
 export function formatCredits(tenths: number): string {

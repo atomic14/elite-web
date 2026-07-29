@@ -50,9 +50,11 @@
 
     buyBest(destIndex) {
       const dest = g.systems[destIndex];
-      const fuelNeed = 70 - g.commander.fuel;
-      const fuelCost = Math.round(fuelNeed * 0.4);
-      if (fuelNeed > 0 && g.commander.credits >= fuelCost) { g.commander.credits -= fuelCost; g.commander.fuel = 70; }
+      // Refuel through the REAL purchase path. This file is pasted into the
+      // console and cannot import FUEL_PRICE, so recomputing `need * 0.4` here
+      // was a fourth copy of the pricing rule waiting to drift. buyEquipment
+      // charges the right amount and checks affordability itself.
+      g.buyEquipment('fuel');
       let best = -1, bestScore = 0.5;
       for (let i = 0; i < 17; i++) {
         if (ILLEGAL.includes(i) || !TONNES[i]) continue;

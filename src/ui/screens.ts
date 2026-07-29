@@ -6,7 +6,7 @@ import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
   type CommanderData, type Contract, type SlotSummary,
   rating, cargoTonnes, formatCredits, cargoCapacity,
-  MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned,
+  MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
 } from '../game/commander.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
@@ -231,12 +231,12 @@ export interface EquipRow {
  *   catalogue can be fitted anywhere. See `window.__cheat` in game.ts.
  */
 export function equipRows(sys: StarSystem, c: CommanderData, cheat = false): EquipRow[] {
-  const fuelNeeded = MAX_FUEL - c.fuel;
+  const needed = fuelNeeded(c);
   const rows: EquipRow[] = [{
     id: 'fuel',
-    label: `Fuel (${(fuelNeeded / 10).toFixed(1)} LY needed)`,
-    price: Math.round(fuelNeeded * 0.4),
-    status: fuelNeeded <= 0 ? 'OWNED' : '',
+    label: `Fuel (${(needed / 10).toFixed(1)} LY needed)`,
+    price: refuelCost(c),
+    status: needed <= 0 ? 'OWNED' : '',
   }];
   for (const item of EQUIPMENT_CATALOGUE) {
     const owned = equipmentOwned(item.id, c);
