@@ -1,5 +1,45 @@
 # Architecture — a tour for new readers
 
+## The north star
+
+**One world state. A pure step that advances it. A renderer that only reads it.**
+
+Everything else is a consequence, and each consequence is testable:
+
+| property | what it buys | where it stands |
+| --- | --- | --- |
+| the snapshot IS the state | save anywhere, replay, test fixtures | mostly — see the gaps below |
+| `step()` is seeded and fixed-dt | the same inputs give the same run | done |
+| the renderer never writes state | you can delete it and still simulate | partly |
+| one rule, one home | the bug class that ate this codebase | mostly |
+| every rule is unit-testable headless | 198 tests, no browser | done |
+
+The recurring failure this is defending against is **one rule with two homes,
+kept in step by hope**. It produced NPCs firing 5.4x too fast in training, four
+copies of the chart metric, the player's damage model living in a comment, a
+market that rerolled on reload, and a galaxy that quietly diverged from itself
+because its save rounded to three decimal places.
+
+**The rule for what belongs in state:** anything that drives behaviour and is
+not a constant. A value worked out at runtime — even once, even at spawn — is
+state. AI state is game state: a human's brain survives a reload on its own,
+an NPC's does not.
+
+### Known gaps against it
+
+- `game.ts` is 2788 lines with 39 imports. It is the orchestrator, but it
+  still implements docking, hyperspace, missions and missiles.
+- `npc.ts` is 1223 lines and holds behaviour, brain flight, explosions and
+  tracers — the next `game.ts`.
+- State is in `NpcState` and `Game.session`, but ALSO in `PlayerShip`,
+  `Game.sys`, `chart`, `market`, the entity arrays, and the station's
+  quaternion. The snapshot gathers them by hand.
+- `step()` reads the keyboard directly. There is no intent/command layer, so
+  the player, an AI and a replay are not yet the same interface.
+- `Game`'s constructor calls `createRenderStack`, so a Game still needs a
+  browser even though everything it simulates does not.
+
+
 This document explains how the code fits together, the conventions that are
 easy to trip over, and where to look when you want to change something.
 Read the [README](../README.md) first for what the game *is*.
@@ -24,9 +64,18 @@ src/
     systems.ts                energy, shields, laser heat, cabin temperature,
                               and the damage model (imported by survivability.ts)
     collisions.ts             who is overlapping whom, and how to separate them
+    gunnery.ts                which mount fires, heat/cooldown, the aim assist
+    shot.ts                   what the shot hit: ray first, then the graze cone
     encounters.ts             what turns up and when: traders, pirate waves, drones
+    population.ts             how busy a system is when you arrive
     npc-targeting.ts          who hunts whom among the NPCs
+    combat-computer.ts        the defence brain flying the player's ship
+    -- state and its persistence: --
+    rng.ts                    THE seeded generator; Math.random is banned and
+                              the ban is enforced by npm test
+    snapshot.ts               the world as plain JSON — save anywhere, replay
     screens/                  one file per overlay, behind the Screen contract
+  engine/render-stack.ts      the ONLY file that needs a GPU
   galaxy/galaxy.ts            the 1984 procedural universe + market model
   galaxy/goatsoup.ts          the original's recursive planet-description grammar
   galaxy/living.ts            level-1 sim: convoys, prices, danger and your
