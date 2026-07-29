@@ -73,6 +73,41 @@ export interface GameState {
 export const AUTOSAVE_INTERVAL = 20;
 
 /**
+ * A fresh flight: every session flag and timer at the value it starts a leg on.
+ *
+ * Split out of `freshState` because it has a second caller — the combat
+ * simulator resets one when an exercise begins (combat-sim.ts) — and a
+ * hand-written list of fields over there is precisely the bug this project has
+ * shipped five times: a field added to `SessionState` would be reset in one
+ * place and inherited in the other. One home for what "a fresh flight" is.
+ */
+export function freshSession(): SessionState {
+  return {
+    hyperCountdown: -1,
+    torusEngaged: false,
+    witchspace: false,
+    npcTargetTimer: 0,
+    autoSaveTimer: AUTOSAVE_INTERVAL,
+    energyLowTimer: 0,
+    policeScanned: false,
+    defenceLaunched: false,
+    hermitTrading: false,
+    hermitCooldown: false,
+    jettisonedValue: 0,
+    arrivalCargoValue: 0,
+    genShipSeen: false,
+    trumbleTimer: 20,
+    beaconTimer: -1,
+    strandedHintTimer: 2,
+    paused: false,
+    view: 0,
+    ccEngaged: false,
+    beamTimer: 0,
+    dcEngaged: false,
+  };
+}
+
+/**
  * A fresh session for a given commander.
  *
  * The commander is a PARAMETER, not something this reaches for. The first
@@ -89,29 +124,7 @@ export function freshState(commander: CommanderData): GameState {
     living: new LivingGalaxy(systems),
     world: new World(),
     player: new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1)),
-    session: {
-      hyperCountdown: -1,
-      torusEngaged: false,
-      witchspace: false,
-      npcTargetTimer: 0,
-      autoSaveTimer: AUTOSAVE_INTERVAL,
-      energyLowTimer: 0,
-      policeScanned: false,
-      defenceLaunched: false,
-      hermitTrading: false,
-      hermitCooldown: false,
-      jettisonedValue: 0,
-      arrivalCargoValue: 0,
-      genShipSeen: false,
-      trumbleTimer: 20,
-      beaconTimer: -1,
-      strandedHintTimer: 2,
-      paused: false,
-      view: 0,
-      ccEngaged: false,
-      beamTimer: 0,
-      dcEngaged: false,
-    },
+    session: freshSession(),
     sys: freshSystems(),
     dockPlan: makeDockPlan(),
     encounterTimers: freshTimers(),

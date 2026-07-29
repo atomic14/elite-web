@@ -53,6 +53,7 @@ const ALLOWED = {
   'game/game.ts': 'DEBT: down from 3,244 and still the orchestrator plus leftovers. Target ~300.',
   'game/npc.ts': 'DEBT: behaviour and brain flight in one file; the flight half wants its own.',
   'test/run.ts': 'DEBT: being split per subsystem to mirror src/ — see the plan in the session notes.',
+  'game/combat-sim.ts': 'DEBT: the session lifecycle AND the twelve-member StepHost table in one file. The host is the safety-critical surface and wants to be readable on its own — split to combat-sim-host.ts.',
   'game/contracts.ts': 'DEBT: holds contracts AND pirate economics (markOf, pirateThreat, memberTier), which are not contracts. The threat model wants its own file.',
 };
 

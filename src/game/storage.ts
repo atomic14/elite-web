@@ -25,6 +25,57 @@ import {
 
 const SAVE_KEY = 'elite-web-commander';
 
+// --- writes, and the one thing allowed to refuse them ------------------------
+//
+// Every write and every removal below goes through `writeItem`/`dropItem`, so
+// that `withoutSaving()` can make a span of code INCAPABLE of touching a save
+// rather than merely observed not to.
+//
+// It exists for the combat simulator (docs/COMBAT-SIM.md). Restoring the entry
+// snapshot on the way out of an exercise ends at `Station.dock`, which calls
+// `saveCommander` — and in the happy path those bytes are identical to what is
+// already there, but if `restore()` were ever subtly wrong that write would
+// persist the corruption OVER a good save. So the exercise suppresses the write
+// and then checks the bytes: failing safe first and verifying second is the only
+// order that cannot lose a career.
+//
+// `dropItem` is guarded for the same reason, and it is the more dangerous half —
+// `clearWorld()` DELETES the mid-flight world, which is data loss rather than a
+// leak.
+
+let suspended = 0;
+/** Keys a suspended write or removal would have touched. */
+const refused: string[] = [];
+
+function writeItem(key: string, value: string): void {
+  if (suspended > 0) { refused.push(key); return; }
+  localStorage.setItem(key, value);
+}
+
+function dropItem(key: string): void {
+  if (suspended > 0) { refused.push(key); return; }
+  localStorage.removeItem(key);
+}
+
+/**
+ * Run `fn` with every save write and removal refused.
+ *
+ * @returns what `fn` returned, and the keys it tried to touch — so a caller that
+ * suppressed a write it EXPECTED can assert the suppression was load-bearing
+ * rather than vacuous. Re-entrant, and `finally`-safe: a throw inside `fn` still
+ * puts writing back.
+ */
+export function withoutSaving<T>(fn: () => T): { value: T; refused: string[] } {
+  const mark = refused.length;
+  suspended += 1;
+  try {
+    return { value: fn(), refused: refused.slice(mark) };
+  } finally {
+    suspended -= 1;
+    refused.length = mark;
+  }
+}
+
 /**
  * Where a mid-flight world lives, per slot.
  *
@@ -63,7 +114,7 @@ export function slotKeys(slot = currentSlot()): { commander: string; world: stri
 
 export function setCurrentSlot(slot: number): void {
   try {
-    localStorage.setItem(CURRENT_KEY, String(slot));
+    writeItem(CURRENT_KEY, String(slot));
   } catch { /* storage unavailable */ }
 }
 
@@ -98,9 +149,9 @@ export function readSlot(slot: number): SlotSummary | null {
 }
 
 export function deleteSlot(slot: number): void {
-  localStorage.removeItem(`${WORLD_KEY}:${slot}`);
+  dropItem(`${WORLD_KEY}:${slot}`);
   try {
-    localStorage.removeItem(slotKey(slot));
+    dropItem(slotKey(slot));
   } catch { /* storage unavailable */ }
 }
 
@@ -112,16 +163,16 @@ function migrateLegacySave(): void {
   try {
     const legacy = localStorage.getItem(SAVE_KEY);
     if (legacy && !localStorage.getItem(slotKey(1))) {
-      localStorage.setItem(slotKey(1), legacy);
+      writeItem(slotKey(1), legacy);
     }
-    if (legacy) localStorage.removeItem(SAVE_KEY);
+    if (legacy) dropItem(SAVE_KEY);
   } catch { /* storage unavailable */ }
 }
 
 /** Store a mid-flight world for `slot`. */
 export function saveWorld(json: string, slot = currentSlot()): void {
   try {
-    localStorage.setItem(`${WORLD_KEY}:${slot}`, json);
+    writeItem(`${WORLD_KEY}:${slot}`, json);
   } catch {
     // quota, private browsing — the commander save is what matters, and it
     // has already been written
@@ -135,12 +186,12 @@ export function readWorld(slot = currentSlot()): string | null {
 
 /** Forget it — on death, or on a clean dock where the station save is enough. */
 export function clearWorld(slot = currentSlot()): void {
-  localStorage.removeItem(`${WORLD_KEY}:${slot}`);
+  dropItem(`${WORLD_KEY}:${slot}`);
 }
 
 export function saveCommander(c: CommanderData, slot = currentSlot()): void {
   try {
-    localStorage.setItem(slotKey(slot), JSON.stringify(c));
+    writeItem(slotKey(slot), JSON.stringify(c));
   } catch {
     // storage unavailable — play on without saves
   }

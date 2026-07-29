@@ -102,15 +102,25 @@ export function massLocked(state: GameState): boolean {
 }
 
 /**
- * What the step reports for the orchestrator to say out loud.
+ * What the step reports for the orchestrator to say out loud, or to count.
  *
- * One variant today — everything the phases used to put on the HUD directly.
- * A union rather than a bare list of strings because the next thing to come
- * out of the step belongs here too, and because it then reads the same as
- * CombatEvent and OrdnanceEvent, which is the point.
+ * A union rather than a bare list of strings because the next thing to come out
+ * of the step belongs here too, and because it then reads the same as
+ * CombatEvent and OrdnanceEvent, which is the point. The Game says the messages
+ * and ignores the rest; a measuring caller does the opposite.
  */
 export type StepEvent =
-  | { kind: 'message'; text: string; seconds: number };
+  | { kind: 'message'; text: string; seconds: number }
+  /**
+   * A ship pulled its trigger, and at what.
+   *
+   * The step is the only place that knows: `resolveNpcFire` rolls the dice and
+   * the host only ever hears about the HITS, through `applyPlayerDamage`. Shots
+   * that missed are the denominator of every accuracy figure the combat
+   * simulator reports (combat-sim-report.ts), and test/combat-recorder.js could
+   * only get at them by monkey-patching a method that has since moved twice.
+   */
+  | { kind: 'npcFired'; npc: NpcShip; weapon: 'laser' | 'missile'; atPlayer: boolean };
 
 const say = (text: string, seconds: number): StepEvent => ({ kind: 'message', text, seconds });
 
@@ -586,6 +596,12 @@ export class WorldStep {
   /** An NPC asked to fire. The ship chose the weapon; we roll the dice. */
   private resolveNpcFire(npc: NpcShip, event: FireEvent, out: StepEvent[]): void {
     const { world, player } = this.state;
+    // Reported before anything is resolved, and before any draw — the report
+    // wants the shot whether or not it lands, and moving a `random()` across a
+    // branch would change every seeded outcome after it (game/rng.ts).
+    out.push({
+      kind: 'npcFired', npc, weapon: event.weapon, atPlayer: event.at === 'player',
+    });
     if (event.at === 'player') {
       // The SHIP chose the weapon (npc.ts chooseWeapon); we only apply it.
       if (event.weapon === 'missile') {
