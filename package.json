@@ -21,7 +21,8 @@
     "campaign": "node --experimental-strip-types --no-warnings test/campaign.ts",
     "survivability": "node --experimental-strip-types --no-warnings train/survivability.ts",
     "portability": "node tools/portability.mjs",
-    "sizes": "node tools/sizes.mjs"
+    "sizes": "node tools/sizes.mjs",
+    "coverage": "node tools/coverage.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"
