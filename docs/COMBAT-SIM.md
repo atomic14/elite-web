@@ -47,12 +47,40 @@ both fields, and it is reached from four places. Assert that a full simulated
 engagement — kills, deaths, breaches, bounties — leaves `kills`,
 `combatScore`, `credits`, `legalStatus` and the save blob bit-identical.
 
-The seam already exists. `StepHost` in `world-step.ts` is exactly the list of
-verbs that reach outside the sky — `destroyNpc`, `raiseLegal`, `die`, `dock`,
-`autoSave`. The simulator is an alternative `StepHost` that refuses or redirects
-them, plus a snapshot on entry restored on exit as belt and braces.
-`persistence.ts` already captures and restores the whole world, so the belt is
-nearly free.
+### How it is enforced — CORRECTED after planning
+
+My first draft said `StepHost` "is exactly the list of verbs that reach outside
+the sky" and that refusing them was the mechanism. **That is false, and it is
+false for the most common kill in the game.** Verified:
+
+- `combat.ts:149` — `Combat.fire()` calls `this.destroy(commander, shot.ship)`
+  **internally**. A laser kill never passes through `StepHost.destroyNpc`.
+- `game.ts:428` — the energy bomb calls `Game.destroyNpc` from `runCommand`,
+  not from the step.
+
+A host that refused `destroyNpc` and nothing else would credit the career for
+almost every simulated kill. So the layering is:
+
+1. **Primary: swap `state.commander` for an exercise-only clone.** `Combat`
+   takes the commander *per call, deliberately* — its own comment says so,
+   because a held reference "would quietly start crediting bounties to a
+   commander who no longer exists". Passing a different commander is an intended
+   capability, and it is the only thing that covers the internal call. It also
+   covers what the step writes directly and never asks about: `survivors`,
+   `cargo` on scooping, `fuel`, `missiles` via `Ordnance.launch`.
+2. **Second layer: the alternative `StepHost`** — 1 pass-through
+   (`wreckNpc`), 4 redirects (`inFlight`, `applyPlayerDamage`, `destroyNpc`,
+   `fireLaser`), 7 refusals (`raiseLegal`, `die`, `dock`,
+   `completeHyperspace`, `completeRescue`, `openHermitTrade`, `autoSave`).
+3. **Third layer: the entry snapshot.** `persistence.capture()` on entry,
+   `restore()` on exit — which also puts the rng stream back exactly, since
+   restore does that last.
+
+**`die()` must never be reached, and this one is data loss rather than a leak.**
+`game.ts:815` calls `clearWorld()` — deliberately, so "death is not optional if
+you refresh". A simulated death reaching it would delete the player's real saved
+world blob. That is the bug class that already cost a real commander during this
+refactor.
 
 ## Scenarios
 
@@ -82,10 +110,15 @@ Two levels, because the audiences differ:
   (`pirate-attack-e1`, `g3`, `r2`, the pack policy, or the scripted baseline),
   and the fit — missiles, E.C.M.
 
-Your own ship defaults to what you actually fly, with an override to fit
-anything from the catalogue **for the exercise only**. That is `window.__cheat`
-made legitimate and scoped: the same capability, but it cannot leak into the
-career because of the one rule above.
+Your own ship: **fit-out override only, not hull.** Corrected after planning —
+the player's hull is four hard-coded constants in `player.ts` (`MAX_SPEED`,
+`ACCEL`, `MAX_PITCH`, `MAX_ROLL`) with no roster, and `FlightDemand.limits` can
+cap speed and accel but not pitch or roll. Parameterising `PlayerShip` is a
+feature of its own AND changes the world every pirate brain was fitted in, since
+`scenario.ts` reads `PLAYER_FLIGHT` as its target. So v1 overrides lasers,
+shields, E.C.M., missiles, energy unit and energy bomb — `window.__cheat` made
+legitimate and scoped — and the GAP-ANALYSIS entry says the hull is not
+selectable.
 
 Picking the opponent's *brain* is what turns this into an A/B rig. Fly the same
 scenario against `e1` and against `r2`, and the report answers which is more
@@ -108,6 +141,20 @@ Per exercise: the seed, the scenario, both loadouts, then —
 - shield and energy low-water marks
 - a per-opponent line: hull, brain, how long it lived, what it landed
 
+Also absorb `test/arena.js`'s `envelope()` — the spec first omitted it and
+should not have. It is the only measurement of the PLAYER's flight envelope
+(speed, pitch, roll and engagement-range distributions), and
+`scenario.ts`'s `playerCobra`/`playerCobraSlow` target hulls are fitted to it.
+Delete `arena.js` without absorbing it and the trainer loses the one input that
+makes its target move like a human.
+
+Note `gang-trial.js` is only replaced for the human-flown question. It flies the
+defence brain — a bot — and `npm run survivability` remains the bot answer.
+
+**Version the JSON from day one** (`schema: 1`, as `SNAPSHOT_VERSION` does). It
+is an interface with an external consumer; the first shape change would
+otherwise silently break whatever reads `__simLog`.
+
 **Export** as JSON — clipboard and downloadable file — plus an in-memory ring of
 recent exercises on `window.__simLog`, so a console session or an agent can read
 them without going through the DOM. The JSON is the deliverable: it is what gets
@@ -127,8 +174,21 @@ one thing that is also a player feature.
   layer, never the simulation.
 - **Do not add a field beside `GameState`.** Simulator state is state.
 - **Do not shift the career's rng stream** — enter on a fresh seed, restore on exit.
-- Not a `window.__` handle: it is a screen, per the Screen contract. One file in
-  `src/game/screens/`, one line in `ScreenId`, one registration.
+- Not a `window.__` handle. **But the exercise itself cannot be a screen** —
+  corrected after planning. `Game.mode` is derived (`screens.topId ??
+  baseMode`) and `updateFlight()` runs only when `mode === 'flight'`, so while
+  any screen is on the stack **the world does not step**. The screen is the
+  front of house — pick a scenario, launch, read the report — and the fight is
+  ordinary `flight` with a different `StepHost` behind it.
+- **Teardown must be deferred.** `applyPlayerDamage` is called from inside
+  `stepNpcs`/`applyOrdnance`, so restoring the world there would rebuild the
+  scene and teleport the player mid-frame while the step is still iterating.
+  `finish()` records the outcome and flips a phase; `inFlight()` goes false so
+  the frame unwinds; `updateFlight` restores after the step returns.
+- **Turn off ambient traffic.** `stepEncounters` keeps spawning traders and
+  pirate waves otherwise — `gang-trial.js` hit exactly this and reported "4 of
+  3 alive". Push `state.encounterTimers` out on entry; they are already in
+  `GameState` and come back with the snapshot, so no new state.
 
 ## Settled
 
