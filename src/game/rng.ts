@@ -20,18 +20,24 @@
 // an injectable rng instead, because they are pure and their tests want to
 // control it directly. Both are right for what they are.
 
-import { makeRng } from '../sim/core.ts';
+// The generator is written out here rather than reusing sim/core.ts's
+// makeRng, for one reason: makeRng closes over its state, and a snapshot needs
+// to READ that state. A save taken mid-flight has to resume the same stream it
+// was on, or the reception waiting for you changes the moment you reload —
+// which is the difference between a snapshot and a rough approximation.
+//
+// Same algorithm (mulberry32), so streams are identical to the trainer's.
 
-let current: () => number = makeRng(0x9e3779b9);
+let state = 0x9e3779b9;
 let currentSeed = 0x9e3779b9;
 
 /**
- * Reseed the world. Called when a commander is loaded or a system entered, so
- * a given save in a given system unfolds the same way twice.
+ * Reseed the world. Called on arrival, so a given save entering a given system
+ * on a given day unfolds the same way twice.
  */
 export function seedWorld(seed: number): void {
   currentSeed = seed >>> 0;
-  current = makeRng(currentSeed);
+  state = currentSeed;
 }
 
 /** The seed in force, for logging a run you might want to reproduce. */
@@ -39,24 +45,39 @@ export function worldSeed(): number {
   return currentSeed;
 }
 
+/** Exact generator state, for a snapshot. */
+export function rngState(): { seed: number; state: number } {
+  return { seed: currentSeed, state };
+}
+
+/** Resume a stream exactly where a snapshot left it. */
+export function restoreRng(saved: { seed: number; state: number }): void {
+  currentSeed = saved.seed >>> 0;
+  state = saved.state >>> 0;
+}
+
 /** 0..1, as Math.random. */
 export function random(): number {
-  return current();
+  state = (state + 0x6d2b79f5) >>> 0;
+  let t = state;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
 /** An integer in [0, n). */
 export function randomInt(n: number): number {
-  return Math.floor(current() * n);
+  return Math.floor(random() * n);
 }
 
 /** A number in [lo, hi). */
 export function randomRange(lo: number, hi: number): number {
-  return lo + current() * (hi - lo);
+  return lo + random() * (hi - lo);
 }
 
 /** True with probability `p`. */
 export function chance(p: number): boolean {
-  return current() < p;
+  return random() < p;
 }
 
 /** One of `items`, uniformly. */
@@ -72,8 +93,8 @@ export function pick<T>(items: readonly T[]): T {
  * Marsaglia's method, same as three.js uses.
  */
 export function randomDirection<T extends { x: number; y: number; z: number }>(out: T): T {
-  const u = current() * 2 - 1;
-  const theta = current() * Math.PI * 2;
+  const u = random() * 2 - 1;
+  const theta = random() * Math.PI * 2;
   const r = Math.sqrt(1 - u * u);
   out.x = r * Math.cos(theta);
   out.y = r * Math.sin(theta);

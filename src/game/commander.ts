@@ -178,6 +178,17 @@ export interface CommanderData {
 }
 
 const SAVE_KEY = 'elite-web-commander';
+
+/**
+ * Where a mid-flight world lives, per slot.
+ *
+ * A NEW key, deliberately. The `elite-web-commander:<slot>` keys are where
+ * every existing player's career lives and must never be renamed or
+ * repurposed (CLAUDE.md) — so the world sits beside the commander rather than
+ * inside it, and a save written before this existed still loads, it just
+ * starts you at the station as it always did.
+ */
+const WORLD_KEY = 'elite-web-world';
 /** How many commanders you can keep on the go. */
 export const SAVE_SLOTS = 4;
 const slotKey = (slot: number): string => `${SAVE_KEY}:${slot}`;
@@ -226,6 +237,7 @@ export function readSlot(slot: number): SlotSummary | null {
 }
 
 export function deleteSlot(slot: number): void {
+  localStorage.removeItem(`${WORLD_KEY}:${slot}`);
   try {
     localStorage.removeItem(slotKey(slot));
   } catch { /* storage unavailable */ }
@@ -263,6 +275,26 @@ export function newCommander(): CommanderData {
     day: 0,
     contracts: [],
   };
+}
+
+/** Store a mid-flight world for `slot`. */
+export function saveWorld(json: string, slot = currentSlot()): void {
+  try {
+    localStorage.setItem(`${WORLD_KEY}:${slot}`, json);
+  } catch {
+    // quota, private browsing — the commander save is what matters, and it
+    // has already been written
+  }
+}
+
+/** The mid-flight world for `slot`, if one was left behind. */
+export function readWorld(slot = currentSlot()): string | null {
+  return localStorage.getItem(`${WORLD_KEY}:${slot}`);
+}
+
+/** Forget it — on death, or on a clean dock where the station save is enough. */
+export function clearWorld(slot = currentSlot()): void {
+  localStorage.removeItem(`${WORLD_KEY}:${slot}`);
 }
 
 export function saveCommander(c: CommanderData, slot = currentSlot()): void {

@@ -25,7 +25,12 @@ import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
 import { planDocking, makeDockPlan } from './docking.ts';
-import { random, randomInt, randomDirection, seedWorld } from './rng.ts';
+import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
+import { saveWorld, readWorld, clearWorld } from './commander.ts';
+import {
+  SNAPSHOT_VERSION, v3, q4,
+  type WorldSnapshot, type CanisterSnapshot,
+} from './snapshot.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
@@ -146,6 +151,15 @@ type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'stat
  * number in this project was measured against.
  */
 export const FIXED_DT = 1 / 60;
+/**
+ * Seconds between mid-flight world saves.
+ *
+ * Elite let you save at a station and nowhere else, which is faithful and, on
+ * a machine you can close by accident, unkind. The world is a snapshot now
+ * (snapshot.ts), so it costs one JSON write to make quitting mid-fight
+ * survivable.
+ */
+const AUTOSAVE_INTERVAL = 20;
 /** Longest real interval we will try to simulate, before dropping the backlog. */
 const MAX_FRAME_TIME = 0.25;
 /** ...and the most steps one frame may run, so a stall cannot spiral. */
@@ -207,7 +221,7 @@ export class Game {
   systems: StarSystem[];
   commander: CommanderData;
   /** level-1 simulation: trade flowing between all 256 systems */
-  readonly living: LivingGalaxy;
+  living: LivingGalaxy;
   world!: SystemScene;
   npcs: NpcShip[] = [];
   private explosions: Explosion[] = [];
@@ -256,6 +270,8 @@ export class Game {
   private npcTargetTimer = 0;
   /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
   private encounterTimers: EncounterTimers = freshTimers();
+  /** counts down to the next mid-flight world save — see autoSave() */
+  private autoSaveTimer = AUTOSAVE_INTERVAL;
   private energyLowTimer = 0;
   private policeScanned = false;
   /** the station only scrambles its defence fleet once per visit */
@@ -376,7 +392,9 @@ export class Game {
 
     this.player = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
     this.buildWorld();
-    this.enterDocked(true);
+    // Resume mid-flight if the last session ended there; otherwise the
+    // station, as Elite always did.
+    if (!this.resumeSavedWorld()) this.enterDocked(true);
     refreshHelpPanel();
     this.hud.showMessage(
       `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
@@ -807,6 +825,215 @@ export class Game {
       systems: this.systems,
       message: (text, seconds) => this.hud.showMessage(text, seconds),
     };
+  }
+
+  /**
+   * The whole world as plain data — see snapshot.ts.
+   *
+   * This is what lets a commander be saved anywhere rather than only at a
+   * station: the station save is the commander alone, and mid-flight there is
+   * a great deal more that matters.
+   */
+  captureSnapshot(): WorldSnapshot {
+    return {
+      version: SNAPSHOT_VERSION,
+      mode: this.baseMode === 'flight' ? 'flight' : 'docked',
+      witchspace: this.witchspace,
+      commander: structuredClone(this.commander),
+      galaxyState: this.living.save(),
+      player: {
+        pos: v3(this.player.position),
+        quat: q4(this.player.quaternion),
+        speed: this.player.speed,
+        pitchRate: this.player.pitchRate,
+        rollRate: this.player.rollRate,
+      },
+      systems: { ...this.sys },
+      npcs: this.npcs.map((n) => ({
+        pos: v3(n.object.position),
+        quat: q4(n.object.quaternion),
+        speed: n.speed,
+        pitchRate: 0,
+        rollRate: 0,
+        role: n.role,
+        seed: n.variantSeed,
+        hp: n.hp,
+        alive: n.alive,
+        provoked: n.provoked,
+        provokedByPlayer: n.provokedByPlayer,
+        satisfied: n.satisfied,
+        organised: n.organised,
+        threatTier: n.threatTier,
+        isMissionTarget: n.isMissionTarget,
+        inert: n.inert,
+        docked: n.docked,
+        docking: n.docking,
+        missiles: n.missiles,
+        fireCooldown: n.fireCooldown,
+        tradeTimer: n.tradeTimer,
+        traderPhase: n.traderPhase,
+        fleeing: n.fleeing,
+        fleeFrom: v3(n.fleeFrom),
+        targetIndex: n.npcTarget ? this.npcs.indexOf(n.npcTarget) : -1,
+        packOffset: v3(n.packOffset),
+        waypoint: v3(n.waypoint),
+        waypointTimer: n.waypointTimer,
+        brainTimer: n.brainTimer,
+        brainPitchRate: n.brainPitchRate,
+        brainRollRate: n.brainRollRate,
+      })),
+      canisters: this.canisters.map((c) => ({
+        pos: v3(c.object.position),
+        velocity: v3(c.velocity),
+        spinAxis: v3(c.spinAxis),
+        kind: c.kind,
+        commodity: c.commodity,
+      })),
+      encounterTimers: { ...this.encounterTimers },
+      rng: rngState(),
+      chartTarget: this.chart.targetIndex,
+      view: this.view,
+    };
+  }
+
+  /**
+   * Put the world back exactly as a snapshot found it.
+   *
+   * Order matters: the galaxy is rebuilt first because NPCs are placed
+   * relative to a station that has to exist, and the rng is restored LAST so
+   * that nothing rebuilt along the way consumes from the stream the snapshot
+   * was about to use.
+   */
+  restoreSnapshot(snap: WorldSnapshot): void {
+    if (snap.version !== SNAPSHOT_VERSION) {
+      throw new Error(`snapshot version ${snap.version}, expected ${SNAPSHOT_VERSION}`);
+    }
+    this.commander = structuredClone(snap.commander);
+    this.systems = generateGalaxy(this.commander.galaxy);
+    this.living = new LivingGalaxy(this.systems);
+    this.living.load(snap.galaxyState as Parameters<LivingGalaxy['load']>[0]);
+    this.witchspace = snap.witchspace;
+    this.buildWorld();
+    if (this.witchspace) this.enterWitchspace();
+
+    this.player.position.set(...snap.player.pos);
+    this.player.quaternion.set(...snap.player.quat);
+    this.player.speed = snap.player.speed;
+    this.player.pitchRate = snap.player.pitchRate;
+    this.player.rollRate = snap.player.rollRate;
+    Object.assign(this.sys, snap.systems);
+
+    this.clearNpcs();
+    for (const n of snap.npcs) {
+      const npc = this.spawnNpc(n.role as NpcRole, new THREE.Vector3(...n.pos), n.seed);
+      npc.object.quaternion.set(...n.quat);
+      npc.speed = n.speed;
+      npc.hp = n.hp;
+      npc.alive = n.alive;
+      npc.provoked = n.provoked;
+      npc.provokedByPlayer = n.provokedByPlayer;
+      npc.satisfied = n.satisfied;
+      npc.organised = n.organised;
+      npc.threatTier = n.threatTier;
+      npc.isMissionTarget = n.isMissionTarget;
+      npc.inert = n.inert;
+      npc.docked = n.docked;
+      npc.docking = n.docking;
+      npc.missiles = n.missiles;
+      npc.fireCooldown = n.fireCooldown;
+      npc.tradeTimer = n.tradeTimer;
+      npc.traderPhase = n.traderPhase as typeof npc.traderPhase;
+      npc.fleeing = n.fleeing;
+      npc.fleeFrom.set(...n.fleeFrom);
+      npc.packOffset.set(...n.packOffset);
+      npc.waypoint.set(...n.waypoint);
+      npc.waypointTimer = n.waypointTimer;
+      npc.brainTimer = n.brainTimer;
+      npc.brainPitchRate = n.brainPitchRate;
+      npc.brainRollRate = n.brainRollRate;
+    }
+    // second pass: the hunting links, now that every ship exists
+    snap.npcs.forEach((n, i) => {
+      if (n.targetIndex >= 0) {
+        const hunter = this.npcs[i];
+        const prey = this.npcs[n.targetIndex];
+        if (hunter && prey) {
+          hunter.npcTarget = prey;
+          prey.attackers.push(hunter);
+        }
+      }
+    });
+
+    this.clearCanisters();
+    for (const c of snap.canisters) {
+      this.restoreCanister(c);
+    }
+
+    this.encounterTimers = { ...snap.encounterTimers };
+    this.chart.targetIndex = snap.chartTarget;
+    this.view = snap.view;
+    this.baseMode = snap.mode;
+    this.screens.exit();
+    if (snap.mode === 'docked') this.enterDocked(true);
+    else hideScreen();
+
+    // LAST: anything above that spawns or builds draws from the stream
+    restoreRng(snap.rng);
+  }
+
+  /**
+   * Write the world down. Cheap enough to do on a timer, because the whole
+   * point is that closing the tab mid-fight is not punished.
+   */
+  private autoSave(): void {
+    if (this.mode === 'dead') return;
+    saveCommander(this.commander);
+    try {
+      saveWorld(JSON.stringify(this.captureSnapshot()));
+    } catch {
+      // a world that will not serialise is a bug, but it must never take the
+      // session down — the commander save above is already safe
+    }
+  }
+
+  /**
+   * Pick up exactly where the last session stopped, mid-flight if that is
+   * where it was.
+   *
+   * @returns false if there was nothing to resume, so the caller boots
+   * normally at the station.
+   */
+  private resumeSavedWorld(): boolean {
+    const json = readWorld();
+    if (!json) return false;
+    try {
+      const snap = JSON.parse(json) as WorldSnapshot;
+      if (snap.version !== SNAPSHOT_VERSION) return false;
+      if (snap.commander.name !== this.commander.name) return false; // different career
+      this.restoreSnapshot(snap);
+      if (snap.mode === 'flight') {
+        this.hud.showMessage('RESUMING FLIGHT', 3);
+      }
+      return true;
+    } catch {
+      // a corrupt or stale world must never cost you the commander
+      clearWorld();
+      return false;
+    }
+  }
+
+  private restoreCanister(c: CanisterSnapshot): void {
+    const object = buildShip(CANISTER, c.kind === 'capsule' ? 0xffd24d : 0x8ad0ff);
+    if (c.kind === 'capsule') object.scale.setScalar(0.8);
+    object.position.set(...c.pos);
+    this.canisters.push({
+      object,
+      kind: c.kind,
+      commodity: c.commodity,
+      velocity: new THREE.Vector3(...c.velocity),
+      spinAxis: new THREE.Vector3(...c.spinAxis),
+    });
+    this.scene.add(object);
   }
 
   /** @internal — driven by test/playtest.js */
@@ -1885,6 +2112,12 @@ export class Game {
     if (scooped > 0) {
       this.commander.fuel += scooped;
       this.hud.showMessage('FUEL SCOOPING', 0.4);
+    }
+
+    this.autoSaveTimer -= dt;
+    if (this.autoSaveTimer <= 0) {
+      this.autoSaveTimer = AUTOSAVE_INTERVAL;
+      this.autoSave();
     }
 
     if (this.ecmDetectedTimer > 0) this.ecmDetectedTimer -= dt;

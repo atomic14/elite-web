@@ -448,8 +448,10 @@ export class NpcShip {
   /** NPC-vs-NPC target, assigned by the game (pirate→trader, police→pirate). */
   npcTarget: NpcShip | null = null;
   /** Where the last attack came from; traders flee this. */
-  private readonly fleeFrom = new THREE.Vector3();
-  private fleeing = false;
+  /** @internal snapshot */
+  readonly fleeFrom = new THREE.Vector3();
+  /** @internal snapshot */
+  fleeing = false;
   /** Thargons go inert when their mothership dies. */
   inert = false;
 
@@ -482,9 +484,12 @@ export class NpcShip {
   speed: number;
   private readonly maxSpeed: number;
   private readonly turnRate: number;
-  private fireCooldown = 2 + random() * 2;
-  private readonly waypoint = new THREE.Vector3();
-  private waypointTimer = 0;
+  /** @internal exposed so a snapshot can resume mid-reload */
+  fireCooldown = 2 + random() * 2;
+  /** @internal snapshot */
+  readonly waypoint = new THREE.Vector3();
+  /** @internal snapshot */
+  waypointTimer = 0;
   private readonly tumbleAxis = randomDirection(new THREE.Vector3());
 
   private readonly tmpDir = new THREE.Vector3();
@@ -492,10 +497,13 @@ export class NpcShip {
   private readonly tmpQ = new THREE.Quaternion();
 
   // trained-brain flight state (pirates)
-  private brainTimer = 0;
+  /** @internal snapshot */
+  brainTimer = 0;
   private brainControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;
-  private brainPitchRate = 0;
-  private brainRollRate = 0;
+  /** @internal snapshot */
+  brainPitchRate = 0;
+  /** @internal snapshot */
+  brainRollRate = 0;
   // sized for PACK_OBS_SIZE (18); solo brains only read the first 14 slots
   private static readonly obsBuf = new Float32Array(18);
   /** scratch packmate list, reused so the 10 Hz decision stays allocation-light */
@@ -512,8 +520,12 @@ export class NpcShip {
     laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
   };
 
+  /** the seed its hull and stats were generated from — kept so a snapshot can rebuild it */
+  readonly variantSeed: number;
+
   constructor(role: NpcRole, position: THREE.Vector3, variantSeed: number, specOverride?: NpcSpec) {
     this.role = role;
+    this.variantSeed = variantSeed;
     if (role === 'hermit') {
       this.object = buildAsteroid(120, variantSeed * 977 + 3, 0xb9b9a5);
       this.radius = 120;
