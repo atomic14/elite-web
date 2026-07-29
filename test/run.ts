@@ -15,6 +15,10 @@ import {
   checkJump, resolveJump, jumpCost, refusalMessage,
 } from '../src/game/hyperspace.ts';
 import {
+  Ordnance, ordnanceMessage, ECM_ENERGY_COST,
+} from '../src/game/ordnance.ts';
+import { World } from '../src/game/world.ts';
+import {
   WITCHSPACE_ESCAPE_COST, witchspaceChance, distanceTenths,
 } from '../src/galaxy/navigation.ts';
 import type { CommanderData } from '../src/game/commander.ts';
@@ -564,6 +568,107 @@ console.log('\nsystem population');
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
   }
+}
+
+// --- ordnance ---------------------------------------------------------------
+//
+// The point of these: there is no Game here, and no HUD. Ordnance used to need
+// a context object with a message() callback, so none of this was reachable.
+
+console.log('\nordnance');
+{
+  const armed = () => {
+    const world = new World();
+    const ord = new Ordnance(world);
+    const cmdr = {
+      missiles: 4, equipment: { ecm: true, energyBomb: true },
+    } as unknown as CommanderData;
+    return { world, ord, cmdr };
+  };
+  const at = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+  {
+    const { ord, cmdr } = armed();
+    check('arming is a toggle', ord.arm(cmdr) === 'armed' && ord.arm(cmdr) === 'unarmed');
+    cmdr.missiles = 0;
+    check('...but not with an empty rack', ord.arm(cmdr) === 'noMissiles');
+  }
+  {
+    const { world, ord, cmdr } = armed();
+    const npc = world.spawn('pirate', at(0, 0, -800), 1);
+    ord.arm(cmdr);
+    check('a ship in the sight locks',
+      ord.updateLock(at(0, 0, 0), at(0, 0, -1)) === 'locked' && ord.targetLock === npc);
+    check('...and re-arming says so, rather than dropping it',
+      ord.arm(cmdr) === 'alreadyLocked' && ord.targetLock === npc);
+  }
+  {
+    const { world, ord, cmdr } = armed();
+    world.spawn('asteroid', at(0, 0, -800), 1);
+    ord.arm(cmdr);
+    check('a rock does not', ord.updateLock(at(0, 0, 0), at(0, 0, -1)) === null);
+  }
+  {
+    const { world, ord, cmdr } = armed();
+    world.spawn('pirate', at(0, 0, 800), 1); // behind
+    ord.arm(cmdr);
+    check('nor does something behind you',
+      ord.updateLock(at(0, 0, 0), at(0, 0, -1)) === null);
+  }
+  {
+    const { world, ord, cmdr } = armed();
+    const npc = world.spawn('pirate', at(0, 0, -800), 1);
+    check('firing without a lock is refused',
+      ord.launch(cmdr, at(0, 0, 0)) === 'noLock' && cmdr.missiles === 4);
+    ord.arm(cmdr);
+    ord.updateLock(at(0, 0, 0), at(0, 0, -1));
+    check('firing with one spends a missile and puts it in the sky',
+      ord.launch(cmdr, at(0, 0, 0)) === 'away'
+      && cmdr.missiles === 3 && ord.missiles.length === 1);
+    check('...and leaves the launcher empty-handed',
+      ord.targetLock === null && !ord.armed);
+
+    // it should reach an 800-unit target well inside its life
+    let events: ReturnType<typeof ord.step> = [];
+    for (let i = 0; i < 600 && !events.length; i++) events = ord.step(1 / 60, at(0, 0, 0));
+    check('a missile runs its target down',
+      events.some((e) => e.kind === 'killed' && e.npc === npc));
+    check('...and is gone from the sky afterwards', ord.missiles.length === 0);
+  }
+  {
+    const { ord, cmdr } = armed();
+    ord.launchHostile(at(0, 0, -2000));
+    check('an incoming missile hits the player',
+      ord.missiles.length === 1);
+    let events: ReturnType<typeof ord.step> = [];
+    for (let i = 0; i < 900 && !events.length; i++) events = ord.step(1 / 60, at(0, 0, 0));
+    check('...for real damage', events.some((e) => e.kind === 'hitPlayer' && e.damage > 0));
+
+    // E.C.M. kills everything in the sky, ours included
+    ord.launchHostile(at(0, 0, -2000));
+    check('E.C.M. needs energy',
+      ord.triggerEcm(cmdr, ECM_ENERGY_COST - 0.01) === 'noEnergy' && ord.missiles.length === 1);
+    check('...and clears the sky when it has it',
+      ord.triggerEcm(cmdr, ECM_ENERGY_COST) === 'ecmFired' && ord.missiles.length === 0);
+    cmdr.equipment.ecm = false;
+    check('...and is refused when not fitted', ord.triggerEcm(cmdr, 10) === 'noEcm');
+  }
+  {
+    const { world, ord, cmdr } = armed();
+    world.spawn('pirate', at(0, 0, -100), 1);
+    world.spawn('thargoid', at(0, 0, -100), 2);
+    world.spawn('pirate', at(0, 0, -900_000), 3);
+    const r = ord.detonateEnergyBomb(cmdr, at(0, 0, 0));
+    check('the energy bomb catches what is close', r.reply === 'bombFired' && r.caught.length === 1);
+    check('...thargoids shrug it off',
+      !r.caught.some((n) => n.role === 'thargoid'));
+    check('...and it is a one-shot',
+      ord.detonateEnergyBomb(cmdr, at(0, 0, 0)).reply === 'noBomb');
+  }
+  check('every reply has a line', ([
+    'noMissiles', 'alreadyLocked', 'armed', 'unarmed', 'locked', 'noLock', 'away',
+    'incoming', 'noEcm', 'noEnergy', 'ecmFired', 'noBomb', 'bombFired',
+  ] as const).every((r) => ordnanceMessage(r).text.length > 0));
 }
 
 // --- hyperspace -------------------------------------------------------------

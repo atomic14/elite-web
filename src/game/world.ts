@@ -4,7 +4,9 @@
 // scenery — so a module that needs "what is out there" takes a World instead
 // of inventing its own view of the Game. Every extraction before this one had
 // to define its own context interface (OrdnanceContext, TradeContext,
-// ChartContext…) because there was nothing else to hand it.
+// ChartContext…) because there was nothing else to hand it. Those are all
+// gone now: a module that needs the sky takes a World, and a module that
+// needs nothing takes plain data.
 //
 // It owns objects and their lifetimes. It does NOT own rules: what a system
 // should contain lives in population.ts, what turns up later in encounters.ts,
@@ -62,6 +64,13 @@ export class World {
     this.scene3d.station.position.set(BANISHED, -BANISHED, 0);
     this.scene3d.sun.group.position.set(-BANISHED, BANISHED, 0);
   }
+
+  /**
+   * Put a loose object in the sky — a missile, a canister. The World owns the
+   * scene, so nothing else needs a handle on it.
+   */
+  attach(object: THREE.Object3D): void { this.scene.add(object); }
+  detach(object: THREE.Object3D): void { this.scene.remove(object); }
 
   spawn(role: NpcRole, position: THREE.Vector3, seed: number, spec?: NpcSpec): NpcShip {
     const npc = new NpcShip(role, position, seed, spec);

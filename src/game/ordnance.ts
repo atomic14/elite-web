@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { buildShip, MISSILE } from '../ships/geometry.ts';
 import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
+import type { World } from './world.ts';
 import { random } from './rng.ts';
 import { sfx } from '../audio.ts';
 import type { MissileSnapshot } from './snapshot.ts';
@@ -59,15 +60,35 @@ export type OrdnanceEvent =
   /** it ran out of life or its target died */
   | { kind: 'expired'; at: THREE.Vector3 };
 
-export interface OrdnanceContext {
-  readonly commander: CommanderData;
-  readonly npcs: readonly NpcShip[];
-  readonly playerPos: THREE.Vector3;
-  /** where the current view is pointing, for the lock cone */
-  viewDir(out: THREE.Vector3): THREE.Vector3;
-  message(text: string, seconds: number): void;
-  add(object: THREE.Object3D): void;
-  remove(object: THREE.Object3D): void;
+/**
+ * What a command did, for the Game to say out loud.
+ *
+ * This replaced a `message()` callback in a context interface. The callback
+ * was the only thing here shaped like its caller: it meant ordnance could not
+ * be used, or tested, without something that owned a HUD.
+ */
+export type OrdnanceReply =
+  | 'noMissiles' | 'alreadyLocked' | 'armed' | 'unarmed' | 'locked'
+  | 'noLock' | 'away' | 'incoming'
+  | 'noEcm' | 'noEnergy' | 'ecmFired' | 'noBomb' | 'bombFired';
+
+/** The line for a reply, so the wording lives with the rule. */
+export function ordnanceMessage(r: OrdnanceReply): { text: string; seconds: number } {
+  switch (r) {
+    case 'noMissiles': return { text: 'NO MISSILES', seconds: 2 };
+    case 'alreadyLocked': return { text: 'ALREADY LOCKED — U TO UNARM', seconds: 2 };
+    case 'armed': return { text: 'MISSILE ARMED', seconds: 2 };
+    case 'unarmed': return { text: 'MISSILE UNARMED', seconds: 2 };
+    case 'locked': return { text: 'MISSILE LOCKED', seconds: 2 };
+    case 'noLock': return { text: 'NO TARGET LOCK', seconds: 2 };
+    case 'away': return { text: 'MISSILE AWAY', seconds: 2 };
+    case 'incoming': return { text: 'INCOMING MISSILE', seconds: 3 };
+    case 'noEcm': return { text: 'NO E.C.M. FITTED', seconds: 2 };
+    case 'noEnergy': return { text: 'INSUFFICIENT ENERGY FOR E.C.M.', seconds: 2 };
+    case 'ecmFired': return { text: 'E.C.M. ACTIVATED', seconds: 2 };
+    case 'noBomb': return { text: 'NO ENERGY BOMB FITTED', seconds: 3 };
+    case 'bombFired': return { text: 'ENERGY BOMB DETONATED', seconds: 4 };
+  }
 }
 
 export class Ordnance {
@@ -76,30 +97,26 @@ export class Ordnance {
   targetLock: NpcShip | null = null;
   armed = false;
 
-  private readonly ctx: () => OrdnanceContext;
+  private readonly world: World;
   private readonly tmp = new THREE.Vector3();
   private readonly tmpQ = new THREE.Quaternion();
   private readonly tmpM = new THREE.Matrix4();
 
-  constructor(ctx: () => OrdnanceContext) {
-    this.ctx = ctx;
+  /** Missiles live in the world: that is where they are drawn and what they hunt. */
+  constructor(world: World) {
+    this.world = world;
   }
 
   /** Arm a missile, if there is one to arm. */
-  arm(): void {
-    const ctx = this.ctx();
-    if (ctx.commander.missiles <= 0) {
-      ctx.message('NO MISSILES', 2);
+  arm(commander: CommanderData): OrdnanceReply {
+    if (commander.missiles <= 0) {
       sfx.beep(180);
-      return;
+      return 'noMissiles';
     }
-    if (this.targetLock) {
-      ctx.message('ALREADY LOCKED — U TO UNARM', 2);
-      return;
-    }
+    if (this.targetLock) return 'alreadyLocked';
     this.armed = !this.armed;
-    ctx.message(this.armed ? 'MISSILE ARMED' : 'MISSILE UNARMED', 2);
     sfx.beep(this.armed ? 700 : 400, 0.08);
+    return this.armed ? 'armed' : 'unarmed';
   }
 
   disarm(): void {
@@ -107,57 +124,53 @@ export class Ordnance {
     this.armed = false;
   }
 
-  /** While armed, lock onto whatever enters the sight. */
-  updateLock(): void {
-    if (!this.armed || this.targetLock) return;
-    const ctx = this.ctx();
-    const forward = ctx.viewDir(this.tmp);
+  /**
+   * While armed, lock onto whatever enters the sight.
+   * @param viewDir where the current view points — the lock cone's axis.
+   */
+  updateLock(playerPos: THREE.Vector3, viewDir: THREE.Vector3): OrdnanceReply | null {
+    if (!this.armed || this.targetLock) return null;
     let best: NpcShip | null = null;
     let bestAngle = LOCK_CONE;
-    for (const npc of ctx.npcs) {
+    for (const npc of this.world.npcs) {
       if (!npc.alive || npc.role === 'asteroid') continue;
-      const to = npc.object.position.clone().sub(ctx.playerPos);
+      const to = npc.object.position.clone().sub(playerPos);
       if (to.length() > LOCK_RANGE) continue;
-      const angle = forward.angleTo(to.normalize());
+      const angle = viewDir.angleTo(to.normalize());
       if (angle < bestAngle) { bestAngle = angle; best = npc; }
     }
-    if (best) {
-      this.targetLock = best;
-      ctx.message('MISSILE LOCKED', 2);
-      sfx.beep(1200, 0.12);
-    }
+    if (!best) return null;
+    this.targetLock = best;
+    sfx.beep(1200, 0.12);
+    return 'locked';
   }
 
-  /** Fire at the locked target. @returns true if one left the rail. */
-  launch(): boolean {
-    const ctx = this.ctx();
-    if (ctx.commander.missiles <= 0) { sfx.beep(180); return false; }
+  /** Fire at the locked target. */
+  launch(commander: CommanderData, playerPos: THREE.Vector3): OrdnanceReply | null {
+    if (commander.missiles <= 0) { sfx.beep(180); return null; }
     if (!this.targetLock) {
-      ctx.message('NO TARGET LOCK', 2);
       sfx.beep(220);
-      return false;
+      return 'noLock';
     }
-    ctx.commander.missiles -= 1;
-    this.spawn(ctx, ctx.playerPos, this.targetLock);
+    commander.missiles -= 1;
+    this.spawn(playerPos, this.targetLock);
     this.targetLock = null;
     this.armed = false;
-    ctx.message('MISSILE AWAY', 2);
     sfx.missile();
-    return true;
+    return 'away';
   }
 
   /** An NPC fires one at the player. */
-  launchHostile(from: THREE.Vector3): void {
-    const ctx = this.ctx();
-    this.spawn(ctx, from, null);
-    ctx.message('INCOMING MISSILE', 3);
+  launchHostile(from: THREE.Vector3): OrdnanceReply {
+    this.spawn(from, null);
     sfx.missile();
+    return 'incoming';
   }
 
-  private spawn(ctx: OrdnanceContext, from: THREE.Vector3, target: NpcShip | null): void {
+  private spawn(from: THREE.Vector3, target: NpcShip | null): void {
     const object = buildShip(MISSILE, target ? 0xffd0b0 : 0xff9a8a);
     object.position.copy(from);
-    ctx.add(object);
+    this.world.attach(object);
     this.missiles.push({ object, target, life: target ? MISSILE_LIFE : HOSTILE_MISSILE_LIFE });
   }
 
@@ -165,45 +178,39 @@ export class Ordnance {
    * Fire the E.C.M.: every missile in the sky dies, ours included.
    * @returns true if it was actually used.
    */
-  triggerEcm(energy: number): boolean {
-    const ctx = this.ctx();
-    if (!ctx.commander.equipment.ecm) {
-      ctx.message('NO E.C.M. FITTED', 2);
+  triggerEcm(commander: CommanderData, energy: number): OrdnanceReply {
+    if (!commander.equipment.ecm) {
       sfx.beep(220);
-      return false;
+      return 'noEcm';
     }
     if (energy < ECM_ENERGY_COST) {
-      ctx.message('INSUFFICIENT ENERGY FOR E.C.M.', 2);
       sfx.beep(180);
-      return false;
+      return 'noEnergy';
     }
     for (const m of [...this.missiles]) this.destroy(m);
-    ctx.message('E.C.M. ACTIVATED', 2);
     sfx.ecm();
-    return true;
+    return 'ecmFired';
   }
 
-  /** Everything within range, gone. @returns what it caught. */
-  detonateEnergyBomb(): NpcShip[] {
-    const ctx = this.ctx();
-    if (!ctx.commander.equipment.energyBomb) {
-      ctx.message('NO ENERGY BOMB FITTED', 3);
+  /** Everything within range, gone. @returns the reply, and what it caught. */
+  detonateEnergyBomb(
+    commander: CommanderData, playerPos: THREE.Vector3,
+  ): { reply: OrdnanceReply; caught: NpcShip[] } {
+    if (!commander.equipment.energyBomb) {
       sfx.beep(220);
-      return [];
+      return { reply: 'noBomb', caught: [] };
     }
-    ctx.commander.equipment.energyBomb = false;
-    const caught = ctx.npcs.filter((n) =>
+    commander.equipment.energyBomb = false;
+    const caught = this.world.npcs.filter((n) =>
       n.alive && n.role !== 'thargoid'   // thargoids shrug it off
-      && n.object.position.distanceTo(ctx.playerPos) <= ENERGY_BOMB_RANGE);
+      && n.object.position.distanceTo(playerPos) <= ENERGY_BOMB_RANGE);
     for (const m of [...this.missiles]) this.destroy(m);
-    ctx.message('ENERGY BOMB DETONATED', 4);
     sfx.explosion();
-    return [...caught];
+    return { reply: 'bombFired', caught: [...caught] };
   }
 
   /** One frame of missile flight. @returns what the Game must act on. */
-  step(dt: number): OrdnanceEvent[] {
-    const ctx = this.ctx();
+  step(dt: number, playerPos: THREE.Vector3): OrdnanceEvent[] {
     const events: OrdnanceEvent[] = [];
     for (const m of [...this.missiles]) {
       m.life -= dt;
@@ -212,7 +219,7 @@ export class Ordnance {
         this.destroy(m);
         continue;
       }
-      const targetPos = m.target ? m.target.object.position : ctx.playerPos;
+      const targetPos = m.target ? m.target.object.position : playerPos;
       const dir = this.tmp.copy(targetPos).sub(m.object.position);
       const dist = dir.length();
 
@@ -241,7 +248,7 @@ export class Ordnance {
 
   /** Drop a missile without an event — the caller has already decided why. */
   destroy(m: Missile): void {
-    this.ctx().remove(m.object);
+    this.world.detach(m.object);
     const i = this.missiles.indexOf(m);
     if (i >= 0) this.missiles.splice(i, 1);
   }
@@ -279,7 +286,7 @@ export class Ordnance {
     const object = buildShip(MISSILE, target ? 0xffd0b0 : 0xff9a8a);
     object.position.copy(pos);
     object.quaternion.copy(quat);
-    this.ctx().add(object);
+    this.world.attach(object);
     this.missiles.push({ object, target, life });
   }
 }

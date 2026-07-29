@@ -12,13 +12,36 @@ Everything else is a consequence, and each consequence is testable:
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
 | the renderer never writes state | you can delete it and still simulate | partly |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 198 tests, no browser | done |
+| every rule is unit-testable headless | 275 tests, no browser | done |
+| nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
 kept in step by hope**. It produced NPCs firing 5.4x too fast in training, four
 copies of the chart metric, the player's damage model living in a comment, a
 market that rerolled on reload, and a galaxy that quietly diverged from itself
 because its save rounded to three decimal places.
+
+**The rule for what a module may know (Chris's framing — single
+responsibility, and things should not need to know about each other):** a
+module may depend on data, on leaf utilities, and on the `World` if it
+genuinely lives in the sky. It may **not** depend on the shape of its caller.
+
+The tell is a callback that reaches back out — `message()`, `add()`,
+`remove()` — or a hand-rolled `SomethingContext` interface. Both mean the
+module cannot be used, or tested, without something Game-shaped standing
+behind it. There were five such interfaces; there are now none. The pattern
+that replaced them:
+
+> **A module decides and reports. The caller applies the consequences.**
+
+`stepTrumbles` returns events and `trumbleMessage` phrases them. `checkJump`
+returns a refusal and the Game decides a refusal is a beep. `Ordnance.arm()`
+returns `'noMissiles'`; it has never heard of a HUD. This is why 20 ordnance
+tests exist that could not be written at all a week ago — there was no way to
+construct one without a Game.
+
+Only `main.ts` imports `game.ts`. That arrow points one way and should stay
+that way; if a module starts wanting the Game, the answer is a return value.
 
 **The rule for what belongs in state:** anything that drives behaviour and is
 not a constant. A value worked out at runtime — even once, even at spawn — is
@@ -27,8 +50,9 @@ an NPC's does not.
 
 ### Known gaps against it
 
-- `game.ts` is 2788 lines with 39 imports. It is the orchestrator, but it
-  still implements docking, hyperspace, missions and missiles.
+- `game.ts` is 2458 lines. It is the orchestrator, but it still implements
+  docking, the law, and the death/respawn path. Hyperspace, missions,
+  missiles, trumbles, spawning and the ten screens have moved out.
 - `npc.ts` is 1223 lines and holds behaviour, brain flight, explosions and
   tracers — the next `game.ts`.
 - State is in `NpcState` and `Game.session`, but ALSO in `PlayerShip`,

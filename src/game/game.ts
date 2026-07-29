@@ -42,7 +42,10 @@ import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer, CC_MAX_SPEED, CC_ACCEL } from './combat-computer.ts';
 import { traceShot } from './shot.ts';
-import { Ordnance, ECM_ENERGY_COST, type Missile } from './ordnance.ts';
+import {
+  Ordnance, ordnanceMessage, ECM_ENERGY_COST,
+  type Missile, type OrdnanceReply,
+} from './ordnance.ts';
 import {
   laserForView, canFire, chargeShot, hitCone, LASER_RANGE, AIM_ASSIST,
   npcHitChance, npcShotDamage, npcPrefersMissile, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE,
@@ -410,15 +413,7 @@ export class Game {
   // combat computer: the jameson-defend policy flying the player's ship
   private readonly combatComputer = new CombatComputer();
   /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
-  private readonly ordnance = new Ordnance(() => ({
-    commander: this.commander,
-    npcs: this.world.npcs,
-    playerPos: this.player.position,
-    viewDir: (out) => this.viewDir(out),
-    message: (text, seconds) => this.hud.showMessage(text, seconds),
-    add: (o) => this.world.scene.add(o),
-    remove: (o) => this.world.scene.remove(o),
-  }));
+  private readonly ordnance = new Ordnance(this.world);
 
   /** Missiles in flight. Owned by `ordnance`; exposed for the HUD and saves. */
   get missiles(): Missile[] { return this.ordnance.missiles; }
@@ -431,7 +426,7 @@ export class Game {
 
   /** Apply what the ordnance did. It reports; the consequences are ours. */
   private applyOrdnance(dt: number): void {
-    for (const e of this.ordnance.step(dt)) {
+    for (const e of this.ordnance.step(dt, this.player.position)) {
       if (e.kind === 'killed') {
         e.npc.takeDamage(99, undefined, true);
         this.destroyNpc(e.npc);
@@ -450,22 +445,41 @@ export class Game {
     }
   }
 
-  private armMissile(): void { this.ordnance.arm(); }
-  private updateMissileLock(): void { this.ordnance.updateLock(); }
-  private launchMissile(): void { this.ordnance.launch(); }
+  /** Ordnance reports what it did; saying it is ours. */
+  private say(reply: OrdnanceReply | null): void {
+    if (!reply) return;
+    const m = ordnanceMessage(reply);
+    this.hud.showMessage(m.text, m.seconds);
+  }
+
+  private armMissile(): void { this.say(this.ordnance.arm(this.commander)); }
+
+  private updateMissileLock(): void {
+    this.say(this.ordnance.updateLock(this.player.position, this.viewDir(this.tmp)));
+  }
+
+  private launchMissile(): void {
+    this.say(this.ordnance.launch(this.commander, this.player.position));
+  }
 
   private triggerEcm(): void {
-    if (this.ordnance.triggerEcm(this.energy)) this.energy -= ECM_ENERGY_COST;
+    const reply = this.ordnance.triggerEcm(this.commander, this.energy);
+    if (reply === 'ecmFired') this.energy -= ECM_ENERGY_COST;
+    this.say(reply);
   }
 
   private detonateEnergyBomb(): void {
+    const { reply, caught } = this.ordnance.detonateEnergyBomb(
+      this.commander, this.player.position);
+    this.say(reply);
+    if (reply !== 'bombFired') return;   // no bomb fitted: no flash either
     const flash = document.getElementById('bomb-flash');
     if (flash) {
       flash.classList.add('boom');
       void flash.offsetWidth;
       flash.classList.remove('boom');
     }
-    for (const npc of this.ordnance.detonateEnergyBomb()) {
+    for (const npc of caught) {
       npc.takeDamage(99, this.player.position, true);
       this.destroyNpc(npc);
     }
@@ -473,7 +487,7 @@ export class Game {
 
   private enemyLaunchMissile(npc: NpcShip): void {
     npc.missiles -= 1;
-    this.ordnance.launchHostile(npc.nosePosition(this.tmp).clone());
+    this.say(this.ordnance.launchHostile(npc.nosePosition(this.tmp).clone()));
   }
 
   /**
