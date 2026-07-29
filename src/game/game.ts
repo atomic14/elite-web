@@ -8,15 +8,22 @@
 // The world's own motion is NOT here. `world-step.ts` owns the five phases of
 // flight and steps them with no HUD, no keyboard and no renderer; this file
 // hands it a FlightDemand and applies the events it returns. Neither is the
-// save (`persistence.ts`) nor the two station transitions (`station.ts`). What
-// that leaves behind is orchestration: the frame, the mode machine, input
-// routing, and the consequences the three of them report.
+// save (`persistence.ts`), the two station transitions (`station.ts`), the two
+// computers that fly the ship for you (`autopilot.ts`), nor — since the
+// command layer went in — the KEY BINDINGS (`controls.ts`). What that leaves
+// behind is orchestration: the frame, the mode machine, the routing, and the
+// consequences the modules report.
 //
 // The shape repeats deliberately. Each of those modules gets ONE host object
 // literal — `stepHost()`, `persistenceHost()`, `stationHost()` — listing the
 // verbs it may ask of the Game, and returns events the matching `apply*` puts
 // on the HUD. Anything that DRAWS from the seeded rng is a host CALL and never
 // a deferred event, because the order of draws is the world's determinism.
+//
+// Input follows the same split, and it is the one that opens a door: the
+// player, a replay and an AI now reach the game through the same two verbs.
+// `controls.ts` turns an input into `Command`s and `runCommand` below applies
+// them, exactly as `flightDemand`/`PlayerShip.update` already did for flying.
 //
 // `window.__game` exposes the instance for the autopilot test harness
 // (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
@@ -35,7 +42,7 @@ import { Input } from '../engine/input.ts';
 import { flightDemand } from '../engine/flight-controls.ts';
 import { layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
 import { Hud } from '../hud/hud.ts';
-import { buildHudFrame, hostilesNear } from '../hud/hud-binding.ts';
+import { buildHudFrame } from '../hud/hud-binding.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip } from './npc.ts';
@@ -43,7 +50,6 @@ import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
 import {
   type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
-import { type DockPlan } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
@@ -62,6 +68,10 @@ import { Persistence, type PersistenceHost } from './persistence.ts';
 import { Station, slotNormal, type StationHost, type StationEvent } from './station.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer } from './combat-computer.ts';
+import { Autopilot, type AutopilotEvent } from './autopilot.ts';
+import {
+  commandsFor, globalCommands, type Command, type ControlMode,
+} from './controls.ts';
 import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
   type Missile, type OrdnanceReply,
@@ -94,30 +104,6 @@ function cheatMode(): boolean {
   return !!(globalThis as unknown as Record<string, unknown>).__cheat;
 }
 
-
-/**
- * Grazing radius for drifting cargo, in world units. Canisters are ~12 units
- * across, so an exact ray needs 1.4 degrees of accuracy at 500m and they felt
- * unhittable. They're not a skill target the way a fighter is — shooting one
- * is a deliberate act — so they get a flat, generous tolerance instead of the
- * silhouette-proportional one ships get.
- */
-
-/**
- * Aim assist: an angular allowance ON TOP of the target's silhouette, so a
- * shot that is nearly right still connects.
- *
- * Chris's idea, and it is the player's half of the same problem the NPCs
- * have. A Sidewinder at 500 units subtends 1.9 degrees; holding a human hand
- * inside that while both ships manoeuvre is most of why fights felt like
- * flailing. The assist is a fixed 2 degrees at knife range, tapering to
- * nothing by ASSIST_FADE_END so that distance shooting still demands
- * precision and nobody snipes across three kilometres.
- *
- * The reticle is drawn to this exact angle (see #crosshair), which is the
- * point: the circle is not decoration, it is the envelope.
- */
-/** Depth in camera space at which the cockpit beams converge. */
 
 
 import {
@@ -285,21 +271,14 @@ export class Game {
   set market(v: MarketEntry[]) { this.state.market = v; }
 
 
-  /** missile armed but not yet locked (the original's yellow pylon) */
-
   /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
   private get encounterTimers(): EncounterTimers { return this.state.encounterTimers; }
   private set encounterTimers(v: EncounterTimers) { this.state.encounterTimers = v; }
-  /** counts down to the next mid-flight world save — see autoSave() */
-  /** the station only scrambles its defence fleet once per visit */
   /** trading with a rock hermit rather than a station */
   private get hermitMarket(): MarketEntry[] { return this.state.hermitMarket; }
   private set hermitMarket(v: MarketEntry[]) { this.state.hermitMarket = v; }
-  /** true after leaving a hermit, until you fly clear of it */
   /** waiting on the player to confirm erasing their commander */
   private pendingNewGame = false;
-  /** cursor position for arrow-key menu navigation (see handleMenuCursor) */
-  /** page of the new pilot's briefing */
   private readonly market_ = new MarketScreen(() => this.tradeContext());
   private readonly contracts_ = new ContractsScreen(() => ({
     commander: this.commander,
@@ -324,9 +303,6 @@ export class Game {
   /** the reception the current system laid on — surfaced for the HUD/tests */
   get lastThreat(): PirateThreat | null { return this.state.lastThreat; }
   set lastThreat(v: PirateThreat | null) { this.state.lastThreat = v; }
-  /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
-  /** what the hold was worth on arrival — sets what the pirates think they're owed */
-  /** seconds until a rescue answers the distress beacon (-1 = not sent) */
   get contractOffers(): Contract[] { return this.state.contractOffers; }
   set contractOffers(v: Contract[]) { this.state.contractOffers = v; }
   /**
@@ -336,12 +312,19 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   get contractSelected(): number { return this.contracts_.selected; }
   set contractSelected(v: number) { this.contracts_.selected = v; }
-  /** where ESC returns to from the DATA ON screen */
   /** console 'E' dwell */
   private get ecmDetectedTimer(): number { return this.state.ecmDetectedTimer; }
   private set ecmDetectedTimer(v: number) { this.state.ecmDetectedTimer = v; }
   // combat computer: the jameson-defend policy flying the player's ship
   private readonly combatComputer = new CombatComputer();
+  /**
+   * The two computers that fly the ship for you — see autopilot.ts.
+   *
+   * Kept beside `combatComputer` rather than owning it, because the SNAPSHOT
+   * needs the policy's mid-thought state (persistence.ts) and the autopilot is
+   * the thing that engages it.
+   */
+  private readonly autopilot = new Autopilot(this.state, this.combatComputer);
   /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
   private readonly ordnance = new Ordnance(this.world);
   /**
@@ -476,8 +459,6 @@ export class Game {
     a: new THREE.Vector3(), b: new THREE.Vector3(),
     q: new THREE.Quaternion(), ray: new THREE.Raycaster(),
   };
-  /** docking computer flying the ship in — see world-step.ts */
-  private get dockPlan(): DockPlan { return this.state.dockPlan; }
   /** scratch for the per-frame dashboard read, so it allocates nothing */
   private readonly hudScratch = {
     a: new THREE.Vector3(), b: new THREE.Vector3(),
@@ -1071,79 +1052,33 @@ export class Game {
     }
   }
 
-  // --- docking -------------------------------------------------------------
+  // --- the ship's autopilots -----------------------------------------------
+
+  /**
+   * The autopilots decide; the Game says it and plays it. Same shape as
+   * applyStep and applyStation — and the sounds are events here because that
+   * is what keeps autopilot.ts clear of audio.ts, and therefore node-safe.
+   */
+  private applyAutopilot(events: readonly AutopilotEvent[]): void {
+    for (const e of events) {
+      switch (e.kind) {
+        case 'message': this.hud.showMessage(e.text, e.seconds); break;
+        case 'beep': sfx.beep(e.hz, e.seconds); break;
+        case 'dockingMusic':
+          if (e.on) sfx.dockingMusic();
+          else sfx.stopDockingMusic();
+          break;
+      }
+    }
+  }
 
   private dockingComputer(): void {
-    if (!this.commander.equipment.dockingComputer) {
-      this.hud.showMessage('NO DOCKING COMPUTER FITTED', 3);
-      sfx.beep(220);
-      return;
-    }
-    const dist = this.player.position.distanceTo(this.world.station.position);
-    if (dist > 3500) {
-      this.hud.showMessage('STATION OUT OF RANGE', 3);
-      sfx.beep(220);
-      return;
-    }
-    // Fly it in, rather than teleporting. Uses the same primitive the traders
-    // do (game/docking.ts) — the hard part is roll, and it is the same problem
-    // for both. Press C again, or touch the controls, to take over.
-    this.dcEngaged = !this.dcEngaged;
-    this.dockPlan.phase = 'gate'; // fresh approach each time it's engaged
-    this.hud.showMessage(
-      this.dcEngaged ? 'DOCKING COMPUTER ENGAGED' : 'DOCKING COMPUTER OFF', 2);
-    if (this.dcEngaged) {
-      sfx.beep(700, 0.12);
-      sfx.dockingMusic(); // the C64 tradition, synthesised — see audio.ts
-    } else {
-      sfx.stopDockingMusic();
-    }
+    this.applyAutopilot(this.autopilot.toggleDocking());
   }
 
   /** @internal — driven by test/playtest.js */
   toggleCombatComputer(): void {
-    if (!this.commander.equipment.combatComputer) {
-      this.hud.showMessage('NO COMBAT COMPUTER FITTED', 3);
-      sfx.beep(220);
-      return;
-    }
-    if (this.ccEngaged) {
-      this.ccEngaged = false;
-      this.hud.showMessage('COMBAT COMPUTER OFF', 2);
-      return;
-    }
-    if (!hostilesNear(this.world.npcs, this.player.position, this.commander.legalStatus)) {
-      this.hud.showMessage('NO HOSTILES — COMBAT COMPUTER IDLE', 3);
-      sfx.beep(220);
-      return;
-    }
-    this.ccEngaged = true;
-    this.view = 0; // it aims the front laser
-    this.hud.showMessage('COMBAT COMPUTER ENGAGED — ANY FLIGHT KEY OVERRIDES', 4);
-    sfx.beep(1000, 0.12);
-  }
-
-  /**
-   * The jameson-defend policy flying the player's ship, at the trader-Cobra
-   * dynamics it trained in. Manual flight input disengages instantly.
-   *
-   * It only DECIDES: what comes back is a FlightDemand exactly like the one a
-   * pair of hands produces, and the same `PlayerShip.update` flies it.
-   *
-   * @returns null when it has just handed the ship back — the pilot's own
-   *          demand stands for this frame, as it did when this method applied
-   *          itself on top of manual flight.
-   */
-  private combatComputerDemand(dt: number): FlightDemand | null {
-    const manual = this.handsOn();
-    const step = this.combatComputer.step(
-      dt, this.player, this.sys, this.world.npcs, this.commander.legalStatus, manual, DEFEND_BRAIN);
-    if (step.kind === 'disengage') {
-      this.ccEngaged = false;
-      this.hud.showMessage(step.reason, step.reason === 'MANUAL OVERRIDE' ? 2 : 3);
-      return null;
-    }
-    return step.demand;
+    this.applyAutopilot(this.autopilot.toggleCombat());
   }
 
   /**
@@ -1315,8 +1250,11 @@ export class Game {
     // is ours to do, immediately after reading it
     if (this.input.mouseFlight) this.input.decayMouse(dt);
     if (!this.ccEngaged) return hands;
-    const auto = this.combatComputerDemand(dt);
-    return auto ? { ...auto, fire: auto.fire || hands.fire } : hands;
+    const auto = this.autopilot.combatDemand(dt, this.handsOn(), DEFEND_BRAIN);
+    this.applyAutopilot(auto.events);
+    return auto.demand
+      ? { ...auto.demand, fire: auto.demand.fire || hands.fire }
+      : hands;
   }
 
 
@@ -1349,12 +1287,19 @@ export class Game {
 
   // --- input ---------------------------------------------------------------
 
+  /**
+   * Read the controls, and do what they asked for.
+   *
+   * The bindings are a table in controls.ts and the consequences are
+   * `runCommand` below — the same decides/applies split as the world step and
+   * the station, applied to the keyboard. What is left here is the routing
+   * that genuinely belongs to the orchestrator: the help panel is global, the
+   * screen stack gets first refusal, and only then does the base state get the
+   * frame.
+   */
   private handleInput(dt: number): void {
     const i = this.input;
-    // ? toggles the controls guide (plain / is the classic decelerate key)
-    if (i.pressed('Question')) {
-      document.getElementById('help')!.classList.toggle('hidden');
-    }
+    for (const c of globalCommands(i)) this.runCommand(c);
 
     // The host runs the menu cursor and gives the frame to the top screen.
     // Every overlay has migrated to the Screen contract, so if one is open it
@@ -1362,112 +1307,135 @@ export class Game {
     // states that are NOT screens.
     if (this.screens.update(i, dt)) return;
 
-    if (this.mode === 'docked') this.handleDockedKeys(i);
-    else if (this.mode === 'flight') this.handleFlightKeys(i);
-    else if (this.mode === 'dead') this.handleDeadKeys(i);
+    const mode = this.controlMode();
+    if (!mode) return;
+    for (const c of commandsFor(mode, i)) this.runCommand(c);
   }
 
-  /** The station menu: trade, outfit, take work, and leave. */
-  private handleDockedKeys(i: Input): void {
-    // the erase-your-career confirmation swallows every other key
-    if (this.pendingNewGame) {
-      if (i.pressed('KeyY')) this.newCommanderGame();
-      else if (i.pressed('KeyX')) this.exportSave(); // back it up first
-      else if (i.pressed('Escape') || i.pressed('KeyQ')) {
+  /**
+   * Which binding table is live.
+   *
+   * Null for a screen id with no registered screen: the old chain simply had
+   * no branch for it, and an unmigrated overlay must not fall through to the
+   * cockpit's keys.
+   */
+  private controlMode(): ControlMode | null {
+    if (this.mode === 'docked') return this.pendingNewGame ? 'confirmNewGame' : 'docked';
+    if (this.mode === 'flight') return 'flight';
+    if (this.mode === 'dead') return 'dead';
+    return null;
+  }
+
+  /**
+   * One command, one consequence.
+   *
+   * Deliberately one-liners: anything longer than a line belongs in the module
+   * that owns the rule. This is the whole surface a replay, an AI or a test
+   * drives the game through — the same one a pair of hands does, since the
+   * keyboard reaches it only through controls.ts.
+   */
+  private runCommand(c: Command): void {
+    switch (c) {
+      // --- global -----------------------------------------------------------
+      case 'toggleHelp': document.getElementById('help')!.classList.toggle('hidden'); break;
+
+      // --- the station menu -------------------------------------------------
+      case 'launch': this.launch(); break;
+      case 'openMarket': this.screens.open('market'); break;
+      case 'openContracts': this.screens.open('contracts'); break;
+      case 'openEquip': this.screens.open('equip'); break;
+      case 'openBriefing': this.screens.open('briefing'); break;
+      case 'openSaves': this.openSaves(); break;
+      case 'openSystemData': this.openSystemData(this.system, 'docked'); break;
+      case 'exportSave': this.exportSave(); break;
+      case 'importSave': this.importSave(); break;
+      case 'toggleLayout': this.switchLayout(); break;
+
+      // --- erasing a career -------------------------------------------------
+      case 'askNewGame':
+        this.pendingNewGame = true;
+        renderNewGameConfirm(this.system, this.commander);
+        break;
+      case 'newGame': this.newCommanderGame(); break;
+      case 'cancelNewGame':
         this.pendingNewGame = false;
         renderDockedMenu(this.system, this.commander, this.station.missionText());
-      }
+        break;
+
+      // --- shared between the menu and the cockpit --------------------------
+      case 'openChart': this.openChart(this.cameFrom()); break;
+      case 'openLocalChart': this.openLocalChart(this.cameFrom()); break;
+      case 'openStatus': this.openStatus(this.cameFrom()); break;
+
+      // --- the cockpit ------------------------------------------------------
+      case 'view0': this.setView(0); break;
+      case 'view1': this.setView(1); break;
+      case 'view2': this.setView(2); break;
+      case 'view3': this.setView(3); break;
+      case 'armMissile': this.armMissile(); break;
+      case 'launchMissile': this.launchMissile(); break;
+      case 'disarmMissile': this.disarmMissile(); break;
+      case 'fireEcm': this.triggerEcm(); break;
+      case 'detonateEnergyBomb': this.detonateEnergyBomb(); break;
+      case 'toggleCombatComputer': this.toggleCombatComputer(); break;
+      case 'toggleDockingComputer': this.dockingComputer(); break;
+      case 'toggleMouseFlight': this.toggleMouseFlight(); break;
+      case 'toggleTorus': this.toggleTorus(); break;
+      case 'startHyperspace': this.startHyperspace(); break;
+      case 'galacticJump': this.galacticJump(); break;
+      case 'distressBeacon': this.sendDistressBeacon(); break;
+      case 'jettison1': this.jettisonCargo(1); break;
+      case 'jettison5': this.jettisonCargo(5); break;
+
+      // --- after the end ----------------------------------------------------
+      case 'respawn': this.respawn(); break;
+    }
+  }
+
+  /**
+   * Where an overlay was opened from, so Escape puts the ship back.
+   * Only ever asked while docked or in flight — the dead press one key.
+   */
+  private cameFrom(): 'docked' | 'flight' {
+    return this.baseMode === 'docked' ? 'docked' : 'flight';
+  }
+
+  private switchLayout(): void {
+    const layout = toggleLayout();
+    this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
+    renderDockedMenu(this.system, this.commander, this.station.missionText());
+  }
+
+  private disarmMissile(): void {
+    if (!this.targetLock && !this.missileArmed) return;
+    this.ordnance.disarm();   // one home for "no lock, no pylon" — ordnance.ts
+    this.hud.showMessage('MISSILE DISARMED', 2);
+    sfx.beep(500, 0.06);
+  }
+
+  private toggleMouseFlight(): void {
+    if (this.input.mouseFlight) {
+      this.input.releaseMouseFlight();
+      this.hud.showMessage('MOUSE FLIGHT OFF', 2);
+    } else {
+      this.input.requestMouseFlight();
+      this.hud.showMessage('MOUSE FLIGHT — ESC OR V TO RELEASE', 4);
+    }
+  }
+
+  private toggleTorus(): void {
+    if (this.massLocked()) {
+      this.hud.showMessage('MASS LOCKED', 2);
+      sfx.beep(220);
       return;
     }
-    if (i.pressed('KeyL')) this.launch();
-    else if (i.pressed('KeyM')) {
-      this.screens.open('market');
-    } else if (i.pressed('KeyC')) {
-      this.screens.open('contracts');
-    } else if (i.pressed('KeyE')) {
-      this.screens.open('equip');
-    // Q, not a shifted N. ⇧N shared a key with the local chart, and
-    // cancelling the confirm with N while still holding shift re-opened it
-    // on the very next tap — you could get stuck in a loop you couldn't
-    // type your way out of. A destructive action should not share a key
-    // with anything, modifier or not.
-    } else if (i.pressed('KeyQ')) {
-      this.pendingNewGame = true;
-      renderNewGameConfirm(this.system, this.commander);
-    }
-    else if (i.pressed('KeyH')) this.screens.open('briefing');
-    else if (i.pressed('KeyS')) this.openSaves();
-    else if (i.pressed('KeyN')) this.openLocalChart('docked');
-    else if (i.pressed('KeyG')) this.openChart('docked');
-    else if (i.pressed('KeyI')) this.openStatus('docked');
-    // The menu has advertised "D DATA ON SYSTEM" all along with nothing
-    // behind it while docked — the only KeyD handlers were on the charts
-    // and the save screen. Reports the system you are standing on.
-    else if (i.pressed('KeyD')) this.openSystemData(this.system, 'docked');
-    else if (i.pressed('KeyX')) this.exportSave();
-    else if (i.pressed('KeyZ')) this.importSave();
-    else if (i.pressed('KeyB')) {
-      const layout = toggleLayout();
-      this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
-      renderDockedMenu(this.system, this.commander, this.station.missionText());
-    }
-  }
-
-  /** The cockpit: views, weapons, the ship's computers, and the charts. */
-  private handleFlightKeys(i: Input): void {
-    for (let v = 0; v < 4; v++) {
-      if (i.pressed(`Digit${v + 1}`)) this.setView(v);
-    }
-    if (i.pressed('KeyG')) this.openChart('flight');
-    else if (i.pressed('KeyN')) this.openLocalChart('flight');
-    else if (i.pressed('KeyI')) this.openStatus('flight');
-    else if (i.pressed('KeyT')) this.armMissile();
-    else if (i.pressed('KeyM')) this.launchMissile();
-    else if (i.pressed('KeyU')) {
-      if (this.targetLock || this.missileArmed) {
-        this.targetLock = null;
-        this.missileArmed = false;
-        this.hud.showMessage('MISSILE DISARMED', 2);
-        sfx.beep(500, 0.06);
-      }
-    } else if (i.pressed('KeyE')) this.triggerEcm();
-    else if (i.pressed('KeyK')) this.toggleCombatComputer();
-    else if (i.pressed('KeyV')) {
-      if (this.input.mouseFlight) {
-        this.input.releaseMouseFlight();
-        this.hud.showMessage('MOUSE FLIGHT OFF', 2);
-      } else {
-        this.input.requestMouseFlight();
-        this.hud.showMessage('MOUSE FLIGHT — ESC OR V TO RELEASE', 4);
-      }
-    }
-    else if (i.pressed('Tab')) this.detonateEnergyBomb();
-    else if (i.pressed('KeyC')) this.dockingComputer();
-    else if (i.pressed('KeyH')) {
-      if (i.held('ShiftLeft', 'ShiftRight')) this.galacticJump();
-      else this.startHyperspace();
-    }
-    else if (i.pressed('KeyB')) this.sendDistressBeacon();
-    else if (i.pressed('KeyY')) this.jettisonCargo(i.held('ShiftLeft', 'ShiftRight') ? 5 : 1);
-    else if (i.pressed('KeyJ')) {
-      if (this.massLocked()) {
-        this.hud.showMessage('MASS LOCKED', 2);
-        sfx.beep(220);
-      } else {
-        this.torusEngaged = !this.torusEngaged;
-        // Engaging the drive opens the throttle. Nobody engages a jump
-        // drive in order to crawl, and having to hold the accelerator
-        // afterwards was busywork with one sensible answer.
-        if (this.torusEngaged) this.player.speed = this.player.maxSpeed;
-        this.hud.showMessage(this.torusEngaged ? 'TORUS DRIVE ENGAGED' : 'TORUS DRIVE OFF', 2);
-        if (this.torusEngaged) sfx.beep(1000, 0.15);
-      }
-    }
-  }
-
-  /** The only key that matters after you have been destroyed. */
-  private handleDeadKeys(i: Input): void {
-if (i.pressed('Enter')) this.respawn();
+    this.torusEngaged = !this.torusEngaged;
+    // Engaging the drive opens the throttle. Nobody engages a jump drive in
+    // order to crawl, and having to hold the accelerator afterwards was
+    // busywork with one sensible answer.
+    if (this.torusEngaged) this.player.speed = this.player.maxSpeed;
+    this.hud.showMessage(this.torusEngaged ? 'TORUS DRIVE ENGAGED' : 'TORUS DRIVE OFF', 2);
+    if (this.torusEngaged) sfx.beep(1000, 0.15);
   }
 
   /** @internal — driven by test/playtest.js */

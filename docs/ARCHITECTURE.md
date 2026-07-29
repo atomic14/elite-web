@@ -9,10 +9,10 @@ core engine, could we do it?**
 `npm run portability` answers it. Today:
 
 ```
-ports unchanged      9024 lines   59%   the game itself
-platform             4308 lines   28%   renderer, HUD, screens, input, audio,
+ports unchanged     10066 lines   63%   the game itself
+platform             4288 lines   27%   renderer, HUD, screens, input, audio,
                                         storage — you EXPECT to rewrite these
-contaminated         1872 lines   12%   game/game.ts, and nothing else
+contaminated         1626 lines   10%   game/game.ts, and nothing else
 ```
 
 The third number is the one to drive down; it was 17% across three files
@@ -83,9 +83,10 @@ an NPC's does not.
 
 ### Known gaps against it
 
-- `game.ts` is 1648 lines, down from 3244. It is the orchestrator, and what
-  is left is mostly orchestration: the fixed-timestep loop, input routing, the
-  docked/flight mode machine, and the consequences the modules report. The
+- `game.ts` is 1625 lines, down from 3244. It is the orchestrator, and what
+  is left is mostly orchestration: the fixed-timestep loop, the command
+  switch, the docked/flight mode machine, and the consequences the modules
+  report. The
   rules have moved to the ~30 files around it — and the **world step itself**
   is now `world-step.ts`: the five phases of flight, with the fourteen
   `hud.showMessage` calls inside them turned into returned `StepEvent`s. It
@@ -123,10 +124,17 @@ an NPC's does not.
   `engine/flight-controls.ts` from a keyboard, `combat-computer.ts` from the
   defence brain, a harness by writing four numbers down. `player.ts` no longer
   imports `Input`, and `game.ts` has one path: produce a demand, apply it.
-  What is left is the rest of the keyboard: `step()` still reads command keys
-  (missiles, charts, hyperspace) directly, so a replay can fly the ship but
-  cannot yet press T. The docking computer is the other holdout — it asks for
-  a HEADING rather than a rate, and still steers on top.
+- **...and so does the rest of the keyboard.** `controls.ts` is the same move
+  for the discrete half: a binding TABLE over a two-method `CommandInput`,
+  turning taps into `Command`s that `game.ts`'s `runCommand` applies in
+  one-liners. "the player, an AI and a replay are not yet the same interface"
+  was the gap this line used to record; they are now — `commandsFor()` plus
+  `runCommand()` is the whole path, and `{ pressed, held }` is all a driver
+  needs. It is in the purity block, and `npm test` asserts what keys do for
+  the first time (the ⇧ modifiers, one command per frame, the confirmation
+  swallowing everything). The docking computer is the remaining holdout on
+  the flight side — it asks for a HEADING rather than a rate, and still steers
+  on top.
 - `Game`'s constructor calls `createRenderStack`, so a Game still needs a
   browser even though everything it simulates does not.
 
@@ -153,6 +161,8 @@ src/
   game/
     game.ts                 THE ORCHESTRATOR: the frame, input routing, the
                             mode machine, and every consequence modules report
+    controls.ts             the key bindings as a table: an input in,
+                            Commands out — a replay presses M the same way
     world-step.ts           one slice of the world, with nothing on screen:
                             the five phases of flight, reporting StepEvents
     station.ts              docking, launching, and the menu between them
@@ -182,6 +192,7 @@ src/
     systems.ts              energy, shields, laser heat, cabin temp, damage model
     collisions.ts           who is overlapping whom, and how to separate them
     combat-computer.ts      the defence brain flying the PLAYER's ship
+    autopilot.ts            is something else flying, and what does it want?
 
     law.ts                  contraband, fines, and how far your standing falls
     contracts.ts            work on offer, taking it, being paid for it,
@@ -297,7 +308,8 @@ fire, spawning, and the hyperspace *transition*. The flight loop has moved to
 `world-step.ts`, the save to `persistence.ts` and the docking/launch transitions
 to `station.ts`, and all three run headless; what is left blocking a fully
 browser-free `Game` is its constructor, which builds a renderer and DOM
-listeners, and the command keys `step()` still reads directly.
+listeners. The command keys are no longer part of that: `controls.ts` reads an
+input interface, not a browser.
 
 Two intentional oddities inside it:
 

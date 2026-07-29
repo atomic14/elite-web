@@ -87,9 +87,10 @@ vite.config.ts; add new pages there or they won't build.
    Hulls must stay left/right symmetric or the mirror becomes visible.
 5. **Money is integer tenths of a credit; fuel is tenths of a LY (max 70).**
 6. **Key bindings live in four places**: src/engine/keymap.ts (flight keys,
-   classic 1984 default + modern toggle), command keys in game.ts, the `?`
-   help panel (flight rows are rewritten by keymap.refreshHelpPanel), and
-   the README table. Change them together.
+   classic 1984 default + modern toggle), `BINDINGS` in
+   src/game/controls.ts (the command keys — a table now, not an if/else
+   chain in game.ts), the `?` help panel (flight rows are rewritten by
+   keymap.refreshHelpPanel), and the README table. Change them together.
 7. **Contract/market rules live in `src/game/contracts.ts`**, not game.ts,
    so the headless campaign simulator runs the *same* code the game does.
    Keep new economic rules there.

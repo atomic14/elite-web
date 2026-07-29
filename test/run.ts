@@ -59,6 +59,13 @@ import { seedWorld, random, rngState, restoreRng } from '../src/game/rng.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import {
+  commandsFor, globalCommands, BINDINGS,
+  type Command, type CommandInput, type ControlMode,
+} from '../src/game/controls.ts';
+import {
+  Autopilot, DOCK_COMPUTER_RANGE, type AutopilotEvent,
+} from '../src/game/autopilot.ts';
+import {
   isHostileToPlayer, NpcShip,
   NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_LASER_RANGE,
   BRAIN_ACCEL, MIN_CRUISE_FRACTION, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
@@ -628,6 +635,203 @@ console.log('\nscreen host');
     check('a data-row click reaches select()', h.click(row, noInput) && made.includes('select:market:7'));
     const key = { dataset: { key: 'KeyB' } } as unknown as HTMLElement;
     check('a data-key click is consumed as a keystroke', h.click(key, noInput));
+  }
+}
+
+// --- the command layer ------------------------------------------------------
+
+// Key handling was a hand-written `else if` chain of `input.pressed(...)`
+// inside game.ts, which is to say it was untestable: the only way to ask "does
+// M open the market" was to open a browser and press M. controls.ts turns the
+// bindings into a table over a two-method input, so these are the first tests
+// this project has ever had of what a key does.
+//
+// What they pin is the three rules the chain encoded implicitly, and each of
+// them is a real bug if it goes: one command per frame, the view keys running
+// independently of the rest, and shift being read before the tap is consumed.
+
+console.log('\ncommand layer');
+{
+  /** A keyboard that has already been pressed. Taps are consumed, as Input's are. */
+  const keys = (down: string[], held: string[] = []): CommandInput => {
+    const taps = new Map<string, number>();
+    for (const k of down) taps.set(k, (taps.get(k) ?? 0) + 1);
+    return {
+      pressed: (code) => {
+        const n = taps.get(code) ?? 0;
+        if (n <= 0) return false;
+        taps.set(code, n - 1);
+        return true;
+      },
+      held: (...codes) => codes.some((c) => held.includes(c)),
+    };
+  };
+  const cmds = (mode: ControlMode, down: string[], held: string[] = []): Command[] =>
+    commandsFor(mode, keys(down, held));
+  /** eq() compares by identity; a command list has to be compared by value. */
+  const eqc = (name: string, actual: Command[], expected: Command[]): void =>
+    eq(name, actual.join('|'), expected.join('|'));
+
+  // --- the bindings themselves, which are the point ---------------------------
+  eqc('L launches', cmds('docked', ['KeyL']), ['launch']);
+  eqc('M opens the market', cmds('docked', ['KeyM']), ['openMarket']);
+  eqc('D reports the system you are standing on', cmds('docked', ['KeyD']), ['openSystemData']);
+  eqc('T arms a missile', cmds('flight', ['KeyT']), ['armMissile']);
+  eqc('J is the torus drive', cmds('flight', ['KeyJ']), ['toggleTorus']);
+  eqc('Enter is the only key that answers the game over screen',
+    cmds('dead', ['Enter']), ['respawn']);
+  eqc('...and nothing else does', cmds('dead', ['KeyL', 'KeyM', 'Space']), []);
+  eqc('? is global, whatever the mode', globalCommands(keys(['Question'])), ['toggleHelp']);
+
+  // --- shift, read before the tap is consumed ---------------------------------
+  eqc('H jumps', cmds('flight', ['KeyH']), ['startHyperspace']);
+  eqc('⇧H is the galactic jump', cmds('flight', ['KeyH'], ['ShiftLeft']), ['galacticJump']);
+  eqc('...and the right-hand shift too', cmds('flight', ['KeyH'], ['ShiftRight']), ['galacticJump']);
+  eqc('Y dumps one tonne', cmds('flight', ['KeyY']), ['jettison1']);
+  eqc('⇧Y dumps five', cmds('flight', ['KeyY'], ['ShiftLeft']), ['jettison5']);
+  // the failure this ordering exists to prevent: reading pressed('KeyH') on the
+  // shifted entry first would eat the tap and leave the plain entry nothing
+  check('an unshifted tap survives the shifted entry above it',
+    cmds('flight', ['KeyH']).length === 1);
+
+  // --- one command per frame ---------------------------------------------------
+  eqc('two menu keys in one frame run the FIRST in table order, as the chain did',
+    cmds('docked', ['KeyE', 'KeyL']), ['launch']);
+  eqc('...and in the cockpit', cmds('flight', ['KeyJ', 'KeyT']), ['armMissile']);
+
+  // --- the view keys are independent -------------------------------------------
+  eqc('the four views are separate commands',
+    cmds('flight', ['Digit1', 'Digit2', 'Digit3', 'Digit4']),
+    ['view0', 'view1', 'view2', 'view3']);
+  eqc('a view key does not swallow the rest of the frame',
+    cmds('flight', ['Digit2', 'KeyG']), ['view1', 'openChart']);
+  eqc('...and the view is applied BEFORE it, so the chart opens from the new view',
+    cmds('flight', ['KeyG', 'Digit2']), ['view1', 'openChart']);
+
+  // --- the confirmation swallows every other key --------------------------------
+  eqc('Q asks before erasing a career', cmds('docked', ['KeyQ']), ['askNewGame']);
+  eqc('Y confirms it', cmds('confirmNewGame', ['KeyY']), ['newGame']);
+  eqc('X backs the commander up first', cmds('confirmNewGame', ['KeyX']), ['exportSave']);
+  eqc('Escape backs out', cmds('confirmNewGame', ['Escape']), ['cancelNewGame']);
+  eqc('...and so does Q, which is what asked', cmds('confirmNewGame', ['KeyQ']), ['cancelNewGame']);
+  eqc('L does NOT launch you out of the confirmation',
+    cmds('confirmNewGame', ['KeyL', 'KeyM', 'KeyE']), []);
+
+  // --- the table is a key map, so it must not contain a collision ----------------
+  for (const mode of ['docked', 'confirmNewGame', 'flight', 'dead'] as const) {
+    const seen = new Set<string>();
+    const clash = BINDINGS[mode].filter((b) => {
+      const id = `${b.key}:${b.shift ?? '?'}`;
+      if (seen.has(id)) return true;
+      seen.add(id);
+      return false;
+    });
+    check(`no two ${mode} bindings claim the same key and modifier`, clash.length === 0,
+      clash.map((b) => b.key).join(','));
+    // a plain entry ABOVE its shifted twin would consume the tap and lose the
+    // modified command — the ⇧H bug, in table form
+    for (let n = 0; n < BINDINGS[mode].length; n++) {
+      const b = BINDINGS[mode][n];
+      if (b.shift === undefined) continue;
+      check(`${mode}: the shifted ${b.key} is listed above the plain one`,
+        !BINDINGS[mode].slice(0, n).some((o) => o.key === b.key && o.shift === undefined));
+    }
+  }
+}
+
+// --- the ship's autopilots --------------------------------------------------
+
+// Both computers were methods of game.ts that talked straight to the HUD and
+// the AudioContext, so "does the docking computer refuse out of range" was a
+// question only a browser could answer. autopilot.ts reports events instead,
+// which makes the refusals — the half of this that players actually meet —
+// assertable under node.
+
+console.log('\nautopilots');
+{
+  const rig = (fit: Partial<Record<'dockingComputer' | 'combatComputer', boolean>> = {}) => {
+    seedWorld(99);
+    const state = freshState(newCommander());
+    state.world.build(state.systems[state.commander.systemIndex]);
+    Object.assign(state.commander.equipment, fit);
+    // parked on the slot, so distance is not what is being tested
+    state.player.position.copy(state.world.station.position);
+    return { state, auto: new Autopilot(state, new CombatComputer()) };
+  };
+  const texts = (events: readonly AutopilotEvent[]): string[] =>
+    events.flatMap((e) => (e.kind === 'message' ? [e.text] : []));
+
+  {
+    const { state, auto } = rig();
+    eq('an unfitted docking computer refuses',
+      texts(auto.toggleDocking())[0], 'NO DOCKING COMPUTER FITTED');
+    check('...and does not engage', !state.session.dcEngaged);
+    eq('an unfitted combat computer refuses',
+      texts(auto.toggleCombat())[0], 'NO COMBAT COMPUTER FITTED');
+    check('...and does not engage', !state.session.ccEngaged);
+  }
+
+  {
+    const { state, auto } = rig({ dockingComputer: true });
+    state.dockPlan.phase = 'run';
+    const on = auto.toggleDocking();
+    const phase: string = state.dockPlan.phase;
+    check('the docking computer engages', state.session.dcEngaged);
+    check('...and starts a fresh approach', phase === 'gate');
+    check('...with the music on',
+      on.some((e) => e.kind === 'dockingMusic' && e.on));
+    const off = auto.toggleDocking();
+    check('pressing it again hands the ship back', !state.session.dcEngaged);
+    check('...and stops the music',
+      off.some((e) => e.kind === 'dockingMusic' && !e.on));
+
+    state.player.position.copy(state.world.station.position)
+      .addScaledVector(new THREE.Vector3(1, 0, 0), DOCK_COMPUTER_RANGE + 1);
+    eq('and it will not take the job from across the system',
+      texts(auto.toggleDocking())[0], 'STATION OUT OF RANGE');
+    check('...so it stays off', !state.session.dcEngaged);
+  }
+
+  {
+    const { state, auto } = rig({ combatComputer: true });
+    eq('the combat computer refuses an empty sky',
+      texts(auto.toggleCombat())[0], 'NO HOSTILES — COMBAT COMPUTER IDLE');
+    check('...and stays off', !state.session.ccEngaged);
+
+    state.world.spawn('pirate',
+      state.player.position.clone().add(new THREE.Vector3(0, 0, -1200)), 1);
+    state.session.view = 2;
+    auto.toggleCombat();
+    check('with something hostile about, it engages', state.session.ccEngaged);
+    check('...and swings to the front view, because it aims the front laser',
+      state.session.view === 0);
+    eq('pressing it again hands the ship back',
+      texts(auto.toggleCombat())[0], 'COMBAT COMPUTER OFF');
+    check('...and it is off', !state.session.ccEngaged);
+  }
+
+  {
+    // the demand itself: the same FlightDemand a pair of hands produces
+    const { state, auto } = rig({ combatComputer: true });
+    state.world.spawn('pirate',
+      state.player.position.clone().add(new THREE.Vector3(0, 0, -1200)), 1);
+    auto.toggleCombat();
+    const flying = auto.combatDemand(1 / 60, false, defenceBrain());
+    check('it produces a demand, not a manoeuvre', flying.demand !== null);
+    check('...at the cruise limits it was trained in',
+      flying.demand?.limits?.maxSpeed === CC_MAX_SPEED);
+    check('...and says nothing while it is working', flying.events.length === 0);
+
+    const grabbed = auto.combatDemand(1 / 60, true, defenceBrain());
+    check('touching the controls takes the ship straight back',
+      grabbed.demand === null && !state.session.ccEngaged);
+    eq('...and says so', texts(grabbed.events)[0], 'MANUAL OVERRIDE');
+
+    // null brain = the weights failed to load; it must hand back, not fly blind
+    state.session.ccEngaged = true;
+    const noBrain = auto.combatDemand(1 / 60, false, null);
+    check('no policy means no autopilot',
+      noBrain.demand === null && !state.session.ccEngaged);
   }
 }
 
@@ -1644,6 +1848,15 @@ console.log('\npurity');
     // the whole world step, as of the extraction out of game.ts — this is the
     // line that says the simulation can advance without a browser
     'world-step.ts',
+    // the two computers that fly the ship for you. They reported straight to
+    // the HUD and the AudioContext; they report events now, which is the only
+    // reason this line can exist
+    'autopilot.ts',
+    // and the keyboard, which is the surprising one. controls.ts reads a
+    // two-method `CommandInput`, not `engine/input.ts` and not a DOM event, so
+    // a replay or an AI can ask for a command with an object literal — which
+    // is exactly what the tests above do.
+    'controls.ts',
   ];
   for (const f of PURE) {
     const src = readFileSync(new URL(`../src/game/${f}`, import.meta.url), 'utf8')
