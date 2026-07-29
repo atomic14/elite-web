@@ -318,10 +318,36 @@ console.log('\ntrained policies (held-out seeds)');
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url).pathname;
 const load = (n: string) =>
   brainFromFile(JSON.parse(readFileSync(`${BRAINS}${n}.json`, 'utf8')) as BrainFile);
-const pirateR2 = load('pirate-attack-r2');
-const jameson = load('jameson-defend');
+/**
+ * The brains the GAME actually flies, read from brains.ts rather than typed
+ * here.
+ *
+ * This block used to load 'pirate-attack-r2' and 'jameson-defend'. The game
+ * ships 'pirate-attack-g3' and 'jameson-defend-g1' — r2 is the legacy control
+ * behind window.__legacyPirates, and 'jameson-defend' is not shipped at all.
+ * So the regression gate that exists to stop a bad brain reaching players was
+ * measuring two brains that were not in the game. The list is derived now, so
+ * retraining under a new name cannot silently orphan the check.
+ */
+const brainsSrc = readFileSync(new URL('../src/game/brains.ts', import.meta.url), 'utf8');
+const shippedBrainFile = (which: string): string => {
+  const m = brainsSrc.match(new RegExp(`import ${which}BrainFile from '[^']*brains/([^']+)\\.json'`));
+  if (!m) throw new Error(`brains.ts no longer imports a ${which} brain`);
+  return m[1];
+};
+const SHIPPED_PIRATE = shippedBrainFile('pirate');
+const SHIPPED_DEFEND = shippedBrainFile('defend');
+const shippedPirate = load(SHIPPED_PIRATE);
+const jameson = load(SHIPPED_DEFEND);
 const HOLD_OUT = 10_000_019;
-const N = 12;
+/**
+ * Episodes per baseline check.
+ *
+ * Was 12, which is 8.3% granularity — too coarse for a 35% bound, and an
+ * audit showed three of six neighbouring HOLD_OUT seeds flipped the result.
+ * It was measuring luck. 60 costs about a second and the suite runs in one.
+ */
+const N = 60;
 
 function killRate(makeEp: (seed: number) => Episode): number {
   let kills = 0;
@@ -334,21 +360,30 @@ function killRate(makeEp: (seed: number) => Episode): number {
 }
 
 const shippedPirateKills = killRate((seed) => new Episode({
-  seed, pirates: [{ kind: 'policy', brain: pirateR2 }], trader: { kind: 'scripted' },
+  seed, pirates: [{ kind: 'policy', brain: shippedPirate }], trader: { kind: 'scripted' },
 }));
 const randomPirateKills = killRate((seed) => new Episode({
   seed, pirates: [{ kind: 'policy', brain: randomBrain(makeRng(seed)) }], trader: { kind: 'scripted' },
 }));
-check(`shipped pirate kills most targets (${(shippedPirateKills * 100).toFixed(0)}%)`,
-  shippedPirateKills >= 0.7);
+// Bounds measured at N=60, DT=1/15 (the rate train/evolve.ts fits at) against
+// the brains the game actually flies.
+//
+// The shipped pirate kills ~43% where the old r2 killed ~97%, and that is BY
+// DESIGN — generation 3 is the first brain aimed at how the game feels rather
+// than at lethality. CLAUDE.md invariant 8: "Lethality is a proxy for threat,
+// and threat is not fun." So the bound is a floor on competence, not on
+// killing: it must still beat an untrained policy by a mile.
+check(`shipped pirate ${SHIPPED_PIRATE} is competent (${(shippedPirateKills * 100).toFixed(0)}%)`,
+  shippedPirateKills >= 0.3);
 check(`untrained policy kills almost nothing (${(randomPirateKills * 100).toFixed(0)}%)`,
   randomPirateKills <= 0.1);
 check('shipped pirate beats the untrained baseline',
-  shippedPirateKills > randomPirateKills + 0.5);
+  shippedPirateKills > randomPirateKills + 0.25);
 
+// two of whatever the game actually sends at you
 const twoPirates = () => [
-  { kind: 'policy' as const, brain: pirateR2 },
-  { kind: 'policy' as const, brain: pirateR2 },
+  { kind: 'policy' as const, brain: shippedPirate },
+  { kind: 'policy' as const, brain: shippedPirate },
 ];
 const jamesonDeaths = killRate((seed) => new Episode({
   seed, pirates: twoPirates(), trader: { kind: 'policy', brain: jameson }, traderArmed: true,
@@ -356,10 +391,16 @@ const jamesonDeaths = killRate((seed) => new Episode({
 const scriptedDeaths = killRate((seed) => new Episode({
   seed, pirates: twoPirates(), trader: { kind: 'scripted' }, traderArmed: true,
 }));
-check(`Jameson defence survives most 2v1 fights (dies ${(jamesonDeaths * 100).toFixed(0)}%)`,
-  jamesonDeaths <= 0.35);
+// Bounds set from measurement, not hope. The old 0.35 was passing at N=12 on
+// one lucky seed (three of six neighbouring seeds flipped it) and went red the
+// moment RATE_DECAY was corrected to match the real player. Measured at N=60
+// against the SHIPPED pirate, the shipped defence brain dies 48%.
+check(`shipped defence ${SHIPPED_DEFEND} survives 2v1 (dies ${(jamesonDeaths * 100).toFixed(0)}%)`,
+  jamesonDeaths <= 0.7);
+// The real signal, and it is not marginal: a scripted trader dies in EVERY
+// one of these fights. This gap is what "the brain works" means.
 check(`scripted trader dies far more often (${(scriptedDeaths * 100).toFixed(0)}%)`,
-  scriptedDeaths > jamesonDeaths + 0.3);
+  scriptedDeaths > jamesonDeaths + 0.25);
 
 // --- brain files are well-formed --------------------------------------------
 
@@ -403,7 +444,7 @@ console.log('\ncollision rates');
     return total / episodes;
   };
 
-  const pirate = pirateR2;                 // already loaded above
+  const pirate = load('pirate-attack-r2');   // the collision study used r2
   const evader = load('trader-evade-r2');
   {
     const vScripted = rams(() => ({
@@ -589,6 +630,41 @@ console.log('\nsystem population');
   }
 }
 
+// --- the world builds without a browser --------------------------------------
+//
+// CLAUDE.md claimed everything needing a GPU was confined to
+// engine/render-stack.ts. It was not: sun.ts painted the corona sprite into a
+// document.createElement('canvas') at build time, so World.build() — the
+// station, planet and sun that massLocked(), checkHazards(), the docking
+// checks and the compass all read — threw under node. An audit found it.
+//
+// This is the drop-dead requirement for training against the real world step,
+// so it gets a test rather than a paragraph.
+
+console.log('\nheadless world');
+{
+  const sys = generateGalaxy(1)[7];
+  const world = new World();
+  world.build(sys);
+  check('World.build() runs with no document', !!world.scene3d);
+  check('...and the station exists to dock with', !!world.station);
+  check('...and the planet has a radius the hazard checks can read',
+    world.planetRadius > 0);
+  check('...and the sun has a position to skim',
+    world.sunPos instanceof THREE.Vector3);
+  check('...and a launching ship has somewhere to appear',
+    world.spawnPosition instanceof THREE.Vector3);
+
+  // and it must still STEP, not just build
+  world.spawn('pirate', new THREE.Vector3(0, 0, -900), 1);
+  world.update(1 / 60, 0);
+  check('...and the world steps headlessly', world.npcs.length === 1);
+
+  world.banishScenery();
+  check('witch-space banishes the scenery out of every check',
+    world.planetPos.length() > 1e7);
+}
+
 // --- resolving a hit ---------------------------------------------------------
 //
 // The bounty, the kill credit, the contract tick and the legal offence used to
@@ -597,6 +673,12 @@ console.log('\nsystem population');
 
 console.log('\ncombat');
 {
+  // Seeded: World.spawn and wreck() both draw from the global stream, so
+  // without this the block inherits whatever position the tests above left.
+  // The ordnance block in particular survives today only because pirate hulls
+  // happen to have no ecmChance — give them one and a missile test becomes a
+  // coin flip on stream position.
+  seedWorld(4_242_424);
   const setup = () => {
     const world = new World();
     const combat = new Combat(world);
@@ -701,11 +783,14 @@ console.log('\njettison');
     const c = hold();
     const d = dumpCargo(c, 1);
     // the rule that makes jettisoning a real choice: it costs you the good stuff
-    const dearest = c.map((_, i) => i)
-      .reduce((a, b) => (COMMODITIES[a].basePrice > COMMODITIES[b].basePrice ? a : b));
-    check('the most valuable tonne goes first', d.tonnes[0] === 10
-      && COMMODITIES[10].basePrice >= COMMODITIES[0].basePrice
-      && dearest !== undefined);
+    // The dearest thing IN THE HOLD, not in the whole table. The first version
+    // reduced over all 17 commodities (giving 6, Narcotics, which was never
+    // aboard) and then asserted `dearest !== undefined` — always true for a
+    // number, so the clause was dead and the real comparison never happened.
+    const inHold = c.map((qty, i) => ({ qty, i })).filter((x) => x.qty > 0);
+    const dearest = inHold
+      .reduce((a, b) => (COMMODITIES[a.i].basePrice > COMMODITIES[b.i].basePrice ? a : b)).i;
+    check('the most valuable tonne goes first', d.tonnes[0] === dearest);
     check('...and it leaves the hold', c[10] === 1);
     check('...valued as markOf values it', d.value === COMMODITIES[10].basePrice * 4);
   }
@@ -984,6 +1069,12 @@ console.log('\nbrain selection');
 
 console.log('\nordnance');
 {
+  // Seeded: World.spawn and wreck() both draw from the global stream, so
+  // without this the block inherits whatever position the tests above left.
+  // The ordnance block in particular survives today only because pirate hulls
+  // happen to have no ecmChance — give them one and a missile test becomes a
+  // coin flip on stream position.
+  seedWorld(7_070_707);
   const armed = () => {
     const world = new World();
     const ord = new Ordnance(world);
@@ -1403,6 +1494,26 @@ console.log('\nbehaviour-driving values are state');
     // the snapshot walks these generically, so they must be plain data
     check('...and the session is flat, so serialiseState can walk it',
       Object.values(st.session).every((v) => typeof v !== 'object'));
+
+    // THE check this file was missing. captureSnapshot is a hand-written list,
+    // not a generic walk — the comment in game.ts claimed otherwise and was
+    // wrong. Three GameState fields (dockPlan, lastThreat, ecmDetectedTimer)
+    // were silently unsaved, which is the fifth time this project has shipped
+    // a snapshot that forgot a field. Naming them here means the sixth is a
+    // failing test rather than a bug report.
+    const src = readFileSync(new URL('../src/game/game.ts', import.meta.url), 'utf8');
+    const capture = src.slice(src.indexOf('captureSnapshot(): WorldSnapshot {'),
+      src.indexOf('restoreSnapshot(snap'));
+    const restore = src.slice(src.indexOf('restoreSnapshot(snap'),
+      src.indexOf('private autoSave'));
+    // `world` and `player` are objects the snapshot saves piecewise under
+    // other names; every other field must appear by name on BOTH sides.
+    const piecewise = new Set(['world', 'player']);
+    for (const key of Object.keys(st)) {
+      if (piecewise.has(key)) continue;
+      check(`snapshot saves state.${key}`, capture.includes(key));
+      check(`...and restores state.${key}`, restore.includes(key));
+    }
   }
 }
 
@@ -1422,26 +1533,60 @@ console.log('\nseeded world');
   // living galaxy's default rng. It also only looked for Math.random and
   // .randomDirection(), and missed THREE's Quaternion.random() — so every ship
   // in the galaxy faced a direction the seed knew nothing about.
-  const WORLD = [
-    'game/game.ts', 'game/npc.ts', 'game/collisions.ts', 'game/systems.ts',
-    'game/encounters.ts', 'game/population.ts', 'game/npc-targeting.ts',
-    'game/gunnery.ts', 'game/shot.ts', 'game/contracts.ts', 'game/combat-computer.ts',
-    'game/screens/trade.ts', 'game/screens/saves.ts', 'game/screens/chart.ts',
-    'game/screens/contracts.ts', 'game/population.ts', 'galaxy/living.ts',
-    'game/docking.ts', 'game/snapshot.ts',
-  ];
+  // Every world file, GLOBBED — not a hand-kept list.
+  //
+  // The list this replaced named 19 files, listed population.ts twice (the
+  // tell), and omitted combat.ts, cargo.ts, effects.ts, spawning.ts,
+  // ordnance.ts and world.ts. A `Math.random()` in spawning.ts — which decides
+  // what you meet on arrival — passed CI. A list that must be maintained by
+  // hand to guard against forgetting things is the thing it is guarding
+  // against.
+  const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
+      : e.name.endsWith('.ts') ? [new URL(e.name, dir)] : []));
+  const WORLD = ['game/', 'galaxy/', 'world/', 'hud/', 'engine/']
+    .flatMap((d) => walk(new URL(`../src/${d}`, import.meta.url)));
+
+  /**
+   * Files allowed an unseeded stream, each for a stated reason.
+   *
+   * NOT a convenience list — anything added here must be genuinely outside the
+   * world: something whose output no simulation reads, so it cannot change
+   * what happens next.
+   */
+  const EXEMPT: Record<string, string> = {
+    'rng.ts': 'defines the seeded generator; seeds from Math.random only when unseeded',
+    'starfield.ts': 'the backdrop, drawn once and never read by the simulation',
+  };
+
   const offenders: string[] = [];
-  for (const f of WORLD) {
-    const src = readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
+  for (const url of WORLD) {
+    const name = url.pathname.split('/').pop()!;
+    if (EXEMPT[name]) continue;
+    const raw = readFileSync(url, 'utf8');
+    const src = raw.replace(/^\s*(\/\/|\*).*$/gm, '');   // drop comment lines
+    const short = url.pathname.slice(url.pathname.indexOf('/src/') + 5);
     // `Math.random` WITHOUT parens too: a default parameter of
     // `rng: () => number = Math.random` is an unseeded stream hiding behind an
     // injectable-looking signature, and the parenthesised check missed five.
-    if (/Math\.random\b/.test(src.replace(/^\s*(\/\/|\*).*$/gm, ''))) offenders.push(f);
-    // three.js has its own generators, and they all reach for Math.random
-    if (/\.randomDirection\(\)/.test(src)) offenders.push(`${f} (THREE randomDirection)`);
-    if (/\.random\(\)/.test(src.replace(/\brandom\(\)/g, ''))) {
-      offenders.push(`${f} (a THREE .random())`);
+    if (/Math\.random\b/.test(src)) offenders.push(short);
+    // ...and the bracketed form, which reads as a deliberate dodge
+    if (/Math\s*\[\s*['"`]random/.test(src)) offenders.push(`${short} (Math['random'])`);
+    // ...and destructuring it out of Math, which leaves no `Math.` at the call
+    if (/\{[^}]*\brandom\b[^}]*\}\s*=\s*Math\b/.test(src)) {
+      offenders.push(`${short} (destructured from Math)`);
     }
+    // three.js has its own generators, and they all reach for Math.random
+    if (/\.randomDirection\(\)/.test(src)) offenders.push(`${short} (THREE randomDirection)`);
+    // Any `x.random()` — THREE's Quaternion.random() and friends.
+    //
+    // This check was DEAD for its whole life. It read
+    // `/\.random\(\)/.test(src.replace(/\brandom\(\)/g, ''))`, and `\b`
+    // matches between the `.` and the `r`, so the replace ate the very text
+    // the regex was hunting. An audit smuggled `new THREE.Quaternion().random()`
+    // into NpcShip's constructor and all 355 checks passed. The seeded
+    // `random()` has no dot before it, so no replace was ever needed.
+    if (/\.random\(\)/.test(src)) offenders.push(`${short} (a THREE .random())`);
   }
   check(`world code uses the seeded rng only${offenders.length ? ' — found in ' + offenders.join(', ') : ''}`,
     offenders.length === 0);
@@ -1939,6 +2084,14 @@ console.log('\nsim/game combat parity');
   const simAccel = num(core, /playerCobra:[\s\S]{0,200}?accel:\s*([\d.]+)/);
   check(`player accel: game ${realAccel} == sim playerCobra ${simAccel}`,
     realAccel !== null && realAccel === simAccel);
+  // The turn-rate ramp and decay. Decay had drifted (game 12.0, sim 5.0) —
+  // the same failure as accel, in the adjacent field, unasserted for as long.
+  for (const name of ['RATE_RAMP', 'RATE_DECAY']) {
+    const real = num(playerSrc, new RegExp(`const ${name} = ([\\d.]+);`));
+    const sim = num(core, new RegExp(`const ${name} = ([\\d.]+);`));
+    check(`${name}: game ${real} == sim ${sim}`, real !== null && real === sim);
+  }
+
   const realMaxSpeed = num(playerSrc, /const MAX_SPEED = ([\d.]+);/);
   const simMaxSpeed = num(core, /playerCobra:[\s\S]{0,200}?maxSpeed:\s*([\d.]+)/);
   check(`player top speed: game ${realMaxSpeed} == sim playerCobra ${simMaxSpeed}`,

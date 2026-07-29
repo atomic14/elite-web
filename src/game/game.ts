@@ -215,9 +215,14 @@ export class Game {
    * Everything the world step may change, in ONE object — see state.ts.
    *
    * The accessors below delegate to it. They exist because ~500 call sites in
-   * this file and every console harness say `g.commander` and `g.world`, and
-   * because a field on Game is a field somebody forgets to snapshot; a field
-   * on `state` is one the snapshot walks.
+   * this file and every console harness say `g.commander` and `g.world`.
+   *
+   * An earlier version of this comment claimed "a field on `state` is one the
+   * snapshot walks". That was FALSE — captureSnapshot below is a hand-written
+   * list, and three fields (dockPlan, lastThreat, ecmDetectedTimer) were in
+   * `state` and silently unsaved. It is still hand-written, because `world`
+   * and `player` need bespoke handling; what changed is that `npm test` now
+   * fails if a GameState field is missing from either side of it.
    */
   readonly state: GameState = freshState(loadCommander());
 
@@ -843,31 +848,24 @@ export class Game {
         rollRate: this.player.rollRate,
       },
       systems: { ...this.sys },
-      npcs: this.world.npcs.map((n) => ({
-        role: n.role,
-        seed: n.variantSeed,
-        targetIndex: n.npcTarget ? this.world.npcs.indexOf(n.npcTarget) : -1,
-        state: serialiseState(n.state as unknown as Record<string, unknown>),
-      })),
-      canisters: this.canisters.map((c) => ({
-        pos: v3(c.object.position),
-        velocity: v3(c.velocity),
-        spinAxis: v3(c.spinAxis),
-        kind: c.kind,
-        commodity: c.commodity,
-      })),
+      // Each object saves ITSELF. These three methods were written months ago
+      // and had ZERO callers, because captureSnapshot hand-inlined all three
+      // while the restore side used the module methods. Capture and restore
+      // living in different files is precisely the failure this keeps having.
+      npcs: this.world.captureNpcs(),
+      canisters: this.world.cargo.capture(),
       encounterTimers: { ...this.encounterTimers },
+      dockPlan: serialiseState(this.dockPlan as unknown as Record<string, unknown>),
+      combatComputer: serialiseState(
+        this.combatComputer.state as unknown as Record<string, unknown>),
+      lastThreat: this.lastThreat ? { ...this.lastThreat } : null,
+      ecmDetectedTimer: this.ecmDetectedTimer,
       session: serialiseState(this.session as unknown as Record<string, unknown>),
       rng: rngState(),
       chartTarget: this.chart.targetIndex,
       chartCursor: [this.chart.cursorX, this.chart.cursorY],
       stationQuat: q4(this.world.station.quaternion),
-      missiles: this.missiles.map((m) => ({
-        pos: v3(m.object.position),
-        quat: q4(m.object.quaternion),
-        targetIndex: m.target ? this.world.npcs.indexOf(m.target) : -1,
-        life: m.life,
-      })),
+      missiles: this.ordnance.capture((npc) => this.world.npcs.indexOf(npc)),
       market: structuredClone(this.market),
       hermitMarket: structuredClone(this.hermitMarket),
       contractOffers: structuredClone(this.contractOffers),
@@ -917,6 +915,11 @@ export class Game {
     this.ordnance.restoreAll(snap.missiles, (i) => this.world.npcs[i] ?? null);
 
     this.encounterTimers = { ...snap.encounterTimers };
+    restoreState(this.dockPlan as unknown as Record<string, unknown>, snap.dockPlan);
+    restoreState(
+      this.combatComputer.state as unknown as Record<string, unknown>, snap.combatComputer);
+    this.lastThreat = snap.lastThreat as PirateThreat | null;
+    this.ecmDetectedTimer = snap.ecmDetectedTimer;
     this.chart.targetIndex = snap.chartTarget;
     [this.chart.cursorX, this.chart.cursorY] = snap.chartCursor;
     this.market = structuredClone(snap.market) as MarketEntry[];
@@ -1030,6 +1033,15 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   respawn(): void {
     this.commander = loadCommander();
+    // The loaded commander may name a DIFFERENT galaxy than the one we died
+    // in — jump to galaxy 2, die before docking, and the last save is still
+    // galaxy 1. Without these, `systems` stayed galaxy 2's and every lookup
+    // through `get system()` read the wrong star. restoreSnapshot always did
+    // this; respawn never did.
+    this.systems = generateGalaxy(this.commander.galaxy);
+    this.living = new LivingGalaxy(this.systems);
+    this.living.load(this.commander.galaxyState);
+    this.combatComputer.reset();
     this.chart.targetIndex = null;
     this.witchspace = false;
     this.buildWorld();
@@ -1293,8 +1305,11 @@ export class Game {
       this.hud.showMessage(`CARGO LOST: 1${c.unit} ${c.name.toUpperCase()}`, 3);
       sfx.beep(300, 0.12);
     } else if (lost.kind === 'equipment') {
-      // it cannot fly the ship with its computer shot off
-      if (lost.key === 'combatComputer') this.ccEngaged = false;
+      // Losing ANY fitting hands control back, which is how this behaved
+      // before it moved to systems.ts — narrowing it to `combatComputer` was
+      // an unflagged behaviour change that an audit caught. A hit hard enough
+      // to knock out equipment is a moment the player should be flying.
+      this.ccEngaged = false;
       this.hud.showMessage(`${lost.name} DESTROYED`, 4);
       sfx.beep(240, 0.2);
     }

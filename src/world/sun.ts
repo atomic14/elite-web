@@ -71,7 +71,26 @@ export interface Sun {
   update(time: number): void;
 }
 
-function coronaTexture(): THREE.Texture {
+/**
+ * The corona's radial gradient, painted into a canvas.
+ *
+ * Returns null when there is no `document`. This one function was the ONLY
+ * thing stopping the whole world model being built under node — `World.build`
+ * ran headless right up to here and then threw, which meant the station,
+ * planet and sun positions that massLocked(), checkHazards(), the docking
+ * checks and the compass all read could not exist outside a browser.
+ *
+ * CLAUDE.md said everything needing a GPU was confined to render-stack.ts. It
+ * was not; an audit found this. A sprite the simulation never reads is not
+ * worth that, so it is now optional and the sun simply has no halo headless.
+ *
+ * The guard tests createElement, not `document` — test/run.ts installs a
+ * partial document stub for the screen tests, so `typeof document` alone
+ * reports "object" under node and then throws one line later.
+ */
+function coronaTexture(): THREE.Texture | null {
+  if (typeof document === 'undefined'
+      || typeof document.createElement !== 'function') return null;
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;

@@ -111,6 +111,13 @@ export interface WorldSnapshot {
   npcs: NpcSnapshot[];
   canisters: CanisterSnapshot[];
   encounterTimers: EncounterTimers;
+  /** the docking computer's approach, mid-manoeuvre — the `phase` latch matters */
+  dockPlan: Record<string, unknown>;
+  /** the player's autopilot mid-thought — see AutopilotState */
+  combatComputer: Record<string, unknown>;
+  /** the reception this system laid on */
+  lastThreat: Record<string, unknown> | null;
+  ecmDetectedTimer: number;
   /** every flight-session flag and timer, walked generically — see SessionState */
   session: Record<string, unknown>;
   /**

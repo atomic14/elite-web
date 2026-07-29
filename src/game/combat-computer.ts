@@ -51,11 +51,32 @@ export interface AutopilotShip {
   speed: number;
 }
 
+/**
+ * What the autopilot is mid-thought.
+ *
+ * A state object rather than four private fields, for the reason npc.ts
+ * learned the hard way: `brainControl` was left out of the NPC snapshot as
+ * "not really state", and a restored world flew a different fight from the one
+ * it was saved from. This is the same cache and the same ramped rates, on the
+ * PLAYER's ship — it was still unsaved until an audit found it.
+ */
+export interface AutopilotState {
+  /** ramped turn rates, so a restored turn continues instead of snapping level */
+  pitch: number;
+  roll: number;
+  /** counts down to the next 10Hz decision */
+  timer: number;
+  /** the decision being acted on right now */
+  control: { pitch: number; roll: number; throttle: number; fire: boolean } | null;
+}
+
+export function freshAutopilot(): AutopilotState {
+  return { pitch: 0, roll: 0, timer: 0, control: null };
+}
+
 export class CombatComputer {
-  private pitch = 0;
-  private roll = 0;
-  private timer = 0;
-  private control: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;
+  /** @see AutopilotState — public so the snapshot can walk it */
+  readonly state: AutopilotState = freshAutopilot();
   // 18 wide, matching what game.ts allocated: observe() fills 14, and the
   // spare tail costs nothing but avoids a surprise if a pack observation is
   // ever fed through here.
@@ -75,10 +96,10 @@ export class CombatComputer {
 
   /** Forget the ramped rates, so re-engaging starts from level flight. */
   reset(): void {
-    this.pitch = 0;
-    this.roll = 0;
-    this.timer = 0;
-    this.control = null;
+    this.state.pitch = 0;
+    this.state.roll = 0;
+    this.state.timer = 0;
+    this.state.control = null;
   }
 
   /**
@@ -107,26 +128,26 @@ export class CombatComputer {
       return { kind: 'disengage', reason: 'AREA CLEAR — COMBAT COMPUTER OFF' };
     }
 
-    this.timer -= dt;
-    if (!this.control || this.timer <= 0) {
-      this.timer = DECISION_INTERVAL;
+    this.state.timer -= dt;
+    if (!this.state.control || this.state.timer <= 0) {
+      this.state.timer = DECISION_INTERVAL;
       copyInto(this.me, player.position, player.quaternion);
       this.me.speed = player.speed;
       this.me.laserTemp = sys.laserTemp;
       this.me.laserCooldown = sys.laserCooldown;
-      this.me.pitchRate = this.pitch;
-      this.me.rollRate = this.roll;
+      this.me.pitchRate = this.state.pitch;
+      this.me.rollRate = this.state.roll;
       copyInto(this.target, threat.object.position, threat.object.quaternion);
-      this.control = act(brain,
+      this.state.control = act(brain,
         observe(this.me as ObservableShip, this.target as ObservableShip, this.obs), this.scratch);
     }
 
-    const c = this.control;
-    this.pitch = ramp(this.pitch, c.pitch * CC_MAX_PITCH, c.pitch !== 0, dt);
-    this.roll = ramp(this.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
+    const c = this.state.control;
+    this.state.pitch = ramp(this.state.pitch, c.pitch * CC_MAX_PITCH, c.pitch !== 0, dt);
+    this.state.roll = ramp(this.state.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
     return {
       kind: 'fly',
-      demand: { pitchRate: this.pitch, rollRate: this.roll, throttle: c.throttle, fire: c.fire },
+      demand: { pitchRate: this.state.pitch, rollRate: this.state.roll, throttle: c.throttle, fire: c.fire },
     };
   }
 }

@@ -283,7 +283,16 @@ export interface Control {
 }
 
 const RATE_RAMP = 4.0;
-const RATE_DECAY = 5.0;
+/**
+ * MUST equal RATE_DECAY in player.ts — invariant 2, and `npm test` asserts it.
+ *
+ * This was 5.0 while the game moved to 12.0, so every brain shipped so far was
+ * fitted against a player who coasts 2.4x longer after releasing a key than
+ * the real one. It is the `accel: 120` bug (docs/TRAINING-LOG.md) repeated in
+ * the very next field, and the parity test asserted ACCEL and MAX_SPEED on
+ * either side of it without asserting this. Found by audit, not by CI.
+ */
+const RATE_DECAY = 12.0;
 
 function ramp(current: number, target: number, active: boolean, dt: number): number {
   const rate = active ? RATE_RAMP : RATE_DECAY;

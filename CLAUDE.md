@@ -258,6 +258,18 @@ and no WebGL (measured, not assumed). Four things were, and three are fixed:
   `Game` still calls it from its constructor, so constructing a `Game` still
   needs a browser; giving it an optional stack is the remaining step.
 
+  This was *not* the only blocker, despite saying so for months. `sun.ts`
+  painted the corona sprite into a `document.createElement('canvas')` at build
+  time, so **`World.build()` itself** — the station, planet and sun that
+  `massLocked()`, the hazard checks, the docking tests and the compass all read
+  — threw under node. An audit found it; the texture is optional now and
+  `npm test` builds and steps a whole world headlessly. Giving `Game` an
+  optional render stack would not have been sufficient on its own.
+
+  `step()` is also not yet renderer-free: it reaches for `document` for the
+  help panel, the bomb flash, the menu cursor in `screen-host.ts`, and the
+  docked-menu repaints.
+
 Pieces of the world step that are already out, pure and unit-tested:
 `game/collisions.ts` (who is overlapping whom), `game/systems.ts` (energy,
 shields, laser heat, cabin temperature, and the damage model),

@@ -10,9 +10,10 @@ Everything else is a consequence, and each consequence is testable:
 | --- | --- | --- |
 | the snapshot IS the state | save anywhere, replay, test fixtures | mostly — see the gaps below |
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
-| the renderer never writes state | you can delete it and still simulate | done for the HUD (hud-binding.ts) |
+| the renderer never writes state | you can delete it and still simulate | done for the HUD; `step()` still touches the DOM in four places |
+| the world builds without a browser | training against the real step | **done** — `World.build()` runs under node |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 355 tests, no browser | done |
+| every rule is unit-testable headless | 390 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
@@ -30,8 +31,15 @@ genuinely lives in the sky. It may **not** depend on the shape of its caller.
 The tell is a callback that reaches back out — `message()`, `add()`,
 `remove()` — or a hand-rolled `SomethingContext` interface. Both mean the
 module cannot be used, or tested, without something Game-shaped standing
-behind it. There were five such interfaces; there are now none. The pattern
-that replaced them:
+behind it.
+
+**Six of them are still there, all in `src/game/screens/`** — `TradeContext`
+(three callbacks out, including `leaveHermit()`, a screen telling the Game to
+change flight state), `SavesContext`, `ContractsContext`, `ChartContext`,
+`StatusContext`, `DataContext`. An earlier version of this document claimed
+there were none; that claim came from a grep that did not recurse into
+`screens/`. `collisions.ts` also takes a `setPlayerSpeed` callback. The pattern
+that replaced the others, and that these should follow:
 
 > **A module decides and reports. The caller applies the consequences.**
 

@@ -134,8 +134,14 @@ export class World {
       if (n.targetIndex < 0) return;
       const hunter = this.npcs[i];
       const prey = this.npcs[n.targetIndex];
-      if (hunter && prey) {
-        hunter.npcTarget = prey;
+      if (!hunter || !prey) return;
+      hunter.npcTarget = prey;
+      // Only a pirate registers itself as an attacker — npc-targeting.ts does
+      // this for pirates and NOT for police or hunters, which set npcTarget
+      // alone. Pushing for everyone invented links the live run never had, and
+      // `attackers` drives nearestAttacker(), so a reloaded fleeing ship turned
+      // and duelled the police chasing it where before it just ran.
+      if (hunter.role === 'pirate' && !prey.attackers.includes(hunter)) {
         prey.attackers.push(hunter);
       }
     });
