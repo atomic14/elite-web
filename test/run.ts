@@ -12,6 +12,7 @@ import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-ho
 import { isHostileToPlayer } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { stepEncounters } from '../src/game/encounters.ts';
+import { planPopulation, policeFor } from '../src/game/population.ts';
 import {
   laserForView, canFire, chargeShot, assistAt, hitCone, canisterCone, LASERS, AIM_ASSIST,
 } from '../src/game/gunnery.ts';
@@ -505,6 +506,39 @@ console.log('\nchart metric has one owner');
   const nav = read('../src/galaxy/navigation.ts');
   check('navigation.ts imports nothing but the system type',
     (nav.match(/^import /gm) ?? []).length === 1 && /import type \{ StarSystem \}/.test(nav));
+}
+
+// --- how busy a system is ---------------------------------------------------
+
+console.log('\nsystem population');
+{
+  const sys = (government: number) => ({ government, seed: [1, 2, 3] }) as unknown as Parameters<typeof planPopulation>[0];
+  const half = () => 0.5;
+
+  check('anarchies have NO police, which is what makes them worth the risk',
+    policeFor(0) === 0);
+  check('a feudal or multi-government system manages one patrol', policeFor(1) === 1);
+  check('anything more organised runs two',
+    policeFor(2) === 2 && policeFor(7) === 2);
+
+  {
+    // the living galaxy's convoys show up as traffic you can see
+    const busy = planPopulation(sys(4), 'arrival', 3, null, half);
+    check('convoys the living galaxy is sending become visible traders',
+      busy.traders === 3);
+    const swamped = planPopulation(sys(4), 'arrival', 99, null, half);
+    check('...capped so a system never drowns in them', swamped.traders === 4);
+    const quiet = planPopulation(sys(4), 'arrival', 0, null, half);
+    check('...and there is always at least one', quiet.traders >= 1);
+  }
+  {
+    const threat = { count: 3 } as unknown as Parameters<typeof planPopulation>[3];
+    const arriving = planPopulation(sys(0), 'arrival', 1, threat, half);
+    check('a reception is waiting when you arrive', arriving.pirates === 3);
+    const launching = planPopulation(sys(0), 'launch', 1, threat, half);
+    check('LAUNCHING from a station is safe — nobody organised for you',
+      launching.pirates === 0 && launching.threat === null);
+  }
 }
 
 // --- the player's guns ------------------------------------------------------

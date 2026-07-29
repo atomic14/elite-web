@@ -31,6 +31,7 @@ import { act, observe, makeScratch, type ObservableShip } from '../sim/policy.ts
 import { planDocking, makeDockPlan } from './docking.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
+import { planPopulation } from './population.ts';
 import {
   laserForView, canFire, chargeShot, hitCone, canisterCone, LASER_RANGE, AIM_ASSIST,
 } from './gunnery.ts';
@@ -664,36 +665,34 @@ export class Game {
     const rnd = (range: number) =>
       new THREE.Vector3().randomDirection().multiplyScalar(range * (0.5 + Math.random()));
 
-    // traders here are the convoys the living galaxy says are arriving
-    const arrivals = this.living.imminentArrivals(sys.index);
-    const traders = Math.max(1, Math.min(4, arrivals.length || (Math.random() < 0.5 ? 2 : 1)));
-    for (let i = 0; i < traders; i++) {
+    // Pirates are businesses: lawlessness and the living galaxy set how many
+    // are out here, but what you're visibly worth sets who they are and
+    // whether they bothered to organise.
+    const plan = planPopulation(
+      sys, situation,
+      this.living.imminentArrivals(sys.index).length,
+      situation === 'arrival'
+        ? pirateThreat(sys, this.living.danger(sys.index),
+          markOf(this.commander, this.living.notoriety(sys.index)))
+        : null,
+    );
+
+    for (let i = 0; i < plan.traders; i++) {
       this.spawnNpc('trader', home.clone().add(rnd(1800)), i + sys.index);
     }
-    const police = sys.government >= 2 ? 2 : sys.government >= 1 ? 1 : 0;
-    for (let i = 0; i < police; i++) {
+    for (let i = 0; i < plan.police; i++) {
       this.spawnNpc('police', home.clone().add(rnd(1200)), i);
     }
-    const rocks = 2 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < rocks; i++) {
+    for (let i = 0; i < plan.asteroids; i++) {
       this.spawnNpc('asteroid', home.clone().add(rnd(5000)), sys.seed[0] + i * 37);
     }
 
-    if (situation === 'arrival') {
-      // pirate pressure: government lawlessness plus whatever the living
-      // galaxy has recorded happening to convoys around here lately
-      // Pirates are businesses: lawlessness and the living galaxy set how many
-      // are out here, but what you're visibly worth sets who they are and
-      // whether they bothered to organise.
-      const threat = pirateThreat(
-        sys,
-        this.living.danger(sys.index),
-        markOf(this.commander, this.living.notoriety(sys.index)),
-      );
+    if (situation === 'arrival' && plan.threat) {
+      const threat = plan.threat;
       this.lastThreat = threat;
       this.jettisonedValue = 0;
       this.arrivalCargoValue = markOf(this.commander).cargoValue;
-      const pirates = threat.count;
+      const pirates = plan.pirates;
       const toStation = home.clone().sub(this.player.position);
       const routeLen = toStation.length();
       const route = toStation.normalize();
