@@ -28,10 +28,11 @@ import { planDocking, makeDockPlan, dockingOutcome } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
+import { Combat, BEAM_FLASH, type CombatEvent } from './combat.ts';
 import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import {
-  stepMissionAtDock, constrictorDestroyed, constrictorLurksHere, missionHeadline,
+  stepMissionAtDock, constrictorLurksHere, missionHeadline,
 } from './missions.ts';
 import { World, TRADER_ARRIVAL_RANGE } from './world.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
@@ -44,20 +45,19 @@ import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions
 import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer, CC_MAX_SPEED, CC_ACCEL } from './combat-computer.ts';
-import { traceShot } from './shot.ts';
 import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
   type Missile, type OrdnanceReply,
 } from './ordnance.ts';
 import {
-  laserForView, canFire, chargeShot, hitCone, LASER_RANGE, AIM_ASSIST,
+  hitCone, LASER_RANGE, AIM_ASSIST,
   npcHitChance, npcShotDamage, npcPrefersMissile, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE,
 } from './gunnery.ts';
 import {
   stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
 } from './encounters.ts';
 import {
-  applyDamage, regenerate, updateCabinTemp, scoopFuel, freshSystems, breachLoss,
+  regenerate, updateCabinTemp, scoopFuel, freshSystems, breachLoss,
   type ShipSystems,
 } from './systems.ts';
 import {
@@ -147,12 +147,11 @@ function cheatMode(): boolean {
 
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL,
-  cargoCapacity, cargoTonnes, killValue,
+  cargoCapacity, cargoTonnes,
   type CommanderData, type Contract,
 } from './commander.ts';
 import {
-  LEGAL_NAMES, carryingContraband, fineFor, offenceFor,
-  CLEAN, OFFENDER, FUGITIVE, SCAN_RANGE, DEFENCE_RANGE,
+  LEGAL_NAMES, carryingContraband, fineFor, CLEAN, SCAN_RANGE, DEFENCE_RANGE,
 } from './law.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
@@ -422,6 +421,9 @@ export class Game {
   private readonly combatComputer = new CombatComputer();
   /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
   private readonly ordnance = new Ordnance(this.world);
+  /**
+   * Resolving hits: shots, wrecks, bounties — see combat.ts. */
+  private readonly combat = new Combat(this.world);
 
   /** Missiles in flight. Owned by `ordnance`; exposed for the HUD and saves. */
   get missiles(): Missile[] { return this.ordnance.missiles; }
@@ -526,7 +528,11 @@ export class Game {
   /** scratch for collisions.ts, so a per-frame call allocates nothing */
   private readonly scratch = { a: new THREE.Vector3(), b: new THREE.Vector3() };
   /** reused for player gunnery — see LASER_GRAZE */
-  private readonly shotRay = new THREE.Raycaster();
+  /** the shot's ray and scratch vectors, reused every trigger pull */
+  private readonly combatScratch = {
+    a: new THREE.Vector3(), b: new THREE.Vector3(),
+    q: new THREE.Quaternion(), ray: new THREE.Raycaster(),
+  };
   /** docking computer flying the ship in — see dockingComputerStep */
   private readonly dockPlan = makeDockPlan();
   private readonly tmpQ = new THREE.Quaternion();
@@ -1280,144 +1286,45 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   fireLaser(): void {
-    const laser = laserForView(this.commander.equipment, this.view);
-    if (!laser || !canFire(this.sys)) return;
-    chargeShot(this.sys, laser);
-    this.beamTimer = 0.12;
-    sfx.laser();
-
-    const forward = this.viewDir(this.tmp);
-    const shot = traceShot(
-      this.player.position, forward, this.world.npcs, this.canisters,
-      this.witchspace ? null : this.world.station, this.shotRay, this.tmp2);
-    const best = shot.kind === 'ship' ? shot.ship : null;
-    const hitCanister = shot.kind === 'cargo' ? shot.cargo : null;
-    const hitStation = shot.kind === 'station';
-    const bestDist = shot.kind === 'miss' ? 0 : shot.distance;
-
-    // Aim assist, the visible half: bend the cockpit beams onto whatever the
-    // shot found. Chris's point — an allowance that silently counts a near
-    // miss as a hit reads as a bug, where beams that visibly converge on the
-    // target read as the gunsight doing its job. The shot has already been
-    // resolved above; this only makes the resolution legible.
-    this.aimBeams(best ? best.object.position : hitCanister ? hitCanister.object.position : null);
-
-    if (hitCanister) {
-      sfx.hit();
-      this.world.effects.explosion(hitCanister.object.position.clone(), 0x8ad0ff,
-        { count: 10, speed: 55, duration: 0.4 });
-      this.world.cargo.destroy(hitCanister);
-      if (hitCanister.kind === 'capsule') {
-        // there is someone in that thing
-        this.hud.showMessage('ESCAPE CAPSULE DESTROYED', 3);
-        this.raiseLegal(FUGITIVE);
-      } else {
-        this.hud.showMessage('CARGO DESTROYED', 2);
-      }
-      return;
-    }
-    if (hitStation) {
-      sfx.hit();
-      // sparks off the hull, but the station itself shrugs it off
-      const impact = this.player.position.clone().addScaledVector(forward, bestDist);
-      this.world.effects.explosion(impact, 0xd8ffcc, { count: 10, speed: 60, duration: 0.4 });
-      this.hud.showMessage('STATION HULL HIT — DEFENCES SCRAMBLING', 3);
-      // Offender, not fugitive: a stray shot while lining up a dock is easy to
-      // make, and fugitive means every police ship in the galaxy hunts you
-      // forever. The Vipers are the real punishment — and shooting *them*
-      // escalates you to fugitive the normal way. raiseLegal launches them.
-      this.raiseLegal(OFFENDER);
-      return;
-    }
-    if (best) {
-      sfx.hit();
-      // impact flash at the target so hits read clearly
-      this.world.effects.explosion(best.object.position.clone(), 0xd8ffcc, { count: 8, speed: 70, duration: 0.35 });
-      this.raiseLegal(offenceFor(best.role, false));
-      if (best.takeDamage(laser.damage, this.player.position, true)) this.destroyNpc(best);
-    }
+    this.applyCombat(this.combat.fire(
+      this.commander, this.sys, this.player.position, this.viewDir(this.tmp),
+      this.view, this.witchspace, this.combatScratch));
   }
 
-  /** Destruction credited to the player (bounty, kills, legal, mission). */
-  /** @internal — driven by test/playtest.js */
+  /** Destruction credited to the player. @internal — driven by test/playtest.js */
   destroyNpc(npc: NpcShip): void {
-    this.wreckNpc(npc);
-    if (npc.role !== 'asteroid') {
-      this.commander.kills += 1;
-      // rating counts difficulty, not bodies: see killValue()
-      this.commander.combatScore += killValue(npc.threatTier);
-    }
-    if (npc.role === 'pirate') {
-      for (const k of this.commander.contracts) {
-        if (k.kind === 'bounty' && k.destination === this.commander.systemIndex && k.progress < k.qty) {
-          k.progress += 1;
-          if (k.progress >= k.qty) this.hud.showMessage('BOUNTY CONTRACT COMPLETE — RETURN TO A STATION', 5);
-        }
-      }
-    }
-    this.raiseLegal(offenceFor(npc.role, true));
-    if (npc.bounty > 0) {
-      this.commander.credits += npc.bounty;
-      this.hud.showMessage(`BOUNTY: ${formatCredits(npc.bounty)}`, 3);
-    }
-    if (npc.role === 'asteroid' && this.commander.equipment.miningLaser) {
-      this.world.cargo.spawn(npc.object.position, 1 + randomInt(3), [12, 12, 12, 13, 14]);
-    }
-    if (npc.isMissionTarget) {
-      const e = constrictorDestroyed(this.commander);
-      if (e) {
-        this.hud.showMessage(
-          `CONSTRICTOR DESTROYED — ${formatCredits(e.bounty)} NAVY BOUNTY`, 6);
-      }
-    }
+    this.applyCombat(this.combat.destroy(this.commander, npc));
   }
 
-  /** Shared removal path (also used for NPC-vs-NPC kills — no player credit). */
+  /** Removal with no credit — an NPC-vs-NPC kill, or a collision. */
   private wreckNpc(npc: NpcShip): void {
-    this.world.effects.explosion(npc.object.position.clone());
-    sfx.explosion();
-    this.world.despawn(npc);
-    if (this.targetLock === npc) this.targetLock = null;
-    // wily traders and many pirates punch out at the last moment
-    if (npc.role === 'trader' || npc.role === 'pirate' || npc.role === 'hunter') {
-      const chance = npc.role === 'trader' ? 0.45 : 0.2;
-      if (random() < chance) this.world.cargo.spawnCapsule(npc.object.position.clone());
-    }
-    if (npc.cargoDrop > 0) {
-      this.world.cargo.spawn(
-        npc.object.position,
-        Math.floor(random() * (npc.cargoDrop + 1)),
-        [0, 1, 4, 8, 9, 11, 12], // food, textiles, liquor, machinery, alloys, furs, minerals
-      );
-    }
-    if (npc.role === 'thargoid' && !this.world.npcs.some((n) => n.alive && n.role === 'thargoid')) {
-      for (const t of this.world.npcs) {
-        if (t.role === 'thargon') t.inert = true;
-      }
-      this.hud.showMessage('THARGONS DEACTIVATED', 3);
-    }
+    this.applyCombat(this.combat.wreck(npc));
   }
-
-
-
-
-
-
-
-
-
 
   /** @internal — driven by test/playtest.js */
   applyPlayerDamage(amount: number, from: THREE.Vector3): void {
-    // only the Game knows which way the ship is pointing; the model itself
-    // just needs to be told whether the hit came from ahead
-    this.tmp.copy(from).sub(this.player.position)
-      .applyQuaternion(this.tmpQ.copy(this.player.quaternion).invert());
-    const result = applyDamage(this.sys, amount, this.tmp.z < 0);
-    if (result.wreckedSomething) this.damageSomething();
     this.hud.flashDamage();
-    sfx.damage();
-    if (result.destroyed) this.die('SHIP DESTROYED');
+    this.applyCombat(this.combat.hitPlayer(
+      this.sys, amount, from, this.player.position, this.player.quaternion,
+      this.combatScratch));
+  }
+
+  /**
+   * Combat decides; the Game pays. Every consequence that reaches outside the
+   * world — the HUD, the law, the missile lock, the death screen — lands here.
+   */
+  private applyCombat(events: readonly CombatEvent[]): void {
+    for (const e of events) {
+      switch (e.kind) {
+        case 'message': this.hud.showMessage(e.text, e.seconds); break;
+        case 'offence': this.raiseLegal(e.level); break;
+        case 'wrecked': if (this.targetLock === e.npc) this.targetLock = null; break;
+        case 'beam': this.aimBeams(e.at); break;
+        case 'fired': this.beamTimer = BEAM_FLASH; break;
+        case 'breach': this.damageSomething(); break;
+        case 'died': this.die(e.reason); break;
+      }
+    }
   }
 
   /** Trumbles breed and eat; heat drives them out. Rules in trumbles.ts. */

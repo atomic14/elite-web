@@ -24,6 +24,7 @@ import {
   dumpCargo, offerBribe, appetiteOf, OPPORTUNIST_FLOOR, GANG_FLOOR,
 } from '../src/game/jettison.ts';
 import { breachLoss, CARGO_LOSS_CHANCE } from '../src/game/systems.ts';
+import { Combat } from '../src/game/combat.ts';
 import {
   CONTRABAND, isContraband, contrabandTonnes, carryingContraband,
   fineFor, offenceFor, LEGAL_NAMES,
@@ -583,6 +584,100 @@ console.log('\nsystem population');
     const launching = planPopulation(sys(0), 'launch', 1, threat, half);
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
+  }
+}
+
+// --- resolving a hit ---------------------------------------------------------
+//
+// The bounty, the kill credit, the contract tick and the legal offence used to
+// be one 33-line method reachable only through a Game. The events are the
+// point: combat decides, and the caller is the one that launches the Vipers.
+
+console.log('\ncombat');
+{
+  const setup = () => {
+    const world = new World();
+    const combat = new Combat(world);
+    const c = {
+      credits: 0, kills: 0, combatScore: 0, systemIndex: 7, contracts: [],
+      cargo: new Array(COMMODITIES.length).fill(0),
+      equipment: { miningLaser: false },
+      mission: { stage: 0, targetIndex: null },
+    } as unknown as CommanderData;
+    return { world, combat, c };
+  };
+  const at = (z: number) => new THREE.Vector3(0, 0, z);
+  const kinds = (evs: { kind: string }[]) => evs.map((e) => e.kind);
+  const msgs = (evs: { kind: string; text?: string }[]) =>
+    evs.filter((e) => e.kind === 'message').map((e) => e.text);
+  const offence = (evs: { kind: string; level?: number }[]) =>
+    evs.find((e) => e.kind === 'offence')?.level;
+
+  {
+    const { world, combat, c } = setup();
+    const pirate = world.spawn('pirate', at(-500), 1);
+    const bounty = pirate.bounty;
+    const evs = combat.destroy(c, pirate);
+    check('a kill pays its bounty', c.credits === bounty && bounty > 0);
+    check('...counts as a kill', c.kills === 1 && c.combatScore > 0);
+    check('...is nobody\'s business legally', offence(evs) === CLEAN);
+    check('...and takes the ship out of the sky',
+      world.npcs.length === 0 && kinds(evs).includes('wrecked'));
+  }
+  {
+    const { world, combat, c } = setup();
+    const evs = combat.destroy(c, world.spawn('trader', at(-500), 1));
+    check('destroying a trader makes you a fugitive', offence(evs) === FUGITIVE);
+    check('...and pays nothing', c.credits === 0);
+  }
+  {
+    const { world, combat, c } = setup();
+    combat.destroy(c, world.spawn('asteroid', at(-500), 1));
+    check('a rock is not a kill', c.kills === 0 && c.combatScore === 0);
+  }
+  {
+    // the wreck path exists so a fight you only WATCHED does not pay you
+    const { world, combat, c } = setup();
+    const pirate = world.spawn('pirate', at(-500), 1);
+    combat.wreck(pirate);
+    check('an NPC-vs-NPC kill pays no bounty and no credit',
+      c.credits === 0 && c.kills === 0 && world.npcs.length === 0);
+  }
+  {
+    const { world, combat, c } = setup();
+    c.contracts = [
+      { kind: 'bounty', destination: 7, progress: 0, qty: 2 },
+      { kind: 'bounty', destination: 99, progress: 0, qty: 2 },
+    ] as never;
+    combat.destroy(c, world.spawn('pirate', at(-500), 1));
+    check('a bounty contract ticks up where it was taken',
+      c.contracts[0].progress === 1);
+    check('...and not for a contract from somewhere else',
+      c.contracts[1].progress === 0);
+    const evs = combat.destroy(c, world.spawn('pirate', at(-500), 2));
+    check('...and says so when it completes',
+      c.contracts[0].progress === 2
+      && msgs(evs).some((m) => m!.includes('BOUNTY CONTRACT COMPLETE')));
+    const after = combat.destroy(c, world.spawn('pirate', at(-500), 3));
+    check('...only once', c.contracts[0].progress === 2
+      && !msgs(after).some((m) => m!.includes('CONTRACT COMPLETE')));
+  }
+  {
+    // thargons are drones: killing the mothership shuts them down
+    const { world, combat, c } = setup();
+    const goid = world.spawn('thargoid', at(-500), 1);
+    const drone = world.spawn('thargon', at(-400), 2);
+    const evs = combat.destroy(c, goid);
+    check('the last thargoid dying deactivates its thargons',
+      drone.inert === true
+      && msgs(evs).some((m) => m!.includes('THARGONS DEACTIVATED')));
+  }
+  {
+    const { world, combat, c } = setup();
+    world.spawn('thargoid', at(-900), 9);
+    const drone = world.spawn('thargon', at(-400), 2);
+    combat.destroy(c, world.spawn('thargoid', at(-500), 1));
+    check('...but not while another mothership is alive', drone.inert === false);
   }
 }
 
@@ -1202,6 +1297,12 @@ console.log('\nNavy mission');
 
 console.log('\nNPC flight');
 {
+  // Seeded, because these assert emergent flight and NpcShip pulls from the
+  // world RNG at construction. Without this the block inherits whatever stream
+  // position the tests above happened to leave, so adding a test elsewhere
+  // could fail one here — which is exactly what happened when combat.ts got
+  // its own tests.
+  seedWorld(20_260_727);
   const at = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
   const makePlayer = (pos: THREE.Vector3) =>
     ({ position: pos, quaternion: new THREE.Quaternion(), speed: 100 }) as never;
