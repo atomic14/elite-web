@@ -199,6 +199,18 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
 
 ## Style
 
+- **Keep files small, and `npm run sizes` enforces it.** The soft ceiling is
+  **400 lines**; anything above it must be named in the allowlist in
+  `tools/sizes.mjs` **with a reason**, and the check fails on a new file growing
+  past it. This is not tidiness. Two files in this project reached 3,244 and
+  4,729 lines, and both got there the same way: they were the default place to
+  put things, so nobody ever decided. The cost was real — a kitchen-sink file is
+  where one rule quietly grows two homes, and three agents working on unrelated
+  modules still collided in the same test file.
+
+  When you are about to add to a long file, the question is not "will this fit"
+  but "what is this file FOR, and is this that?" If the answer needs an "and",
+  it belongs somewhere else.
 - Module-header comments state each file's role — maintain them. A file that
   needs a paragraph in `ARCHITECTURE.md` to make sense has the wrong name.
 - `game/game.ts` is the orchestrator and nothing else: the fixed-timestep loop,
