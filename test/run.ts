@@ -11,6 +11,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
 import { dockingOutcome, ROLL_TOLERANCE } from '../src/game/docking.ts';
+import {
+  npcHitChance, NPC_HIT_CAP, NPC_HIT_FLOOR, NPC_HIT_BASE, NPC_HIT_FALLOFF,
+  NPC_DAMAGE_LO, NPC_DAMAGE_SPREAD,
+} from '../src/game/gunnery.ts';
 import { seedWorld, random } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import {
@@ -28,6 +32,7 @@ import {
 } from '../src/game/gunnery.ts';
 import {
   freshSystems, applyDamage, regenerate, durability, updateCabinTemp, scoopFuel,
+  LASER_COOL_RATE,
 } from '../src/game/systems.ts';
 import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
@@ -1182,32 +1187,32 @@ console.log('\nsim/game combat parity');
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
   const core = read('../src/ai-training/core.ts');
   const npc = read('../src/game/npc.ts');
-  const game = read('../src/game/game.ts');
 
   const num = (src: string, re: RegExp): number | null => {
     const m = src.match(re);
     return m ? Number(m[1]) : null;
   };
 
-  // laser: the sim fires a flat 0.16; the game rolls 0.1 + rand*0.12, whose
-  // MEAN must be the same or every trained policy was fitted to a different
-  // weapon than the one it flies.
-  const simLaser = num(core, /damage:\s*([\d.]+),[\s\S]{0,80}?cooldown/);
-  // `random()` not `Math.random()` — world randomness is seeded, see game/rng.ts
-  const lo = num(game, /applyPlayerDamage\(([\d.]+) \+ random\(\)/);
-  const spread = num(game, /applyPlayerDamage\([\d.]+ \+ random\(\) \* ([\d.]+)/);
-  check(`laser damage: sim ${simLaser} == game mean ${lo! + spread! / 2}`,
-    simLaser !== null && Math.abs(simLaser - (lo! + spread! / 2)) < 1e-9);
-
-  // NPC FIRE RATE — for six training rounds the largest sim/game divergence in
-  // the project, and now closed. The sim used to give every ship the player's
-  // pulse laser (0.24s cooldown) while the game gates an NPC to `0.9 +
-  // random*0.8`, a mean of 1.30s: brains were fitted to a weapon firing 5.4x
-  // faster than the one they would actually carry. core.ts now models the
-  // game's gun as NPC_GUN, and pirate hulls declare `gun: 'npc'`.
+  // The PLAYER's laser, against the sim's model of it.
   //
-  // These now assert EQUALITY, not a ratio. The whole point of the change is
-  // that the two numbers are one number.
+  // This check used to compare core.ts's LASER — which is the player's pulse
+  // laser — against game.ts's NPC damage roll, and passed because
+  // 0.1 + 0.12/2 happens to equal 0.16. Two different weapons agreeing by
+  // coincidence. Its real counterpart is LASERS.pulse in gunnery.ts, and that
+  // was never checked at all.
+  const simDamage = num(core, /LASER = \{[\s\S]{0,120}?damage:\s*([\d.]+)/);
+  const simCooldown = num(core, /LASER = \{[\s\S]{0,200}?cooldown:\s*([\d.]+)/);
+  const simHeat = num(core, /LASER = \{[\s\S]{0,240}?heat:\s*([\d.]+)/);
+  const simCool = num(core, /LASER = \{[\s\S]{0,300}?coolRate:\s*([\d.]+)/);
+  check(`pulse laser damage: sim ${simDamage} == game ${LASERS.pulse.damage}`,
+    simDamage === LASERS.pulse.damage);
+  check(`pulse laser cooldown: sim ${simCooldown} == game ${LASERS.pulse.cooldown}`,
+    simCooldown === LASERS.pulse.cooldown);
+  check(`pulse laser heat: sim ${simHeat} == game ${LASERS.pulse.heat}`,
+    simHeat === LASERS.pulse.heat);
+  check(`laser cool rate: sim ${simCool} == game ${LASER_COOL_RATE}`,
+    simCool === LASER_COOL_RATE);
+
   // IMPORTED VALUES, not regexes over source text.
   //
   // These were four `num(npc, /.../)` captures taking the FIRST match in the
@@ -1232,15 +1237,36 @@ console.log('\nsim/game combat parity');
   check(`NPC laser range: sim ${LASER_RANGE_SIM} == game ${NPC_LASER_RANGE}`,
     LASER_RANGE_SIM === NPC_LASER_RANGE);
 
-  // And the hit roll, which lives in game.ts resolveNpcFire.
-  const gunCap = num(core, /NPC_GUN = \{[\s\S]{0,400}?hitCap:\s*([\d.]+)/);
-  const gameCap = num(game, /Math\.min\(([\d.]+), Math\.max\(/);
-  check(`NPC hit cap: sim ${gunCap} == game ${gameCap}`,
-    gunCap !== null && gunCap === gameCap);
+  // The whole NPC gun, compared as VALUES.
+  //
+  // These were two regexes over game.ts — a `Math.min(0.85, Math.max(` that
+  // bound to the first such clamp in 2,800 lines, and a substring match on the
+  // damage expression. Four of NPC_GUN's fields had no assertion at all, so
+  // changing damageSpread in the sim would have gone unnoticed: the game's
+  // NPC damage was only pinned indirectly, through the PLAYER's pulse laser
+  // happening to average the same number.
+  //
+  // The literals live in gunnery.ts now, beside the player's gun, and both
+  // sides import.
+  const gunHitCap = num(core, /NPC_GUN = \{[\s\S]{0,400}?hitCap:\s*([\d.]+)/);
+  const gunHitFloor = num(core, /NPC_GUN = \{[\s\S]{0,400}?hitFloor:\s*([\d.]+)/);
+  const gunHitBase = num(core, /NPC_GUN = \{[\s\S]{0,400}?hitBase:\s*([\d.]+)/);
+  const gunFalloff = num(core, /NPC_GUN = \{[\s\S]{0,400}?hitFalloff:\s*([\d.]+)/);
+  const gunDmgLo = num(core, /NPC_GUN = \{[\s\S]{0,400}?damageLo:\s*([\d.]+)/);
+  const gunDmgSpread = num(core, /NPC_GUN = \{[\s\S]{0,400}?damageSpread:\s*([\d.]+)/);
+  check(`NPC hit cap: sim ${gunHitCap} == game ${NPC_HIT_CAP}`, gunHitCap === NPC_HIT_CAP);
+  check(`NPC hit floor: sim ${gunHitFloor} == game ${NPC_HIT_FLOOR}`, gunHitFloor === NPC_HIT_FLOOR);
+  check(`NPC hit base: sim ${gunHitBase} == game ${NPC_HIT_BASE}`, gunHitBase === NPC_HIT_BASE);
+  check(`NPC hit falloff: sim ${gunFalloff} == game ${NPC_HIT_FALLOFF}`, gunFalloff === NPC_HIT_FALLOFF);
+  check(`NPC damage: sim ${gunDmgLo}+${gunDmgSpread} == game ${NPC_DAMAGE_LO}+${NPC_DAMAGE_SPREAD}`,
+    gunDmgLo === NPC_DAMAGE_LO && gunDmgSpread === NPC_DAMAGE_SPREAD);
 
-  const gunDmg = num(core, /NPC_GUN = \{[\s\S]{0,400}?damageLo:\s*([\d.]+)/);
-  check(`NPC laser damage: sim ${gunDmg} appears in game.ts`,
-    gunDmg !== null && game.includes(`applyPlayerDamage(${gunDmg} + random()`));
+  // and the curve itself, at both clamps and in between
+  check('an NPC shot at point blank is capped, not certain', npcHitChance(0) === NPC_HIT_CAP);
+  check('...and at extreme range it floors rather than reaching zero',
+    npcHitChance(99_999) === NPC_HIT_FLOOR);
+  check('...and falls off with distance between them',
+    npcHitChance(500) > npcHitChance(2500));
 
   // Ram damage moved out of game.ts into collisions.ts as a named constant,
   // which is an improvement on a bare 0.45 appearing three times — and this

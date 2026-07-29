@@ -43,6 +43,7 @@ import { traceShot } from './shot.ts';
 import { Ordnance, ECM_ENERGY_COST, type Missile } from './ordnance.ts';
 import {
   laserForView, canFire, chargeShot, hitCone, LASER_RANGE, AIM_ASSIST,
+  npcHitChance, npcShotDamage, npcPrefersMissile, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE,
 } from './gunnery.ts';
 import {
   stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
@@ -2031,12 +2032,12 @@ export class Game {
   private resolveNpcFire(npc: NpcShip, event: FireEvent): void {
     if (event.at === 'player') {
       const dist = npc.object.position.distanceTo(this.player.position);
-      if (npc.missiles > 0 && dist > 1200 && dist < 3200 && random() < 0.3) {
+      if (npc.missiles > 0 && npcPrefersMissile(dist, random())) {
         this.enemyLaunchMissile(npc);
         return;
       }
       sfx.enemyLaser();
-      const hit = random() < Math.min(0.85, Math.max(0.15, 0.9 - dist / 3500));
+      const hit = random() < npcHitChance(dist);
       // visible bolt: to us on a hit, wide of us on a miss
       const to = hit
         ? this.player.position.clone()
@@ -2045,15 +2046,15 @@ export class Game {
       this.world.effects.tracer(
         npc.nosePosition(this.tmp).clone(), to,
         npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
-      if (hit) this.applyPlayerDamage(0.1 + random() * 0.12, npc.object.position);
+      if (hit) this.applyPlayerDamage(npcShotDamage(random()), npc.object.position);
       return;
     }
     // NPC shooting NPC
     const target = event.at;
     this.world.effects.tracer(
       npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
-    if (random() < 0.5) {
-      if (target.takeDamage(0.11, npc.object.position)) {
+    if (random() < NPC_VS_NPC_HIT) {
+      if (target.takeDamage(NPC_VS_NPC_DAMAGE, npc.object.position)) {
         this.wreckNpc(target); // no player credit
       }
     }

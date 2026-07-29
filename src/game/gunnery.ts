@@ -103,3 +103,47 @@ export function chargeShot(sys: ShipSystems, laser: LaserSpec): void {
   sys.laserCooldown = laser.cooldown;
   sys.laserTemp = Math.min(1, sys.laserTemp + laser.heat);
 }
+
+
+// --- the NPC's gun ---------------------------------------------------------
+//
+// gunnery.ts owned the player's laser and nothing owned the NPC's, which is
+// how its numbers ended up as literals inside game.ts's resolveNpcFire — the
+// hit roll, the damage roll and the missile odds, all inline in the
+// orchestrator. Two of the four were checked by the sim/game parity tests;
+// the rest could drift silently.
+//
+// Mirrors NPC_GUN in ai-training/core.ts. Invariant 2: change one, change the
+// other, and `npm test` compares them.
+
+/** Hit chance falls off with range, clamped at both ends. */
+export const NPC_HIT_BASE = 0.9;
+export const NPC_HIT_FALLOFF = 3500;
+export const NPC_HIT_CAP = 0.85;
+export const NPC_HIT_FLOOR = 0.15;
+/** Damage per hit: 0.1 + up to 0.12. */
+export const NPC_DAMAGE_LO = 0.1;
+export const NPC_DAMAGE_SPREAD = 0.12;
+/** NPC-vs-NPC is cruder: a coin flip for this much. */
+export const NPC_VS_NPC_HIT = 0.5;
+export const NPC_VS_NPC_DAMAGE = 0.11;
+/** A missile is only worth launching in this band. */
+export const MISSILE_MIN_RANGE = 1200;
+export const MISSILE_MAX_RANGE = 3200;
+export const MISSILE_CHANCE = 0.3;
+
+/** Chance an NPC's shot connects at `dist`. */
+export function npcHitChance(dist: number): number {
+  return Math.min(NPC_HIT_CAP,
+    Math.max(NPC_HIT_FLOOR, NPC_HIT_BASE - dist / NPC_HIT_FALLOFF));
+}
+
+/** Damage from one NPC hit. */
+export function npcShotDamage(roll: number): number {
+  return NPC_DAMAGE_LO + roll * NPC_DAMAGE_SPREAD;
+}
+
+/** Would an NPC rather send a missile than a laser bolt? */
+export function npcPrefersMissile(dist: number, roll: number): boolean {
+  return dist > MISSILE_MIN_RANGE && dist < MISSILE_MAX_RANGE && roll < MISSILE_CHANCE;
+}

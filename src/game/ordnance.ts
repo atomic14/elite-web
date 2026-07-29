@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { buildShip, MISSILE } from '../ships/geometry.ts';
 import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
-import { random, randomDirection } from './rng.ts';
+import { random } from './rng.ts';
 import { sfx } from '../audio.ts';
 import type { MissileSnapshot } from './snapshot.ts';
 
@@ -284,12 +284,4 @@ export class Ordnance {
   }
 }
 
-/** An NPC decides to launch: same odds the game has always used. */
-export function npcWantsMissile(distance: number): boolean {
-  return distance > 1200 && distance < 3200 && random() < 0.3;
-}
 
-/** Where a hostile missile is born, offset off the firing ship's nose. */
-export function hostileLaunchPoint(nose: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
-  return out.copy(nose).add(randomDirection(new THREE.Vector3()).multiplyScalar(8));
-}
