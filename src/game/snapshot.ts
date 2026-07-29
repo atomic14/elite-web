@@ -36,43 +36,50 @@ export interface ShipSnapshot {
   rollRate: number;
 }
 
-export interface NpcSnapshot extends ShipSnapshot {
+/**
+ * A ship's state, serialised.
+ *
+ * NOT a hand-written field list any more. It is whatever `NpcState` contains,
+ * walked generically — which is the whole reason the state was gathered into
+ * one object. The list version was written twice and wrong twice: first it
+ * forgot the trigger and trade clocks, then the pack station and the brain's
+ * ramped rates, and both times two reloads agreed with each other but not with
+ * the run they came from. Add a field to NpcState now and it is saved.
+ */
+export type NpcSnapshot = {
   role: string;
-  /** the variant seed its hull and stats were generated from */
   seed: number;
-  hp: number;
-  alive: boolean;
-  provoked: boolean;
-  provokedByPlayer: boolean;
-  satisfied: boolean;
-  organised: boolean;
-  threatTier: number;
-  isMissionTarget: boolean;
-  inert: boolean;
-  docked: boolean;
-  docking: boolean;
-  missiles: number;
-  /**
-   * The per-ship timers. Leaving these out was the difference between a
-   * snapshot that restores the world and one that restores a world: two
-   * reloads agreed with each other but not with the run they came from,
-   * because every restored ship had a fresh trigger and a fresh trade clock.
-   */
-  fireCooldown: number;
-  tradeTimer: number;
-  traderPhase: string;
-  fleeing: boolean;
-  fleeFrom: [number, number, number];
   /** index into `npcs` of whatever it is hunting, or -1 */
   targetIndex: number;
-  /** its station in a gang, generated once at spawn from the seeded stream */
-  packOffset: [number, number, number];
-  waypoint: [number, number, number];
-  waypointTimer: number;
-  /** the brain's decision clock and its ramped turn rates */
-  brainTimer: number;
-  brainPitchRate: number;
-  brainRollRate: number;
+  state: Record<string, unknown>;
+};
+
+/** Vectors and quaternions become arrays; everything else passes through. */
+export function serialiseState(state: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(state)) {
+    if (v && typeof v === 'object' && 'x' in v && 'y' in v && 'z' in v) {
+      const p = v as { x: number; y: number; z: number; w?: number };
+      out[k] = p.w === undefined ? [p.x, p.y, p.z] : [p.x, p.y, p.z, p.w];
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/** ...and back, writing INTO the live vectors so aliasing to the mesh holds. */
+export function restoreState(state: Record<string, unknown>, saved: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(saved)) {
+    const target = state[k];
+    if (Array.isArray(v) && target && typeof target === 'object' && 'x' in target) {
+      const p = target as { x: number; y: number; z: number; w?: number };
+      p.x = v[0] as number; p.y = v[1] as number; p.z = v[2] as number;
+      if (v.length > 3) p.w = v[3] as number;
+    } else {
+      state[k] = v;
+    }
+  }
 }
 
 export interface CanisterSnapshot {
@@ -87,7 +94,6 @@ export interface WorldSnapshot {
   version: number;
   /** where the ship is: flight or docked. A snapshot of a menu is meaningless. */
   mode: 'flight' | 'docked';
-  witchspace: boolean;
   /** the persistent commander, exactly as a station save holds it */
   commander: CommanderData;
   /** the level-1 galaxy sim, so prices and danger resume too */
@@ -97,6 +103,8 @@ export interface WorldSnapshot {
   npcs: NpcSnapshot[];
   canisters: CanisterSnapshot[];
   encounterTimers: EncounterTimers;
+  /** every flight-session flag and timer, walked generically — see SessionState */
+  session: Record<string, unknown>;
   /**
    * Generator state, not just the seed.
    *
@@ -108,7 +116,17 @@ export interface WorldSnapshot {
   rng: { seed: number; state: number };
   /** hyperspace target, so the chart still points where you were going */
   chartTarget: number | null;
-  view: number;
+  /**
+   * The station's orientation.
+   *
+   * Simulation state that lives in the SCENE, which is the conflation this
+   * architecture is working to remove — and it is not cosmetic: the slot
+   * normal, the docking box and the bounce in npcsVsStation are all computed
+   * from it, so a station rebuilt at its starting angle changes what every
+   * ship near it does. It was the last thing keeping a restored world from
+   * replaying its original.
+   */
+  stationQuat: [number, number, number, number];
 }
 
 export const v3 = (v: { x: number; y: number; z: number }): [number, number, number] =>

@@ -28,7 +28,7 @@ import { planDocking, makeDockPlan } from './docking.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
 import { saveWorld, readWorld, clearWorld } from './commander.ts';
 import {
-  SNAPSHOT_VERSION, v3, q4,
+  SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState,
   type WorldSnapshot, type CanisterSnapshot,
 } from './snapshot.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
@@ -143,6 +143,42 @@ import {
   distanceTenths, type ChartState,
 } from '../ui/screens.ts';
 
+
+/**
+ * The flight session: every flag and timer that describes what is happening
+ * right now, as opposed to who the commander is (commander.ts) or what is in
+ * the sky (the entity arrays).
+ *
+ * One object for the same reason NpcState is one object — a snapshot is this,
+ * walked generically. Written as separate fields on Game, the snapshot caught
+ * five of twenty-three, and the twenty-three included `torusEngaged`: restore
+ * a save taken under torus drive and the ship quietly flew at a different
+ * speed from the run it came from.
+ */
+export interface SessionState {
+  missileArmed: boolean;
+  hyperCountdown: number;
+  torusEngaged: boolean;
+  witchspace: boolean;
+  npcTargetTimer: number;
+  autoSaveTimer: number;
+  energyLowTimer: number;
+  policeScanned: boolean;
+  defenceLaunched: boolean;
+  hermitTrading: boolean;
+  hermitCooldown: boolean;
+  jettisonedValue: number;
+  arrivalCargoValue: number;
+  genShipSeen: boolean;
+  trumbleTimer: number;
+  beaconTimer: number;
+  strandedHintTimer: number;
+  paused: boolean;
+  ccEngaged: boolean;
+  beamTimer: number;
+  dcEngaged: boolean;
+}
+
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
 
 /**
@@ -236,6 +272,74 @@ export class Game {
    * Where the SHIP is. Flight, docked, or dead — the states that are not
    * screens. Overlays live on the screen stack; `mode` is the two combined.
    */
+  /** the flight session, in one place — see SessionState */
+  readonly session: SessionState = {
+    missileArmed: false,
+    hyperCountdown: -1,
+    torusEngaged: false,
+    witchspace: false,
+    npcTargetTimer: 0,
+    autoSaveTimer: AUTOSAVE_INTERVAL,
+    energyLowTimer: 0,
+    policeScanned: false,
+    defenceLaunched: false,
+    hermitTrading: false,
+    hermitCooldown: false,
+    jettisonedValue: 0,
+    arrivalCargoValue: 0,
+    genShipSeen: false,
+    trumbleTimer: 20,
+    beaconTimer: -1,
+    strandedHintTimer: 2,
+    paused: false,
+    ccEngaged: false,
+    beamTimer: 0,
+    dcEngaged: false,
+  };
+
+  get missileArmed(): boolean { return this.session.missileArmed; }
+  set missileArmed(v: boolean) { this.session.missileArmed = v; }
+  get hyperCountdown(): number { return this.session.hyperCountdown; }
+  set hyperCountdown(v: number) { this.session.hyperCountdown = v; }
+  get torusEngaged(): boolean { return this.session.torusEngaged; }
+  set torusEngaged(v: boolean) { this.session.torusEngaged = v; }
+  get witchspace(): boolean { return this.session.witchspace; }
+  set witchspace(v: boolean) { this.session.witchspace = v; }
+  get npcTargetTimer(): number { return this.session.npcTargetTimer; }
+  set npcTargetTimer(v: number) { this.session.npcTargetTimer = v; }
+  get autoSaveTimer(): number { return this.session.autoSaveTimer; }
+  set autoSaveTimer(v: number) { this.session.autoSaveTimer = v; }
+  get energyLowTimer(): number { return this.session.energyLowTimer; }
+  set energyLowTimer(v: number) { this.session.energyLowTimer = v; }
+  get policeScanned(): boolean { return this.session.policeScanned; }
+  set policeScanned(v: boolean) { this.session.policeScanned = v; }
+  get defenceLaunched(): boolean { return this.session.defenceLaunched; }
+  set defenceLaunched(v: boolean) { this.session.defenceLaunched = v; }
+  get hermitTrading(): boolean { return this.session.hermitTrading; }
+  set hermitTrading(v: boolean) { this.session.hermitTrading = v; }
+  get hermitCooldown(): boolean { return this.session.hermitCooldown; }
+  set hermitCooldown(v: boolean) { this.session.hermitCooldown = v; }
+  get jettisonedValue(): number { return this.session.jettisonedValue; }
+  set jettisonedValue(v: number) { this.session.jettisonedValue = v; }
+  get arrivalCargoValue(): number { return this.session.arrivalCargoValue; }
+  set arrivalCargoValue(v: number) { this.session.arrivalCargoValue = v; }
+  get genShipSeen(): boolean { return this.session.genShipSeen; }
+  set genShipSeen(v: boolean) { this.session.genShipSeen = v; }
+  get trumbleTimer(): number { return this.session.trumbleTimer; }
+  set trumbleTimer(v: number) { this.session.trumbleTimer = v; }
+  get beaconTimer(): number { return this.session.beaconTimer; }
+  set beaconTimer(v: number) { this.session.beaconTimer = v; }
+  get strandedHintTimer(): number { return this.session.strandedHintTimer; }
+  set strandedHintTimer(v: number) { this.session.strandedHintTimer = v; }
+  get paused(): boolean { return this.session.paused; }
+  set paused(v: boolean) { this.session.paused = v; }
+  get ccEngaged(): boolean { return this.session.ccEngaged; }
+  set ccEngaged(v: boolean) { this.session.ccEngaged = v; }
+  get beamTimer(): number { return this.session.beamTimer; }
+  set beamTimer(v: number) { this.session.beamTimer = v; }
+  get dcEngaged(): boolean { return this.session.dcEngaged; }
+  set dcEngaged(v: boolean) { this.session.dcEngaged = v; }
+
   private baseMode: 'docked' | 'flight' | 'dead' = 'docked';
 
   /**
@@ -260,24 +364,14 @@ export class Game {
 
   targetLock: NpcShip | null = null;
   /** missile armed but not yet locked (the original's yellow pylon) */
-  missileArmed = false;
-  private hyperCountdown = -1;
-  torusEngaged = false;
-  witchspace = false;
   private view = 0; // 0 front, 1 rear, 2 left, 3 right
 
   canisters: Canister[] = [];
-  private npcTargetTimer = 0;
   /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
   private encounterTimers: EncounterTimers = freshTimers();
   /** counts down to the next mid-flight world save — see autoSave() */
-  private autoSaveTimer = AUTOSAVE_INTERVAL;
-  private energyLowTimer = 0;
-  private policeScanned = false;
   /** the station only scrambles its defence fleet once per visit */
-  defenceLaunched = false;
   /** trading with a rock hermit rather than a station */
-  hermitTrading = false;
   private hermitMarket: MarketEntry[] = [];
   /** true after leaving a hermit, until you fly clear of it */
   /** waiting on the player to confirm erasing their commander */
@@ -308,15 +402,8 @@ export class Game {
   /** the reception the current system laid on — surfaced for the HUD/tests */
   lastThreat: PirateThreat | null = null;
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
-  jettisonedValue = 0;
   /** what the hold was worth on arrival — sets what the pirates think they're owed */
-  arrivalCargoValue = 0;
-  hermitCooldown = false;
-  genShipSeen = false;
-  trumbleTimer = 20;
   /** seconds until a rescue answers the distress beacon (-1 = not sent) */
-  beaconTimer = -1;
-  private strandedHintTimer = 2;
   contractOffers: Contract[] = [];
   /**
    * Selected contract row. A property because it lives on ContractsScreen now,
@@ -325,11 +412,9 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   get contractSelected(): number { return this.contracts_.selected; }
   set contractSelected(v: number) { this.contracts_.selected = v; }
-  private paused = false;
   /** where ESC returns to from the DATA ON screen */
   private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
-  ccEngaged = false;
   private readonly combatComputer = new CombatComputer();
 
   /**
@@ -352,7 +437,6 @@ export class Game {
   set laserCooldown(v: number) { this.sys.laserCooldown = v; }
   get cabinTemp(): number { return this.sys.cabinTemp; }
   set cabinTemp(v: number) { this.sys.cabinTemp = v; }
-  private beamTimer = 0;
 
 
   private readonly dust = new SpaceDust();
@@ -364,7 +448,6 @@ export class Game {
   /** reused for player gunnery — see LASER_GRAZE */
   private readonly shotRay = new THREE.Raycaster();
   /** docking computer flying the ship in — see dockingComputerStep */
-  dcEngaged = false;
   private readonly dockPlan = makeDockPlan();
   private readonly tmpQ = new THREE.Quaternion();
   private readonly tmpM = new THREE.Matrix4();
@@ -838,7 +921,6 @@ export class Game {
     return {
       version: SNAPSHOT_VERSION,
       mode: this.baseMode === 'flight' ? 'flight' : 'docked',
-      witchspace: this.witchspace,
       commander: structuredClone(this.commander),
       galaxyState: this.living.save(),
       player: {
@@ -850,37 +932,10 @@ export class Game {
       },
       systems: { ...this.sys },
       npcs: this.npcs.map((n) => ({
-        pos: v3(n.object.position),
-        quat: q4(n.object.quaternion),
-        speed: n.speed,
-        pitchRate: 0,
-        rollRate: 0,
         role: n.role,
         seed: n.variantSeed,
-        hp: n.hp,
-        alive: n.alive,
-        provoked: n.provoked,
-        provokedByPlayer: n.provokedByPlayer,
-        satisfied: n.satisfied,
-        organised: n.organised,
-        threatTier: n.threatTier,
-        isMissionTarget: n.isMissionTarget,
-        inert: n.inert,
-        docked: n.docked,
-        docking: n.docking,
-        missiles: n.missiles,
-        fireCooldown: n.fireCooldown,
-        tradeTimer: n.tradeTimer,
-        traderPhase: n.traderPhase,
-        fleeing: n.fleeing,
-        fleeFrom: v3(n.fleeFrom),
         targetIndex: n.npcTarget ? this.npcs.indexOf(n.npcTarget) : -1,
-        packOffset: v3(n.packOffset),
-        waypoint: v3(n.waypoint),
-        waypointTimer: n.waypointTimer,
-        brainTimer: n.brainTimer,
-        brainPitchRate: n.brainPitchRate,
-        brainRollRate: n.brainRollRate,
+        state: serialiseState(n.state as unknown as Record<string, unknown>),
       })),
       canisters: this.canisters.map((c) => ({
         pos: v3(c.object.position),
@@ -890,9 +945,10 @@ export class Game {
         commodity: c.commodity,
       })),
       encounterTimers: { ...this.encounterTimers },
+      session: serialiseState(this.session as unknown as Record<string, unknown>),
       rng: rngState(),
       chartTarget: this.chart.targetIndex,
-      view: this.view,
+      stationQuat: q4(this.world.station.quaternion),
     };
   }
 
@@ -912,7 +968,7 @@ export class Game {
     this.systems = generateGalaxy(this.commander.galaxy);
     this.living = new LivingGalaxy(this.systems);
     this.living.load(snap.galaxyState as Parameters<LivingGalaxy['load']>[0]);
-    this.witchspace = snap.witchspace;
+    restoreState(this.session as unknown as Record<string, unknown>, snap.session);
     this.buildWorld();
     if (this.witchspace) this.enterWitchspace();
 
@@ -925,32 +981,8 @@ export class Game {
 
     this.clearNpcs();
     for (const n of snap.npcs) {
-      const npc = this.spawnNpc(n.role as NpcRole, new THREE.Vector3(...n.pos), n.seed);
-      npc.object.quaternion.set(...n.quat);
-      npc.speed = n.speed;
-      npc.hp = n.hp;
-      npc.alive = n.alive;
-      npc.provoked = n.provoked;
-      npc.provokedByPlayer = n.provokedByPlayer;
-      npc.satisfied = n.satisfied;
-      npc.organised = n.organised;
-      npc.threatTier = n.threatTier;
-      npc.isMissionTarget = n.isMissionTarget;
-      npc.inert = n.inert;
-      npc.docked = n.docked;
-      npc.docking = n.docking;
-      npc.missiles = n.missiles;
-      npc.fireCooldown = n.fireCooldown;
-      npc.tradeTimer = n.tradeTimer;
-      npc.traderPhase = n.traderPhase as typeof npc.traderPhase;
-      npc.fleeing = n.fleeing;
-      npc.fleeFrom.set(...n.fleeFrom);
-      npc.packOffset.set(...n.packOffset);
-      npc.waypoint.set(...n.waypoint);
-      npc.waypointTimer = n.waypointTimer;
-      npc.brainTimer = n.brainTimer;
-      npc.brainPitchRate = n.brainPitchRate;
-      npc.brainRollRate = n.brainRollRate;
+      const npc = this.spawnNpc(n.role as NpcRole, new THREE.Vector3(), n.seed);
+      restoreState(npc.state as unknown as Record<string, unknown>, n.state);
     }
     // second pass: the hunting links, now that every ship exists
     snap.npcs.forEach((n, i) => {
@@ -971,7 +1003,8 @@ export class Game {
 
     this.encounterTimers = { ...snap.encounterTimers };
     this.chart.targetIndex = snap.chartTarget;
-    this.view = snap.view;
+    this.world.station.quaternion.set(...snap.stationQuat);
+    this.world.station.updateMatrixWorld(true);
     this.baseMode = snap.mode;
     this.screens.exit();
     if (snap.mode === 'docked') this.enterDocked(true);

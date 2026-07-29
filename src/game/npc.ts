@@ -264,6 +264,60 @@ export function installPolicyKit(): void {
   };
 }
 
+
+/**
+ * Everything about a ship that can CHANGE.
+ *
+ * All of it in one object, which is the point: a snapshot is this, walked
+ * generically, so there is no list of fields to keep in step and nothing to
+ * forget. Hand-enumerating them cost two rounds of "two reloads agree with
+ * each other but not with the run they came from" — first the trigger and
+ * trade clocks, then the pack station and the brain's ramped rates.
+ *
+ * `pos` and `quat` are the SAME THREE objects the mesh uses, not copies. The
+ * renderer therefore reads the state rather than being told about it, and
+ * there is no sync step to forget either.
+ */
+export interface NpcState {
+  pos: THREE.Vector3;
+  quat: THREE.Quaternion;
+  packOffset: THREE.Vector3;
+  waypoint: THREE.Vector3;
+  fleeFrom: THREE.Vector3;
+  traderPhase: TraderPhase;
+  /**
+   * The cached policy decision, re-taken every brainTimer seconds.
+   *
+   * I excluded this by hand as "not really state", and it was the last thing
+   * keeping a restored world from replaying its original: a ship reloaded
+   * mid-decision re-decides immediately where the original was still acting on
+   * a choice made up to 0.1s earlier, and six frames of difference compound.
+   * If the step reads it, it is state.
+   */
+  brainControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null;
+  hp: number;
+  alive: boolean;
+  provoked: boolean;
+  provokedByPlayer: boolean;
+  missiles: number;
+  isMissionTarget: boolean;
+  fleeing: boolean;
+  inert: boolean;
+  tradeTimer: number;
+  wantsDespawn: boolean;
+  docked: boolean;
+  docking: boolean;
+  organised: boolean;
+  satisfied: boolean;
+  threatTier: number;
+  speed: number;
+  fireCooldown: number;
+  waypointTimer: number;
+  brainTimer: number;
+  brainPitchRate: number;
+  brainRollRate: number;
+}
+
 // NPC ships. Behaviour matrix:
 //  - traders  fly in from the system edge, do business near the station, and
 //    depart; they only fight back (flee + ECM) when attacked
@@ -426,44 +480,28 @@ export class NpcShip {
   readonly radius: number;
   readonly bounty: number;
   readonly cargoDrop: number;
-  hp: number;
   readonly maxHp: number;
-  alive = true;
   /** Set when the player damages this ship. */
   /** hit by anything at all — police do NOT read this, see isHostileToPlayer */
-  provoked = false;
   /** True when it was specifically the player who attacked us. */
-  provokedByPlayer = false;
   readonly armed: boolean;
   /** Homing missiles this ship can still launch at the player. */
-  missiles = 0;
   readonly hasEcm: boolean;
   /** Mission flag: destroying this advances the Constrictor hunt. */
-  isMissionTarget = false;
 
   /** Pack spread so groups attack from different bearings. */
-  readonly packOffset = new THREE.Vector3();
   /** Pirates currently targeting this ship; maintained (and pruned) by the game loop. */
   readonly attackers: NpcShip[] = [];
   /** NPC-vs-NPC target, assigned by the game (pirate→trader, police→pirate). */
   npcTarget: NpcShip | null = null;
   /** Where the last attack came from; traders flee this. */
   /** @internal snapshot */
-  readonly fleeFrom = new THREE.Vector3();
-  /** @internal snapshot */
-  fleeing = false;
   /** Thargons go inert when their mothership dies. */
-  inert = false;
 
   /** Trader lifecycle. */
-  traderPhase: TraderPhase = 'trading';
-  tradeTimer = 20 + random() * 40;
   /** Set true when this ship has flown off / docked and should be removed. */
-  wantsDespawn = false;
   /** this trader put in at the station rather than jumping out */
-  docked = false;
   /** on final approach into the slot — the station must not shove it away */
-  docking = false;
   /** the live station's slot depth, handed down by the Game each frame */
   private stationDockZ = DOCK_Z;
   private readonly dockPlan: DockPlan = makeDockPlan();
@@ -474,36 +512,20 @@ export class NpcShip {
    * off. Set by the Game from pirateThreat() when the player looks worth
    * organising against.
    */
-  organised = false;
   /** took the jettisoned cargo and lost interest — see isHostileToPlayer */
-  satisfied = false;
   /** threat tier this ship was spawned at — sets what killing it is worth */
-  threatTier = 0;
 
-  /** public so the Game can scrub speed off on a collision */
-  speed: number;
   private readonly maxSpeed: number;
   private readonly turnRate: number;
   /** @internal exposed so a snapshot can resume mid-reload */
-  fireCooldown = 2 + random() * 2;
   /** @internal snapshot */
-  readonly waypoint = new THREE.Vector3();
-  /** @internal snapshot */
-  waypointTimer = 0;
   private readonly tumbleAxis = randomDirection(new THREE.Vector3());
 
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpMat = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
-  // trained-brain flight state (pirates)
-  /** @internal snapshot */
-  brainTimer = 0;
-  private brainControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;
-  /** @internal snapshot */
-  brainPitchRate = 0;
-  /** @internal snapshot */
-  brainRollRate = 0;
+  // trained-brain flight state (pirates)  private brainControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;  /** @internal snapshot */
   // sized for PACK_OBS_SIZE (18); solo brains only read the first 14 slots
   private static readonly obsBuf = new Float32Array(18);
   /** scratch packmate list, reused so the 10 Hz decision stays allocation-light */
@@ -523,9 +545,91 @@ export class NpcShip {
   /** the seed its hull and stats were generated from — kept so a snapshot can rebuild it */
   readonly variantSeed: number;
 
+  /**
+   * All mutable state, in one object — see NpcState.
+   *
+   * The accessors below exist so the ~80 places that say `npc.hp` or
+   * `npc.alive` keep saying it. The state having ONE home is the property that
+   * matters; making every caller spell out `.state.` is not.
+   */
+  readonly state: NpcState;
+  private get brainControl(): { pitch: number; roll: number; throttle: number; fire: boolean } | null {
+    return this.state.brainControl;
+  }
+
+  private set brainControl(v: { pitch: number; roll: number; throttle: number; fire: boolean } | null) {
+    this.state.brainControl = v;
+  }
+
+  get hp(): number { return this.state.hp; }
+  set hp(v: number) { this.state.hp = v; }
+  get alive(): boolean { return this.state.alive; }
+  set alive(v: boolean) { this.state.alive = v; }
+  get provoked(): boolean { return this.state.provoked; }
+  set provoked(v: boolean) { this.state.provoked = v; }
+  get provokedByPlayer(): boolean { return this.state.provokedByPlayer; }
+  set provokedByPlayer(v: boolean) { this.state.provokedByPlayer = v; }
+  get missiles(): number { return this.state.missiles; }
+  set missiles(v: number) { this.state.missiles = v; }
+  get isMissionTarget(): boolean { return this.state.isMissionTarget; }
+  set isMissionTarget(v: boolean) { this.state.isMissionTarget = v; }
+  get fleeing(): boolean { return this.state.fleeing; }
+  set fleeing(v: boolean) { this.state.fleeing = v; }
+  get inert(): boolean { return this.state.inert; }
+  set inert(v: boolean) { this.state.inert = v; }
+  get tradeTimer(): number { return this.state.tradeTimer; }
+  set tradeTimer(v: number) { this.state.tradeTimer = v; }
+  get wantsDespawn(): boolean { return this.state.wantsDespawn; }
+  set wantsDespawn(v: boolean) { this.state.wantsDespawn = v; }
+  get docked(): boolean { return this.state.docked; }
+  set docked(v: boolean) { this.state.docked = v; }
+  get docking(): boolean { return this.state.docking; }
+  set docking(v: boolean) { this.state.docking = v; }
+  get organised(): boolean { return this.state.organised; }
+  set organised(v: boolean) { this.state.organised = v; }
+  get satisfied(): boolean { return this.state.satisfied; }
+  set satisfied(v: boolean) { this.state.satisfied = v; }
+  get threatTier(): number { return this.state.threatTier; }
+  set threatTier(v: number) { this.state.threatTier = v; }
+  get speed(): number { return this.state.speed; }
+  set speed(v: number) { this.state.speed = v; }
+  get fireCooldown(): number { return this.state.fireCooldown; }
+  set fireCooldown(v: number) { this.state.fireCooldown = v; }
+  get waypointTimer(): number { return this.state.waypointTimer; }
+  set waypointTimer(v: number) { this.state.waypointTimer = v; }
+  get brainTimer(): number { return this.state.brainTimer; }
+  set brainTimer(v: number) { this.state.brainTimer = v; }
+  get brainPitchRate(): number { return this.state.brainPitchRate; }
+  set brainPitchRate(v: number) { this.state.brainPitchRate = v; }
+  get brainRollRate(): number { return this.state.brainRollRate; }
+  set brainRollRate(v: number) { this.state.brainRollRate = v; }
+  get packOffset(): THREE.Vector3 { return this.state.packOffset; }
+  get waypoint(): THREE.Vector3 { return this.state.waypoint; }
+  get fleeFrom(): THREE.Vector3 { return this.state.fleeFrom; }
+  get traderPhase(): TraderPhase { return this.state.traderPhase; }
+  set traderPhase(v: TraderPhase) { this.state.traderPhase = v; }
+
   constructor(role: NpcRole, position: THREE.Vector3, variantSeed: number, specOverride?: NpcSpec) {
     this.role = role;
     this.variantSeed = variantSeed;
+    // Built before anything else, because the accessors below write through
+    // it. `pos` and `quat` are filled in once the mesh exists — they are the
+    // mesh's own vectors, so the renderer reads this state rather than being
+    // handed a copy of it.
+    this.state = {
+      pos: null as unknown as THREE.Vector3,
+      quat: null as unknown as THREE.Quaternion,
+      packOffset: new THREE.Vector3(),
+      waypoint: new THREE.Vector3(),
+      fleeFrom: new THREE.Vector3(),
+      traderPhase: 'trading',
+      brainControl: null,
+      hp: 0, alive: true, provoked: false, provokedByPlayer: false, missiles: 0,
+      isMissionTarget: false, fleeing: false, inert: false, tradeTimer: 0,
+      wantsDespawn: false, docked: false, docking: false, organised: false,
+      satisfied: false, threatTier: 0, speed: 0, fireCooldown: 0,
+      waypointTimer: 0, brainTimer: 0, brainPitchRate: 0, brainRollRate: 0,
+    };
     if (role === 'hermit') {
       this.object = buildAsteroid(120, variantSeed * 977 + 3, 0xb9b9a5);
       this.radius = 120;
@@ -537,8 +641,7 @@ export class NpcShip {
       this.speed = 0;
       this.hasEcm = false;
       this.armed = false;
-      this.object.position.copy(position);
-      this.object.quaternion.random();
+      this.bindTransform(position);
       return;
     }
     if (role === 'asteroid') {
@@ -569,8 +672,22 @@ export class NpcShip {
       this.armed = spec.armed ?? false;
     }
     randomDirection(this.packOffset).multiplyScalar(250 + random() * 500);
+    this.bindTransform(position);
+  }
+
+  /**
+   * Point the state's transform AT the mesh's own vectors, rather than copying
+   * between them.
+   *
+   * This is what makes the renderer read-only over the state: there is one
+   * position in memory, the step writes it, and three.js reads it when it
+   * builds the matrix. No sync pass, and none to forget.
+   */
+  private bindTransform(position: THREE.Vector3): void {
     this.object.position.copy(position);
     this.object.quaternion.random();
+    this.state.pos = this.object.position;
+    this.state.quat = this.object.quaternion;
   }
 
   /**

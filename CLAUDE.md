@@ -180,6 +180,32 @@ vite.config.ts; add new pages there or they won't build.
   destructive tests and restore after; saves happen on dock/equip-purchase
   only.
 
+## State lives in one place
+
+Two objects hold everything that can change, and a snapshot is each of them
+walked generically (`snapshot.ts`), not a hand-written field list:
+
+- **`NpcShip.state`** (`NpcState`) — transform, speed, hp, flags, timers, and
+  the brain's cached decision. `state.pos` and `state.quat` ARE the mesh's own
+  `Vector3`/`Quaternion`, not copies, so the renderer reads the state and
+  there is no sync pass to forget. Accessors keep `npc.hp` working at the ~80
+  call sites that say it.
+- **`Game.session`** (`SessionState`) — every flight flag and timer.
+
+**AI state is game state.** Chris's test for it: a human's brain persists
+across a reload on its own, an NPC's does not — so the NPC's decision cache
+and timers have to be in the save, or ships come back with no brain. Anything
+the step READS is state, however transient it looks.
+
+The hand-written version was wrong four times in a row: it forgot the trigger
+and trade clocks, then the pack station and ramped turn rates, then
+`brainControl` (excluded on purpose as "not really state"), then the STATION'S
+ORIENTATION — simulation state living in the scene, which the slot normal, the
+docking box and `npcsVsStation` all read. Each time two reloads agreed with
+each other but not with the run they came from. **If you add a field to
+`NpcState` or `SessionState` it is saved; if you add one beside them it is
+not.**
+
 ## Determinism: the world steps, and it repeats
 
 Two rules, and they only work together:
