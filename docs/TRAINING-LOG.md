@@ -1545,3 +1545,50 @@ in the other direction.
 **These brains are now stale by construction and should be retrained**
 deliberately, against the environment the game actually is. Nothing in
 `src/ai-training/brains/` was touched by this work.
+
+## Run 18 — first brains trained on the game engine
+
+The first training run in this project's history where the world the brains
+were fitted in IS the world they fly in. `src/ai-training/core.ts` is deleted;
+episodes step the real `World`, `NpcShip`, `gunnery.ts` and `collisions.ts` at
+`FIXED_DT` (1/60, where the old sim used 1/15).
+
+    npm run train -- attack --validate-select --out pirate-attack-e1 \
+        --gens 300 --pop 48 --eps 4                       # 82s
+    npm run train -- evade  --validate-select --opponent pirate-attack-e1 \
+        --out trader-evade-e1 --gens 300 --pop 48 --eps 4  # 8m19s
+
+**pirate-attack-e1** — 100% validation kill rate. `flies()` rejected 145 of 258
+generation champions for constant throttle, which is the guard doing its job on
+a corpus that large. Measured head to head over 40 held-out seeds: 100% kills
+against a scripted trader in a mean 25.0s, against the shipped g3's 26.3s. So
+marginally better, and fitted to real physics rather than a copy.
+
+**trader-evade-e1** — 100% validation survival, and honestly overfitted. It was
+trained against `pirate-attack-e1` alone, and it shows:
+
+| trader-evade-e1 vs | dies |
+| --- | --- |
+| pirate-attack-e1 (its training opponent) | 0% |
+| pirate-attack-g3 (shipped, unseen)       | 3% |
+| **the scripted baseline (unseen)**       | **18%** |
+
+Worse against the dumb opponent than the clever ones — the signature of
+specialising into one pursuit curve. An opponent rotation is the fix and it is
+what `--pool` is for.
+
+### `--pool` was broken for every phase but attack
+
+The retrain that was meant to fix the overfitting produced a brain that never
+throttles: **282 of 282 champions rejected by `flies()`, 0% validation
+survival**. Not a training failure — a misused flag.
+
+`traderPool` rotates the TRADER, and it is consumed as the trader controller.
+In `evade` the genome IS the trader, so the pool was replacing the candidate
+being scored. Eight minutes to discover, and it looked like the search had
+collapsed. `evolve.ts` now refuses `--pool` outside `attack`/`pack` with a
+message naming `--opponent` as the alternative.
+
+The trader still wants a proper pirate rotation via repeated `--opponent` runs
+or a pirate-side pool; `trader-evade-e1` ships as the better of the two but is
+not the last word.

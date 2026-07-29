@@ -99,6 +99,23 @@ const opponent: Brain | null = opponentName ? loadBrain(opponentName) : null;
 //               final-selection method constant while varying only the ranking.
 const WIDE = args.includes('--wide');
 const POOL = args.includes('--pool');
+/**
+ * `--pool` rotates the TRADER, so it only means anything when the genome is a
+ * pirate.
+ *
+ * In `evade` the genome IS the trader, and `traderPool` is consumed as the
+ * trader controller — so the pool replaces the very candidate being scored.
+ * A 300-generation run with it produced a brain that never throttles: every
+ * one of 282 champions was rejected by flies(), 0% validation survival. It
+ * cost eight minutes and looked like a training failure rather than a
+ * misused flag. Refuse it instead.
+ */
+if (POOL && phase !== 'attack' && phase !== 'pack') {
+  console.error(`--pool rotates the trader, so it is meaningless for '${phase}'`
+    + ' (the genome under test IS the trader). Use --opponent to vary the'
+    + ' pirates, or train attack/pack with --pool.');
+  process.exit(1);
+}
 const SELECT_KILLS = args.includes('--select-kills');
 const VALIDATE_SELECT = args.includes('--validate-select');
 
