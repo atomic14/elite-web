@@ -2043,113 +2043,117 @@ export class Game {
     }
 
     // The host runs the menu cursor and gives the frame to the top screen.
-    // It returns false for screens that have not migrated to the Screen
-    // contract yet, which fall through to the switch below. That switch
-    // shrinks with every screen that moves; when it is empty, this method is
-    // just flight keys.
+    // Every overlay has migrated to the Screen contract, so if one is open it
+    // handles the frame and we are done — what is left below is the three
+    // states that are NOT screens.
     if (this.screens.update(i, dt)) return;
 
-    switch (this.mode) {
-      case 'docked':
-        // the erase-your-career confirmation swallows every other key
-        if (this.pendingNewGame) {
-          if (i.pressed('KeyY')) this.newCommanderGame();
-          else if (i.pressed('KeyX')) this.exportSave(); // back it up first
-          else if (i.pressed('Escape') || i.pressed('KeyQ')) {
-            this.pendingNewGame = false;
-            renderDockedMenu(this.system, this.commander, this.missionText());
-          }
-          break;
-        }
-        if (i.pressed('KeyL')) this.launch();
-        else if (i.pressed('KeyM')) {
-          this.screens.open('market');
-        } else if (i.pressed('KeyC')) {
-          this.screens.open('contracts');
-        } else if (i.pressed('KeyE')) {
-          this.screens.open('equip');
-        // Q, not a shifted N. ⇧N shared a key with the local chart, and
-        // cancelling the confirm with N while still holding shift re-opened it
-        // on the very next tap — you could get stuck in a loop you couldn't
-        // type your way out of. A destructive action should not share a key
-        // with anything, modifier or not.
-        } else if (i.pressed('KeyQ')) {
-          this.pendingNewGame = true;
-          renderNewGameConfirm(this.system, this.commander);
-        }
-        else if (i.pressed('KeyH')) this.screens.open('briefing');
-        else if (i.pressed('KeyS')) this.openSaves();
-        else if (i.pressed('KeyN')) this.openLocalChart('docked');
-        else if (i.pressed('KeyG')) this.openChart('docked');
-        else if (i.pressed('KeyI')) this.openStatus('docked');
-        // The menu has advertised "D DATA ON SYSTEM" all along with nothing
-        // behind it while docked — the only KeyD handlers were on the charts
-        // and the save screen. Reports the system you are standing on.
-        else if (i.pressed('KeyD')) this.openSystemData(this.system, 'docked');
-        else if (i.pressed('KeyX')) this.exportSave();
-        else if (i.pressed('KeyZ')) this.importSave();
-        else if (i.pressed('KeyB')) {
-          const layout = toggleLayout();
-          this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
-          renderDockedMenu(this.system, this.commander, this.missionText());
-        }
-        break;
+    if (this.mode === 'docked') this.handleDockedKeys(i);
+    else if (this.mode === 'flight') this.handleFlightKeys(i);
+    else if (this.mode === 'dead') this.handleDeadKeys(i);
+  }
 
-      case 'flight':
-        for (let v = 0; v < 4; v++) {
-          if (i.pressed(`Digit${v + 1}`)) this.setView(v);
-        }
-        if (i.pressed('KeyG')) this.openChart('flight');
-        else if (i.pressed('KeyN')) this.openLocalChart('flight');
-        else if (i.pressed('KeyI')) this.openStatus('flight');
-        else if (i.pressed('KeyT')) this.armMissile();
-        else if (i.pressed('KeyM')) this.launchMissile();
-        else if (i.pressed('KeyU')) {
-          if (this.targetLock || this.missileArmed) {
-            this.targetLock = null;
-            this.missileArmed = false;
-            this.hud.showMessage('MISSILE DISARMED', 2);
-            sfx.beep(500, 0.06);
-          }
-        } else if (i.pressed('KeyE')) this.triggerEcm();
-        else if (i.pressed('KeyK')) this.toggleCombatComputer();
-        else if (i.pressed('KeyV')) {
-          if (this.input.mouseFlight) {
-            this.input.releaseMouseFlight();
-            this.hud.showMessage('MOUSE FLIGHT OFF', 2);
-          } else {
-            this.input.requestMouseFlight();
-            this.hud.showMessage('MOUSE FLIGHT — ESC OR V TO RELEASE', 4);
-          }
-        }
-        else if (i.pressed('Tab')) this.detonateEnergyBomb();
-        else if (i.pressed('KeyC')) this.dockingComputer();
-        else if (i.pressed('KeyH')) {
-          if (i.held('ShiftLeft', 'ShiftRight')) this.galacticJump();
-          else this.startHyperspace();
-        }
-        else if (i.pressed('KeyB')) this.sendDistressBeacon();
-        else if (i.pressed('KeyY')) this.jettisonCargo(i.held('ShiftLeft', 'ShiftRight') ? 5 : 1);
-        else if (i.pressed('KeyJ')) {
-          if (this.massLocked()) {
-            this.hud.showMessage('MASS LOCKED', 2);
-            sfx.beep(220);
-          } else {
-            this.torusEngaged = !this.torusEngaged;
-            // Engaging the drive opens the throttle. Nobody engages a jump
-            // drive in order to crawl, and having to hold the accelerator
-            // afterwards was busywork with one sensible answer.
-            if (this.torusEngaged) this.player.speed = this.player.maxSpeed;
-            this.hud.showMessage(this.torusEngaged ? 'TORUS DRIVE ENGAGED' : 'TORUS DRIVE OFF', 2);
-            if (this.torusEngaged) sfx.beep(1000, 0.15);
-          }
-        }
-        break;
-
-      case 'dead':
-        if (i.pressed('Enter')) this.respawn();
-        break;
+  /** The station menu: trade, outfit, take work, and leave. */
+  private handleDockedKeys(i: Input): void {
+    // the erase-your-career confirmation swallows every other key
+    if (this.pendingNewGame) {
+      if (i.pressed('KeyY')) this.newCommanderGame();
+      else if (i.pressed('KeyX')) this.exportSave(); // back it up first
+      else if (i.pressed('Escape') || i.pressed('KeyQ')) {
+        this.pendingNewGame = false;
+        renderDockedMenu(this.system, this.commander, this.missionText());
+      }
+      return;
     }
+    if (i.pressed('KeyL')) this.launch();
+    else if (i.pressed('KeyM')) {
+      this.screens.open('market');
+    } else if (i.pressed('KeyC')) {
+      this.screens.open('contracts');
+    } else if (i.pressed('KeyE')) {
+      this.screens.open('equip');
+    // Q, not a shifted N. ⇧N shared a key with the local chart, and
+    // cancelling the confirm with N while still holding shift re-opened it
+    // on the very next tap — you could get stuck in a loop you couldn't
+    // type your way out of. A destructive action should not share a key
+    // with anything, modifier or not.
+    } else if (i.pressed('KeyQ')) {
+      this.pendingNewGame = true;
+      renderNewGameConfirm(this.system, this.commander);
+    }
+    else if (i.pressed('KeyH')) this.screens.open('briefing');
+    else if (i.pressed('KeyS')) this.openSaves();
+    else if (i.pressed('KeyN')) this.openLocalChart('docked');
+    else if (i.pressed('KeyG')) this.openChart('docked');
+    else if (i.pressed('KeyI')) this.openStatus('docked');
+    // The menu has advertised "D DATA ON SYSTEM" all along with nothing
+    // behind it while docked — the only KeyD handlers were on the charts
+    // and the save screen. Reports the system you are standing on.
+    else if (i.pressed('KeyD')) this.openSystemData(this.system, 'docked');
+    else if (i.pressed('KeyX')) this.exportSave();
+    else if (i.pressed('KeyZ')) this.importSave();
+    else if (i.pressed('KeyB')) {
+      const layout = toggleLayout();
+      this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
+      renderDockedMenu(this.system, this.commander, this.missionText());
+    }
+  }
+
+  /** The cockpit: views, weapons, the ship's computers, and the charts. */
+  private handleFlightKeys(i: Input): void {
+    for (let v = 0; v < 4; v++) {
+      if (i.pressed(`Digit${v + 1}`)) this.setView(v);
+    }
+    if (i.pressed('KeyG')) this.openChart('flight');
+    else if (i.pressed('KeyN')) this.openLocalChart('flight');
+    else if (i.pressed('KeyI')) this.openStatus('flight');
+    else if (i.pressed('KeyT')) this.armMissile();
+    else if (i.pressed('KeyM')) this.launchMissile();
+    else if (i.pressed('KeyU')) {
+      if (this.targetLock || this.missileArmed) {
+        this.targetLock = null;
+        this.missileArmed = false;
+        this.hud.showMessage('MISSILE DISARMED', 2);
+        sfx.beep(500, 0.06);
+      }
+    } else if (i.pressed('KeyE')) this.triggerEcm();
+    else if (i.pressed('KeyK')) this.toggleCombatComputer();
+    else if (i.pressed('KeyV')) {
+      if (this.input.mouseFlight) {
+        this.input.releaseMouseFlight();
+        this.hud.showMessage('MOUSE FLIGHT OFF', 2);
+      } else {
+        this.input.requestMouseFlight();
+        this.hud.showMessage('MOUSE FLIGHT — ESC OR V TO RELEASE', 4);
+      }
+    }
+    else if (i.pressed('Tab')) this.detonateEnergyBomb();
+    else if (i.pressed('KeyC')) this.dockingComputer();
+    else if (i.pressed('KeyH')) {
+      if (i.held('ShiftLeft', 'ShiftRight')) this.galacticJump();
+      else this.startHyperspace();
+    }
+    else if (i.pressed('KeyB')) this.sendDistressBeacon();
+    else if (i.pressed('KeyY')) this.jettisonCargo(i.held('ShiftLeft', 'ShiftRight') ? 5 : 1);
+    else if (i.pressed('KeyJ')) {
+      if (this.massLocked()) {
+        this.hud.showMessage('MASS LOCKED', 2);
+        sfx.beep(220);
+      } else {
+        this.torusEngaged = !this.torusEngaged;
+        // Engaging the drive opens the throttle. Nobody engages a jump
+        // drive in order to crawl, and having to hold the accelerator
+        // afterwards was busywork with one sensible answer.
+        if (this.torusEngaged) this.player.speed = this.player.maxSpeed;
+        this.hud.showMessage(this.torusEngaged ? 'TORUS DRIVE ENGAGED' : 'TORUS DRIVE OFF', 2);
+        if (this.torusEngaged) sfx.beep(1000, 0.15);
+      }
+    }
+  }
+
+  /** The only key that matters after you have been destroyed. */
+  private handleDeadKeys(i: Input): void {
+if (i.pressed('Enter')) this.respawn();
   }
 
   /** @internal — driven by test/playtest.js */
