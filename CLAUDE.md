@@ -24,12 +24,13 @@ They are where every existing player's commander lives; renaming them orphans
 every save silently, which is exactly the bug class that ate New Commander and
 Import earlier. They stay as they are, forever.
 
-**`src/ai-training/` is the neuroevolution simulator; `train/` is the scripts
-that drive it.** It was `src/sim`, which said nothing about who it was for and
-read as "the simulation" beside `src/game` — which is also a simulation. The
-simulator is render-free and self-contained (its own vector maths, no
-three.js) so 150,000 episodes run at speed under node; the game does NOT use
-it, which is what invariant 2 is about.
+**`src/ai-training/` is the neuroevolution training setup; `train/` is the
+scripts that drive it.** It was `src/sim`, which said nothing about who it was
+for and read as "the simulation" beside `src/game` — which is also a
+simulation. It is no longer a simulator at all: `scenario.ts` chooses who
+fights whom and scores it, `policy.ts` is the network and the observation
+encoder, and the physics under both is `src/game` (invariant 2). The game
+imports `policy.ts`; the trainer imports the game.
 
 ## Commands
 
@@ -77,10 +78,28 @@ vite.config.ts; add new pages there or they won't build.
    Agricultural Dictatorship. Never "fix" galaxy.ts math; it is byte-matched
    to the 1984 algorithm. `npm test` asserts this (plus the market model,
    sim determinism, and that the shipped brains still beat their baselines).
-2. **Sim/game parity**: combat numbers (ship classes, laser damage/cooldown/
-   heat, turn rates) exist twice — `src/game/{npc,game}.ts` and
-   `src/ai-training/core.ts`. Change one → change the other, and note that trained
-   brains were fitted to the old numbers (consider retraining).
+2. **One combat model — the trainer flies the game.** There is no second
+   physics to keep in step. `src/ai-training/scenario.ts` builds episodes out
+   of `NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts` and `rng.ts`, and
+   steps them at `FIXED_DT`; `src/ai-training/core.ts` — 450 lines of the
+   game written a second time — is **deleted**.
+
+   The invariant this replaces read "combat numbers exist twice, change one →
+   change the other". It cost six training rounds to an NPC gun firing 5.4x
+   too fast, a player model accelerating at 120 against the real 220, and a
+   turn decay 35% out at the two files' step rates. Every one was invisible
+   while each file agreed with ITSELF.
+
+   So: **a combat number now has one home, and changing it changes the game
+   and the training environment together.** That is the point, and it is the
+   new hazard — a balance tweak to `NPC_COOLDOWN_LO` or `RAM_DAMAGE` silently
+   invalidates every shipped brain, where before it only desynced them.
+   Retraining is the response, not a second copy.
+
+   Two seams keep it honest: `NpcShip.brainFly`/`attack` are PUBLIC so an
+   episode can fly a candidate genome through the real flight model, and
+   `PlayerShip` takes a `FlightDemand` so the target is the commander's own
+   ship however it is piloted. Don't grow a private copy of either.
 3. **No logarithmicDepthBuffer** on the renderer: it disables polygonOffset,
    which is what keeps black hull fills behind wireframe edges.
 4. **Ship defs use +Z nose**; buildShip() mirrors Z (three.js forward is −Z).
@@ -121,10 +140,10 @@ vite.config.ts; add new pages there or they won't build.
    The sim handed every ship the player's pulse laser — 0.24s cadence through
    a ~0.027 rad cone, deterministic hits — where `npc.ts` gives an NPC 1.30s
    through a 0.25 rad gate and then rolls dice on range. Lined up, 0.667
-   damage/second against 0.041. `src/ai-training/core.ts` now models both as
-   `LASER` and `NPC_GUN`, hulls declare `gun`, and `test/run.ts` asserts
-   cadence, gate, hit cap and damage are EQUAL rather than documenting a
-   5.4x ratio. Change one side, change the other (invariant 2).
+   damage/second against 0.041. The simulator grew an `NPC_GUN` beside its
+   `LASER` to close that; **it now fires the real one** — an episode's pirate
+   pulls the same trigger `npc.ts` does, through `gunnery.ts`, and the parity
+   tests that policed the two copies are gone with the copies (invariant 2).
 
    Balance is NOT settled. Under the real gun the old brains kill a shielded
    commander 0-2% of the time — the late game had no threat, which is what
@@ -251,10 +270,16 @@ their tests can drive them directly.
 
 ## Headless: what it takes to run game code under node
 
-The goal is for the **real world step** to be what training runs against,
-instead of the parallel model in `src/ai-training`. three.js is NOT the obstacle —
-`worldToLocal`, quaternions and `rotateOnAxis` all work in node with no canvas
-and no WebGL (measured, not assumed). Four things were, and three are fixed:
+**This is done.** Training runs against the real engine: `npm run train` builds
+`NpcShip`s and a `PlayerShip` under node, flies them with `gunnery.ts`,
+`collisions.ts` and `rng.ts`, and the parallel model is deleted. It costs
+nothing — the same fixed workload runs slightly FASTER than the old simulator
+did while stepping at 1/60 instead of 1/15, because the MLP forward pass
+dominates and the decision cache caps it at 10 Hz.
+
+three.js was NOT the obstacle — `worldToLocal`, quaternions and `rotateOnAxis`
+all work in node with no canvas and no WebGL (measured, not assumed). Four
+things were, and all four are fixed:
 
 - **No side effects at module scope.** `npc.ts` assigned `window.__policyKit`
   as a bare statement, so importing the file touched `window`. It is
@@ -267,7 +292,8 @@ and no WebGL (measured, not assumed). Four things were, and three are fixed:
   WebGLRenderer, the post chain, the camera, the cockpit beams and the
   projection lift. It is the only file the world step cannot reach for.
   `Game` still calls it from its constructor, so constructing a `Game` still
-  needs a browser; giving it an optional stack is the remaining step.
+  needs a browser — which the trainer no longer minds, because an episode
+  builds the ships it needs directly rather than a whole `Game`.
 
   This was *not* the only blocker, despite saying so for months. `sun.ts`
   painted the corona sprite into a `document.createElement('canvas')` at build

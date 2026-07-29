@@ -14,15 +14,17 @@
 //     accuracy, survival, pirate losses, and for packs the mean angular
 //     spread of attackers at the moments shots land (the flanking measure).
 
+import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
-import { Episode, type Controller } from '../src/ai-training/scenario.ts';
+import { Episode, type Controller, type EpisodeShip } from '../src/ai-training/scenario.ts';
 import { randomBrain, brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
-import { makeRng, vSub, vNorm, vDot, type SimShip } from '../src/ai-training/core.ts';
+import { makeRng } from '../src/game/rng.ts';
+import { FIXED_DT } from '../src/game/world-step.ts';
 
 const BRAINS_DIR = new URL('../src/ai-training/brains/', import.meta.url).pathname;
 const N = Number(process.argv[2] ?? 60); // episodes per matchup
 const HOLD_OUT_BASE = 10_000_019;
-const DT = 1 / 15;
+const DT = FIXED_DT;
 
 function tryLoad(name: string): Brain | null {
   try {
@@ -121,14 +123,15 @@ function runMatchup(
 }
 
 /** Mean pairwise angle (deg) between attacker bearings as seen from the trader. */
-function pairwiseSpread(pirates: SimShip[], trader: SimShip): number | null {
-  const dirs = pirates.filter((p) => p.alive).map((p) => vNorm(vSub(p.pos, trader.pos)));
+function pairwiseSpread(pirates: EpisodeShip[], trader: EpisodeShip): number | null {
+  const dirs = pirates.filter((p) => p.alive)
+    .map((p) => new THREE.Vector3().subVectors(p.pos, trader.pos).normalize());
   if (dirs.length < 2) return null;
   let sum = 0;
   let n = 0;
   for (let i = 0; i < dirs.length; i++) {
     for (let j = i + 1; j < dirs.length; j++) {
-      sum += (Math.acos(Math.max(-1, Math.min(1, vDot(dirs[i], dirs[j])))) * 180) / Math.PI;
+      sum += (dirs[i].angleTo(dirs[j]) * 180) / Math.PI;
       n += 1;
     }
   }

@@ -20,13 +20,46 @@
 // an injectable rng instead, because they are pure and their tests want to
 // control it directly. Both are right for what they are.
 
-// The generator is written out here rather than reusing ai-training/core.ts's
-// makeRng, for one reason: makeRng closes over its state, and a snapshot needs
-// to READ that state. A save taken mid-flight has to resume the same stream it
-// was on, or the reception waiting for you changes the moment you reload —
-// which is the difference between a snapshot and a rough approximation.
+// There are two shapes of generator here and only ONE algorithm (mulberry32).
 //
-// Same algorithm (mulberry32), so streams are identical to the trainer's.
+// The world's own stream is module state, because a snapshot needs to READ that
+// state: a save taken mid-flight has to resume the same stream it was on, or
+// the reception waiting for you changes the moment you reload — which is the
+// difference between a snapshot and a rough approximation. A closure cannot be
+// read, so the world's stream cannot be one.
+//
+// `makeRng` is the other shape: an INDEPENDENT stream, for a harness that wants
+// chance of its own without disturbing the world's — the campaign playtest, an
+// episode's opponent draw. It used to live in ai-training/core.ts as a second
+// copy of the same eight lines, which is exactly the duplication this file's
+// header complains about. One algorithm, one home, two shapes.
+
+/** One mulberry32 advance. */
+function nextState(s: number): number {
+  return (s + 0x6d2b79f5) >>> 0;
+}
+
+/** The value at a given state. */
+function valueOf(s: number): number {
+  let t = s;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+/**
+ * A private stream, seeded and closed over.
+ *
+ * Use it when the chance is the HARNESS's rather than the world's: test seeds,
+ * an opponent rotation, a tournament draw. World code uses `random()`.
+ */
+export function makeRng(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = nextState(s);
+    return valueOf(s);
+  };
+}
 
 let state = 0x9e3779b9;
 let currentSeed = 0x9e3779b9;
@@ -58,11 +91,8 @@ export function restoreRng(saved: { seed: number; state: number }): void {
 
 /** 0..1, as Math.random. */
 export function random(): number {
-  state = (state + 0x6d2b79f5) >>> 0;
-  let t = state;
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  state = nextState(state);
+  return valueOf(state);
 }
 
 /** An integer in [0, n). */

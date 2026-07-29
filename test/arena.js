@@ -18,10 +18,12 @@
  * The one that matters: `envelope()` measures how the commander actually
  * flies — speed distribution, turn rates used, the ranges fights happen at,
  * how long you hold a firing line. Every brain in this project was trained
- * against CLASSES.traderCobra, a freighter at 220 with half the player's
+ * against the trader Cobra, a freighter at 220 with half the player's
  * agility, and that mismatch is why pirates weave instead of shooting
  * (docs/TRAINING-LOG.md run 10). The envelope replaces the guess with your
- * numbers, and the trainer can fit an opponent to it.
+ * numbers, and the trainer can fit an opponent to it — the `playerCobra` and
+ * `playerCobraSlow` target hulls in ai-training/scenario.ts are that fit, and
+ * they read the commander's real envelope from PLAYER_FLIGHT now.
  *
  * A note on what this can and cannot do. Evolution needs on the order of
  * 150,000 episodes per run; a human flies perhaps thirty an hour. Training a
@@ -150,7 +152,7 @@
         rollRate: { median: q(f.map((x) => x.roll), 0.5), p90: q(f.map((x) => x.roll), 0.9) },
         engagementRange: ranges.length
           ? { median: q(ranges, 0.5), p10: q(ranges, 0.1), p90: q(ranges, 0.9) } : null,
-        forTheTrainer: 'compare with CLASSES.traderCobra (220 speed, 0.70 pitch, 1.20 roll)',
+        forTheTrainer: 'compare with the traderCobra target hull (220 speed, 0.70 pitch, 1.20 roll)',
       };
       console.log(JSON.stringify(out, null, 1));
       return out;

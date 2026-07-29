@@ -7,7 +7,7 @@
 // must stay deterministic, and the shipped brains must still beat their
 // baselines. Everything here is headless (no three.js, no DOM).
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
 import { dockingOutcome, ROLL_TOLERANCE } from '../src/game/docking.ts';
@@ -19,7 +19,7 @@ import {
 } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
 import {
-  WorldStep, massLocked, type StepEvent, type StepHost,
+  WorldStep, massLocked, FIXED_DT, type StepEvent, type StepHost,
 } from '../src/game/world-step.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
@@ -51,10 +51,7 @@ import type { CommanderData } from '../src/game/commander.ts';
 import {
   stepTrumbles, trumbleMessage, BREED_INTERVAL, MAX_TRUMBLES,
 } from '../src/game/trumbles.ts';
-import {
-  npcHitChance, NPC_HIT_CAP, NPC_HIT_FLOOR, NPC_HIT_BASE, NPC_HIT_FALLOFF,
-  NPC_DAMAGE_LO, NPC_DAMAGE_SPREAD,
-} from '../src/game/gunnery.ts';
+import { npcHitChance, NPC_HIT_CAP, NPC_HIT_FLOOR } from '../src/game/gunnery.ts';
 import { seedWorld, random, rngState, restoreRng } from '../src/game/rng.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
@@ -68,21 +65,20 @@ import {
 import {
   isHostileToPlayer, NpcShip,
   NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_LASER_RANGE,
-  BRAIN_ACCEL, MIN_CRUISE_FRACTION, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
+  MIN_CRUISE_FRACTION, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
 } from '../src/game/npc.ts';
 import { PLAYER_SPEED_KEPT, NPC_SPEED_KEPT, RAM_DAMAGE } from '../src/game/collisions.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
-import { SPECS, pirateSpecForTier } from '../src/game/ship-specs.ts';
-import { PlayerShip, PLAYER_FLIGHT, rampFlightRate, type FlightDemand } from '../src/player.ts';
+import { SPECS, pirateSpecForTier, type NpcSpec } from '../src/game/ship-specs.ts';
+import {
+  PlayerShip, PLAYER_FLIGHT, rampFlightRate, rampToward, type FlightDemand,
+} from '../src/player.ts';
 import { flightDemand, type FlightControls } from '../src/engine/flight-controls.ts';
 import { keymap } from '../src/engine/keymap.ts';
 import {
-  CombatComputer, CC_ACCEL, CC_MAX_SPEED, CC_MAX_PITCH, CC_MAX_ROLL,
+  CombatComputer, ccRamp, CC_ACCEL, CC_MAX_SPEED, CC_MAX_PITCH, CC_MAX_ROLL,
 } from '../src/game/combat-computer.ts';
 import { COBRA_MK3, SIDEWINDER } from '../src/ships/geometry.ts';
-
-/** Named hulls the sim/game parity check compares, by the name it uses. */
-const SHIP_DEFS = { COBRA_MK3, SIDEWINDER };
 import { stepEncounters } from '../src/game/encounters.ts';
 import {
   stepMissionAtDock, constrictorDestroyed, constrictorLurksHere, missionHeadline,
@@ -90,14 +86,12 @@ import {
 import { planPopulation, policeFor } from '../src/game/population.ts';
 import {
   laserForView, canFire, chargeShot, assistAt, hitCone, canisterCone, LASERS, AIM_ASSIST,
-  LASER_RANGE,
   npcPrefersMissile, npcMissileLastStand,
   MISSILE_MIN_RANGE, MISSILE_MAX_RANGE, MISSILE_CHANCE,
   MISSILE_LAST_STAND_HULL, MISSILE_LAST_STAND_GATE, MISSILE_LAST_STAND_MIN_RANGE,
 } from '../src/game/gunnery.ts';
 import {
   freshSystems, applyDamage, regenerate, durability, updateCabinTemp, scoopFuel,
-  LASER_COOL_RATE,
 } from '../src/game/systems.ts';
 import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
@@ -111,10 +105,8 @@ import {
 import { killValue } from '../src/game/commander.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../src/ai-training/policy.ts';
-import {
-  makeRng, CLASSES, COLLISION, LASER, NPC_GUN, TURN,
-  PLAYER_RATE_DECAY, NPC_RATE_DECAY,
-} from '../src/ai-training/core.ts';
+import { makeRng } from '../src/game/rng.ts';
+import { TURN, ACCEL_FRACTION, shipAccel } from '../src/game/ship-specs.ts';
 
 let passed = 0;
 let failed = 0;
@@ -378,7 +370,7 @@ check('quantities stay within a byte-masked range',
 // --- simulation determinism -------------------------------------------------
 
 console.log('\nsimulation');
-const DT = 1 / 15;
+const DT = FIXED_DT;
 function runEpisode(seed: number): string {
   const ep = new Episode({
     seed,
@@ -516,7 +508,7 @@ console.log('\ncollision rates');
     let total = 0;
     for (let e = 0; e < episodes; e++) {
       const ep = new Episode({ seed: 7000 + e * 11, ...make(), maxTime: 45 });
-      while (!ep.done) ep.step(1 / 15);
+      while (!ep.done) ep.step(DT);
       // an unarmed trader deals no laser damage, so all pirate damage is contact
       for (const p of ep.pirates) total += p.damageTaken / COLLISION_DAMAGE;
     }
@@ -3481,271 +3473,181 @@ console.log('\npolice hostility');
     /viper\.provokedByPlayer = true/.test(game));
 }
 
-// --- sim/game combat parity (invariant 2) -----------------------------------
-
-// The combat numbers exist twice — src/ai-training/core.ts and src/game/{npc,game}.ts
-// — and CLAUDE.md asks you to change both together. That has been a manual
-// promise until now, and it is exactly the kind nobody keeps: the two files
-// are edited months apart, drift is silent, and every trained brain was
-// fitted to the sim's copy. A balance conclusion drawn from the tournament is
-// only as good as this parity.
+// --- one combat model, and the trainer flies it -----------------------------
 //
-// BOTH SIDES ARE IMPORTED VALUES. The block used to read core.ts as text on
-// the grounds that "npc.ts pulls in three.js and touches window" — true of
-// npc.ts once, and never true of core.ts, which is deliberately self-contained
-// and node-safe precisely so the trainer can run it. Scraping it meant a
-// regex per field, each one able to fail open (a renamed constant reads as
-// null, a moved table reads as NaN) on a check whose whole job is to notice
-// change. Only the module-PRIVATE constants are still read as text: player.ts's
-// flight envelope and the RATE_RAMP/RATE_DECAY pair on each side.
+// WHAT WAS HERE: about twenty checks comparing `src/ai-training/core.ts` to
+// `src/game/{npc,gunnery,collisions}.ts` and `src/player.ts`, field by field —
+// laser damage, cooldown, heat and range, the NPC gun's gate, cadence and hit
+// curve, ram damage, the speed floor, per-hull hp/speed/turn/radius, two rate
+// ramps and two decays. They existed because the combat model was written
+// twice, and they were worth having: the block caught an NPC gun firing 5.4x
+// too fast, an `accel: 120` against the player's real 220, and a turn decay
+// that had drifted 35% at the two files' respective step rates.
+//
+// The duplication is gone. `ai-training/core.ts` is deleted and a training
+// episode flies `NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts` and
+// `rng.ts` — the game itself, with the sky emptied. A check that a number
+// equals itself is not a test, so these checks are not replaced by other
+// checks; they are replaced by there being one number.
+//
+// What survives is a different question, and a better one: does the trainer
+// really fly the game? That is a property of the code now rather than of a
+// promise in CLAUDE.md, and this is where it is asserted.
 
-console.log('\nsim/game combat parity');
+console.log('\none combat model (the trainer flies the game)');
 {
-  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
-  const core = read('../src/ai-training/core.ts');
+  check('the parallel simulator is gone',
+    !existsSync(new URL('../src/ai-training/core.ts', import.meta.url)));
 
-  const num = (src: string, re: RegExp): number | null => {
-    const m = src.match(re);
-    return m ? Number(m[1]) : null;
+  // 1. The target in a training episode IS the commander's ship.
+  //
+  // The old simulator modelled it as `CLASSES.playerCobra`, a hand-copied row
+  // whose accel said 120 against the real 220 for every brain up to generation
+  // 1, and whose roll cap was turnRate x TURN.roll = 2.4864 against the
+  // player's 2.5. Both were REPORTED by this block and neither could be fixed
+  // by it. There is nothing to copy now — the hull reads PLAYER_FLIGHT — so
+  // this asserts the reading, once.
+  const playerEp = new Episode({
+    seed: 11, pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },
+    traderClass: 'playerCobra',
+  });
+  const hull = playerEp.trader.hull;
+  check(`training target flies the player's envelope: speed ${hull.maxSpeed},`
+    + ` accel ${hull.accel}, pitch ${hull.maxPitch}, roll ${hull.maxRoll}`,
+  hull.maxSpeed === PLAYER_FLIGHT.maxSpeed && hull.accel === PLAYER_FLIGHT.accel
+    && hull.maxPitch === PLAYER_FLIGHT.maxPitch && hull.maxRoll === PLAYER_FLIGHT.maxRoll);
+  check('...ramping and decaying at the player\'s rates',
+    hull.rateRamp === PLAYER_FLIGHT.rateRamp && hull.rateDecay === PLAYER_FLIGHT.rateDecay);
+  check('...and it really is a PlayerShip, flown by a FlightDemand',
+    playerEp.trader.ship instanceof PlayerShip);
+
+  // 2. The pirates in a training episode ARE roster hulls.
+  const gangEp = new Episode({
+    seed: 12,
+    pirates: [{ kind: 'scripted' }, { kind: 'scripted' }],
+    trader: { kind: 'scripted' },
+  });
+  const cobraSpec = SPECS.pirate.find((s) => s.def === COBRA_MK3)!;
+  const sideSpec = SPECS.pirate.find((s) => s.def === SIDEWINDER)!;
+  check(`episode pirate 1 is the roster Cobra (hp ${cobraSpec.hp}, r ${cobraSpec.radius})`,
+    gangEp.pirates[0].hp === cobraSpec.hp && gangEp.pirates[0].radius === cobraSpec.radius);
+  check(`episode pirate 2 is the roster Sidewinder (hp ${sideSpec.hp}, r ${sideSpec.radius})`,
+    gangEp.pirates[1].hp === sideSpec.hp && gangEp.pirates[1].radius === sideSpec.radius);
+
+  // 3. Per-hull accel — the omission the merge exposed.
+  //
+  // npc.ts threw every brain-flown ship at a flat BRAIN_ACCEL = 120 while the
+  // simulator gave each hull its own (140 / 120 / 100), so a Sidewinder was
+  // trained with 17% more throttle authority than the game gave it and armed
+  // traders with 17% less. This block carried a TODO asking an owner to pick a
+  // side. The side is: hulls have accel, and it is a fraction of top speed.
+  check('a Sidewinder now out-accelerates a pirate Cobra'
+    + ` (${shipAccel(sideSpec).toFixed(0)} vs ${shipAccel(cobraSpec).toFixed(0)})`,
+  shipAccel(sideSpec) > shipAccel(cobraSpec));
+  check('...and the simulator\'s three hand-written accels are within a step of the rule',
+    Math.abs(shipAccel(sideSpec) - 140) < 3
+    && Math.abs(shipAccel(cobraSpec) - 120) < 3
+    && Math.abs(shipAccel(SPECS.trader[0]) - 100) < 3);
+  check(`every roster hull accelerates at ${ACCEL_FRACTION} of top speed unless told otherwise`,
+    Object.values(SPECS).every((list) => list.every((s) =>
+      s.accel !== undefined || shipAccel(s) === s.maxSpeed * ACCEL_FRACTION)));
+
+  // 4. The speed floor, as BEHAVIOUR rather than as two constants agreeing.
+  //
+  // It is invariant 8's load-bearing rule — a fighter that can stop dead
+  // becomes a turret — and it used to be checked by comparing a `minSpeed`
+  // field in the simulator against MIN_CRUISE_FRACTION here. Now it is checked
+  // by asking a ship to stop and watching it refuse.
+  const brakeToStop = (role: 'pirate' | 'trader', spec: NpcSpec): number => {
+    const ship = new NpcShip(role, new THREE.Vector3(), 5, spec);
+    const state = (ship as unknown as {
+      state: { brainControl: unknown; brainTimer: number };
+    }).state;
+    const ahead = new THREE.Vector3(0, 0, -5000);
+    const level = new THREE.Quaternion();
+    for (let i = 0; i < 900; i++) {
+      // full brake, re-imposed each step so the 10 Hz cache cannot re-decide
+      state.brainControl = { pitch: 0, roll: 0, throttle: -1, fire: false };
+      state.brainTimer = 1;
+      ship.brainFly(shippedPirate, 1 / 60, ahead, level, 300, 5000, null);
+    }
+    return ship.speed;
   };
+  const pirateFloor = brakeToStop('pirate', cobraSpec);
+  check(`a braking pirate stops at ${pirateFloor.toFixed(0)},`
+    + ` its ${MIN_CRUISE_FRACTION} floor of ${cobraSpec.maxSpeed}`,
+  Math.abs(pirateFloor - cobraSpec.maxSpeed * MIN_CRUISE_FRACTION) < 0.5);
+  const traderFloor = brakeToStop('trader', SPECS.trader[0]);
+  check(`...where a trader is allowed to come to rest (${traderFloor.toFixed(0)})`,
+    traderFloor === 0);
 
-  // The PLAYER's laser, against the sim's model of it.
+  // 5. The gun an NPC actually carries, as behaviour.
   //
-  // This check used to compare core.ts's LASER — which is the player's pulse
-  // laser — against game.ts's NPC damage roll, and passed because
-  // 0.1 + 0.12/2 happens to equal 0.16. Two different weapons agreeing by
-  // coincidence. Its real counterpart is LASERS.pulse in gunnery.ts, and that
-  // was never checked at all.
-  check(`pulse laser damage: sim ${LASER.damage} == game ${LASERS.pulse.damage}`,
-    LASER.damage === LASERS.pulse.damage);
-  check(`pulse laser cooldown: sim ${LASER.cooldown} == game ${LASERS.pulse.cooldown}`,
-    LASER.cooldown === LASERS.pulse.cooldown);
-  check(`pulse laser heat: sim ${LASER.heat} == game ${LASERS.pulse.heat}`,
-    LASER.heat === LASERS.pulse.heat);
-  check(`laser cool rate: sim ${LASER.coolRate} == game ${LASER_COOL_RATE}`,
-    LASER.coolRate === LASER_COOL_RATE);
-  // The player's reach. The NPC's was asserted below and this one was not,
-  // though they are the same pair of duplicated numbers: a sim that lets the
-  // commander open fire at a range the game refuses trains policies against a
-  // threat envelope that does not exist.
-  check(`pulse laser range: sim ${LASER.range} == game ${LASER_RANGE}`,
-    LASER.range === LASER_RANGE);
+  // The old block asserted its cadence and gate by comparing two copies of the
+  // numbers, and that is how the drift it was watching for got in anyway: the
+  // check read the FIRST match in npc.ts, which was brainFly's 0.25, while
+  // attack()'s 0.22 sat forty lines below on the path every police ship and
+  // knife-range pirate fires from. Both paths are exercised here instead.
+  const shotsIn = (bearing: number, range: number, seconds: number): number => {
+    seedWorld(99);
+    const ship = new NpcShip('pirate', new THREE.Vector3(), 5, cobraSpec);
+    const target = new THREE.Vector3(
+      Math.sin(bearing) * range, 0, -Math.cos(bearing) * range);
+    const state = (ship as unknown as {
+      state: { brainControl: unknown; brainTimer: number };
+    }).state;
+    ship.faceToward(new THREE.Vector3(0, 0, -1000)); // nose along -Z, target off it
+    let shots = 0;
+    for (let i = 0; i < seconds * 60; i++) {
+      state.brainControl = { pitch: 0, roll: 0, throttle: 0, fire: true };
+      state.brainTimer = 1;
+      ship.object.position.set(0, 0, 0); // hold station, so only the gun varies
+      if (ship.brainFly(shippedPirate, 1 / 60, target, new THREE.Quaternion(),
+        300, range, 'player', null)) shots += 1;
+    }
+    return shots;
+  };
+  const insideGate = shotsIn(NPC_FIRE_GATE * 0.5, 800, 20);
+  check(`an NPC lined up inside the ${NPC_FIRE_GATE} rad gate shoots (${insideGate} in 20s)`,
+    insideGate > 0);
+  check(`...at its own cadence, not faster than ${NPC_COOLDOWN_LO}s allows`,
+    insideGate <= 20 / NPC_COOLDOWN_LO);
+  check('...and mean cadence sits inside the cooldown spread',
+    insideGate >= 20 / (NPC_COOLDOWN_LO + NPC_COOLDOWN_SPREAD));
+  check('an NPC outside the gate never pulls the trigger',
+    shotsIn(NPC_FIRE_GATE * 1.1, 800, 20) === 0);
+  check(`...nor beyond ${NPC_LASER_RANGE} units, however well aimed`,
+    shotsIn(0, NPC_LASER_RANGE + 10, 20) === 0);
 
-  // IMPORTED VALUES, not regexes over source text.
-  //
-  // These were four `num(npc, /.../)` captures taking the FIRST match in the
-  // file. Two consequences, both real: replacing a literal with a named
-  // constant broke the check for no behavioural reason, and — worse — the
-  // firing-gate check silently measured brainFly's 0.25 while attack()'s
-  // drifted 0.22 sat forty lines below, unseen, on the path every police
-  // ship, bounty hunter and thargoid actually fires from.
-  check(`NPC fire rate: sim ${NPC_GUN.cooldownLo}+${NPC_GUN.cooldownSpread}`
-    + ` == game ${NPC_COOLDOWN_LO}+${NPC_COOLDOWN_SPREAD}`,
-  NPC_GUN.cooldownLo === NPC_COOLDOWN_LO && NPC_GUN.cooldownSpread === NPC_COOLDOWN_SPREAD);
-
-  check(`NPC firing gate: sim ${NPC_GUN.gate} rad == game ${NPC_FIRE_GATE} rad`,
-    NPC_GUN.gate === NPC_FIRE_GATE);
-
-  check(`NPC laser range: sim ${NPC_GUN.range} == game ${NPC_LASER_RANGE}`,
-    NPC_GUN.range === NPC_LASER_RANGE);
-
-  // The whole NPC gun, compared as VALUES.
-  //
-  // These were two regexes over game.ts — a `Math.min(0.85, Math.max(` that
-  // bound to the first such clamp in 2,800 lines, and a substring match on the
-  // damage expression. Four of NPC_GUN's fields had no assertion at all, so
-  // changing damageSpread in the sim would have gone unnoticed: the game's
-  // NPC damage was only pinned indirectly, through the PLAYER's pulse laser
-  // happening to average the same number.
-  //
-  // The literals live in gunnery.ts now, beside the player's gun, and both
-  // sides import.
-  check(`NPC hit cap: sim ${NPC_GUN.hitCap} == game ${NPC_HIT_CAP}`,
-    NPC_GUN.hitCap === NPC_HIT_CAP);
-  check(`NPC hit floor: sim ${NPC_GUN.hitFloor} == game ${NPC_HIT_FLOOR}`,
-    NPC_GUN.hitFloor === NPC_HIT_FLOOR);
-  check(`NPC hit base: sim ${NPC_GUN.hitBase} == game ${NPC_HIT_BASE}`,
-    NPC_GUN.hitBase === NPC_HIT_BASE);
-  check(`NPC hit falloff: sim ${NPC_GUN.hitFalloff} == game ${NPC_HIT_FALLOFF}`,
-    NPC_GUN.hitFalloff === NPC_HIT_FALLOFF);
-  check(`NPC damage: sim ${NPC_GUN.damageLo}+${NPC_GUN.damageSpread}`
-    + ` == game ${NPC_DAMAGE_LO}+${NPC_DAMAGE_SPREAD}`,
-  NPC_GUN.damageLo === NPC_DAMAGE_LO && NPC_GUN.damageSpread === NPC_DAMAGE_SPREAD);
-
-  // and the curve itself, at both clamps and in between
+  // ...and the hit curve, at both clamps and in between.
   check('an NPC shot at point blank is capped, not certain', npcHitChance(0) === NPC_HIT_CAP);
   check('...and at extreme range it floors rather than reaching zero',
     npcHitChance(99_999) === NPC_HIT_FLOOR);
   check('...and falls off with distance between them',
     npcHitChance(500) > npcHitChance(2500));
 
-  // The sim's model of the PLAYER must match the player. Its own comment says
-  // it mirrors player.ts, and every field did except accel: 120 against the
-  // real 220, so every pirate brain was fitted against a commander who took
-  // nearly twice as long to reach speed as the one they actually hunt.
-  const playerSrc = read('../src/player.ts');
-  const realAccel = num(playerSrc, /const ACCEL = ([\d.]+);/);
-  check(`player accel: game ${realAccel} == sim playerCobra ${CLASSES.playerCobra.accel}`,
-    realAccel !== null && realAccel === CLASSES.playerCobra.accel);
-  // The turn-rate ramp and decay. Decay had drifted (game 12.0, sim 5.0) —
-  // the same failure as accel, in the adjacent field, unasserted for as long.
-  const simRamp = num(core, /const RATE_RAMP = ([\d.]+);/);
-  const playerDecay = num(playerSrc, /const RATE_DECAY = ([\d.]+);/);
-  const playerRamp = num(playerSrc, /const RATE_RAMP = ([\d.]+);/);
-  check(`RATE_RAMP: game ${playerRamp} == sim ${simRamp}`,
-    playerRamp !== null && playerRamp === simRamp);
+  // 6. The rate ramp had FOUR homes — player.ts, npc.ts, combat-computer.ts
+  // and the simulator's stepShip — each with the constants written out again.
+  // That is how the simulator sat at decay 5.0 while the player moved to 12.0,
+  // and how "correcting" it silently broke the NPC half. One rule now, with
+  // the constants passed in, so assert the rule rather than the copies.
+  check('the shared ramp is what the player\'s controls use',
+    rampFlightRate(0.4, 1.2, true, 1 / 60)
+      === rampToward(0.4, 1.2, true, 1 / 60, PLAYER_FLIGHT.rateRamp, PLAYER_FLIGHT.rateDecay));
+  check('...and what the combat computer uses, at the NPC constants',
+    ccRamp(0.4, 1.2, false, 1 / 60)
+      === rampToward(0.4, 1.2, false, 1 / 60, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY));
 
-  // ...and the NPC's copy of the same pair, which nobody was comparing at all.
-  //
-  // core.ts's `ramp()` is what stepShip integrates during training; npc.ts's
-  // brainFly has its own, and the two constants there are a THIRD copy of the
-  // number — the sim's, the player's, and the NPCs'. The ramp agrees. The
-  // decay does not, and it is the identical bug CLAUDE.md records for the
-  // player: the sim moved to 12.0 and this side stayed at 5.0.
-  check(`NPC turn-rate ramp: game ${BRAIN_RATE_RAMP} == sim ${simRamp}`,
-    BRAIN_RATE_RAMP === simRamp);
+  // 7. TURN belongs to the roster now (npc.ts used to import it from the
+  // simulator), and the combat computer's caps derive from it rather than from
+  // two multiplied literals.
+  check(`combat computer caps track TURN (${CC_MAX_PITCH} / ${CC_MAX_ROLL})`,
+    CC_MAX_PITCH === 0.5 * TURN.pitch && CC_MAX_ROLL === 0.5 * TURN.roll);
 
-  const realMaxSpeed = num(playerSrc, /const MAX_SPEED = ([\d.]+);/);
-  check(`player top speed: game ${realMaxSpeed} == sim playerCobra ${CLASSES.playerCobra.maxSpeed}`,
-    realMaxSpeed !== null && realMaxSpeed === CLASSES.playerCobra.maxSpeed);
-
-  // playerCobra.turnRate is not a number anybody chose — it is MAX_PITCH
-  // divided by TURN.pitch, because the sim multiplies the two back together in
-  // stepShip. That quotient was worked out by hand in a comment and recomputed
-  // by nothing, so a change to MAX_PITCH (it has moved twice) would leave the
-  // sim modelling a commander who turns at the OLD rate, silently, for as long
-  // as it took someone to reread the comment.
-  //
-  // Not exact by design: the stored 1.036 is 1.45/1.4 = 1.03571… rounded to
-  // three places, which is 0.03% out and worth 0.0004 rad/s. The tolerance is
-  // sized to that rounding, not to drift.
-  const realPitch = num(playerSrc, /const MAX_PITCH = ([\d.]+);/);
-  const wantTurn = (realPitch ?? NaN) / TURN.pitch;
-  check(`player turn rate: game MAX_PITCH ${realPitch}/TURN.pitch ${TURN.pitch}`
-    + ` = ${wantTurn.toFixed(5)} == sim playerCobra ${CLASSES.playerCobra.turnRate}`,
-  Math.abs(CLASSES.playerCobra.turnRate - wantTurn) < 0.001);
-  // The same ship's ROLL is a genuine mismatch rather than rounding — flagged,
-  // not asserted, because which side is right is a retraining decision:
-  // MAX_ROLL is 2.5 where the sim gives the player turnRate * TURN.roll.
-  {
-    const realRoll = num(playerSrc, /const MAX_ROLL = ([\d.]+);/);
-    const simRoll = CLASSES.playerCobra.turnRate * TURN.roll;
-    if (realRoll !== null && Math.abs(realRoll - simRoll) > 0.001) {
-      console.log(`  note player roll rate: game MAX_ROLL ${realRoll}`
-        + ` vs sim ${simRoll.toFixed(4)} (turnRate x TURN.roll) — see the TODO below`);
-    }
-  }
-
-  // Ram damage moved out of game.ts into collisions.ts as a named constant,
-  // which is an improvement on a bare 0.45 appearing three times — and this
-  // check noticed the moment it moved, which is the check working.
-  check(`collision damage: sim ${COLLISION.damage} == RAM_DAMAGE ${RAM_DAMAGE}`,
-    COLLISION.damage === RAM_DAMAGE);
-  // ...and what a ram costs you in SPEED, which was duplicated just as plainly
-  // and never compared. It is the half of the rule that decides whether
-  // ramming is an escape or a mistake: the damage says what it costs, this
-  // says whether you get away afterwards.
-  check(`collision speed kept: sim ${COLLISION.speedRetained}`
-    + ` == game player ${PLAYER_SPEED_KEPT} / npc ${NPC_SPEED_KEPT}`,
-  COLLISION.speedRetained === PLAYER_SPEED_KEPT
-    && COLLISION.speedRetained === NPC_SPEED_KEPT);
-
-  // hulls the sim models, and their game counterparts
-  for (const [simKey, gameDef, role] of [
-    ['pirateCobra', 'COBRA_MK3', 'pirate'],
-    ['pirateSidewinder', 'SIDEWINDER', 'pirate'],
-    ['traderCobra', 'COBRA_MK3', 'trader'],
-  ] as const) {
-    const sim = CLASSES[simKey];
-    // The game's side is an IMPORTED VALUE, not scraped source. The regex
-    // version broke every time these tables moved or a literal became a named
-    // constant, and a parity check that silently reads NaN is worse than none.
-    const spec = SPECS[role].find((x) => x.def === SHIP_DEFS[gameDef]);
-    const hp = spec?.hp;
-    const speed = spec?.maxSpeed;
-    const turn = spec?.turnRate;
-    check(`${simKey}: hp ${sim.hp}/${hp}, speed ${sim.maxSpeed}/${speed}, turn ${sim.turnRate}/${turn} match`,
-      sim.hp === hp && sim.maxSpeed === speed && sim.turnRate === turn);
-    // Radius is not cosmetic: fireLaser sizes its hit cone as
-    // atan(target.radius * LASER.aim / dist), so a hull that is fatter in the
-    // sim than in the game is one the trained policy expects to hit from
-    // further out than it ever can. It was duplicated in both tables and
-    // compared in neither.
-    check(`${simKey} radius: sim ${sim.radius} == game ${spec?.radius}`,
-      sim.radius === spec?.radius);
-  }
-
-  // --- the speed floor -------------------------------------------------------
-  //
-  // The sim gives each fighter hull an absolute `minSpeed`; the game applies
-  // one fraction, MIN_CRUISE_FRACTION, to every hostile's top speed. Same
-  // rule, expressed twice and never compared — and it is a load-bearing rule,
-  // not a detail: it is the whole reason a pirate cannot stop dead and become
-  // a turret (see the ShipClass.minSpeed comment, and CLAUDE.md invariant 8).
-  //
-  // Deliberately approximate, so this is a tolerance and not an equality:
-  // 110/260 = 0.4231 and 130/300 = 0.4333 both round to "about 0.43". The 2%
-  // window admits that and nothing else — moving either minSpeed by a single
-  // step of 10 fails it.
-  for (const key of ['pirateCobra', 'pirateSidewinder'] as const) {
-    const sim = CLASSES[key];
-    const gameFloor = sim.maxSpeed * MIN_CRUISE_FRACTION;
-    const ratio = (sim.minSpeed ?? 0) / sim.maxSpeed;
-    check(`${key} speed floor: sim ${sim.minSpeed} (${ratio.toFixed(4)} of top)`
-      + ` == game ${gameFloor.toFixed(1)} (MIN_CRUISE_FRACTION ${MIN_CRUISE_FRACTION})`,
-    sim.minSpeed !== undefined && Math.abs(sim.minSpeed - gameFloor) / gameFloor < 0.02);
-  }
-  // and the other half of the same rule: a trader is allowed to come to rest,
-  // in both places. npc.ts gives the floor only to pirates and thargoids.
-  check('traderCobra has no speed floor in the sim, as it has none in the game',
-    CLASSES.traderCobra.minSpeed === undefined);
-
-  // --- throttle authority ----------------------------------------------------
-  //
-  // The game accelerates EVERY brain-flown NPC at one flat rate; the sim gives
-  // each hull its own. They agree for the pirate Cobra and disagree for the
-  // other two — see the TODO below.
-  check(`brain-flown NPC accel: game ${BRAIN_ACCEL} == sim pirateCobra ${CLASSES.pirateCobra.accel}`,
-    BRAIN_ACCEL === CLASSES.pirateCobra.accel);
-
-  // TODO(owner): per-hull accel does NOT match, and this test does not decide
-  // who is right. npc.ts brainFly throttles every ship at BRAIN_ACCEL = 120,
-  // where ai-training/core.ts gives:
-  //
-  //     pirateCobra      accel 120  ==  game 120   ok
-  //     pirateSidewinder accel 140  vs  game 120   MISMATCH (+17%)
-  //     traderCobra      accel 100  vs  game 120   MISMATCH (-17%)
-  //
-  // Both shipped attack brains were fitted in the sim, so a Sidewinder was
-  // trained to close and break off with 17% more throttle authority than the
-  // game gives it, and armed traders (jameson-defend-g1) were trained with
-  // 17% less. Which side moves is a retraining decision — invariant 2 and
-  // CLAUDE.md's RATE_DECAY precedent — so it is reported, not "fixed".
-  // Uncomment once the owner has picked a side:
-  //
-  // for (const [simKey] of [['pirateCobra'], ['pirateSidewinder'], ['traderCobra']] as const) {
-  //   check(`${simKey} accel: sim ${CLASSES[simKey].accel} == game ${BRAIN_ACCEL}`,
-  //     CLASSES[simKey].accel === BRAIN_ACCEL);
-  // }
-  //
-  // TODO(owner): so does the player's MAX_ROLL — 2.5 in player.ts against the
-  // sim's playerCobra.turnRate * TURN.roll = 2.4864. Same call, same reason.
-  // The `note` line above prints the live numbers.
-  //
-  // The NPC decay is now per-class and ASSERTED, both sides.
-  //
-  // The sim had ONE ramp where the game has two: the player decays at 12.0
-  // (deliberately tightened so a light tap stops when you stop) and npc.ts's
-  // brainFly at 5.0. A single constant could not be right for both, and
-  // "correcting" it to 12.0 for the player silently broke the NPC half, which
-  // had been the one that matched. core.ts takes rateDecay per ship class now.
-  check(`NPC turn-rate decay: game ${BRAIN_RATE_DECAY} == sim ${NPC_RATE_DECAY}`,
-    BRAIN_RATE_DECAY === NPC_RATE_DECAY);
-  check(`player turn-rate decay: game ${playerDecay} == sim ${PLAYER_RATE_DECAY}`,
-    playerDecay === PLAYER_RATE_DECAY);
-  check('the player model in the sim really carries the player decay',
-    CLASSES.playerCobra.rateDecay === PLAYER_RATE_DECAY
-    && CLASSES.pirateCobra.rateDecay === undefined);
+  // 8. Ramming: one constant, one speed rule, billed by the episode the way
+  // world-step.ts bills it.
+  check(`ramming costs the rammer RAM_DAMAGE (${RAM_DAMAGE}), and costs both the same speed`,
+    PLAYER_SPEED_KEPT === NPC_SPEED_KEPT);
 }
 
 // --- inhabitant portraits ---------------------------------------------------

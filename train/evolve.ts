@@ -21,13 +21,16 @@
 // random numbers keep comparisons fair).
 
 import { mkdirSync, writeFileSync, readFileSync, appendFileSync } from 'node:fs';
-import { Episode, type Controller } from '../src/ai-training/scenario.ts';
+import {
+  Episode, type Controller, type TargetHullId,
+} from '../src/ai-training/scenario.ts';
 import {
   randomBrain, mutate, brainFromFile, OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
   observe, act, makeScratch,
   type Brain, type BrainFile,
 } from '../src/ai-training/policy.ts';
-import { makeRng, makeShip, v3, q4, CLASSES } from '../src/ai-training/core.ts';
+import { makeRng } from '../src/game/rng.ts';
+import { FIXED_DT } from '../src/game/world-step.ts';
 
 const args = process.argv.slice(2);
 const PHASES = ['attack', 'evade', 'pack', 'defend'];
@@ -48,7 +51,20 @@ const GENS = getArg('gens', 300);
 const POP = getArg('pop', 48);
 const EPISODES = getArg('eps', 3);
 const ELITES = getArg('elites', 8);
-const DT = 1 / 15;
+/**
+ * The game's own step. It was 1/15 — chosen when episodes ran in a parallel
+ * simulator and four times fewer steps was four times more generations. The
+ * episodes now fly the real engine, and the engine's slice is FIXED_DT: at
+ * 1/15 a brain re-decides every 0.133s instead of every 0.1, and every
+ * `rotateTowards` and collision test is four times coarser. Training at a
+ * timestep the game never runs at is the last way left for the trainer to be
+ * fitting a world that does not exist.
+ *
+ * It costs less than it looks: the MLP forward pass dominates and it is
+ * capped at 10 Hz by the decision cache, so four times the steps is nothing
+ * like four times the work.
+ */
+const DT = FIXED_DT;
 const OUT_NAME = getStrArg('out',
   phase === 'attack' ? 'pirate-attack' : phase === 'evade' ? 'trader-evade' : phase === 'defend' ? 'jameson-defend' : 'pirate-pack');
 
@@ -93,7 +109,7 @@ interface PoolEntry {
   /** does this trader shoot back? */
   armed: boolean;
   /** hull it flies; playerCobra has the commander's speed and agility */
-  hull?: 'traderCobra' | 'playerCobra' | 'playerCobraSlow';
+  hull?: TargetHullId;
   label: string;
 }
 
@@ -387,13 +403,21 @@ function flies(genome: Brain): { forward: number; degenerate: boolean } {
   const scratch = makeScratch();
   let forward = 0;
   let frames = 0;
+  // This asks the POLICY a question, not the world: it wants the controls a
+  // brain emits across a spread of geometries, so it needs an observation and
+  // nothing else. No ships are flown, so nothing here needs the engine —
+  // which is why it survived the simulator's deletion as plain views.
+  const view = (maxSpeed: number, turnRate: number, z: number, speed: number) => ({
+    pos: { x: 0, y: 0, z }, quat: { x: 0, y: 0, z: 0, w: 1 },
+    speed, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
+    cls: { maxSpeed, turnRate },
+  });
   // a spread of geometries and target speeds, not one canned setup
   for (const targetSpeed of [0, 90, 220, 400]) {
-    for (const hull of ['traderCobra', 'playerCobra'] as const) {
-      const me = makeShip(CLASSES.pirateCobra, v3(0, 0, 1800), q4());
-      const tgt = makeShip(CLASSES[hull], v3(0, 0, 0), q4());
-      tgt.speed = targetSpeed;
-      me.speed = 200;
+    // the freighter and the commander: the two hulls the pool trains against
+    for (const [maxSpeed, turnRate] of [[220, 0.5], [400, 1.036]] as const) {
+      const me = view(260, 0.8, 1800, 200);
+      const tgt = view(maxSpeed, turnRate, 0, targetSpeed);
       for (let i = 0; i < 60; i++) {
         const c = act(genome, observe(me, tgt, obs), scratch);
         if (c.throttle > 0) forward += 1;

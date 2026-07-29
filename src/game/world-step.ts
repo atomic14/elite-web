@@ -2,9 +2,10 @@
 //
 // Everything that used to be `updateFlight` and its five phases lived as
 // private methods of game.ts, which meant the simulation could only advance
-// with a HUD, a keyboard and a WebGL context standing behind it. That is the
+// with a HUD, a keyboard and a WebGL context standing behind it. That was the
 // one thing between this project and training its AI against the real engine
-// instead of the parallel simulator in src/ai-training.
+// instead of a parallel simulator — and the simulator is now deleted, so the
+// training scenarios fly these very pieces (src/ai-training/scenario.ts).
 //
 // So the phases moved here, and the fourteen `hud.showMessage` calls inside
 // them became RETURNED EVENTS — the same pattern as combat.ts, ordnance.ts and
@@ -46,6 +47,19 @@ import { Ordnance, ordnanceMessage, type OrdnanceReply } from './ordnance.ts';
 import type { NpcShip, FireEvent } from './npc.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import { AUTOSAVE_INTERVAL, type GameState } from './state.ts';
+
+/**
+ * The world advances in slices of exactly this. 60Hz, matching the rate the
+ * NPC brains decide at (10Hz, every sixth step) and the rate every combat
+ * number in this project was measured against.
+ *
+ * It lived in game.ts, which cannot be imported without a browser — so the
+ * training scenarios, which now fly this very step, could not ask what a slice
+ * of the world is and picked 1/15 instead. That is a different world: at 1/15
+ * a brain re-decides every 0.133s rather than every 0.1, and every discrete
+ * `rotateTowards` step is four times as coarse.
+ */
+export const FIXED_DT = 1 / 60;
 
 /** Fly this close to the sun and the ship is gone, temperature or not. */
 export const SUN_KILL_DIST = 21_000;

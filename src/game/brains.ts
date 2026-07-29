@@ -34,7 +34,7 @@ import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with 
 // a turret that hangs in space and snipes.
 //
 // So g3 is trained where that move does not exist: pirate hulls carry a
-// `minSpeed` (ai-training/core.ts) and cannot throttle below about 43% of top speed,
+// a speed floor (MIN_CRUISE_FRACTION) and cannot throttle below 43% of top speed,
 // and the fitness pays for time spent ON THE TARGET'S SIX rather than for
 // damage by any route. Measured against a target that stops to fight:
 //
@@ -152,15 +152,15 @@ function brainsEnabled(): boolean {
 /**
  * Range at which trained pilots hand back to the scripted break-off.
  *
- * The sim the policies were trained in has NO collision model — `radius` in
- * ai-training/core.ts is used only for the laser cone. Flying straight through
- * the target is therefore free in training, so the optimal learned behaviour
- * is to close to zero range and sit there shooting. In the game, where ships
- * are solid, that reads as deliberate ramming: the pirate slides past you and
- * kamikazes.
+ * The simulator the pre-generation policies were trained in had NO collision
+ * model, so flying straight through the target was free and the optimal
+ * learned behaviour was to close to zero range and sit there shooting. In the
+ * game, where ships are solid, that reads as deliberate ramming: the pirate
+ * slides past you and kamikazes.
  *
- * The real fix is a collision model in ai-training/core.ts plus a retrain —
- * this is the guard rail until then (docs/TRAINING-LOG.md).
+ * Collisions were added to the simulator and then, with the simulator's
+ * deletion, stopped being a model at all — episodes call collisions.ts. The
+ * guard remains for brains fitted before either (docs/TRAINING-LOG.md).
  */
 const RAM_GUARD = 220;
 

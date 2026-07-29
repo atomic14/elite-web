@@ -5,9 +5,10 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { buildShip, COBRA_MK3, SIDEWINDER } from '../ships/geometry.ts';
 import { createStarfield } from '../world/starfield.ts';
-import { Episode, type ShotEvent } from '../ai-training/scenario.ts';
+import { Episode, type ShotEvent, type EpisodeShip } from '../ai-training/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../ai-training/policy.ts';
-import { makeRng, type SimShip, forward } from '../ai-training/core.ts';
+import { makeRng } from '../game/rng.ts';
+import { FIXED_DT } from '../game/world-step.ts';
 import pirateR1BrainFile from '../ai-training/brains/pirate-attack.json' with { type: 'json' };
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g1.json' with { type: 'json' };
 import traderBrainFile from '../ai-training/brains/trader-evade.json' with { type: 'json' };
@@ -101,7 +102,7 @@ scene.add(createStarfield(2200, 90000));
 // --- episode visualisation ---------------------------------------------------
 
 interface ShipView {
-  sim: SimShip;
+  sim: EpisodeShip;
   object: THREE.Group;
   isPirate: boolean;
 }
@@ -126,7 +127,7 @@ function resetEpisode(newSeed?: number): void {
   elapsed = 0;
 
   for (const p of episode.pirates) {
-    const object = buildShip(p.cls.name === 'Sidewinder' ? SIDEWINDER : COBRA_MK3, 0xff9a5c);
+    const object = buildShip(p.name === 'Sidewinder' ? SIDEWINDER : COBRA_MK3, 0xff9a5c);
     scene.add(object);
     views.push({ sim: p, object, isPirate: true });
   }
@@ -134,6 +135,9 @@ function resetEpisode(newSeed?: number): void {
   scene.add(traderObj);
   views.push({ sim: episode.trader, object: traderObj, isPirate: false });
 }
+
+/** scratch for the tracer geometry below */
+const tracerDir = new THREE.Vector3();
 
 function syncViews(events: ShotEvent[]): void {
   for (const v of views) {
@@ -151,8 +155,8 @@ function syncViews(events: ShotEvent[]): void {
     //
     // A miss now flies PAST the target instead of into it. Drawing a miss to
     // the target's centre made it look like a hit that failed to register.
-    const f = forward(e.from);
-    const r = e.from.cls.radius;
+    const f = e.from.forward(tracerDir);
+    const r = e.from.radius;
     const ox = e.from.pos.x + f.x * r;
     const oy = e.from.pos.y + f.y * r;
     const oz = e.from.pos.z + f.z * r;
@@ -243,7 +247,7 @@ camBtn.addEventListener('click', () => {
 
 // --- main loop ---------------------------------------------------------------
 
-const SIM_DT = 1 / 15;
+const SIM_DT = FIXED_DT;
 let simAccumulator = 0;
 let doneTimer = 0;
 let last = performance.now();

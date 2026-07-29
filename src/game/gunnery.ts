@@ -113,8 +113,12 @@ export function chargeShot(sys: ShipSystems, laser: LaserSpec): void {
 // orchestrator. Two of the four were checked by the sim/game parity tests;
 // the rest could drift silently.
 //
-// Mirrors NPC_GUN in ai-training/core.ts. Invariant 2: change one, change the
-// other, and `npm test` compares them.
+// These were mirrored by an `NPC_GUN` in the training simulator, kept in step
+// by hand — and were not, for six training rounds: the sim handed every ship
+// the player's pulse laser, 0.24s through a ~0.027 rad cone against this gun's
+// 1.30s through 0.25, which is 0.667 damage/second against 0.041. Training
+// flies THIS gun now (ai-training/scenario.ts), so these numbers are the
+// balance levers for the game and for the trainer at the same time.
 
 /** Hit chance falls off with range, clamped at both ends. */
 export const NPC_HIT_BASE = 0.9;

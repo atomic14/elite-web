@@ -232,12 +232,12 @@ src/
   ships/geometry.ts         every hull as vertex/edge/face tables
   world/                    per-system scenery: shader sun and planet, station
 
-  ai-training/              render-free combat simulator + neural policies
-    core.ts                 own vec/quat maths, ship physics, both weapon models
+  ai-training/              neural policies + the scenarios they train in
     policy.ts               tiny MLP: observation -> discrete controls
-    scenario.ts             Episode: pirates vs trader, shared by trainer & viewer
+    scenario.ts             Episode: pirates vs trader, on the REAL engine —
+                            shared by trainer, tournament and viewer
     brains/*.json           trained weights, committed
-  viewer/main.ts            three.js viewer for sim episodes
+  viewer/main.ts            three.js viewer for episodes
 
 test/run.ts                 invariant + unit tests (npm test)
 test/campaign.ts            headless balance playtest (npm run campaign)
@@ -328,20 +328,34 @@ hunt in packs, police enforce, hunters stalk offenders, Thargons swarm).
 Two roles fly with **trained neural policies** instead of the scripted
 steering: pirates attacking the player (`pirate-attack-r2` brain) and armed
 traders defending themselves (`jameson-defend` brain). `brainFly()` runs the
-MLP at 10 Hz and integrates its discrete keyboard-style controls exactly
-like the sim does. Set `window.__scriptedPirates = true` in the console to
-A/B the old scripted AI.
+MLP at 10 Hz and integrates its discrete keyboard-style controls with the same
+ramp the player's ship uses. It is public, because a training episode flies a
+candidate genome through it — one flight model, one place. Set
+`window.__scriptedPirates = true` in the console to A/B the old scripted AI.
 
-### 5. The sim is the game's physics, twice
+### 5. Training runs on the game, not on a copy of it
 
-`src/ai-training/` is a **render-free copy of the combat-relevant physics** (ship
-classes, turn rates, the pulse-laser model) with its own tiny vec/quat
-math — no three.js — so Node can run millions of ship-steps per minute for
-training, and the browser viewer can replay identical episodes. **The
-contract: if you change combat numbers in game/npc.ts or game.ts, mirror
-them in ai-training/core.ts** (and ideally retrain). The policies' observation is
-ship-frame relative (`policy.ts` docstring) which is what makes them
-position/orientation invariant.
+`src/ai-training/scenario.ts` builds an `Episode` out of the engine: the
+pirates are `NpcShip`s flying `NpcShip.brainFly`, the target is a `PlayerShip`
+flown from a `FlightDemand`, the guns are `game/gunnery.ts`, the ramming is
+`game/collisions.ts`, the dice are `game/rng.ts`, and the step is `FIXED_DT`.
+Node runs it with no canvas and no WebGL; the browser viewer replays the same
+episodes.
+
+It used to be a **copy** — `ai-training/core.ts`, ~450 lines with its own
+vec/quat maths, its own PRNG, and tables mirroring ship-specs.ts, gunnery.ts,
+collisions.ts and player.ts — and the contract was "change one, change the
+other". That contract failed three times in ways that took a training round
+each to notice: an NPC gun 5.4x too fast, a player model at accel 120 against
+the real 220, and a turn decay 35% out at the two files' step rates. **A
+combat number now has one home**, so a balance change changes the game and the
+training environment together — which also means it invalidates the shipped
+brains rather than merely desyncing them. Retrain; do not re-copy.
+
+What is genuinely about training stays here: the fitness functions, the
+opponent pool, the escape range, and the observation encoder. The policies'
+observation is ship-frame relative (`policy.ts` docstring), which is what makes
+them position/orientation invariant.
 
 ### 6. Pirates are businesses, not a difficulty slider
 
@@ -408,11 +422,14 @@ ships.
   (buy any equipment free, any tech level), `window.__packBrain`
   (switch pirates to the 18-input pack brain — off by default, and see
   docs/TRAINING-LOG.md for why).
-- **Determinism**: the galaxy and sim are seeded (mulberry32); gameplay
-  spawns/market fluctuations intentionally use `Math.random()`. Training
-  episode *seeds* are deterministic per generation; mutation noise is drawn
-  from a seeded RNG, so a full training rerun follows the same trajectory on
-  the same CLI args.
+- **Determinism**: everything is seeded (mulberry32) and `Math.random` is
+  banned in world code — `game/rng.ts` is the world's only stream, and
+  `makeRng()` beside it hands a harness a private one. A training episode
+  reseeds the world from its own seed, so episodes must be run one at a time
+  rather than interleaved. Episode seeds are deterministic per generation and
+  mutation noise comes from a seeded RNG, so a full training rerun produces
+  byte-identical weights on the same CLI args (verified: two runs, same
+  generation curve, same brain).
 - The **help panel** (`?` in-game) is hand-maintained in index.html — update
   it when you touch key bindings, along with the README table.
 
@@ -422,5 +439,5 @@ ships.
 2. `ships/geometry.ts` — the data-as-art bit.
 3. `player.ts` then `game/npc.ts` — flight, then behaviours.
 4. `game/game.ts` — top to bottom once, with the mode machine in mind.
-5. `ai-training/core.ts` → `ai-training/policy.ts` → `train/evolve.ts` — the AI stack
+5. `ai-training/policy.ts` → `ai-training/scenario.ts` → `train/evolve.ts` — the AI stack
    (then docs/AI-TRAINING.md and docs/TRAINING-LOG.md for the results).

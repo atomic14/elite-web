@@ -10,15 +10,15 @@
  * answer is built on two approximations pointing in opposite directions, and
  * neither is small.
  *
- * The sim UNDERSTATES the gang. `src/ai-training/core.ts` only models two pirate
- * hulls, pirateCobra (hp 1.1) and pirateSidewinder (0.55), and has no
- * missiles. A real tier-2 gang flies Fer-de-Lance, Asp and Python — hp 1.3 to
- * 1.8, turn rates up to 1.2 — and every one of them carries missiles, which do
- * 1.3 damage a hit against a commander who soaks about 3.0 in total.
+ * A training EPISODE understates the gang. It spawns only two pirate hulls,
+ * the Cobra (hp 1.1) and the Sidewinder (0.55), and never launches a missile.
+ * A real tier-2 gang flies Fer-de-Lance, Asp and Python — hp 1.3 to 1.8, turn
+ * rates up to 1.2 — and every one of them carries missiles, which do 1.3
+ * damage a hit against a commander who soaks about 3.0 in total.
  *
- * The sim OVERSTATES it too, in the other direction: its defender is a
- * traderCobra with hp 1.0 and no shields at all, where the player has fore and
- * aft shields plus an energy bank.
+ * It OVERSTATES it too, in the other direction: the episode's target carries
+ * hp 1.0 and no shields at all, where the player has fore and aft shields plus
+ * an energy bank.
  *
  * So the honest thing is to stop approximating and fly it. This spawns real
  * gangs with the real hull table (imported, not copied, so it cannot drift),

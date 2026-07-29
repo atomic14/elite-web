@@ -58,7 +58,7 @@ import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.
 import { constrictorLurksHere } from './missions.ts';
 import { World } from './world.ts';
 import {
-  WorldStep, viewDirection, massLocked, VIEW_QUATS,
+  WorldStep, viewDirection, massLocked, VIEW_QUATS, FIXED_DT,
   type StepEvent, type StepHost,
 } from './world-step.ts';
 import { random, randomInt, randomDirection, seedWorld } from './rng.ts';
@@ -125,11 +125,11 @@ import type { SessionState } from './session.ts';
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
 
 /**
- * The world advances in slices of exactly this. 60Hz, matching the rate the
- * NPC brains decide at (10Hz, every sixth step) and the rate every combat
- * number in this project was measured against.
+ * The world advances in slices of exactly this — re-exported from
+ * world-step.ts, which is where the world step lives and where a trainer can
+ * import it without a browser.
  */
-export const FIXED_DT = 1 / 60;
+export { FIXED_DT };
 /** Longest real interval we will try to simulate, before dropping the backlog. */
 const MAX_FRAME_TIME = 0.25;
 /** ...and the most steps one frame may run, so a stall cannot spiral. */

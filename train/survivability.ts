@@ -3,16 +3,17 @@
 //   node --experimental-strip-types train/survivability.ts [episodes]
 //
 // The tournament (train/evaluate.ts) answers a different question than it
-// looks like it answers. Its defender is `CLASSES.traderCobra`, hp 1.0, and
-// core.ts says so plainly: "The sim has no shields." The player has two.
+// looks like it answers. Its defender flies the trader Cobra's hull at hp 1.0
+// with no shields; the player has two, plus four points of energy behind them.
 //
 // So the headline "a gang kills a defended target in 0.7s" is measured
 // against something roughly a third as durable as the commander flying it.
-// That is the right call for *training* — shields would have to exist in both
-// the sim and the game to keep invariant 2, and every brain was fitted
-// without them — but it is the wrong number to make a balance decision from.
+// That is deliberate: an episode's target carries raw hp so that this script
+// can set it (see `playerHull` in ai-training/scenario.ts), and every brain
+// was fitted that way. It is still the wrong number to make a balance
+// decision from.
 //
-// This script leaves the sim alone and corrects only the defender's
+// This script leaves the episode alone and corrects only the defender's
 // durability, IMPORTED from the game's own damage model (game/systems.ts).
 //
 // It used to be transcribed here by hand, in a comment: "fore/aft shield 1.0
@@ -34,13 +35,14 @@ import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { readFileSync } from 'node:fs';
 import { durability } from '../src/game/systems.ts';
+import { FIXED_DT } from '../src/game/world-step.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
 const load = (name: string): Brain =>
   brainFromFile(JSON.parse(readFileSync(new URL(`${name}.json`, BRAINS), 'utf8')) as BrainFile);
 
 const N = Number(process.argv[2]) || 200;
-const DT = 1 / 15;
+const DT = FIXED_DT;
 // distinct from the trainer's stream AND from evaluate.ts's held-out base, so
 // this is not scoring on seeds anything was selected against
 const SEED_BASE = 918_273;

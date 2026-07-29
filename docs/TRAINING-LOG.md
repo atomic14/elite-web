@@ -11,9 +11,13 @@ because retraining a phase overwrites its committed brain file.
 
 ## Infrastructure
 
-- **Simulator**: `src/ai-training/core.ts` — render-free flight + laser model
-  mirroring the game's numbers (ship classes from `npc.ts`, pulse-laser model
-  from `game.ts`). Deterministic: seeded mulberry32 RNG, fixed dt = 1/15 s.
+- **Environment**: `src/ai-training/scenario.ts` — episodes built from the
+  REAL engine (`NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts`,
+  `rng.ts`), stepped at the game's own `FIXED_DT` = 1/60 s.
+  *Runs 1-16 below used `src/ai-training/core.ts`, a render-free copy of the
+  combat physics with its own vector maths, at dt = 1/15 s. It is deleted as
+  of run 17; every figure recorded before that entry was measured in the copy,
+  and the copy is a large part of why several of them did not transfer.*
 - **Policy**: `src/ai-training/policy.ts` — MLP 14 → 32 → 32 → 11 (tanh), 1,899
   parameters. Observation is ship-frame relative (see file docstring).
   Discrete action heads: pitch ±/0, roll ±/0, throttle ±/0, fire y/n —
@@ -1423,3 +1427,121 @@ alignment did not, which suggests the tail term is doing the work and the
 firing gate is still where the shots are lost. The next lever is the policy's
 own trigger discipline rather than its flying — and, as always, the answer
 comes from flying it, not from this table.
+
+## Run 17 — the simulator is deleted; training runs on the game
+
+Not a training run. An environment change, and the largest one this project
+has made: `src/ai-training/core.ts` no longer exists, and an `Episode` is now
+built out of `NpcShip`, `PlayerShip`, `game/gunnery.ts`, `game/collisions.ts`
+and `game/rng.ts`, stepped at the game's own `FIXED_DT`.
+
+### Why
+
+Every entry above is measured in a copy of the game's physics — 450 lines with
+its own vector and quaternion maths, its own PRNG, a `CLASSES` table mirroring
+ship-specs.ts, `LASER`/`NPC_GUN` mirroring gunnery.ts, `COLLISION` mirroring
+collisions.ts and a `stepShip` mirroring player.ts and npc.ts. Invariant 2
+existed solely to police it, and the record of that policing is in this file:
+
+| drift | cost |
+| --- | --- |
+| sim gave every ship the player's pulse laser (0.24s / 0.027 rad) where an NPC has 1.30s / 0.25 rad | runs 9-14 failed to transfer |
+| `playerCobra.accel` 120 against player.ts's 220 | every pirate brain up to g1 hunted a commander taking twice as long to reach speed |
+| `RATE_DECAY` 5.0 in the sim against the player's 12.0 | fixed, which then silently broke the NPC half that had matched |
+| one ramp constant at two step rates (1/15 vs 1/60) | the same number meant different handling in each file |
+
+Each was invisible for months because **each file agreed with itself.** The
+tests could compare the copies but could never decide which was right, and two
+of them ended as `TODO(owner)` comments in test/run.ts asking for a ruling.
+
+### What the merge required
+
+Four seams, all of which the engine mostly had already:
+
+- `NpcShip.brainFly` and `NpcShip.attack` are **public**. An episode flies a
+  candidate genome through the real flight model; `update()` still picks the
+  shipped brain, which is the last thing a trainer wants.
+- `PlayerShip` already took a `FlightDemand` rather than a keyboard, so the
+  target is the commander's own ship with a different pilot behind it.
+- `FIXED_DT` moved from game.ts (needs a browser) to world-step.ts (does not),
+  so the trainer can ask what a slice of the world is.
+- `makeRng` moved from the simulator into `game/rng.ts`, where the same
+  mulberry32 was already written out a second time.
+
+### Bugs it exposed, and the rulings
+
+- **Per-hull accel did not exist in the game.** `npc.ts` threw every
+  brain-flown ship at a flat `BRAIN_ACCEL = 120` where the sim gave each hull
+  its own. Ruling: hulls have accel. The sim's three hand-written numbers turn
+  out to be one rule — 140/300, 120/260 and 100/220 are all ≈ 0.46 of top
+  speed — so `ACCEL_FRACTION = 0.46` reproduces all three within a rounding
+  step and gives every hull in the roster a defensible value. A Sidewinder
+  accelerates at 138 now instead of 120.
+- **The player's roll cap disagreed with itself.** `MAX_ROLL` is 2.5;
+  the sim flew the commander at `turnRate × TURN.roll` = 2.4864, and stored
+  the pitch cap as a rounded quotient (1.036 × 1.4 = 1.4504 against 1.45).
+  Both were flagged and neither could be fixed by a parity test. Gone: the
+  target hull reads `PLAYER_FLIGHT`.
+- **A 26-input pack brain could be trained and never flown.** `npc.ts` knew
+  the 14- and 18-input observations only, so `observePackWide` — the whole
+  point of round 4's `--wide` arm — had no path into the game. It picks the
+  widest encoder the brain has inputs for now, and `packmates()` reports
+  health, orientation and hull as `ObservableMate` wants.
+- **The rate ramp had four homes** (player.ts, npc.ts, combat-computer.ts,
+  the sim), each with the constants written out again. One `rampToward` now,
+  constants passed in.
+- **`NpcShip.facing()` allocated a Vector3 per call**, on the firing gate,
+  which every ship takes every frame — and now every ship-step of every
+  episode.
+
+### Cost: none
+
+| workload | old simulator, dt 1/15 | real engine, dt 1/60 |
+| --- | --- | --- |
+| `train -- attack --gens 20 --pop 16 --eps 2` | 1.18-1.21s | 1.05-1.06s |
+| `train -- attack --gens 60 --pop 32 --eps 3` | 8.66s | 8.19s |
+
+Four times the timestep resolution, and *faster*. The MLP forward pass
+dominates a ship-step, and the decision cache pins it at 10 Hz however finely
+the world is stepped — where the old sim ran `act()` on every one of its
+coarser steps. The engine's per-step cost is real (~3.9x the sim's) and it is
+simply not what the clock was measuring.
+
+Training moved to 1/60 for the same reason it moved to the engine: at 1/15 a
+brain re-decides every 0.133s instead of 0.1, and every `rotateTowards` and
+collision test is four times coarser. That was the last way left for the
+trainer to be fitting a world that does not exist.
+
+### Reproducibility
+
+Two runs of the same command produce an identical generation-by-generation
+curve and byte-identical weights (the saved file differs only in its
+`trainedAt`). The one new constraint is that an episode reseeds the world's
+PRNG at construction, so episodes must be run to completion one at a time —
+which is what every driver here already does, and what `game/rng.ts` being
+module state has always implied.
+
+### The shipped brains under the real physics
+
+`npm test`'s regression gate still passes, which was not a foregone
+conclusion, but the numbers move a long way — as expected, since these brains
+were fitted in the copy:
+
+| measure | in the simulator | on the engine |
+| --- | --- | --- |
+| `pirate-attack-g3` kills a scripted trader | 43% | 93% |
+| `jameson-defend-g1` dies 2v1 | 48% | 33% |
+| untrained policy kills | ~2% | 0% |
+| g3 rams per episode vs a trained evader | 0.78 | 0.38 |
+
+g3 flying 5,565 units an episode, 12 shots, 6.8 hits and 1.07 laser damage
+says the kill is earned rather than an artefact — it is not ramming the target
+to death (0.02 damage taken per episode) and it is not sitting still. The
+gap is presumably the decision cadence it was selected under (15 Hz in the
+sim, 10 Hz in the game) plus the real collision, accel and turn-cap numbers,
+and it is exactly the class of surprise this merge exists to stop happening
+in the other direction.
+
+**These brains are now stale by construction and should be retrained**
+deliberately, against the environment the game actually is. Nothing in
+`src/ai-training/brains/` was touched by this work.

@@ -1,46 +1,41 @@
 import * as THREE from 'three';
 import { buildShip, buildAsteroid } from '../ships/geometry.ts';
 import {
-  SPECS, type NpcSpec, type NpcRole,
+  SPECS, TURN, shipAccel, type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
 import {
-  observe, observePack, act, makeScratch,
-  type Brain, type ObservableShip,
+  observe, observePack, observePackWide, act, makeScratch,
+  PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
+  type Brain, type ObservableShip, type ObservableMate,
 } from '../ai-training/policy.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
 import { npcPrefersMissile, npcMissileLastStand, MISSILE_RELOAD } from './gunnery.ts';
-import { TURN } from '../ai-training/core.ts';
+import { rampToward } from '../player.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
 
 
 
 /**
- * Hostiles cannot throttle below this fraction of their top speed. Mirrors
- * `minSpeed` on the pirate hulls in ai-training/core.ts (110/260 and 130/300, both
- * about 0.43) — invariant 2.
+ * Hostiles cannot throttle below this fraction of their top speed.
+ *
+ * A fighter that can stop dead becomes a turret, because standing still is how
+ * you hold a firing line — see CLAUDE.md invariant 8. Only hostiles get it;
+ * traders and haulers are allowed to come to rest.
  */
 export const MIN_CRUISE_FRACTION = 0.43;
 
 /**
- * How hard a brain-flown NPC throttles, units/s. ONE number for every hull,
- * where ai-training/core.ts gives each `ShipClass` its own `accel` — see the
- * parity block in test/run.ts, which compares them.
- */
-export const BRAIN_ACCEL = 120;
-
-/**
- * How a brain-flown NPC's pitch/roll rates ramp up and bleed off. The same
- * pair as RATE_RAMP/RATE_DECAY in ai-training/core.ts, which is the model the
- * brains were fitted in — invariant 2, and the parity block in test/run.ts
- * compares them.
+ * How a brain-flown NPC's pitch/roll rates ramp up and bleed off — the
+ * constants the trained policies were fitted with. The RULE is player.ts's
+ * `rampToward`; only these two numbers are ours.
  */
 export const BRAIN_RATE_RAMP = 4.1396;
 export const BRAIN_RATE_DECAY = 5.2207;
 
 /**
- * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
- * LASER.range in ai-training/core.ts, and it has to: a brain trained to open fire at
+ * How far an NPC can shoot. Matches the player's LASER_RANGE in gunnery.ts,
+ * and it has to: a brain trained to open fire at
  * 3000 units was silently refused the shot by a 2600 gate, so it would sit
  * there pointing straight at the target and never pull the trigger.
  *
@@ -209,6 +204,25 @@ export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
 
 export type TraderPhase = 'arriving' | 'trading' | 'departing' | 'docking';
 
+/**
+ * Rotate `quat` so its −Z points along `dir`, by at most `maxStep` radians.
+ *
+ * The scripted steering rule, as a free function, because the training
+ * scenarios steer the TARGET with it too and it is not the target's own rule —
+ * it is this one. Mutates `quat` in place and allocates nothing.
+ */
+export function steerQuatToward(
+  quat: THREE.Quaternion, dir: THREE.Vector3, maxStep: number,
+): void {
+  if (dir.lengthSq() < 1) return;
+  steerMat.lookAt(ZERO, dir, UP); // -Z ends up along dir
+  steerQuat.setFromRotationMatrix(steerMat);
+  quat.rotateTowards(steerQuat, maxStep);
+}
+
+const steerMat = new THREE.Matrix4();
+const steerQuat = new THREE.Quaternion();
+
 export class NpcShip {
   readonly object: THREE.Object3D;
   readonly role: NpcRole;
@@ -251,23 +265,34 @@ export class NpcShip {
 
   private readonly maxSpeed: number;
   private readonly turnRate: number;
+  /**
+   * Thrust, units/s — per hull, from the roster (ship-specs.ts shipAccel).
+   *
+   * It was one flat 120 for every brain-flown ship in the galaxy, which is
+   * the omission the trainer merge exposed: a Sidewinder tops out 15% quicker
+   * than a Cobra and used to reach it no faster.
+   */
+  readonly accel: number;
   /** @internal exposed so a snapshot can resume mid-reload */
   /** @internal snapshot */
 
 
   private readonly tmpDir = new THREE.Vector3();
+  private readonly tmpDir2 = new THREE.Vector3();
   private readonly tmpMat = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
   // trained-brain flight state (pirates)  private brainControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;  /** @internal snapshot */
-  // sized for PACK_OBS_SIZE (18); solo brains only read the first 14 slots
-  private static readonly obsBuf = new Float32Array(18);
+  // sized for PACK_WIDE_OBS_SIZE (26); solo brains read the first 14 slots
+  private static readonly obsBuf = new Float32Array(PACK_WIDE_OBS_SIZE);
   /** scratch packmate list, reused so the 10 Hz decision stays allocation-light */
-  private static readonly mateView: { pos: THREE.Vector3; alive: boolean }[] = [];
+  private static readonly mateView: ObservableMate[] = [];
+  /** …backed by a pool that is never truncated, so growth allocates once */
+  private static readonly matePool: ObservableMate[] = [];
   private static readonly scratch = makeScratch();
   private static readonly meView = {
     pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 },
-    speed: 0, cls: { maxSpeed: 0, turnRate: 0 },
+    speed: 0, cls: { maxSpeed: 0, turnRate: 0, hp: 1 }, hp: 1,
     laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
   };
   private static readonly targetView = {
@@ -382,6 +407,7 @@ export class NpcShip {
       this.cargoDrop = 0;
       this.maxSpeed = 0;
       this.turnRate = 0;
+      this.accel = 0;
       this.speed = 0;
       this.hasEcm = false;
       this.armed = false;
@@ -397,6 +423,7 @@ export class NpcShip {
       this.cargoDrop = 0;
       this.maxSpeed = 0;
       this.turnRate = 0;
+      this.accel = 0;
       this.speed = 0;
       this.hasEcm = false;
       this.armed = false;
@@ -410,6 +437,7 @@ export class NpcShip {
       this.cargoDrop = spec.cargoDrop ?? 0;
       this.maxSpeed = spec.maxSpeed;
       this.turnRate = spec.turnRate;
+      this.accel = shipAccel(spec);
       this.speed = spec.maxSpeed * 0.5;
       this.missiles = spec.missiles ?? 0;
       this.hasEcm = random() < (spec.ecmChance ?? 0);
@@ -616,27 +644,54 @@ export class NpcShip {
   }
 
   /**
-   * The other pirates this ship is hunting with, in the shape observePack
-   * wants. Rebuilt per decision (10 Hz) rather than cached, because ships die
-   * mid-fight and a stale mate would be observed as still flying.
+   * The other pirates this ship is hunting with, in the shape the pack
+   * observations want. Rebuilt per decision (10 Hz) rather than cached,
+   * because ships die mid-fight and a stale mate would be observed as still
+   * flying.
+   *
+   * The entries are pooled and refilled, not allocated: a gang of four
+   * re-deciding at 10 Hz otherwise churns 40 objects a second for nothing.
    */
-  private packmates(fleet: readonly NpcShip[]): { pos: THREE.Vector3; alive: boolean }[] {
+  private packmates(fleet: readonly NpcShip[]): ObservableMate[] {
     const out = NpcShip.mateView;
-    out.length = 0;
+    const pool = NpcShip.matePool;
+    let n = 0;
     for (const m of fleet) {
       if (m === this || m.role !== 'pirate' || !m.alive) continue;
-      out.push({ pos: m.object.position, alive: true });
+      const slot = pool[n] ?? (pool[n] = {
+        pos: m.object.position, quat: m.object.quaternion,
+        hp: m.hp, cls: { hp: m.maxHp }, alive: true,
+      });
+      out[n] = slot;
+      slot.pos = m.object.position;
+      slot.quat = m.object.quaternion;
+      slot.hp = m.hp;
+      slot.cls.hp = m.maxHp;
+      slot.alive = true;
+      n += 1;
     }
+    out.length = n;
     return out;
+  }
+
+  /** The slowest this ship may fly under power. See MIN_CRUISE_FRACTION. */
+  private get speedFloor(): number {
+    return this.role === 'pirate' || this.role === 'thargoid' || this.role === 'thargon'
+      ? this.maxSpeed * MIN_CRUISE_FRACTION : 0;
   }
 
   /**
    * Fly with a trained policy: refresh the discrete control at 10 Hz, then
-   * integrate it exactly like the sim (and the player's keyboard model).
-   * targetSpeed and targetView.cls are approximations (the policies were
-   * trained against fixed opponent classes, so precise values matter little).
+   * integrate it with the same ramp the player's ship uses.
+   *
+   * PUBLIC because this is the flight model the trainer optimises against.
+   * `update()` picks the shipped brain from brains.ts, which is the last thing
+   * a training episode wants — it is scoring a candidate genome. So the
+   * scenario drives this directly with the genome and its own target, and
+   * there is exactly one implementation of "how a brain-flown ship moves"
+   * rather than the two that invariant 2 used to police.
    */
-  private brainFly(
+  brainFly(
     brain: Brain,
     dt: number,
     targetPos: THREE.Vector3,
@@ -666,37 +721,37 @@ export class NpcShip {
       tv.quat.x = targetQuat.x; tv.quat.y = targetQuat.y;
       tv.quat.z = targetQuat.z; tv.quat.w = targetQuat.w;
       tv.speed = targetSpeed;
+      // Which observation: the widest one this brain has inputs for. A 26-input
+      // pack policy could be TRAINED and not FLOWN before this — npc.ts knew
+      // only the 14 and the 18, so the round-4 wide brains had no way into the
+      // game, and the trainer could produce a genome the engine could not run.
       this.brainControl = act(
         brain,
-        fleet
-          ? observePack(me as ObservableShip, tv as ObservableShip,
-            this.packmates(fleet), NpcShip.obsBuf)
-          : observe(me as ObservableShip, tv as ObservableShip, NpcShip.obsBuf),
+        !fleet || brain.obsSize < PACK_OBS_SIZE
+          ? observe(me as ObservableShip, tv as ObservableShip, NpcShip.obsBuf)
+          : brain.obsSize >= PACK_WIDE_OBS_SIZE
+            ? observePackWide(
+              me as ObservableShip & { hp: number; cls: { hp: number } },
+              tv as ObservableShip, this.packmates(fleet), NpcShip.obsBuf)
+            : observePack(me as ObservableShip, tv as ObservableShip,
+              this.packmates(fleet), NpcShip.obsBuf),
         NpcShip.scratch,
       );
     }
     const c = this.brainControl;
 
-    // integrate the discrete control (mirrors sim stepShip)
-    // must match TURN in ai-training/core.ts — invariant 2
+    // integrate the discrete control, with the player's ramp rule and the
+    // policies' own constants
     const maxPitch = this.turnRate * TURN.pitch;
     const maxRoll = this.turnRate * TURN.roll;
-    const rampTo = (cur: number, target: number, active: boolean): number => {
-      const rate = active ? BRAIN_RATE_RAMP : BRAIN_RATE_DECAY;
-      const next = cur + (target - cur) * (1 - Math.exp(-rate * dt));
-      return Math.abs(next) < 0.001 && !active ? 0 : next;
-    };
+    const rampTo = (cur: number, target: number, active: boolean): number =>
+      rampToward(cur, target, active, dt, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY);
     this.brainPitchRate = rampTo(this.brainPitchRate, c.pitch * maxPitch, c.pitch !== 0);
     this.brainRollRate = rampTo(this.brainRollRate, c.roll * maxRoll, c.roll !== 0);
-    if (c.throttle > 0) this.speed = Math.min(this.maxSpeed, this.speed + BRAIN_ACCEL * dt);
-    // Floor, mirroring ShipClass.minSpeed in ai-training/core.ts — invariant 2. A
-    // fighter that can stop dead becomes a turret, because standing still is
-    // how you hold a firing line. Only hostiles get it; traders and haulers
-    // are allowed to come to rest.
+    if (c.throttle > 0) this.speed = Math.min(this.maxSpeed, this.speed + this.accel * dt);
+    // A fighter that can stop dead becomes a turret — see MIN_CRUISE_FRACTION.
     if (c.throttle < 0) {
-      const floor = this.role === 'pirate' || this.role === 'thargoid' || this.role === 'thargon'
-        ? this.maxSpeed * MIN_CRUISE_FRACTION : 0;
-      this.speed = Math.max(floor, this.speed - BRAIN_ACCEL * dt);
+      this.speed = Math.max(this.speedFloor, this.speed - this.accel * dt);
     }
     if (this.brainRollRate !== 0) this.object.rotateZ(this.brainRollRate * dt);
     if (this.brainPitchRate !== 0) this.object.rotateX(this.brainPitchRate * dt);
@@ -725,7 +780,14 @@ export class NpcShip {
     return null;
   }
 
-  private attack(
+  /**
+   * The pre-RL scripted chase, one step.
+   *
+   * PUBLIC for the same reason as brainFly: it is the baseline every training
+   * table is read against ("scripted pirate"), and a baseline that is a second
+   * implementation of the thing it baselines is worth nothing.
+   */
+  attack(
     dt: number,
     targetPos: THREE.Vector3,
     dist: number,
@@ -736,7 +798,7 @@ export class NpcShip {
       // break off before ramming
       this.steerToward(
         this.tmpDir.copy(this.object.position).multiplyScalar(2).sub(targetPos), dt);
-      this.speed = approach(this.speed, this.maxSpeed * 0.8, 150 * dt);
+      this.speed = approach(this.speed, this.maxSpeed * 0.8, this.accel * dt);
       this.advance(dt);
       return null;
     }
@@ -745,7 +807,8 @@ export class NpcShip {
       ? this.tmpDir.copy(targetPos).add(this.packOffset)
       : this.tmpDir.copy(targetPos);
     this.steerToward(aim, dt);
-    this.speed = approach(this.speed, dist > 700 ? this.maxSpeed : this.maxSpeed * 0.45, 120 * dt);
+    this.speed = approach(this.speed, dist > 700 ? this.maxSpeed : this.maxSpeed * 0.45,
+      this.accel * dt);
     this.advance(dt);
     this.fireCooldown -= dt;
     // The SAME gun brainFly uses. This was a second one: a 0.22 gate and a
@@ -822,19 +885,37 @@ export class NpcShip {
       .add(this.object.position);
   }
 
-  /** Angle (radians) between our nose and the direction to a point. */
+  /**
+   * Angle (radians) between our nose and the direction to a point.
+   *
+   * Allocation-free: it used to `point.clone()`, which is a Vector3 per call
+   * on a path the firing gate takes every frame for every ship — and now, per
+   * ship-step of every training episode.
+   */
   facing(point: THREE.Vector3): number {
     const forward = this.tmpDir.set(0, 0, -1).applyQuaternion(this.object.quaternion);
-    const to = point.clone().sub(this.object.position).normalize();
+    const to = this.tmpDir2.copy(point).sub(this.object.position).normalize();
     return forward.angleTo(to);
   }
 
   private steerToward(point: THREE.Vector3, dt: number): void {
-    const dir = this.tmpDir.copy(point).sub(this.object.position);
-    if (dir.lengthSq() < 1) return;
-    this.tmpMat.lookAt(ZERO, dir, UP); // -Z ends up along dir
-    this.tmpQ.setFromRotationMatrix(this.tmpMat);
-    this.object.quaternion.rotateTowards(this.tmpQ, this.turnRate * dt);
+    steerQuatToward(
+      this.object.quaternion,
+      this.tmpDir.copy(point).sub(this.object.position),
+      this.turnRate * dt);
+  }
+
+  /**
+   * Point the nose at a place, ignoring the turn rate.
+   *
+   * Only for placing a ship: the training scenarios spawn a pirate and want it
+   * roughly facing its prey before the first frame. Flight uses steerToward.
+   */
+  faceToward(point: THREE.Vector3): void {
+    steerQuatToward(
+      this.object.quaternion,
+      this.tmpDir.copy(point).sub(this.object.position),
+      Math.PI);
   }
 
   /** @returns true if the ship was destroyed. */

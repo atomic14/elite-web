@@ -13,11 +13,14 @@
 // business deciding.
 
 import type * as THREE from 'three';
-import type { FlightDemand } from '../player.ts';
+import { rampToward, type FlightDemand } from '../player.ts';
 import {
   act, observe, makeScratch, type ObservableShip, type Brain,
 } from '../ai-training/policy.ts';
-import { isHostileToPlayer, type NpcShip } from './npc.ts';
+import {
+  isHostileToPlayer, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY, type NpcShip,
+} from './npc.ts';
+import { TURN } from './ship-specs.ts';
 import type { ShipSystems } from './systems.ts';
 
 /** How far out it will look for something to fight. */
@@ -25,9 +28,12 @@ export const THREAT_RANGE = 6500;
 /**
  * Turn caps, matching the trader-Cobra the defence brain was trained in. Fly
  * the policy on a more agile ship than it learned on and it oversteers.
+ *
+ * `0.5` is that hull's turnRate (SPECS.trader COBRA_MK3); the multipliers are
+ * TURN, so this cannot drift away from the hull it names.
  */
-export const CC_MAX_PITCH = 0.5 * 1.4;
-export const CC_MAX_ROLL = 0.5 * 2.4;
+export const CC_MAX_PITCH = 0.5 * TURN.pitch;
+export const CC_MAX_ROLL = 0.5 * TURN.roll;
 /** The autopilot cruises rather than sprints. */
 export const CC_MAX_SPEED = 220;
 export const CC_ACCEL = 100;
@@ -155,15 +161,17 @@ export class CombatComputer {
 }
 
 /**
- * Mirrors the rate ramp in npc.ts brainFly and ai-training/core.ts stepShip.
+ * The rate ramp an NPC's brain flies with, applied to the player's ship.
+ *
+ * The RULE is player.ts's `rampToward` — it was written out here a third time,
+ * constants and all. Only the constants are this module's: the defence policy
+ * was fitted at the NPC ramp, so the autopilot flies at the NPC ramp.
  *
  * Exported so train/jameson-autopilot.js — the console harness that stands in
  * for this autopilot — can use it instead of writing 4.0/5.0 out again.
  */
 export function ccRamp(cur: number, target: number, active: boolean, dt: number): number {
-  const rate = active ? 4.1396 : 5.2207;   // see approach() in player.ts
-  const next = cur + (target - cur) * (1 - Math.exp(-rate * dt));
-  return Math.abs(next) < 0.001 && !active ? 0 : next;
+  return rampToward(cur, target, active, dt, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY);
 }
 
 interface MutableShip {

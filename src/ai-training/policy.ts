@@ -3,16 +3,53 @@
 // enough for neuroevolution to optimise without gradients.
 //
 // Erasable-TypeScript only — runs in Node via --experimental-strip-types.
+//
+// The handful of vector helpers below came from ai-training/core.ts, the
+// parallel physics simulator that has now been deleted in favour of training
+// against the real engine. They are NOT a second physics: they are the
+// observation encoder's own arithmetic, and they are structural (V3 is
+// `{x,y,z}`) on purpose — `observe()` is handed THREE.Vector3s by the game and
+// plain objects by a harness, and must read both without converting or
+// allocating a scene graph to ask where a ship is pointing.
 
-import {
-  type Control, type V3, type Q4,
-  qRotate, vSub, vDot, vLen, vNorm, v3,
-} from './core.ts';
+export type V3 = { x: number; y: number; z: number };
+export type Q4 = { x: number; y: number; z: number; w: number };
+
+/** Discrete control input — three-way sticks and a trigger, as a keyboard gives. */
+export interface Control {
+  pitch: -1 | 0 | 1;
+  roll: -1 | 0 | 1;
+  throttle: -1 | 0 | 1;
+  fire: boolean;
+}
+
+const v3 = (x = 0, y = 0, z = 0): V3 => ({ x, y, z });
+const vSub = (a: V3, b: V3): V3 => v3(a.x - b.x, a.y - b.y, a.z - b.z);
+const vDot = (a: V3, b: V3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+const vLen = (a: V3): number => Math.sqrt(vDot(a, a));
+function vNorm(a: V3): V3 {
+  const l = vLen(a) || 1;
+  return v3(a.x / l, a.y / l, a.z / l);
+}
+
+/** Rotate a vector by a quaternion. */
+function qRotate(q: Q4, p: V3): V3 {
+  const ux = q.x, uy = q.y, uz = q.z;
+  const tx = 2 * (uy * p.z - uz * p.y);
+  const ty = 2 * (uz * p.x - ux * p.z);
+  const tz = 2 * (ux * p.y - uy * p.x);
+  return v3(
+    p.x + q.w * tx + (uy * tz - uz * ty),
+    p.y + q.w * ty + (uz * tx - ux * tz),
+    p.z + q.w * tz + (ux * ty - uy * tx),
+  );
+}
 
 /**
- * The minimal ship surface `observe` needs — SimShip satisfies it, and the
- * game adapts its THREE.js NPCs to it (THREE vectors/quaternions are
- * structurally compatible with V3/Q4).
+ * The minimal ship surface `observe` needs. Both the game and the training
+ * scenarios adapt their THREE.js ships to it, which costs nothing: THREE
+ * vectors and quaternions are structurally compatible with V3/Q4, so a view
+ * object can point straight at a mesh's own transform.
  */
 export interface ObservableShip {
   pos: V3;
@@ -143,9 +180,9 @@ export function observePack(
 }
 
 /**
- * The extra surface the wide pack observation needs on a packmate. SimShip
- * satisfies it; the game would adapt its NPCs the same way it does for
- * ObservableShip.
+ * The extra surface the wide pack observation needs on a packmate. npc.ts
+ * fills these from the fleet (see `packmates`) — it could not, once, which
+ * meant a 26-input policy could be trained and never flown.
  */
 export interface ObservableMate {
   pos: V3;

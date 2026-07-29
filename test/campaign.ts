@@ -29,7 +29,7 @@ import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
 } from '../src/game/shop.ts';
 import { pirateSpecForTier } from '../src/game/ship-specs.ts';
-import { makeRng } from '../src/ai-training/core.ts';
+import { makeRng } from '../src/game/rng.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
 import { isContraband } from '../src/game/law.ts';
 

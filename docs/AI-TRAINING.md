@@ -52,11 +52,18 @@ the regime where simple methods beat fancy ones.
 
 ### 1. Extract the sim core
 
-Pull the kinematics + combat resolution out of `npc.ts`/`game.ts` into a
-pure module (`src/ai-training/core.ts`) with no three.js scene dependencies (vector
-math only). The game and the trainer both consume it — so a trained policy
-behaves identically in training and in the shipped game. This refactor is
-worth doing regardless of RL.
+*(Done, then undone, and the second half is the lesson.)* This was built as
+`src/ai-training/core.ts`: the kinematics and combat resolution rewritten as a
+pure module with its own vector maths and no three.js. It bought fast episodes
+and cost three years' worth of drift in one file — the goal above, "a trained
+policy behaves identically in training and in the shipped game", is exactly
+what a copy cannot deliver, however carefully it is mirrored.
+
+The kinematics came out of `npc.ts`/`game.ts` in the end anyway, but *into the
+game*: `world-step.ts`, `collisions.ts`, `systems.ts`, `gunnery.ts` and a
+`PlayerShip` that flies a `FlightDemand` all run headless under node. So
+`core.ts` is deleted and `scenario.ts` builds episodes from the engine
+directly. Same benefit, no copy.
 
 ### 2. Observation & action spaces (per ship)
 

@@ -49,15 +49,17 @@ const MAX_SPEED = 400;
 const ACCEL = 220;
 /**
  * The player's Cobra. Raised from 1.1/2.0 so you can actually hold a bead on
- * a fighter: NPC pitch is turnRate × 1.4 (ai-training/core.ts TURN), so a Sidewinder
+ * a fighter: NPC pitch is turnRate × 1.4 (TURN, in game/ship-specs.ts), so a Sidewinder
  * pitches at 1.54 and a Krait at 1.40 — against 1.1 they simply turned inside
  * you and combat felt unwinnable. At 1.45 you out-turn a pirate Cobra (1.12)
  * and a Krait, match a Mamba, and are still edged by a Sidewinder (1.54) and
  * an Asp (1.68), which is as it should be — those are far smaller ships.
  *
- * Changed here rather than in ai-training/core.ts on purpose: the player's flight
- * model is not simulated in training, so this costs no retrain and cannot
- * break sim/game parity.
+ * Training now flies THIS ship as the target (ai-training/scenario.ts reads
+ * PLAYER_FLIGHT), so a change here is a change to the world every pirate brain
+ * is fitted in. It used to be free — the simulator carried its own copy of the
+ * commander, and the copy was wrong (accel 120 against 220) for every brain up
+ * to generation 1. Free was worse.
  */
 const MAX_ROLL = 2.5;
 const MAX_PITCH = 1.45;
@@ -121,12 +123,31 @@ function approach(current: number, target: number, rate: number, dt: number): nu
   return current + (target - current) * (1 - Math.exp(-rate * dt));
 }
 
+/**
+ * A turn rate approaching what the pilot asked for — ramping while a control
+ * is held, decaying when it is released, and snapping to zero once the tail is
+ * below noise.
+ *
+ * ONE copy of this. There were four: here, `brainFly` in npc.ts, `ccRamp` in
+ * combat-computer.ts and `ramp` in the training simulator's stepShip — the
+ * same five lines with the constants written out again each time. That is how
+ * the simulator's decay sat at 5.0 for six training rounds while the player's
+ * moved to 12.0, and how "correcting" it then silently broke the NPC half,
+ * which had been the one that matched. The constants differ per pilot and are
+ * passed in; the RULE does not and is not.
+ */
+export function rampToward(
+  current: number, target: number, active: boolean, dt: number,
+  ramp: number, decay: number,
+): number {
+  const next = approach(current, target, active ? ramp : decay, dt);
+  return Math.abs(next) < 0.001 && !active ? 0 : next;
+}
+
 export function rampFlightRate(
   current: number, target: number, active: boolean, dt: number,
 ): number {
-  const rate = active ? RATE_RAMP : RATE_DECAY;
-  const next = approach(current, target, rate, dt);
-  return Math.abs(next) < 0.001 && !active ? 0 : next;
+  return rampToward(current, target, active, dt, RATE_RAMP, RATE_DECAY);
 }
 
 export class PlayerShip {

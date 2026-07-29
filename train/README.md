@@ -1,8 +1,17 @@
 # Reproducing the AI training runs
 
-Everything here runs in plain Node (≥ 22.6, for `--experimental-strip-types`)
-with **zero extra dependencies** — the trainer imports the same TypeScript
-sim the game uses, directly.
+Everything here runs in plain Node (≥ 22.6, for `--experimental-strip-types`),
+and the trainer imports **the game itself** — `NpcShip`, `PlayerShip`,
+`gunnery.ts`, `collisions.ts`, `rng.ts`, stepped at the game's own `FIXED_DT`.
+three.js is the only dependency and it runs headless; there is no canvas and
+no WebGL anywhere in a training run.
+
+There used to be a second physics (`src/ai-training/core.ts`) kept in step by
+hand. It is deleted. What that means for you: **a change to a combat number is
+a change to the training environment**, so the shipped brains are stale the
+moment you touch `NPC_COOLDOWN_LO`, `RAM_DAMAGE`, a hull's `hp` or the
+player's flight envelope. That is the trade — nothing can silently drift any
+more, and nothing is free either.
 
 ## Quick start
 
@@ -19,8 +28,9 @@ a JSONL curve to `train/logs/`, and writes the winning brain to
 
 > **Footgun warning:** training OVERWRITES the committed brain files, and the
 > game imports them at build time — `git checkout src/ai-training/brains` to restore
-> the shipped ones. The brains referenced by the game are
-> `pirate-attack-r2.json` and `jameson-defend.json`.
+> the shipped ones. Which brains the game flies is decided in
+> `src/game/brains.ts`, and `npm test` reads that file rather than a list, so
+> the regression gate cannot end up measuring a brain nobody flies.
 
 ## The five phases
 
@@ -51,7 +61,11 @@ flanking spread per matchup. The numbers we shipped against are recorded in
 current brains is `train/logs/tournament-final.txt`.
 
 The whole trainer is seeded and single-threaded, so a rerun with identical
-CLI args is bit-identical on the same Node build and platform. Across
+CLI args is bit-identical on the same Node build and platform — verified by
+running the same command twice and diffing both the generation curve and the
+saved weights. Note the single-threaded part is now load-bearing rather than
+incidental: an episode reseeds the world's own PRNG (`game/rng.ts`), so
+episodes have to be run one at a time and not interleaved. Across
 platforms expect small numeric drift (Math.tanh/acos aren't spec-mandated to
 be correctly rounded) — judge against the reference columns rather than
 demanding exact equality there.
@@ -60,9 +74,11 @@ demanding exact equality there.
 
 1. Train it (`--out my-brain`).
 2. Evaluate it — beat the incumbent's tournament row before shipping.
-3. Import it where the incumbent is imported:
-   pirates → `src/game/npc.ts` (`pirateBrainFile`), armed traders →
-   same file (`defendBrainFile`), viewer scenarios → `src/viewer/main.ts`.
+3. Import it where the incumbent is imported: `src/game/brains.ts`
+   (`pirateBrainFile` for pirates, `defendBrainFile` for armed traders and the
+   combat computer, `packBrainFile` for gangs), viewer scenarios →
+   `src/viewer/main.ts`. Any observation width works — 14, 18 or 26; `npc.ts`
+   picks the widest encoder the brain has inputs for.
 4. `npm run build` bundles the JSON weights (~40 KB each).
 
 In-game A/B: `window.__scriptedPirates = true` reverts every ship to the
