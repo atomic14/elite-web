@@ -23,8 +23,9 @@ import {
 } from '../hud/hud-model.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
-import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
+import { NpcShip, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
 import { planDocking, makeDockPlan } from './docking.ts';
+import { Effects } from './effects.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
 import { saveWorld, readWorld, clearWorld } from './commander.ts';
 import {
@@ -250,6 +251,8 @@ export class Game {
   /** everything that needs a GPU — see engine/render-stack.ts */
   private readonly render: RenderStack;
   private readonly scene = new THREE.Scene();
+  /** explosions and tracers — purely visual, see effects.ts */
+  private readonly effects = new Effects(this.scene);
 
 
   systems: StarSystem[];
@@ -258,7 +261,6 @@ export class Game {
   living: LivingGalaxy;
   world!: SystemScene;
   npcs: NpcShip[] = [];
-  private explosions: Explosion[] = [];
 
   readonly player: PlayerShip;
   readonly input = new Input();
@@ -357,7 +359,6 @@ export class Game {
   readonly chart: ChartState = { cursorX: 0, cursorY: 0, targetIndex: null };
   market: MarketEntry[] = [];
 
-  private tracers: Tracer[] = [];
 
   /** missile armed but not yet locked (the original's yellow pylon) */
 
@@ -436,16 +437,16 @@ export class Game {
         e.npc.takeDamage(99, undefined, true);
         this.destroyNpc(e.npc);
       } else if (e.kind === 'hitPlayer') {
-        this.addExplosion(e.at, 0xff8866);
+        this.effects.explosion(e.at, 0xff8866);
         sfx.explosion();
         this.applyPlayerDamage(e.damage, e.at);
       } else if (e.kind === 'ecmDefeated') {
-        this.addExplosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
+        this.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
         this.ecmDetectedTimer = 2;
         this.hud.showMessage('TARGET E.C.M. — MISSILE DESTROYED', 3);
         sfx.ecm();
       } else {
-        this.addExplosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
+        this.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
       }
     }
   }
@@ -677,16 +678,7 @@ export class Game {
       this.world.dispose();
     }
     this.clearNpcs();
-    for (const e of this.explosions) {
-      this.scene.remove(e.object);
-      e.dispose();
-    }
-    this.explosions = [];
-    for (const t of this.tracers) {
-      this.scene.remove(t.object);
-      t.dispose();
-    }
-    this.tracers = [];
+    this.effects.clear();
     this.clearCanisters();
     this.world = buildSystemScene(this.system);
     this.scene.add(this.world.root);
@@ -782,7 +774,7 @@ export class Game {
     const pos = home.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(22000));
     const trader = this.spawnNpc('trader', pos, randomInt(100));
     trader.traderPhase = 'arriving';
-    this.addExplosion(pos.clone(), 0x9adfff, { count: 10, speed: 120, duration: 0.7 }); // arrival flash
+    this.effects.explosion(pos.clone(), 0x9adfff, { count: 10, speed: 120, duration: 0.7 }); // arrival flash
   }
 
   /**
@@ -876,11 +868,6 @@ export class Game {
     }
   }
 
-  private addTracer(from: THREE.Vector3, to: THREE.Vector3, color: THREE.ColorRepresentation, duration = 0.18): void {
-    const t = new Tracer(from, to, color, duration);
-    this.tracers.push(t);
-    this.scene.add(t.object);
-  }
 
   // --- mode transitions ----------------------------------------------------
 
@@ -1200,7 +1187,7 @@ export class Game {
     // death was optional if you refreshed.
     clearWorld();
     sfx.explosion();
-    this.addExplosion(this.player.position.clone(), 0xff8866);
+    this.effects.explosion(this.player.position.clone(), 0xff8866);
     if (this.commander.equipment.escapePod) {
       // the pod gets you to the local station; ship and cargo are gone
       this.commander.equipment.escapePod = false;
@@ -1481,7 +1468,7 @@ export class Game {
 
     if (hitCanister) {
       sfx.hit();
-      this.addExplosion(hitCanister.object.position.clone(), 0x8ad0ff,
+      this.effects.explosion(hitCanister.object.position.clone(), 0x8ad0ff,
         { count: 10, speed: 55, duration: 0.4 });
       this.scene.remove(hitCanister.object);
       this.canisters = this.canisters.filter((x) => x !== hitCanister);
@@ -1498,7 +1485,7 @@ export class Game {
       sfx.hit();
       // sparks off the hull, but the station itself shrugs it off
       const impact = this.player.position.clone().addScaledVector(forward, bestDist);
-      this.addExplosion(impact, 0xd8ffcc, { count: 10, speed: 60, duration: 0.4 });
+      this.effects.explosion(impact, 0xd8ffcc, { count: 10, speed: 60, duration: 0.4 });
       this.hud.showMessage('STATION HULL HIT — DEFENCES SCRAMBLING', 3);
       // Offender, not fugitive: a stray shot while lining up a dock is easy to
       // make, and fugitive means every police ship in the galaxy hunts you
@@ -1510,7 +1497,7 @@ export class Game {
     if (best) {
       sfx.hit();
       // impact flash at the target so hits read clearly
-      this.addExplosion(best.object.position.clone(), 0xd8ffcc, { count: 8, speed: 70, duration: 0.35 });
+      this.effects.explosion(best.object.position.clone(), 0xd8ffcc, { count: 8, speed: 70, duration: 0.35 });
       if (best.role === 'police' || best.role === 'trader' || best.role === 'hunter') this.raiseLegal(1);
       if (best.takeDamage(laser.damage, this.player.position, true)) this.destroyNpc(best);
     }
@@ -1551,7 +1538,7 @@ export class Game {
 
   /** Shared removal path (also used for NPC-vs-NPC kills — no player credit). */
   private wreckNpc(npc: NpcShip): void {
-    this.addExplosion(npc.object.position.clone());
+    this.effects.explosion(npc.object.position.clone());
     sfx.explosion();
     this.scene.remove(npc.object);
     this.npcs = this.npcs.filter((n) => n !== npc);
@@ -1576,15 +1563,6 @@ export class Game {
     }
   }
 
-  private addExplosion(
-    at: THREE.Vector3,
-    color: THREE.ColorRepresentation = 0xffe9a8,
-    opts?: { count?: number; speed?: number; duration?: number },
-  ): void {
-    const e = new Explosion(at, color, opts);
-    this.explosions.push(e);
-    this.scene.add(e.object);
-  }
 
 
 
@@ -1990,7 +1968,7 @@ export class Game {
         // watching it blow up — reported as exactly that, by someone watching
         // a trader line up perfectly and then apparently detonate.
         if (!npc.docked) {
-          this.addExplosion(npc.object.position.clone(), 0x9adfff,
+          this.effects.explosion(npc.object.position.clone(), 0x9adfff,
             { count: 10, speed: 120, duration: 0.7 });
         }
         this.scene.remove(npc.object);
@@ -2060,18 +2038,7 @@ export class Game {
     this.updateEncounters();
 
     this.applyOrdnance(dt);
-    this.explosions = this.explosions.filter((e) => {
-      if (e.update(dt)) return true;
-      this.scene.remove(e.object);
-      e.dispose();
-      return false;
-    });
-    this.tracers = this.tracers.filter((t) => {
-      if (t.update(dt)) return true;
-      this.scene.remove(t.object);
-      t.dispose();
-      return false;
-    });
+    this.effects.update(dt);
 
   }
 
@@ -2242,7 +2209,7 @@ export class Game {
         ? this.player.position.clone()
         : this.player.position.clone().add(
             randomDirection(new THREE.Vector3()).multiplyScalar(80 + random() * 140));
-      this.addTracer(
+      this.effects.tracer(
         npc.nosePosition(this.tmp).clone(), to,
         npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
       if (hit) this.applyPlayerDamage(0.1 + random() * 0.12, npc.object.position);
@@ -2250,7 +2217,7 @@ export class Game {
     }
     // NPC shooting NPC
     const target = event.at;
-    this.addTracer(
+    this.effects.tracer(
       npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
     if (random() < 0.5) {
       if (target.takeDamage(0.11, npc.object.position)) {
