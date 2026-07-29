@@ -10,6 +10,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
+import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import {
   freshSystems, applyDamage, regenerate, durability, updateCabinTemp, scoopFuel,
 } from '../src/game/systems.ts';
@@ -500,6 +501,72 @@ console.log('\nchart metric has one owner');
   const nav = read('../src/galaxy/navigation.ts');
   check('navigation.ts imports nothing but the system type',
     (nav.match(/^import /gm) ?? []).length === 1 && /import type \{ StarSystem \}/.test(nav));
+}
+
+// --- who hunts whom ---------------------------------------------------------
+
+// The fights the player is not in. This ran inline in updateFlight on a
+// 2-second timer, which is why it never had a test; it is game/npc-targeting.ts
+// now, pure over the fleet.
+
+console.log('\nNPC targeting');
+{
+  const at = (x: number) => ({ position: { distanceTo: (o: { x: number }) => Math.abs(x - o.x), x } });
+  let id = 0;
+  const ship = (role: string, x: number, over: Record<string, unknown> = {}) => ({
+    id: id++, role, alive: true, npcTarget: null as unknown, attackers: [] as unknown[],
+    object: at(x), ...over,
+  }) as unknown as Parameters<typeof assignNpcTargets>[0][number];
+  const playerAt = (x: number) => ({ distanceTo: (o: { x: number }) => Math.abs(x - o.x), x }) as unknown as Parameters<typeof assignNpcTargets>[1];
+
+  {
+    const pirate = ship('pirate', 0), trader = ship('trader', 1000);
+    assignNpcTargets([pirate, trader], playerAt(500_000), 0);
+    check('a pirate with no player nearby goes after a trader', pirate.npcTarget === trader);
+    check('...and the trader knows who is after it', trader.attackers.includes(pirate));
+  }
+  {
+    const pirate = ship('pirate', 0), trader = ship('trader', 1000);
+    assignNpcTargets([pirate, trader], playerAt(100), 0);
+    check('a pirate with the PLAYER in reach ignores the trader', pirate.npcTarget === null);
+  }
+  {
+    const pirate = ship('pirate', 0), trader = ship('trader', 50_000);
+    assignNpcTargets([pirate, trader], playerAt(500_000), 0);
+    check('a trader out of range is not worth chasing', pirate.npcTarget === null);
+  }
+  {
+    const police = ship('police', 0), pirate = ship('pirate', 1000);
+    assignNpcTargets([police, pirate], playerAt(500_000), 0);
+    check('police hunt pirates', police.npcTarget === pirate);
+  }
+  {
+    const hunter = ship('hunter', 0), pirate = ship('pirate', 1000);
+    assignNpcTargets([hunter, pirate], playerAt(500_000), 0);
+    check('a bounty hunter helps out when you are clean', hunter.npcTarget === pirate);
+    const hunter2 = ship('hunter', 0), pirate2 = ship('pirate', 1000);
+    assignNpcTargets([hunter2, pirate2], playerAt(500_000), 2);
+    check('...and has better things to do when you are a fugitive',
+      hunter2.npcTarget === null);
+  }
+  {
+    const pirate = ship('pirate', 0), trader = ship('trader', 1000);
+    assignNpcTargets([pirate, trader], playerAt(500_000), 0);
+    const dead = ship('trader', 900);
+    pirate.npcTarget = dead;
+    (dead as unknown as { alive: boolean }).alive = false;
+    assignNpcTargets([pirate, trader, dead], playerAt(500_000), 0);
+    check('a ship whose quarry died picks a new one', pirate.npcTarget === trader);
+  }
+  {
+    const trader = ship('trader', 0);
+    const gone = ship('pirate', 100);
+    trader.attackers.push(gone);
+    (gone as unknown as { alive: boolean }).alive = false;
+    assignNpcTargets([trader, gone], playerAt(500_000), 0);
+    check('dead attackers are pruned from the list they are on',
+      !trader.attackers.includes(gone));
+  }
 }
 
 // --- the ship's own numbers -------------------------------------------------

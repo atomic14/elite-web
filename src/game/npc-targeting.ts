@@ -1,0 +1,79 @@
+// Who is hunting whom, among the NPCs.
+//
+// Part of the world step: it decides the fights the player is not in. Pirates
+// prey on traders, the law hunts pirates, and bounty hunters join in only when
+// the player is clean — a hunter with a fugitive in the system has better
+// things to do.
+//
+// Pure logic over the fleet, so it is unit-testable: no scene, no renderer,
+// nothing but positions and roles. It ran inline in updateFlight on a 2-second
+// timer, which is also why it never had a test.
+
+import type { NpcShip, NpcRole } from './npc.ts';
+import type * as THREE from 'three';
+
+/** How far a pirate will look for a trader to rob. */
+export const PIRATE_HUNT_RANGE = 6000;
+/** Police sweep a little wider — they are looking for trouble on purpose. */
+export const POLICE_HUNT_RANGE = 6500;
+export const HUNTER_RANGE = 6000;
+/**
+ * A pirate this close to the player has a better prospect in front of it and
+ * will not wander off after a trader.
+ */
+export const PLAYER_INTEREST_RANGE = 9000;
+
+/** Nearest living NPC of `role` to `from`, within `range`. */
+function nearest(
+  from: NpcShip, npcs: readonly NpcShip[], role: NpcRole, range: number,
+): NpcShip | null {
+  let best: NpcShip | null = null;
+  let bestD = range;
+  for (const other of npcs) {
+    if (!other.alive || other.role !== role) continue;
+    const d = other.object.position.distanceTo(from.object.position);
+    if (d < bestD) {
+      bestD = d;
+      best = other;
+    }
+  }
+  return best;
+}
+
+/**
+ * Give every idle NPC something to hunt.
+ *
+ * Ships keep a target while it is alive, so this only fills in the gaps. It
+ * also prunes stale attacker links first: a trader tracks who is shooting at
+ * it (that is what makes it flee and call for help), and those entries go
+ * stale when the attacker dies or picks someone else.
+ */
+export function assignNpcTargets(
+  npcs: readonly NpcShip[],
+  playerPos: THREE.Vector3,
+  playerLegalStatus: number,
+): void {
+  for (const npc of npcs) {
+    if (!npc.attackers.length) continue;
+    const live = npc.attackers.filter((a) => a.alive && a.npcTarget === npc);
+    npc.attackers.length = 0;
+    npc.attackers.push(...live);
+  }
+
+  for (const npc of npcs) {
+    if (!npc.alive || (npc.npcTarget && npc.npcTarget.alive)) continue;
+    if (npc.role === 'pirate') {
+      // a pirate with the player in reach is already busy
+      if (npc.object.position.distanceTo(playerPos) <= PLAYER_INTEREST_RANGE) continue;
+      npc.npcTarget = nearest(npc, npcs, 'trader', PIRATE_HUNT_RANGE);
+      if (npc.npcTarget && !npc.npcTarget.attackers.includes(npc)) {
+        npc.npcTarget.attackers.push(npc);
+      }
+    } else if (npc.role === 'police') {
+      npc.npcTarget = nearest(npc, npcs, 'pirate', POLICE_HUNT_RANGE);
+    } else if (npc.role === 'hunter' && playerLegalStatus === 0) {
+      // a bounty hunter with a fugitive in the system is coming for you instead
+      npc.npcTarget = nearest(npc, npcs, 'pirate', HUNTER_RANGE);
+    }
+  }
+}

@@ -30,6 +30,7 @@ import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirate
 import { act, observe, makeScratch, type ObservableShip } from '../sim/policy.ts';
 import { planDocking, makeDockPlan } from './docking.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
+import { assignNpcTargets } from './npc-targeting.ts';
 import {
   applyDamage, regenerate, updateCabinTemp, scoopFuel, freshSystems, type ShipSystems,
 } from './systems.ts';
@@ -1876,7 +1877,7 @@ export class Game {
     this.npcTargetTimer -= dt;
     if (this.npcTargetTimer <= 0) {
       this.npcTargetTimer = 2;
-      this.assignNpcTargets();
+      assignNpcTargets(this.npcs, this.player.position, this.commander.legalStatus);
     }
 
     // Snapshot: despawns and destructions below rebuild this.npcs, and the
@@ -2123,44 +2124,6 @@ export class Game {
     this.screens.open('market');
   }
 
-  private assignNpcTargets(): void {
-    const playerFar = (npc: NpcShip) =>
-      npc.object.position.distanceTo(this.player.position) > 9000;
-    const nearest = (from: NpcShip, role: NpcRole, range: number): NpcShip | null => {
-      let best: NpcShip | null = null;
-      let bestD = range;
-      for (const other of this.npcs) {
-        if (!other.alive || other.role !== role) continue;
-        const d = other.object.position.distanceTo(from.object.position);
-        if (d < bestD) {
-          bestD = d;
-          best = other;
-        }
-      }
-      return best;
-    };
-    // prune stale attacker links (dead pirates, or ones that retargeted)
-    for (const npc of this.npcs) {
-      if (npc.attackers.length) {
-        const live = npc.attackers.filter((a) => a.alive && a.npcTarget === npc);
-        npc.attackers.length = 0;
-        npc.attackers.push(...live);
-      }
-    }
-    for (const npc of this.npcs) {
-      if (!npc.alive || (npc.npcTarget && npc.npcTarget.alive)) continue;
-      if (npc.role === 'pirate' && playerFar(npc)) {
-        npc.npcTarget = nearest(npc, 'trader', 6000);
-        if (npc.npcTarget && !npc.npcTarget.attackers.includes(npc)) {
-          npc.npcTarget.attackers.push(npc);
-        }
-      } else if (npc.role === 'police') {
-        npc.npcTarget = nearest(npc, 'pirate', 6500);
-      } else if (npc.role === 'hunter' && this.commander.legalStatus === 0) {
-        npc.npcTarget = nearest(npc, 'pirate', 6000);
-      }
-    }
-  }
 
   private resolveNpcFire(npc: NpcShip, event: FireEvent): void {
     if (event.at === 'player') {
