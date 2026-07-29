@@ -18,6 +18,9 @@ import {
 } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { stepEncounters } from '../src/game/encounters.ts';
+import {
+  stepMissionAtDock, constrictorDestroyed, constrictorLurksHere, missionHeadline,
+} from '../src/game/missions.ts';
 import { planPopulation, policeFor } from '../src/game/population.ts';
 import {
   laserForView, canFire, chargeShot, assistAt, hitCone, canisterCone, LASERS, AIM_ASSIST,
@@ -544,6 +547,66 @@ console.log('\nsystem population');
     const launching = planPopulation(sys(0), 'launch', 1, threat, half);
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
+  }
+}
+
+// --- the Navy mission -------------------------------------------------------
+
+// A five-stage state machine that lived in three private methods of game.ts
+// and one branch of destroyNpc, so nothing could advance a commander through
+// it. game/missions.ts is pure, so these are its first tests.
+
+console.log('\nNavy mission');
+{
+  const systems = generateGalaxy(1);
+  const cmdr = (over: Record<string, unknown> = {}) => ({
+    kills: 0, galaxy: 1, systemIndex: 7, credits: 1000,
+    mission: { stage: 0, targetIndex: null }, ...over,
+  }) as unknown as Parameters<typeof stepMissionAtDock>[0];
+  const half = () => 0.5;
+
+  {
+    const c = cmdr({ kills: 15 });
+    check('the Navy ignores you below the kill threshold',
+      stepMissionAtDock(c, systems, half).length === 0 && c.mission.stage === 0);
+  }
+  {
+    const c = cmdr({ kills: 16 });
+    const ev = stepMissionAtDock(c, systems, half);
+    check('...and briefs you at it', ev[0]?.kind === 'briefed' && c.mission.stage === 1);
+    check('...with a target that is somewhere else', c.mission.targetIndex !== 7);
+  }
+  {
+    const c = cmdr({ kills: 16, galaxy: 2 });
+    check('the mission is galaxy 1 only',
+      stepMissionAtDock(c, systems, half).length === 0);
+  }
+  {
+    const c = cmdr({ mission: { stage: 1, targetIndex: 7 } });
+    check('the Constrictor lurks where you were told', constrictorLurksHere(c));
+    const before = c.credits;
+    const e = constrictorDestroyed(c);
+    check('killing it pays the Navy bounty and moves you to stage 2',
+      e?.bounty === 25_000 && c.credits === before + 25_000 && c.mission.stage === 2);
+    check('...and it cannot be claimed twice', constrictorDestroyed(c) === null);
+  }
+  {
+    const c = cmdr({ mission: { stage: 2, targetIndex: null } });
+    const ev = stepMissionAtDock(c, systems, half);
+    check('reporting back gets the courier orders',
+      ev[0]?.kind === 'courierOrders' && c.mission.stage === 3);
+    // fly there and dock
+    c.systemIndex = c.mission.targetIndex as number;
+    const before = c.credits;
+    const done = stepMissionAtDock(c, systems, half);
+    check('delivering the plans pays and completes it',
+      done[0]?.kind === 'delivered' && c.credits === before + 15_000 && c.mission.stage === 4);
+  }
+  {
+    check('an idle commander has no mission line',
+      missionHeadline(cmdr(), systems) === '');
+    check('a briefed one names the system',
+      missionHeadline(cmdr({ mission: { stage: 1, targetIndex: 7 } }), systems).includes('LAVE'));
   }
 }
 

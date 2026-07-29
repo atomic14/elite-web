@@ -25,6 +25,9 @@ import { NpcShip, CONSTRICTOR_SPEC, type NpcSpec, isHostileToPlayer, pirateSpecF
 import { planDocking, makeDockPlan } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
+import {
+  stepMissionAtDock, constrictorDestroyed, constrictorLurksHere, missionHeadline,
+} from './missions.ts';
 import { World, TRADER_ARRIVAL_RANGE } from './world.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
 import { saveWorld, readWorld, clearWorld } from './commander.ts';
@@ -735,9 +738,7 @@ export class Game {
         : null,
     );
 
-    const m = this.commander.mission;
-    const constrictorHere = situation === 'arrival'
-      && m.stage === 1 && m.targetIndex === this.commander.systemIndex;
+    const constrictorHere = situation === 'arrival' && constrictorLurksHere(this.commander);
 
     const built = spawnPopulation(
       this.world, plan, sys, this.player.position, constrictorHere);
@@ -1162,46 +1163,23 @@ export class Game {
         ` — ${k.deadlineDay - this.commander.day} DAYS` +
         (more > 0 ? ` (+${more} MORE)` : '');
     }
-    const m = this.commander.mission;
-    if (m.stage === 1 && m.targetIndex !== null) {
-      return `NAVY MISSION: DESTROY THE CONSTRICTOR — LAST SEEN AT ${this.systems[m.targetIndex].name.toUpperCase()}`;
-    }
-    if (m.stage === 3 && m.targetIndex !== null) {
-      return `NAVY MISSION: DELIVER THE PLANS TO ${this.systems[m.targetIndex].name.toUpperCase()}`;
-    }
-    return '';
+    return missionHeadline(this.commander, this.systems);
   }
 
+  /** Advance the Navy mission on docking, and say so. */
   private checkMissionAtDock(): void {
-    const m = this.commander.mission;
-    if (m.stage === 0 && this.commander.kills >= 16 && this.commander.galaxy === 1) {
-      m.targetIndex = this.pickMissionTarget(30, 80);
-      if (m.targetIndex !== null) {
-        m.stage = 1;
-        this.hud.showMessage('INCOMING NAVY TRANSMISSION', 5);
-      }
-    } else if (m.stage === 2) {
-      m.targetIndex = this.pickMissionTarget(50, 90);
-      if (m.targetIndex !== null) {
-        m.stage = 3;
+    for (const e of stepMissionAtDock(this.commander, this.systems)) {
+      if (e.kind === 'briefed') this.hud.showMessage('INCOMING NAVY TRANSMISSION', 5);
+      else if (e.kind === 'courierOrders') {
         this.hud.showMessage('NAVY: COURIER RUN — EXPECT THARGOID INTERFERENCE', 6);
+      } else if (e.kind === 'delivered') {
+        this.hud.showMessage(
+          `PLANS DELIVERED — ${formatCredits(e.payment)}, RIGHT ON COMMANDER`, 6);
       }
-    } else if (m.stage === 3 && m.targetIndex === this.commander.systemIndex) {
-      m.stage = 4;
-      m.targetIndex = null;
-      this.commander.credits += 15000;
-      this.hud.showMessage('PLANS DELIVERED — 1500.0 Cr, RIGHT ON COMMANDER', 6);
     }
   }
 
-  private pickMissionTarget(minD: number, maxD: number): number | null {
-    const candidates = this.systems.filter((s) => {
-      const d = distanceTenths(this.system, s);
-      return s.index !== this.commander.systemIndex && d >= minD && d <= maxD;
-    });
-    if (!candidates.length) return null;
-    return candidates[Math.floor(random() * candidates.length)].index;
-  }
+
 
   /** @internal — driven by test/playtest.js */
   startHyperspace(): void {
@@ -1400,11 +1378,12 @@ export class Game {
     if (npc.role === 'asteroid' && this.commander.equipment.miningLaser) {
       this.world.cargo.spawn(npc.object.position, 1 + randomInt(3), [12, 12, 12, 13, 14]);
     }
-    if (npc.isMissionTarget && this.commander.mission.stage === 1) {
-      this.commander.mission.stage = 2;
-      this.commander.mission.targetIndex = null;
-      this.commander.credits += 25000;
-      this.hud.showMessage('CONSTRICTOR DESTROYED — 2500.0 Cr NAVY BOUNTY', 6);
+    if (npc.isMissionTarget) {
+      const e = constrictorDestroyed(this.commander);
+      if (e) {
+        this.hud.showMessage(
+          `CONSTRICTOR DESTROYED — ${formatCredits(e.bounty)} NAVY BOUNTY`, 6);
+      }
     }
   }
 
