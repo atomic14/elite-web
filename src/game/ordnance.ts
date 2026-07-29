@@ -16,6 +16,7 @@ import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
 import { random, randomDirection } from './rng.ts';
 import { sfx } from '../audio.ts';
+import type { MissileSnapshot } from './snapshot.ts';
 
 /** Missile flight speed, world units per second. */
 export const MISSILE_SPEED = 700;
@@ -250,6 +251,27 @@ export class Ordnance {
     for (const m of [...this.missiles]) this.destroy(m);
     this.targetLock = null;
     this.armed = false;
+  }
+
+  /** The missiles in flight, as plain data. `indexOf` resolves the targets. */
+  capture(indexOf: (npc: NpcShip) => number): MissileSnapshot[] {
+    return this.missiles.map((m) => ({
+      pos: [m.object.position.x, m.object.position.y, m.object.position.z],
+      quat: [m.object.quaternion.x, m.object.quaternion.y,
+        m.object.quaternion.z, m.object.quaternion.w],
+      targetIndex: m.target ? indexOf(m.target) : -1,
+      life: m.life,
+    } satisfies MissileSnapshot));
+  }
+
+  /** Replace what is in the sky with a captured set. */
+  restoreAll(saved: readonly MissileSnapshot[], npcAt: (i: number) => NpcShip | null): void {
+    this.clear();
+    for (const m of saved) {
+      this.restore(
+        new THREE.Vector3(...m.pos), new THREE.Quaternion(...m.quat),
+        m.targetIndex >= 0 ? npcAt(m.targetIndex) : null, m.life);
+    }
   }
 
   /** Rebuild a missile from a snapshot. */

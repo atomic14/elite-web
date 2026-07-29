@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { buildShip, CANISTER } from '../ships/geometry.ts';
 import { random, randomDirection, randomInt } from './rng.ts';
+import type { CanisterSnapshot } from './snapshot.ts';
 
 export interface Canister {
   object: THREE.Object3D;
@@ -117,6 +118,27 @@ export class CargoField {
     this.scene.remove(c.object);
     const i = this.items.indexOf(c);
     if (i >= 0) this.items.splice(i, 1);
+  }
+
+  /** The field as plain data. */
+  capture(): CanisterSnapshot[] {
+    return this.items.map((c) => ({
+      pos: [c.object.position.x, c.object.position.y, c.object.position.z],
+      velocity: [c.velocity.x, c.velocity.y, c.velocity.z],
+      spinAxis: [c.spinAxis.x, c.spinAxis.y, c.spinAxis.z],
+      kind: c.kind,
+      commodity: c.commodity,
+    } satisfies CanisterSnapshot));
+  }
+
+  /** Replace the field with a captured one. */
+  restoreAll(saved: readonly CanisterSnapshot[]): void {
+    this.clear();
+    for (const c of saved) {
+      this.restore(
+        new THREE.Vector3(...c.pos), new THREE.Vector3(...c.velocity),
+        new THREE.Vector3(...c.spinAxis), c.kind, c.commodity);
+    }
   }
 
   /** Wipe the field — a new system, or a restored snapshot. */

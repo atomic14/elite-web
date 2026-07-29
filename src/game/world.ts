@@ -17,6 +17,7 @@ import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
 import { CargoField } from './cargo.ts';
 import { Effects } from './effects.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
+import { serialiseState, restoreState, type NpcSnapshot } from './snapshot.ts';
 
 /** How far out a fresh trader warps in. */
 export const TRADER_ARRIVAL_RANGE = 22_000;
@@ -86,6 +87,48 @@ export class World {
     this.clearNpcs();
     this.cargo.clear();
     this.effects.clear();
+  }
+
+  /**
+   * The ships, as plain data.
+   *
+   * The state is walked generically (serialiseState), so adding a field to
+   * NpcState saves it — there is no list here to keep in step. The spec is
+   * NOT stored: threatTier and isMissionTarget are in the state, and the hull
+   * is derivable from them plus the seed.
+   */
+  captureNpcs(): NpcSnapshot[] {
+    return this.npcs.map((n) => ({
+      role: n.role,
+      seed: n.variantSeed,
+      targetIndex: n.npcTarget ? this.npcs.indexOf(n.npcTarget) : -1,
+      state: serialiseState(n.state as unknown as Record<string, unknown>),
+    }));
+  }
+
+  /**
+   * Rebuild the fleet. `specFor` decides which hull each one gets — that is a
+   * game rule (tier tables, the Constrictor), not a world one.
+   */
+  restoreNpcs(
+    saved: readonly NpcSnapshot[],
+    specFor: (s: NpcSnapshot) => NpcSpec | undefined,
+  ): void {
+    this.clearNpcs();
+    for (const n of saved) {
+      const npc = this.spawn(n.role as NpcRole, new THREE.Vector3(), n.seed, specFor(n));
+      restoreState(npc.state as unknown as Record<string, unknown>, n.state);
+    }
+    // second pass: the hunting links, now that every ship exists
+    saved.forEach((n, i) => {
+      if (n.targetIndex < 0) return;
+      const hunter = this.npcs[i];
+      const prey = this.npcs[n.targetIndex];
+      if (hunter && prey) {
+        hunter.npcTarget = prey;
+        prey.attackers.push(hunter);
+      }
+    });
   }
 
   // --- the bits of the scenery that the simulation reads ------------------

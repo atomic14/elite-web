@@ -924,39 +924,18 @@ export class Game {
     this.player.rollRate = snap.player.rollRate;
     Object.assign(this.sys, snap.systems);
 
-    this.clearNpcs();
-    for (const n of snap.npcs) {
-      // Rebuild it with the SPEC it was spawned with, not the default table.
-      // Without this a restored tier-2 Fer-de-Lance came back a Sidewinder —
-      // different hull, speed, turn rate, radius and a third of the bounty —
-      // and the Constrictor came back a 50-credit Sidewinder with the
-      // mission still pointing at it. Both inputs are already in the state we
-      // are about to apply, so no extra snapshot field is needed.
-      const tier = Number(n.state.threatTier ?? 0);
-      const spec = n.state.isMissionTarget ? CONSTRICTOR_SPEC
-        : n.role === 'pirate' ? pirateSpecForTier(tier, n.seed)
-          : undefined;
-      const npc = this.world.spawn(n.role as NpcRole, new THREE.Vector3(), n.seed, spec);
-      restoreState(npc.state as unknown as Record<string, unknown>, n.state);
-    }
-    // second pass: the hunting links, now that every ship exists
-    snap.npcs.forEach((n, i) => {
-      if (n.targetIndex >= 0) {
-        const hunter = this.world.npcs[i];
-        const prey = this.world.npcs[n.targetIndex];
-        if (hunter && prey) {
-          hunter.npcTarget = prey;
-          prey.attackers.push(hunter);
-        }
-      }
-    });
-
-    this.world.cargo.clear();
-    for (const c of snap.canisters) {
-      this.world.cargo.restore(
-        new THREE.Vector3(...c.pos), new THREE.Vector3(...c.velocity),
-        new THREE.Vector3(...c.spinAxis), c.kind, c.commodity);
-    }
+    // Which hull each ship gets is a GAME rule — the tier tables and the
+    // Constrictor — so the World asks rather than deciding. Both inputs are
+    // in the state about to be applied, so no extra snapshot field is needed;
+    // without this a restored tier-2 ship came back as the default hull, with
+    // a different flight envelope and a fraction of the bounty.
+    this.ordnance.clear();
+    this.world.restoreNpcs(snap.npcs, (n) => (
+      n.state.isMissionTarget ? CONSTRICTOR_SPEC
+        : n.role === 'pirate' ? pirateSpecForTier(Number(n.state.threatTier ?? 0), n.seed)
+          : undefined));
+    this.world.cargo.restoreAll(snap.canisters);
+    this.ordnance.restoreAll(snap.missiles, (i) => this.world.npcs[i] ?? null);
 
     this.encounterTimers = { ...snap.encounterTimers };
     this.chart.targetIndex = snap.chartTarget;
@@ -964,14 +943,8 @@ export class Game {
     this.market = structuredClone(snap.market) as MarketEntry[];
     this.hermitMarket = structuredClone(snap.hermitMarket) as MarketEntry[];
     this.contractOffers = structuredClone(snap.contractOffers) as Contract[];
-    this.ordnance.clear();
     this.targetLock = snap.targetLock >= 0 ? (this.world.npcs[snap.targetLock] ?? null) : null;
     this.missileArmed = snap.missileArmed;
-    for (const m of snap.missiles) {
-      this.ordnance.restore(
-        new THREE.Vector3(...m.pos), new THREE.Quaternion(...m.quat),
-        m.targetIndex >= 0 ? (this.world.npcs[m.targetIndex] ?? null) : null, m.life);
-    }
     this.world.station.quaternion.set(...snap.stationQuat);
     this.world.station.updateMatrixWorld(true);
     this.baseMode = snap.mode;
