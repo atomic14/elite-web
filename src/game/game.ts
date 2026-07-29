@@ -17,9 +17,9 @@ import { buildShip, MISSILE, CANISTER } from '../ships/geometry.ts';
 import { PlayerShip } from '../player.ts';
 import { Input } from '../engine/input.ts';
 import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
-import { Hud, SCANNER_RANGE, type HudState, type ScreenTarget } from '../hud/hud.ts';
+import { Hud, SCANNER_RANGE, type HudState } from '../hud/hud.ts';
 import {
-  scannerContacts, shipIdUnderView, nearestHostile, projectMarker, dockingAid,
+  scannerContacts, shipIdUnderView, nearestHostile, projectMarker, dockingAid, screenTargets,
 } from '../hud/hud-model.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
@@ -2395,42 +2395,13 @@ if (i.pressed('Enter')) this.respawn();
       }
     }
 
-    // target brackets: ships in front of the current view, plus a lead
-    // marker on the locked one (laser bolts are instant, but the target
-    // keeps moving while you line up, so show where it will be)
-    const targets: ScreenTarget[] = [];
-    if (this.mode === 'flight') {
-      const viewQuat = this.tmpQ.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
-      const camDir = this.tmp.set(0, 0, -1).applyQuaternion(viewQuat);
-      for (const npc of this.npcs) {
-        if (!npc.alive) continue;
-        const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
-        const dist = to.length();
-        if (dist > 5000) continue;
-        if (camDir.dot(to.clone().normalize()) < 0.3) continue; // behind / far off-view
-        const ndc = npc.object.position.clone().project(this.render.camera);
-        if (ndc.z > 1) continue;
-        const locked = this.targetLock === npc;
-        const target: ScreenTarget = {
-          x: ndc.x,
-          y: ndc.y,
-          size: Math.min(0.5, (npc.radius * 2.2) / dist),
-          hostile: isHostileToPlayer(npc, this.commander.legalStatus),
-          locked,
-          hp: npc.hp / npc.maxHp,
-          label: `${(npc.object.name || 'ASTEROID').toUpperCase()}  ${(dist / 1000).toFixed(1)}KM`,
-        };
-        if (locked && npc.role !== 'asteroid') {
-          // lead point: where the target will be after the bolt's flight time
-          const flight = dist / 8000;
-          const vel = this.tmp2.set(0, 0, -1).applyQuaternion(npc.object.quaternion).multiplyScalar(220);
-          const leadPos = npc.object.position.clone().addScaledVector(vel, flight);
-          const lead = leadPos.project(this.render.camera);
-          if (lead.z <= 1) target.lead = { x: lead.x, y: lead.y };
-        }
-        targets.push(target);
-      }
-    }
+    const viewQuat = this.tmpQ.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
+    const targets = this.mode === 'flight'
+      ? screenTargets(
+        this.npcs, this.player.position,
+        this.tmp.set(0, 0, -1).applyQuaternion(viewQuat), this.render.camera,
+        this.commander.legalStatus, this.targetLock, this.tmp2)
+      : [];
     this.hud.drawTargets(targets);
 
     this.hud.render(

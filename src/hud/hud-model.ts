@@ -10,7 +10,7 @@
 // passed in, because this runs every frame and allocating would show.
 
 import * as THREE from 'three';
-import type { HudState, ScannerContact } from './hud.ts';
+import type { HudState, ScannerContact, ScreenTarget } from './hud.ts';
 import type { NpcShip } from '../game/npc.ts';
 import { isHostileToPlayer } from '../game/npc.ts';
 
@@ -150,3 +150,60 @@ export function dockingAid(
     },
   };
 }
+
+/**
+ * Target brackets: ships in front of the current view, plus a lead marker on
+ * the locked one.
+ *
+ * Laser bolts are instant, but the target keeps moving while you line up, so
+ * the lead point shows where it will be after the bolt's flight time. Assumes
+ * the target holds its current heading at cruise — which is wrong the moment
+ * it turns, and is exactly why it is an aid rather than an autoaim.
+ */
+export function screenTargets(
+  npcs: readonly NpcShip[],
+  playerPos: THREE.Vector3,
+  viewDir: THREE.Vector3,
+  camera: THREE.Camera,
+  legalStatus: number,
+  locked: NpcShip | null,
+  scratch: THREE.Vector3,
+): ScreenTarget[] {
+  const out: ScreenTarget[] = [];
+  for (const npc of npcs) {
+    if (!npc.alive) continue;
+    const to = scratch.copy(npc.object.position).sub(playerPos);
+    const dist = to.length();
+    if (dist > TARGET_BRACKET_RANGE) continue;
+    if (viewDir.dot(to.normalize()) < 0.3) continue;   // behind, or far off-view
+    const ndc = npc.object.position.clone().project(camera);
+    if (ndc.z > 1) continue;
+
+    const isLocked = locked === npc;
+    const target: ScreenTarget = {
+      x: ndc.x,
+      y: ndc.y,
+      size: Math.min(0.5, (npc.radius * 2.2) / dist),
+      hostile: isHostileToPlayer(npc, legalStatus),
+      locked: isLocked,
+      hp: npc.hp / npc.maxHp,
+      label: `${(npc.object.name || 'ASTEROID').toUpperCase()}  ${(dist / 1000).toFixed(1)}KM`,
+    };
+    if (isLocked && npc.role !== 'asteroid') {
+      const flight = dist / BOLT_SPEED;
+      const vel = scratch.set(0, 0, -1)
+        .applyQuaternion(npc.object.quaternion).multiplyScalar(ASSUMED_TARGET_SPEED);
+      const lead = npc.object.position.clone().addScaledVector(vel, flight).project(camera);
+      if (lead.z <= 1) target.lead = { x: lead.x, y: lead.y };
+    }
+    out.push(target);
+  }
+  return out;
+}
+
+/** Ships further out than this get no bracket — the HUD would be a mess. */
+export const TARGET_BRACKET_RANGE = 5000;
+/** Notional bolt speed, for the lead marker only; real shots are instant. */
+const BOLT_SPEED = 8000;
+/** Assumed target cruise, for the same purpose. */
+const ASSUMED_TARGET_SPEED = 220;
