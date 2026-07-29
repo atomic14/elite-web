@@ -19,6 +19,7 @@
 //  - everything here is pure data + maths: no three.js, no DOM
 
 import type { StarSystem } from './galaxy.ts';
+import { random } from '../game/rng.ts';
 
 /** A trade run in flight between two systems. */
 export interface Convoy {
@@ -70,6 +71,13 @@ const HEAT_DECAY = 0.06;
 // Danger decays slowly: a system's reputation for piracy should outlast a
 // single convoy loss, so hotspots can build up along lawless trade routes.
 const DANGER_DECAY = 0.015;
+
+/**
+ * The galaxy ticks on the world's seeded stream by default. Passing an rng
+ * explicitly (as test/campaign.ts does) still works and is how the balance
+ * harness stays reproducible on its own seed.
+ */
+const defaultRng = (): number => random();
 
 export class LivingGalaxy {
   readonly states = new Map<number, SystemState>();
@@ -127,7 +135,7 @@ export class LivingGalaxy {
    * Advance the abstract galaxy by whole days. Called whenever the player's
    * clock moves (hyperspace jumps, rescues) — never per frame.
    */
-  advance(days: number, gradients: number[], rng: () => number = Math.random): void {
+  advance(days: number, gradients: number[], rng: () => number = defaultRng): void {
     for (let d = 0; d < days; d++) {
       this.day += 1;
 
@@ -308,14 +316,28 @@ export class LivingGalaxy {
   save(): GalaxyStateSave {
     const systems: GalaxyStateSave['systems'] = {};
     for (const [index, st] of this.states) {
-      const pressure = Array.from(st.pressure).map((p) => +p.toFixed(3));
-      if (!pressure.some((p) => p !== 0) && st.danger === 0 && st.heat === 0) continue;
+      // NOT rounded. Rounding for compactness quantises the simulation, so a
+      // reload lands on a NEARBY galaxy rather than the same one and every
+      // subsequent day diverges. It hid behind save/load/save round-tripping
+      // perfectly — re-rounding an already-rounded value is stable, which is
+      // not the same as being faithful.
+      const pressure = Array.from(st.pressure);
+      // Skip only systems that are ACTUALLY untouched. The arrivals and losses
+      // counters were missing from this test, so a system with convoy history
+      // but no price pressure yet had that history dropped on every save —
+      // silently, and invisibly, because save/load/save still round-tripped:
+      // re-saving simply reproduced the same lossy output. Stability is not
+      // fidelity.
+      const untouched = !pressure.some((p) => p !== 0)
+        && st.danger === 0 && st.heat === 0
+        && st.recentArrivals === 0 && st.recentLosses === 0;
+      if (untouched) continue;
       systems[index] = {
         pressure,
-        danger: +st.danger.toFixed(3),
-        arrivals: +st.recentArrivals.toFixed(1),
-        losses: +st.recentLosses.toFixed(1),
-        heat: +st.heat.toFixed(3),
+        danger: st.danger,
+        arrivals: st.recentArrivals,
+        losses: st.recentLosses,
+        heat: st.heat,
       };
     }
     return { day: this.day, convoys: this.convoys, systems };

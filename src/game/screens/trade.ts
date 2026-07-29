@@ -17,6 +17,7 @@ import {
 } from '../commander.ts';
 import { renderMarket, renderEquip, equipRows } from '../../ui/screens.ts';
 import { applyMarketPressure } from '../contracts.ts';
+import { randomInt } from '../rng.ts';
 import { COMMODITIES, generateMarket, type MarketEntry, type StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
@@ -51,7 +52,9 @@ export function makeLocalMarket(
   priceMultiplier: (commodity: number) => number,
 ): MarketEntry[] {
   return applyMarketPressure(
-    generateMarket(system, Math.floor(Math.random() * 256)),
+    // seeded: an unseeded market seed means a reload rerolls prices, which is
+    // exactly the save-scum this game now has to be robust to
+    generateMarket(system, randomInt(256)),
     priceMultiplier);
 }
 

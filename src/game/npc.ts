@@ -10,7 +10,7 @@ import {
   type Brain, type BrainFile, type ObservableShip,
 } from '../sim/policy.ts';
 import { TURN } from '../sim/core.ts';
-import { random, randomDirection } from './rng.ts';
+import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
 import pirateBrainFile from '../sim/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
@@ -707,7 +707,11 @@ export class NpcShip {
    */
   private bindTransform(position: THREE.Vector3): void {
     this.object.position.copy(position);
-    this.object.quaternion.random();
+    // NOT quaternion.random(): THREE reaches for Math.random inside it, so
+    // every ship in the galaxy was pointing a direction the seed knew nothing
+    // about. Two arrivals in the same system agreed on where the ships were
+    // and disagreed on which way they faced.
+    randomQuaternion(this.object.quaternion);
     this.state.pos = this.object.position;
     this.state.quat = this.object.quaternion;
   }

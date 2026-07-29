@@ -101,3 +101,20 @@ export function randomDirection<T extends { x: number; y: number; z: number }>(o
   out.z = u;
   return out;
 }
+
+/**
+ * A uniformly random orientation, written into `out`.
+ *
+ * Replaces `THREE.Quaternion.random()`, which reaches for Math.random inside
+ * three.js. Shoemake's method, same as three.js uses.
+ */
+export function randomQuaternion<T extends { x: number; y: number; z: number; w: number }>(out: T): T {
+  const u1 = random(), u2 = random(), u3 = random();
+  const sq1 = Math.sqrt(1 - u1), sq2 = Math.sqrt(u1);
+  const t1 = Math.PI * 2 * u2, t2 = Math.PI * 2 * u3;
+  out.x = sq1 * Math.sin(t1);
+  out.y = sq1 * Math.cos(t1);
+  out.z = sq2 * Math.sin(t2);
+  out.w = sq2 * Math.cos(t2);
+  return out;
+}

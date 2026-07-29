@@ -592,10 +592,18 @@ console.log('\nbehaviour-driving values are state');
 
 console.log('\nseeded world');
 {
+  // Widened twice. It began as game/*.ts only and missed the market seed in
+  // screens/trade.ts (an unseeded seed, so a reload rerolled prices) and the
+  // living galaxy's default rng. It also only looked for Math.random and
+  // .randomDirection(), and missed THREE's Quaternion.random() — so every ship
+  // in the galaxy faced a direction the seed knew nothing about.
   const WORLD = [
     'game/game.ts', 'game/npc.ts', 'game/collisions.ts', 'game/systems.ts',
     'game/encounters.ts', 'game/population.ts', 'game/npc-targeting.ts',
     'game/gunnery.ts', 'game/shot.ts', 'game/contracts.ts', 'game/combat-computer.ts',
+    'game/screens/trade.ts', 'game/screens/saves.ts', 'game/screens/chart.ts',
+    'game/screens/contracts.ts', 'game/population.ts', 'galaxy/living.ts',
+    'game/docking.ts', 'game/snapshot.ts',
   ];
   const offenders: string[] = [];
   for (const f of WORLD) {
@@ -604,7 +612,11 @@ console.log('\nseeded world');
     // `rng: () => number = Math.random` is an unseeded stream hiding behind an
     // injectable-looking signature, and the parenthesised check missed five.
     if (/Math\.random\b/.test(src.replace(/^\s*(\/\/|\*).*$/gm, ''))) offenders.push(f);
+    // three.js has its own generators, and they all reach for Math.random
     if (/\.randomDirection\(\)/.test(src)) offenders.push(`${f} (THREE randomDirection)`);
+    if (/\.random\(\)/.test(src.replace(/\brandom\(\)/g, ''))) {
+      offenders.push(`${f} (a THREE .random())`);
+    }
   }
   check(`world code uses the seeded rng only${offenders.length ? ' — found in ' + offenders.join(', ') : ''}`,
     offenders.length === 0);

@@ -124,17 +124,7 @@ export interface WorldSnapshot {
   rng: { seed: number; state: number };
   /** hyperspace target, so the chart still points where you were going */
   chartTarget: number | null;
-  /**
-   * Missiles in flight — a save taken mid-launch keeps them coming.
-   *
-   * KNOWN GAP: with a missile in the air, a restored world does not replay its
-   * original bit-for-bit, and two restores do not agree with each other
-   * either. Everything else does. The missile path draws from the stream a
-   * variable number of times somewhere (ECM rolls are the suspect) and has not
-   * been tracked down. The consequence is a plausible but different
-   * continuation, not corruption — and it only applies for the couple of
-   * seconds a missile is alive. Worth fixing; not worth blocking on.
-   */
+  /** missiles in flight — a save taken mid-launch keeps them coming */
   missiles: MissileSnapshot[];
   /**
    * The market and the work on offer.
