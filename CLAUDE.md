@@ -194,9 +194,11 @@ and no WebGL (measured, not assumed). Four things were, and three are fixed:
   does not. `src/sim` always had them; the rest of `src` does now.
 - **`with { type: 'json' }` on JSON imports.** Same story — Vite infers, node
   requires the attribute. The brain files carry it.
-- **Still open: `Game`'s constructor builds a renderer, composer and DOM
-  listeners**, so the Game itself cannot be constructed headlessly. That is
-  what the world step has to be lifted out of.
+- **Everything needing a GPU is confined to `engine/render-stack.ts`** —
+  WebGLRenderer, the post chain, the camera, the cockpit beams and the
+  projection lift. It is the only file the world step cannot reach for.
+  `Game` still calls it from its constructor, so constructing a `Game` still
+  needs a browser; giving it an optional stack is the remaining step.
 
 Pieces of the world step that are already out, pure and unit-tested:
 `game/collisions.ts` (who is overlapping whom), `game/systems.ts` (energy,

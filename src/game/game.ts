@@ -7,9 +7,6 @@
 // `window.__game` exposes the instance for the autopilot test harness
 // (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
@@ -55,6 +52,7 @@ import { BriefingScreen } from './screens/briefing.ts';
 import { ContractsScreen, type ContractsContext } from './screens/contracts.ts';
 import { ChartScreen, type ChartContext } from './screens/chart.ts';
 import { ScreenHost } from '../ui/screen-host.ts';
+import { createRenderStack, BEAM_Z, type RenderStack } from '../engine/render-stack.ts';
 import {
   daysForJump, nearestSystemTo, witchspaceChance, WITCHSPACE_ESCAPE_COST,
 } from '../galaxy/navigation.ts';
@@ -126,16 +124,8 @@ function cheatMode(): boolean {
  * point: the circle is not decoration, it is the envelope.
  */
 /** Depth in camera space at which the cockpit beams converge. */
-const BEAM_Z = 2.6;
 
 
-/**
- * Where the sight sits, as a fraction of canvas height. The cockpit console
- * covers the bottom ~22%, so the centre of what you can actually see is above
- * the middle of the canvas. The camera projection is shifted to match (see
- * resize), so this moves the gun axis and the crosshair together.
- */
-const SIGHT_Y = 0.42;
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
@@ -197,10 +187,10 @@ interface Canister {
 // Fields the autonomous playtest agent (test/playtest.js) reads or drives
 // are public rather than private; they are otherwise internal.
 export class Game {
-  private readonly renderer: THREE.WebGLRenderer;
-  private readonly composer: EffectComposer;
+  /** everything that needs a GPU — see engine/render-stack.ts */
+  private readonly render: RenderStack;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(60, 1, 1, 1_000_000);
+
 
   systems: StarSystem[];
   commander: CommanderData;
@@ -335,7 +325,7 @@ export class Game {
   get cabinTemp(): number { return this.sys.cabinTemp; }
   set cabinTemp(v: number) { this.sys.cabinTemp = v; }
   private beamTimer = 0;
-  private readonly beams: THREE.LineSegments;
+
 
   private readonly dust = new SpaceDust();
   private readonly tmp = new THREE.Vector3();
@@ -352,13 +342,7 @@ export class Game {
   private readonly tmpM = new THREE.Matrix4();
 
   constructor(canvas: HTMLCanvasElement) {
-    // No logarithmic depth buffer: it would defeat the polygonOffset trick
-    // that keeps hull fills behind wireframe edges.
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.5, 0.15));
+    this.render = createRenderStack(canvas, this.scene);
     window.addEventListener('resize', () => this.resize());
     this.resize();
 
@@ -375,26 +359,8 @@ export class Game {
 
     this.scene.add(createStarfield());
     this.scene.add(this.dust.points, this.dust.streaks);
-    this.scene.add(this.camera);
+    this.scene.add(this.render.camera);
 
-    // Cockpit laser beams, drawn in camera space. They converge ON THE CAMERA
-    // AXIS (0, 0, -z) because that is where the shot goes and where the
-    // crosshair sits. They previously met at y = +0.21 at z = -2.6 —
-    // atan(0.21/2.6) = 4.6 degrees high — which lined them up with the old
-    // mis-placed crosshair (#crosshair was top: 42%, not 50%). With the sight
-    // corrected the beams had to come down to match.
-    const beamGeo = new THREE.BufferGeometry();
-    beamGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-      -0.85, -0.75, -1.2, 0, 0, -BEAM_Z,
-      0.85, -0.75, -1.2, 0, 0, -BEAM_Z,
-    ], 3));
-    this.beams = new THREE.LineSegments(
-      beamGeo,
-      new THREE.LineBasicMaterial({ color: 0xd8ffcc, transparent: true, opacity: 0.9 }),
-    );
-    this.beams.frustumCulled = false;
-    this.beams.visible = false;
-    this.camera.add(this.beams);
 
     this.player = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
     this.buildWorld();
@@ -450,27 +416,12 @@ export class Game {
   private resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.renderer.setSize(w, h);
-    this.composer.setSize(w, h);
-    this.camera.aspect = w / h;
-    // Lift the gun axis to SIGHT_Y before building the projection: the console
-    // eats the bottom of the screen, so the eye's centre is above the canvas
-    // centre. setViewOffset shifts the frustum (a lens shift) rather than the
-    // sight, which keeps the crosshair, the beams and the shot on one axis —
-    // moving the *crosshair* up instead is what put the sight 4.6 degrees
-    // above the shot for so long.
-    // +lift: the view window starts BELOW the virtual image top, which pushes
-    // the frustum centre up the screen. (Negative moves it down — measured.)
-    const lift = (0.5 - SIGHT_Y) * h;
-    this.camera.setViewOffset(w, h, 0, lift, w, h);
-    this.camera.updateProjectionMatrix();
+    const pxPerRad = this.render.resize(w, h);
     this.hud.resizeOverlay(w, h);
-
-    // Draw the sight to the assist envelope, so the circle means something:
-    // a target inside it is a target the shot will reach for. Derived from the
-    // real projection rather than picked by eye, so it stays honest if the
-    // fov or the assist angle ever change.
-    const pxPerRad = (h / 2) / Math.tan((this.camera.fov * Math.PI) / 360);
+    // Draw the sight to the assist envelope, so the circle means something: a
+    // target inside it is a target the shot will reach for. Derived from the
+    // real projection rather than picked by eye, so it stays honest if the fov
+    // or the assist angle ever change.
     document.documentElement.style.setProperty(
       '--sight-r', `${Math.round(Math.tan(AIM_ASSIST) * pxPerRad)}px`);
   }
@@ -1684,7 +1635,7 @@ export class Game {
     if (this.mode !== 'flight') this.paused = false;
     if (this.paused) {
       this.hud.showMessage('PAUSED — P TO RESUME', 0.4);
-      this.composer.render();
+      this.render.composer.render();
       this.renderHud(dt);
       this.input.endFrame();
       return;
@@ -1698,11 +1649,11 @@ export class Game {
     }
 
 
-    this.camera.position.copy(this.player.position);
-    this.camera.quaternion.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
+    this.render.camera.position.copy(this.player.position);
+    this.render.camera.quaternion.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
     this.beamTimer -= dt;
-    this.beams.visible = this.beamTimer > 0;
-    this.composer.render();
+    this.render.beams.visible = this.beamTimer > 0;
+    this.render.composer.render();
     this.renderHud(dt);
     this.input.endFrame();
   }
@@ -2332,11 +2283,11 @@ export class Game {
    * corners, which is what sells the beams as bending.
    */
   private aimBeams(target: THREE.Vector3 | null): void {
-    const pos = this.beams.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const pos = this.render.beams.geometry.getAttribute('position') as THREE.BufferAttribute;
     const arr = pos.array as Float32Array;
     let x = 0, y = 0, z = -BEAM_Z;
     if (target) {
-      const local = this.camera.worldToLocal(this.tmp2.copy(target));
+      const local = this.render.camera.worldToLocal(this.tmp2.copy(target));
       const len = local.length();
       if (len > 1e-3) {
         x = (local.x / len) * BEAM_Z;
@@ -2388,7 +2339,7 @@ export class Game {
       ({ dockAid, slotMarker } = dockingAid(
         this.world.station, this.world.stationDockZ,
         this.player.position, this.player.quaternion, this.player.getForward(this.tmp),
-        this.camera, { a: this.tmp2, b: this.tmp3, q: this.tmpQ }));
+        this.render.camera, { a: this.tmp2, b: this.tmp3, q: this.tmpQ }));
     }
 
     // Nearest hostile, for the off-screen threat arrow.
@@ -2398,7 +2349,7 @@ export class Game {
       if (found) {
         threatMarker = {
           ...projectMarker(found.npc.object.position, this.player.position,
-            this.player.getForward(this.tmp), this.camera, this.tmp3),
+            this.player.getForward(this.tmp), this.render.camera, this.tmp3),
           count: found.count,
         };
       }
@@ -2417,7 +2368,7 @@ export class Game {
         const dist = to.length();
         if (dist > 5000) continue;
         if (camDir.dot(to.clone().normalize()) < 0.3) continue; // behind / far off-view
-        const ndc = npc.object.position.clone().project(this.camera);
+        const ndc = npc.object.position.clone().project(this.render.camera);
         if (ndc.z > 1) continue;
         const locked = this.targetLock === npc;
         const target: ScreenTarget = {
@@ -2434,7 +2385,7 @@ export class Game {
           const flight = dist / 8000;
           const vel = this.tmp2.set(0, 0, -1).applyQuaternion(npc.object.quaternion).multiplyScalar(220);
           const leadPos = npc.object.position.clone().addScaledVector(vel, flight);
-          const lead = leadPos.project(this.camera);
+          const lead = leadPos.project(this.render.camera);
           if (lead.z <= 1) target.lead = { x: lead.x, y: lead.y };
         }
         targets.push(target);
