@@ -47,7 +47,15 @@ npm test           # invariant + sim tests (test/run.ts, no framework)
 npm run campaign   # headless balance playtest (test/campaign.ts)
                    # `-- <commanders> <legs> <trader|hunter|privateer|both|all>`
                    # `-- 4 45000 all` runs full careers to E L I T E (~70s)
+npm run portability  # could this port to another shell? one tracked number
 ```
+
+**`npm run train` writes to `src/ai-training/brains/<out>.json` and defaults
+`--out` to the phase's real brain**, so a run with no `--out` overwrites a
+shipped one. `git checkout src/ai-training/brains` restores it. Use a scratch
+name for experiments and delete it afterwards. Also: `--pool` rotates the
+TRADER, so it is refused for phases where the genome IS the trader — it used to
+silently score the wrong thing for eight minutes.
 
 CI (.github/workflows/ci.yml) lints, tests, builds and runs the campaign.
 Deployment is Cloudflare Pages, auto-deploying from the repo with build
@@ -62,6 +70,21 @@ Node ≥ 22.6 (train/evaluate run TS directly via --experimental-strip-types).
 be read and indexed), the game is `play.html`, and `manual.html` /
 `novella.html` carry the long-form text. All are Vite entries in
 vite.config.ts; add new pages there or they won't build.
+
+**Where things live is `docs/ARCHITECTURE.md`'s 30-second map, not this file.**
+It is a complete one-line-per-file index and it is kept current; duplicating it
+here would only produce a second copy to go stale. What this file holds is the
+things that are *not* discoverable by reading the code: the invariants below,
+and why a decision was made rather than what it was.
+
+One thing that IS worth stating here, because it changed recently and a stale
+mental model is expensive: `game.ts` is ~1600 lines and is now only the
+orchestrator — the fixed-timestep loop, the step order, the mode machine and
+constructor wiring. The world step is `world-step.ts`, saves are
+`persistence.ts`, the station is `station.ts`, input is `controls.ts`, the two
+autopilots are `autopilot.ts`, hit consequences are `combat.ts`, prices are
+`shop.ts`, storage is `storage.ts`, contraband and fines are `law.ts`. If you
+are about to add something to `game.ts`, it probably belongs in one of those.
 
 ## Read these before big changes
 
@@ -115,7 +138,9 @@ vite.config.ts; add new pages there or they won't build.
    Keep new economic rules there.
 8. Retraining overwrites `src/ai-training/brains/*.json` which the game/viewer
    import at build time. `git checkout src/ai-training/brains` restores shipped
-   weights. Shipped-in-game: **`pirate-attack-r2`** (pirates),
+   weights. Shipped-in-game: **`pirate-attack-g3`** (pirates — NOT r2, which is
+   the legacy control behind `window.__legacyPirates`; this line said r2 for
+   months and an agent tuned against the wrong brain because of it),
    **`jameson-defend-g1`** (armed traders + anything player-assist),
    **`pirate-pack-r4-selectonly`** (organised gangs only — `npc.ts`,
    `this.organised || packBrainEnabled()`). `window.__sharpPirates = true`
@@ -145,14 +170,15 @@ vite.config.ts; add new pages there or they won't build.
    pulls the same trigger `npc.ts` does, through `gunnery.ts`, and the parity
    tests that policed the two copies are gone with the copies (invariant 2).
 
-   Balance is NOT settled. Under the real gun the old brains kill a shielded
-   commander 0-2% of the time — the late game had no threat, which is what
-   playing it felt like. The new ones, in the corrected-durability harness
-   (`npm run survivability`), go 25% for one pirate at hp 3.0, 98% for two,
-   100% for three. That is hotter than the 50%-for-a-gang-of-three the
-   project previously aimed at, but the sim's defender loses only 0.0-0.3
-   pirates a fight where a human kills them, so it understates the player
-   badly. **Fly it before tuning it** (`test/arena.js`, `test/combat-recorder.js`).
+   Balance is NOT settled, and **every number that used to be quoted here is
+   now stale.** They were measured in `ai-training/core.ts`, which is deleted.
+   Since episodes moved onto the real engine the same brains measure very
+   differently — `pirate-attack-g3` went from 43% to 93% kills against a
+   scripted trader, `jameson-defend-g1` from 48% to 33% deaths 2v1, and
+   `npm run survivability` now reports 0% against a shielded commander for a
+   gang of three or four. Do not treat any of those as a balance verdict: the
+   brains were fitted in the copy and are stale by construction. Retrain
+   first, then measure. See docs/TRAINING-LOG.md run 18. **Fly it before tuning it** (`test/arena.js`, `test/combat-recorder.js`).
    If it needs a lever, prefer the legible numbers — `NPC_COOLDOWN_LO/SPREAD`,
    the 0.85 hit cap, the 0.25 gate, all mirrored in `NPC_GUN` — over the
    flying, which is emergent. See docs/TRAINING-LOG.md runs 12-15.
@@ -219,15 +245,30 @@ vite.config.ts; add new pages there or they won't build.
 
 ## State lives in one place
 
-Two objects hold everything that can change, and a snapshot is each of them
-walked generically (`snapshot.ts`), not a hand-written field list:
+**`Game.state`** (`GameState`, in `state.ts`) holds everything the world step
+may change: the galaxy, the commander, the living galaxy, the world, the player,
+the flight session, the ship systems, the dock plan, the encounter timers, the
+markets and the charts. `freshState(commander)` builds it under node with no
+canvas and no browser. Game keeps delegating accessors, so `g.commander` still
+works at ~500 call sites.
+
+Inside it, two objects are walked GENERICALLY by `snapshot.ts`
+(`serialiseState`/`restoreState`), so adding a field to either saves it:
 
 - **`NpcShip.state`** (`NpcState`) — transform, speed, hp, flags, timers, and
   the brain's cached decision. `state.pos` and `state.quat` ARE the mesh's own
   `Vector3`/`Quaternion`, not copies, so the renderer reads the state and
   there is no sync pass to forget. Accessors keep `npc.hp` working at the ~80
   call sites that say it.
-- **`Game.session`** (`SessionState`) — every flight flag and timer.
+- **`state.session`** (`SessionState`, in `session.ts`) — every flight flag and
+  timer.
+
+**The top-level snapshot is NOT a generic walk** — `Persistence.capture()` is a
+hand-written list, and three `GameState` fields (`dockPlan`, `lastThreat`,
+`ecmDetectedTimer`) were silently unsaved until an audit found them. An earlier
+version of this file implied the whole thing was walked generically; it is not.
+What protects it now is a test: every `GameState` field must appear by name in
+BOTH capture and restore, and `npm test` fails otherwise.
 
 **AI state is game state.** Chris's test for it: a human's brain persists
 across a reload on its own, an NPC's does not — so the NPC's decision cache
@@ -384,7 +425,10 @@ discipline as `NpcShip` returning a `FireEvent`.
 ## Current state & direction
 
 Core game complete and validated end-to-end (see docs/JAMESON-TRIALS.md).
-Six trained brains ship; viewer at /viewer.html showcases them. Open
+Brains ship for pirates, gangs, armed traders and evaders; viewer at
+/viewer.html showcases them. `pirate-attack-e1` and `trader-evade-e1` (run 18)
+are the first trained on the real engine and are NOT yet wired into the game —
+`brains.ts` still imports g3/g2/r2/pack-r4/jameson-g1. Open
 direction (Chris's priorities): new-player QoL (docking aid — pause and
 mid-flight autosave already ship, they are just not advertised), target
 market from chart, purchasable Combat Computer (defence brain flies the
