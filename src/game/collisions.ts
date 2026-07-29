@@ -17,9 +17,16 @@ import type { NpcShip } from './npc.ts';
 
 /** How much the ship that flew into something loses, and takes. */
 export const RAM_DAMAGE = 0.45;
-/** Speed retained after a collision — a ram should cost you your run. */
-const PLAYER_SPEED_KEPT = 0.3;
-const NPC_SPEED_KEPT = 0.3;
+/**
+ * Speed retained after a collision — a ram should cost you your run.
+ *
+ * Exported because `COLLISION.speedRetained` in ai-training/core.ts is the
+ * same number written a second time, and invariant 2 says the two must move
+ * together. `npm test` compares them as VALUES, which it can only do if the
+ * game's side has a name outside this file.
+ */
+export const PLAYER_SPEED_KEPT = 0.3;
+export const NPC_SPEED_KEPT = 0.3;
 const STATION_SPEED_KEPT = 0.4;
 
 /** Scratch vectors, so a per-frame call allocates nothing. */

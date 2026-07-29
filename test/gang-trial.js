@@ -40,10 +40,17 @@
 
   const V = g.player.position.clone().constructor;
   const Q = g.player.quaternion.clone().constructor;
-  const { pirateSpecForTier } = await import('/src/game/npc.ts');
+  // ship-specs.ts, not npc.ts: the roster moved out of npc.ts and this import
+  // was left pointing at the old home, so `pirateSpecForTier` was undefined
+  // and every trial threw on its first spawn.
+  const { pirateSpecForTier } = await import('/src/game/ship-specs.ts');
   const { memberTier } = await import('/src/game/contracts.ts');
+  // the player's real flight envelope, from the file that owns it
+  const { PLAYER_FLIGHT, rampFlightRate } = await import('/src/player.ts');
+  // and the real slot key, rather than a second copy of currentSlot()'s rule
+  const { slotKeys } = await import('/src/game/storage.ts');
 
-  const SLOT = 'elite-web-commander:' + (localStorage.getItem('elite-web-slot') ?? '1');
+  const SLOT = slotKeys().commander;
   const BACKUP = 'claude-backup:' + SLOT;
 
   const gt = window.__gangTrial = {
@@ -115,9 +122,12 @@
       const obsBuf = new Float32Array(32);
       const scratch = kit.makeScratch();
       // `cls` is required by observe() — it normalises speeds and turn rates
-      // by the ship's own limits. Same values playtest.js uses: the player as
-      // traderCobra (what jameson-defend was trained flying), the attacker as
-      // a fast pirate. Filled per-target below from the real hull.
+      // by the ship's own limits. It is the OBSERVATION's frame of reference,
+      // not the ship: it stays at the traderCobra jameson-defend was trained
+      // flying (the same values combat-computer.ts feeds the policy), because
+      // changing it moves the observation out of distribution. What the
+      // commander actually flies is PLAYER_FLIGHT, below. The attacker's side
+      // is filled per-target from the real hull.
       const me = { pos: new V(), quat: new Q(), speed: 0, cls: { maxSpeed: 220, turnRate: 0.5 },
         laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 };
       const tv = { pos: new V(), quat: new Q(), speed: 280, cls: { maxSpeed: 300, turnRate: 1.1 },
@@ -143,20 +153,29 @@
           me.speed = g.player.speed; me.laserTemp = g.laserTemp; me.laserCooldown = g.laserCooldown;
           me.pitchRate = cPitch; me.rollRate = cRoll;
           tv.pos.copy(target.object.position); tv.quat.copy(target.object.quaternion);
+          // NpcShip has no `spec` — the constructor reads the NpcSpec once and
+          // keeps the fields. This said `target.spec?.maxSpeed ?? 300`, so the
+          // optional chain swallowed it and every target was normalised as a
+          // generic 300/1.1 fighter however big it actually was, while the
+          // comment above claimed the real hull. The fields are `private` in
+          // TypeScript, which is erased at runtime.
           tv.speed = target.speed ?? 280;
-          tv.cls.maxSpeed = target.spec?.maxSpeed ?? 300;
-          tv.cls.turnRate = target.spec?.turnRate ?? 1.1;
+          tv.cls.maxSpeed = target.maxSpeed ?? 300;
+          tv.cls.turnRate = target.turnRate ?? 1.1;
           control = kit.act(kit.defendBrain, kit.observe(me, tv, obsBuf), scratch);
         }
-        const maxPitch = 0.7, maxRoll = 1.2;
-        const ramp = (cur, tgt, active) => {
-          const nx = cur + (tgt - cur) * Math.min(1, (active ? 4 : 5) * dt);
-          return Math.abs(nx) < 0.001 && !active ? 0 : nx;
-        };
-        cPitch = ramp(cPitch, control.pitch * maxPitch, control.pitch !== 0);
-        cRoll = ramp(cRoll, control.roll * maxRoll, control.roll !== 0);
-        if (control.throttle > 0) g.player.speed = Math.min(300, g.player.speed + 120 * dt);
-        if (control.throttle < 0) g.player.speed = Math.max(0, g.player.speed - 120 * dt);
+        // The commander's OWN ship. This read 0.7 pitch / 1.2 roll / 120
+        // accel / 300 top speed on a 4-5 ramp — the combat computer's
+        // trader-Cobra caps, not the Cobra the player flies, which pitches
+        // 1.45, rolls 2.5, accelerates at 220 and bleeds off at 12. A harness
+        // whose entire question is "can a commander survive this?" was
+        // answering it for a ship with half the pitch and roll of the one that
+        // ships. src/player.ts owns the numbers now (PLAYER_FLIGHT).
+        const F = PLAYER_FLIGHT;
+        cPitch = rampFlightRate(cPitch, control.pitch * F.maxPitch, control.pitch !== 0, dt);
+        cRoll = rampFlightRate(cRoll, control.roll * F.maxRoll, control.roll !== 0, dt);
+        if (control.throttle > 0) g.player.speed = Math.min(F.maxSpeed, g.player.speed + F.accel * dt);
+        if (control.throttle < 0) g.player.speed = Math.max(0, g.player.speed - F.accel * dt);
         if (cRoll) g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(0, 0, 1), cRoll * dt));
         if (cPitch) g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(1, 0, 0), cPitch * dt));
         if (control.fire) g.fireLaser();

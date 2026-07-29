@@ -143,8 +143,8 @@ export class CombatComputer {
     }
 
     const c = this.state.control;
-    this.state.pitch = ramp(this.state.pitch, c.pitch * CC_MAX_PITCH, c.pitch !== 0, dt);
-    this.state.roll = ramp(this.state.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
+    this.state.pitch = ccRamp(this.state.pitch, c.pitch * CC_MAX_PITCH, c.pitch !== 0, dt);
+    this.state.roll = ccRamp(this.state.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
     return {
       kind: 'fly',
       demand: { pitchRate: this.state.pitch, rollRate: this.state.roll, throttle: c.throttle, fire: c.fire },
@@ -152,8 +152,13 @@ export class CombatComputer {
   }
 }
 
-/** Mirrors the rate ramp in npc.ts brainFly and ai-training/core.ts stepShip. */
-function ramp(cur: number, target: number, active: boolean, dt: number): number {
+/**
+ * Mirrors the rate ramp in npc.ts brainFly and ai-training/core.ts stepShip.
+ *
+ * Exported so train/jameson-autopilot.js — the console harness that stands in
+ * for this autopilot — can use it instead of writing 4.0/5.0 out again.
+ */
+export function ccRamp(cur: number, target: number, active: boolean, dt: number): number {
   const rate = active ? 4.0 : 5.0;
   const next = cur + (target - cur) * Math.min(1, rate * dt);
   return Math.abs(next) < 0.001 && !active ? 0 : next;

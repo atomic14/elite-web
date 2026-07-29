@@ -34,6 +34,39 @@ const RATE_RAMP = 4.0;
  */
 const RATE_DECAY = 12.0;
 
+/**
+ * The player's flight envelope, in one place a harness can read.
+ *
+ * Nothing in `src` uses this — `update()` below reads the constants directly.
+ * It exists because the console harnesses that fly the player's ship with a
+ * trained policy (test/playtest.js, test/gang-trial.js) each hand-copied these
+ * numbers, and both had drifted to roughly HALF the real pitch and roll —
+ * 0.7/1.2 against 1.45/2.5, ramping 4/5 against 4/12. Every "can a commander
+ * survive this?" figure they produced was measured on a ship that does not
+ * ship. One rule, one home; this is the home.
+ */
+export const PLAYER_FLIGHT = {
+  maxSpeed: MAX_SPEED,
+  accel: ACCEL,
+  maxRoll: MAX_ROLL,
+  maxPitch: MAX_PITCH,
+  rateRamp: RATE_RAMP,
+  rateDecay: RATE_DECAY,
+} as const;
+
+/**
+ * The rate ramp the player's controls use, exported for the same reason as
+ * PLAYER_FLIGHT: a harness that copies the caps but not the ramp is still
+ * flying a different ship.
+ */
+export function rampFlightRate(
+  current: number, target: number, active: boolean, dt: number,
+): number {
+  const rate = active ? RATE_RAMP : RATE_DECAY;
+  const next = current + (target - current) * Math.min(1, rate * dt);
+  return Math.abs(next) < 0.001 && !active ? 0 : next;
+}
+
 export class PlayerShip {
   readonly position = new THREE.Vector3();
   readonly quaternion = new THREE.Quaternion();
@@ -73,8 +106,8 @@ export class PlayerShip {
       input.decayMouse(dt);
     }
 
-    this.rollRate = ramp(this.rollRate, rollIn * MAX_ROLL, rollIn !== 0, dt);
-    this.pitchRate = ramp(this.pitchRate, pitchIn * MAX_PITCH, pitchIn !== 0, dt);
+    this.rollRate = rampFlightRate(this.rollRate, rollIn * MAX_ROLL, rollIn !== 0, dt);
+    this.pitchRate = rampFlightRate(this.pitchRate, pitchIn * MAX_PITCH, pitchIn !== 0, dt);
 
     if (input.held(...keys.accel)) this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt);
     // slash only decelerates unshifted — ? opens the controls guide
@@ -99,9 +132,3 @@ export class PlayerShip {
 
 const AXIS_X = new THREE.Vector3(1, 0, 0);
 const AXIS_Z = new THREE.Vector3(0, 0, 1);
-
-function ramp(current: number, target: number, active: boolean, dt: number): number {
-  const rate = active ? RATE_RAMP : RATE_DECAY;
-  const next = current + (target - current) * Math.min(1, rate * dt);
-  return Math.abs(next) < 0.001 && !active ? 0 : next;
-}

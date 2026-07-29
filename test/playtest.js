@@ -14,16 +14,50 @@
  *
  * It backs up your commander first and restores it at the end, and prints
  * a report: what it achieved, what it saw, and every invariant violation.
+ *
+ * Nothing here reimplements a game rule. This file is pasted into a console
+ * and cannot use a static `import`, but it CAN use a dynamic one against the
+ * dev server (test/gang-trial.js already does), so every rule it needs is
+ * loaded from the module that owns it. It used to carry copies — the market
+ * model with the `& 0xff` wrap missing and no living galaxy, the contraband
+ * list, the hold's unit table, the chart metric, the player's turn rates —
+ * and each one was a measurement quietly taken on a different game.
  */
-(() => {
+(async () => {
   const g = window.__game;
   const kit = window.__policyKit;
   if (!g || !kit) { console.error('open the game first'); return; }
 
+  //   galaxy.ts     the 1984 market model, byte wrap and all
+  //   navigation.ts the chart distance metric
+  //   contracts.ts  the living galaxy's price pressure on top of it
+  //   law.ts        CONTRABAND — the ONE definition
+  //   commander.ts  what counts against the hold, and how big it is
+  //   storage.ts    which localStorage keys this commander occupies
+  //   player.ts     the ship's real pitch, roll, acceleration and rate ramp
+  const [galaxyMod, navMod, contractsMod, lawMod, commanderMod, storageMod, playerMod] =
+    await Promise.all([
+      import('/src/galaxy/galaxy.ts'),
+      import('/src/galaxy/navigation.ts'),
+      import('/src/game/contracts.ts'),
+      import('/src/game/law.ts'),
+      import('/src/game/commander.ts'),
+      import('/src/game/storage.ts'),
+      import('/src/player.ts'),
+    ]);
+  const { COMMODITIES, generateMarket } = galaxyMod;
+  const { distanceTenths } = navMod;
+  const { applyMarketPressure } = contractsMod;
+  const { isContraband } = lawMod;
+  const { cargoTonnes: holdTonnes, cargoCapacity: holdCapacity } = commanderMod;
+  const { slotKeys } = storageMod;
+  const { PLAYER_FLIGHT, rampFlightRate } = playerMod;
+
   const V = g.player.position.clone().constructor;
   const Q = g.player.quaternion.clone().constructor;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const TONNES = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1];
+  /** kg and g commodities don't take hold space — galaxy.ts says which. */
+  const isTonne = (i) => COMMODITIES[i].unit === 't';
 
   const pt = window.__playtest = {
     report: null,
@@ -47,12 +81,18 @@
       if (c.fuel < -0.001 || c.fuel > 70.001) this.fail(`fuel out of range (${c.fuel})`);
       if (c.missiles < 0 || c.missiles > 4) this.fail(`missiles out of range (${c.missiles})`);
       if (c.cargo.some((q) => q < 0)) this.fail('negative cargo quantity');
-      const tonnes = c.cargo.reduce((s, q, i) => s + (TONNES[i] ? q : 0), 0);
-      const cap = c.equipment.largeBay ? 35 : 20;
+      // the game's own hold arithmetic — the copy here missed the rescued
+      // survivors that also take a bay, so it could not see a real overfill
+      const tonnes = holdTonnes(c);
+      const cap = holdCapacity(c);
       if (tonnes > cap) this.fail(`hold overfilled (${tonnes}/${cap})`);
       if (g.energy < -0.001 || g.energy > 4.001) this.fail(`energy out of range (${g.energy})`);
-      const modes = ['docked', 'flight', 'market', 'chart', 'local', 'equip',
-        'status', 'data', 'contracts', 'dead'];
+      // the three base modes plus every ScreenId (ui/screen-host.ts) — the
+      // list had not been updated for saves/naming/briefing, so any of them
+      // would have been reported as a soft lock rather than a screen
+      const modes = ['docked', 'flight', 'dead',
+        'market', 'equip', 'contracts', 'status', 'data',
+        'chart', 'local', 'saves', 'naming', 'briefing'];
       if (!modes.includes(g.mode)) this.fail(`unknown mode "${g.mode}"`);
       for (const n of g.npcs) {
         if (!Number.isFinite(n.object.position.x)) this.fail(`${n.role} position became non-finite`);
@@ -77,6 +117,11 @@
     obsBuf: new Float32Array(18),
     scratch: kit.makeScratch(),
     cPitch: 0, cRoll: 0, cTimer: 0, cControl: null,
+    // `cls` is the OBSERVATION normaliser, not the ship. It stays at the
+    // trader-Cobra the defence policy was trained flying — same values
+    // combat-computer.ts feeds it — because changing it moves the observation
+    // out of the distribution the brain learned. The ship it actually flies is
+    // PLAYER_FLIGHT, below.
     meView: { pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 0,
       cls: { maxSpeed: 220, turnRate: 0.5 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
     tgView: { pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 280,
@@ -108,16 +153,16 @@
         this.cControl = kit.act(kit.defendBrain, kit.observe(me, tv, this.obsBuf), this.scratch);
       }
       const c = this.cControl;
-      const maxPitch = 0.7, maxRoll = 1.2;
-      const ramp = (cur, tgt, active) => {
-        const r = active ? 4 : 5;
-        const nx = cur + (tgt - cur) * Math.min(1, r * dt);
-        return Math.abs(nx) < 0.001 && !active ? 0 : nx;
-      };
-      this.cPitch = ramp(this.cPitch, c.pitch * maxPitch, c.pitch !== 0);
-      this.cRoll = ramp(this.cRoll, c.roll * maxRoll, c.roll !== 0);
-      if (c.throttle > 0) g.player.speed = Math.min(300, g.player.speed + 120 * dt);
-      if (c.throttle < 0) g.player.speed = Math.max(0, g.player.speed - 120 * dt);
+      // The ship that ships. This was 0.7 pitch / 1.2 roll / 120 accel /
+      // 300 top speed with a 4-5 ramp — half the real pitch and roll (1.45 and
+      // 2.5), a fifth off the acceleration, and a decay of 5 where the real
+      // controls bleed off at 12. src/player.ts owns these; PLAYER_FLIGHT and
+      // rampFlightRate are exported so they cannot drift apart again.
+      const F = PLAYER_FLIGHT;
+      this.cPitch = rampFlightRate(this.cPitch, c.pitch * F.maxPitch, c.pitch !== 0, dt);
+      this.cRoll = rampFlightRate(this.cRoll, c.roll * F.maxRoll, c.roll !== 0, dt);
+      if (c.throttle > 0) g.player.speed = Math.min(F.maxSpeed, g.player.speed + F.accel * dt);
+      if (c.throttle < 0) g.player.speed = Math.max(0, g.player.speed - F.accel * dt);
       if (this.cRoll) g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(0, 0, 1), this.cRoll * dt));
       if (this.cPitch) g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(1, 0, 0), this.cPitch * dt));
       if (c.fire) g.fireLaser();
@@ -128,7 +173,7 @@
     lastSpend: 0,
 
     cargoTonnes() {
-      return g.commander.cargo.reduce((s, q, i) => s + (TONNES[i] ? q : 0), 0);
+      return holdTonnes(g.commander);
     },
 
     /** Take a contract if one looks doable, and report where it wants us. */
@@ -137,7 +182,7 @@
       if (c.contracts.length >= 2 || !g.contractOffers.length) return null;
       for (let i = 0; i < g.contractOffers.length; i++) {
         const k = g.contractOffers[i];
-        if (k.kind === 'cargo' && this.cargoTonnes() + k.qty > (c.equipment.largeBay ? 35 : 20)) continue;
+        if (k.kind === 'cargo' && this.cargoTonnes() + k.qty > holdCapacity(c)) continue;
         g.contractSelected = i;
         const before = c.contracts.length;
         g.acceptContract();
@@ -173,7 +218,7 @@
       for (const k of c.contracts) {
         if (k.kind === 'cargo') committed.set(k.commodity, (committed.get(k.commodity) ?? 0) + k.qty);
       }
-      for (let i = 0; i < 17; i++) {
+      for (let i = 0; i < COMMODITIES.length; i++) {
         const keep = committed.get(i) ?? 0;
         while (c.cargo[i] > keep) {
           c.cargo[i] -= 1;
@@ -186,24 +231,54 @@
       if (c.fuel < 70) g.buyEquipment('fuel');
     },
 
+    /**
+     * What `index` will pay per commodity, averaged over every fluctuation
+     * byte — the real market model, not a paraphrase of it.
+     *
+     * This was a hand-copied BASE/GRAD/MASK table and the expression
+     * `(BASE + MASK/2 + economy*GRAD) * 0.4`, which had dropped the `& 0xff`
+     * byte wrap galaxy.ts applies. Two things it got wrong, and it is worth
+     * being exact about which, because they are different sizes:
+     *
+     *  - The missing wrap. Measured against generateMarket across all eight
+     *    economies, exactly one commodity overflows a byte: NARCOTICS (base
+     *    0xeb, gradient +29, mask 0x78), overvalued by up to 140.8 Cr —
+     *    199.2 against a real 58.4. Every other commodity matched to the
+     *    penny, because the mean of `fluctuation & mask` really is mask/2.
+     *    Narcotics is contraband, and the filter below skips it, so this one
+     *    was a live round that happened to be pointed at the floor.
+     *  - The living galaxy. The old estimate had never heard of it, so it
+     *    quoted baseline prices at a destination that may be ±25% off them —
+     *    that one was affecting every choice, every leg.
+     *
+     * No cache: the pressure moves as the galaxy trades, and a price list
+     * kept past its moment is the thing this file is meant to catch.
+     */
+    expectedPrices(index) {
+      const mean = COMMODITIES.map(() => 0);
+      for (let f = 0; f < 256; f++) {
+        const m = applyMarketPressure(
+          generateMarket(g.systems[index], f),
+          (i) => g.living.priceMultiplier(index, i));
+        for (let i = 0; i < m.length; i++) mean[i] += m[i].price / 256;
+      }
+      return mean;
+    },
+
     /** Sell everything, refuel, then buy the most profitable legal cargo for `dest`. */
     trade(destIndex) {
       const c = g.commander;
       this.liquidate();
-      // buy for the destination economy
-      const dest = g.systems[destIndex];
-      const GRAD = [-2, -1, -3, -5, -5, 8, 29, 14, 6, 1, 13, -9, -1, -1, -2, -1, 15];
-      const BASE = [0x13, 0x14, 0x41, 0x28, 0x53, 0xc4, 0xeb, 0x9a, 0x75, 0x4e, 0x7c, 0xb0, 0x20, 0x61, 0xab, 0x2d, 0x35];
-      const MASK = [1, 3, 7, 31, 15, 3, 120, 3, 7, 31, 7, 63, 3, 7, 31, 15, 7];
-      const ILLEGAL = [3, 6, 10];
+      // buy for the destination market
+      const expect = this.expectedPrices(destIndex);
       let best = -1, bestScore = 0.5;
-      for (let i = 0; i < 17; i++) {
-        if (ILLEGAL.includes(i) || !TONNES[i] || g.market[i].quantity <= 0) continue;
-        const expect = (BASE[i] + MASK[i] / 2 + dest.economy * GRAD[i]) * 0.4;
-        const margin = expect - g.market[i].price;
+      for (let i = 0; i < COMMODITIES.length; i++) {
+        // isContraband is law.ts's — the bare literals [3, 6, 10] were here
+        if (isContraband(i) || !isTonne(i) || g.market[i].quantity <= 0) continue;
+        const margin = expect[i] - g.market[i].price;
         const cost = Math.round(g.market[i].price * 10);
         const units = Math.min(g.market[i].quantity, Math.floor(c.credits / cost),
-          (c.equipment.largeBay ? 35 : 20) - this.cargoTonnes());
+          holdCapacity(c) - this.cargoTonnes());
         if (units > 0 && units * margin > bestScore) { bestScore = units * margin; best = i; }
       }
       this.lastSpend = 0;
@@ -382,14 +457,22 @@
     // ---- the main loop --------------------------------------------------
 
     async run({ legs = 20, log = false } = {}) {
-      const backup = localStorage.getItem('elite-web-commander');
+      // The commander lives in a SLOT — `elite-web-commander:<slot>`, and the
+      // mid-flight world in `elite-web-world:<slot>` beside it (storage.ts).
+      // This used to back up and clear the unslotted `elite-web-commander`,
+      // which nothing has read since slots arrived: respawn() reloaded the
+      // player's OWN commander instead of a fresh Jameson, every dock
+      // overwrote the real save, docking cleared the real saved world, and the
+      // restore at the end put the backup somewhere no loader looks.
+      const keys = Object.values(slotKeys());
+      const backup = keys.map((k) => localStorage.getItem(k));
       this.violations = [];
       this.seen = new Set();
       const history = [];
       const start = performance.now();
 
       try {
-        localStorage.removeItem('elite-web-commander');
+        for (const k of keys) localStorage.removeItem(k);
         g.respawn();
         let deaths = 0;
 
@@ -415,8 +498,8 @@
           if (dest === null || dest === g.commander.systemIndex) {
             const here = g.systems[g.commander.systemIndex];
             const reach = g.systems.filter((s) => {
-              const dx = s.x - here.x, dy = (s.y - here.y) / 2;
-              const d = Math.round(4 * Math.sqrt(dx * dx + dy * dy));
+              // navigation.ts owns the 1984 chart metric; this was a fifth copy
+              const d = distanceTenths(here, s);
               return s.index !== here.index && d > 0 && d <= g.commander.fuel;
             });
             if (!reach.length) { this.fail('no system in fuel range'); break; }
@@ -475,8 +558,10 @@
         }
         return this.report;
       } finally {
-        if (backup) localStorage.setItem('elite-web-commander', backup);
-        else localStorage.removeItem('elite-web-commander');
+        keys.forEach((k, i) => {
+          if (backup[i] === null) localStorage.removeItem(k);
+          else localStorage.setItem(k, backup[i]);
+        });
         console.log('commander save restored — reload the page');
       }
     },

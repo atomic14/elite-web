@@ -637,14 +637,46 @@ function report(label: string, careers: CareerResult[], strategy: Strategy): voi
       <= upgradeBy);
   assert('most contracts are completed rather than failed',
     num(careers.map((r) => r.contractsDone)) > num(careers.map((r) => r.contractsFailed)));
+  // Deaths per career DO NOT SCALE WITH LEGS, so the bound must not either.
+  //
+  // It was `< LEGS * 0.25`: 15 at the default 60 legs against a measured 0.9,
+  // and 11,250 on a 45,000-leg run — a number no economy could ever reach, on
+  // the assertion that is supposed to notice piracy turning lethal. Measured
+  // instead, the figure saturates early and then flattens, because a
+  // commander who survives the first few legs is a commander who has bought
+  // shields:
+  //
+  //   trader     0.9 (60 legs) · 1.0 (300) · 1.0 (1000) · 0.8 (45,000)
+  //   privateer  0.4 (60)      · 0.6 (300) · 0.6 (1000) · 0.8 (45,000)
+  //   hunter     2.5 (60)      · 5.4 (300) · 5.5 (1000) · 4.8 (45,000)
+  //
+  // A hunter goes looking for fights and dies about five times a career; the
+  // other two die about once, whatever the length. Bounds are fixed and
+  // strategy-aware, at roughly 1.7x and 3x the worst measured value — tight
+  // enough that doubling anyone's lethality fails here.
+  const deathCeiling = strategy === 'hunter' ? 9 : 3;
   assert('piracy costs cargo without ending most careers',
-    num(careers.map((r) => r.deaths)) < LEGS * 0.25);
-  // Calibrated for the default 60-leg run; a 45,000-leg career to Elite is
-  // legitimately worth millions, so the ceiling scales with the run length.
-  // The point is catching runaway/exponential wealth bugs, not long careers.
+    num(careers.map((r) => r.deaths)) < deathCeiling,
+    `${num(careers.map((r) => r.deaths)).toFixed(1)} deaths per career, ceiling ${deathCeiling}`);
+  // Runaway wealth, per leg rather than per career.
+  //
+  // Was 5,000,000 Cr at 60 legs against a measured best of 17,300 — 281x
+  // headroom, which is not a bound, it is a formality. What the number
+  // actually does is grow with the length of the run, at 300-400 Cr of net
+  // worth per leg for the best career in a cohort:
+  //
+  //   60 legs 17,673 Cr (294/leg) · 300 legs 106,502 (355) ·
+  //   1,000 legs 399,006 (399)    · 45,000 legs 16,721,676 (372)
+  //
+  // 2,000 Cr per leg — 20,000 tenths — is therefore about 5x the worst
+  // measured value at every run length tested, and 40x tighter than what it
+  // replaces. The floor keeps a very short run from being judged on its
+  // start-up bonus. Still the same job: catch runaway/exponential wealth
+  // bugs, not long careers.
+  const wealthCeiling = 20_000 * Math.max(60, LEGS);
   assert('nobody accumulates absurd wealth',
-    Math.max(...worth) < 50_000_000 * Math.max(1, LEGS / 60),
-    `best ${cr(Math.max(...worth))} Cr over ${LEGS} legs`);
+    Math.max(...worth) < wealthCeiling,
+    `best ${cr(Math.max(...worth))} Cr over ${LEGS} legs, ceiling ${cr(wealthCeiling)} Cr`);
   assert('credits never go negative', credits.every((x) => x >= 0));
   assert('the living galaxy actually moves prices', hi - lo > 0.05, `${lo.toFixed(2)}..${hi.toFixed(2)}`);
 

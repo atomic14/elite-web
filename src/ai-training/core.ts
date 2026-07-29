@@ -80,6 +80,22 @@ export function randDir(rng: () => number): V3 {
 
 // --- ship classes (mirror the game's specs) --------------------------------
 
+/**
+ * How fast a released turn bleeds off — and the game has TWO of these, which
+ * this file had one of.
+ *
+ * player.ts decays at 12.0 (deliberately tightened from 5.0, so a light tap
+ * stops when you stop). npc.ts's brainFly still decays at 5.0. One constant
+ * here cannot be right for both, and both models are stepped by this function.
+ *
+ * The history is worth keeping: an audit found the sim at 5.0 against the
+ * player's 12.0, this file was "corrected" to 12.0 — and that silently broke
+ * the NPC side, which had been the one that matched. It is per-class now, so
+ * neither half can be wrong without the other being visibly wrong too.
+ */
+export const PLAYER_RATE_DECAY = 12.0;
+export const NPC_RATE_DECAY = 5.0;
+
 export interface ShipClass {
   name: string;
   hp: number;
@@ -88,6 +104,11 @@ export interface ShipClass {
   turnRate: number;
   radius: number;
   accel: number;
+  /**
+   * Turn-rate decay for this hull. Defaults to NPC_RATE_DECAY; only the player
+   * model overrides it, because only the player's ship decays at 12.0.
+   */
+  rateDecay?: number;
   /**
    * Floor under this hull's speed: it cannot be throttled below this.
    *
@@ -127,7 +148,7 @@ export const CLASSES: Record<string, ShipClass> = {
    * measured in the game, a Sidewinder is lined up on the player for 5% of a
    * fight. Keep in step with player.ts (invariant 2).
    */
-  playerCobra: { name: 'Cobra Mk III (player)', hp: 1.0, maxSpeed: 400, turnRate: 1.036, radius: 34, accel: 220 },
+  playerCobra: { name: 'Cobra Mk III (player)', hp: 1.0, maxSpeed: 400, turnRate: 1.036, radius: 34, accel: 220, rateDecay: PLAYER_RATE_DECAY },
   /**
    * How a human actually flies in a dogfight, from Chris's recorded envelope:
    * median speed 66, pitch held at 1.36 of a possible 1.45. He turns almost on
@@ -139,7 +160,7 @@ export const CLASSES: Record<string, ShipClass> = {
    * the player is doing 300. A pursuer that has never seen a slow target has
    * no policy for one.
    */
-  playerCobraSlow: { name: 'Cobra Mk III (player, knife-fighting)', hp: 1.0, maxSpeed: 90, turnRate: 1.036, radius: 34, accel: 120 },
+  playerCobraSlow: { name: 'Cobra Mk III (player, knife-fighting)', hp: 1.0, maxSpeed: 90, turnRate: 1.036, radius: 34, accel: 120, rateDecay: PLAYER_RATE_DECAY },
 };
 
 // laser model — mirrors the player's pulse laser in game/gunnery.ts
@@ -292,10 +313,11 @@ const RATE_RAMP = 4.0;
  * the very next field, and the parity test asserted ACCEL and MAX_SPEED on
  * either side of it without asserting this. Found by audit, not by CI.
  */
-const RATE_DECAY = 12.0;
 
-function ramp(current: number, target: number, active: boolean, dt: number): number {
-  const rate = active ? RATE_RAMP : RATE_DECAY;
+function ramp(
+  current: number, target: number, active: boolean, dt: number, decay: number,
+): number {
+  const rate = active ? RATE_RAMP : decay;
   const next = current + (target - current) * Math.min(1, rate * dt);
   return Math.abs(next) < 0.001 && !active ? 0 : next;
 }
@@ -304,8 +326,9 @@ function ramp(current: number, target: number, active: boolean, dt: number): num
 export function stepShip(s: SimShip, c: Control, dt: number): void {
   const maxPitch = s.cls.turnRate * TURN.pitch;
   const maxRoll = s.cls.turnRate * TURN.roll;
-  s.pitchRate = ramp(s.pitchRate, c.pitch * maxPitch, c.pitch !== 0, dt);
-  s.rollRate = ramp(s.rollRate, c.roll * maxRoll, c.roll !== 0, dt);
+  const decay = s.cls.rateDecay ?? NPC_RATE_DECAY;
+  s.pitchRate = ramp(s.pitchRate, c.pitch * maxPitch, c.pitch !== 0, dt, decay);
+  s.rollRate = ramp(s.rollRate, c.roll * maxRoll, c.roll !== 0, dt, decay);
   if (c.throttle > 0) s.speed = Math.min(s.cls.maxSpeed, s.speed + s.cls.accel * dt);
   if (c.throttle < 0) s.speed = Math.max(s.cls.minSpeed ?? 0, s.speed - s.cls.accel * dt);
 

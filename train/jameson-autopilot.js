@@ -15,7 +15,7 @@
  * only concession is perfectly-aligned docking approaches (a stand-in for
  * the docking computer).
  */
-(() => {
+(async () => {
   const g = window.__game;
   const kit = window.__policyKit;
   if (!g || !kit) { console.error('open the game first'); return; }
@@ -24,17 +24,47 @@
   const stepN = (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) g.update(dt, performance.now() / 1000 + i * dt); };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // commodity table mirror: [basePrice, gradient, mask]; unit-tonnes flags; contraband
-  const COMMODITIES = [
-    [0x13, -2, 0x01], [0x14, -1, 0x03], [0x41, -3, 0x07], [0x28, -5, 0x1f], [0x53, -5, 0x0f],
-    [0xc4, 8, 0x03], [0xeb, 29, 0x78], [0x9a, 14, 0x03], [0x75, 6, 0x07], [0x4e, 1, 0x1f],
-    [0x7c, 13, 0x07], [0xb0, -9, 0x3f], [0x20, -1, 0x03], [0x61, -1, 0x07], [0xab, -2, 0x1f],
-    [0x2d, -1, 0x0f], [0x35, 15, 0x07]];
-  const TONNES = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1];
-  const ILLEGAL = [3, 6, 10];
-  const NAMES = ['Food', 'Textiles', 'Radioactives', 'Slaves', 'Liquor', 'Luxuries', 'Narcotics',
-    'Computers', 'Machinery', 'Alloys', 'Firearms', 'Furs', 'Minerals', 'Gold', 'Platinum', 'Gems', 'AlienItems'];
-  const expSell = (i, econ) => (COMMODITIES[i][0] + COMMODITIES[i][2] / 2 + econ * COMMODITIES[i][1]) * 0.4;
+  // The rules, from the modules that own them. A console paste cannot use a
+  // static `import`, but it can use a dynamic one against the dev server —
+  // which is how the commodity table, the contraband list and the autopilot's
+  // turn rates stop being copies kept in step by hope.
+  const [galaxyMod, contractsMod, lawMod, ccMod, storageMod] = await Promise.all([
+    import('/src/galaxy/galaxy.ts'),
+    import('/src/game/contracts.ts'),
+    import('/src/game/law.ts'),
+    import('/src/game/combat-computer.ts'),
+    import('/src/game/storage.ts'),
+  ]);
+  const { COMMODITIES, generateMarket } = galaxyMod;
+  const { applyMarketPressure } = contractsMod;
+  const { isContraband } = lawMod;
+  const { CC_MAX_PITCH, CC_MAX_ROLL, CC_MAX_SPEED, CC_ACCEL, ccRamp } = ccMod;
+  const { slotKeys } = storageMod;
+
+  const isTonne = (i) => COMMODITIES[i].unit === 't';
+
+  /**
+   * What `index` pays per commodity, averaged over every fluctuation byte.
+   *
+   * This was a transcribed [basePrice, gradient, mask] table and
+   * `(base + mask/2 + econ*gradient) * 0.4` — the 1984 formula with the
+   * `& 0xff` byte wrap left off, and with no knowledge of the living galaxy's
+   * ±25% price pressure at the far end. Of the two, the pressure was the one
+   * distorting every leg: the wrap only bites Narcotics (overvalued by up to
+   * 140.8 Cr), which is contraband and skipped anyway. It now runs galaxy.ts's
+   * own model over all 256 fluctuations with contracts.ts's pressure on top,
+   * which is exactly what the destination will quote.
+   */
+  const expectedPrices = (index) => {
+    const mean = COMMODITIES.map(() => 0);
+    for (let f = 0; f < 256; f++) {
+      const m = applyMarketPressure(
+        generateMarket(g.systems[index], f),
+        (i) => g.living.priceMultiplier(index, i));
+      for (let i = 0; i < m.length; i++) mean[i] += m[i].price / 256;
+    }
+    return mean;
+  };
 
   const auto = window.__auto = {
     log: [],
@@ -46,24 +76,34 @@
     tgView: { pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 280,
       cls: { maxSpeed: 300, turnRate: 1.1 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
 
-    cargoTonnes() { return g.commander.cargo.reduce((s, q, i) => s + (TONNES[i] ? q : 0), 0); },
+    cargoTonnes() {
+      return g.commander.cargo.reduce((s, q, i) => s + (isTonne(i) ? q : 0), 0);
+    },
 
     buyBest(destIndex) {
-      const dest = g.systems[destIndex];
       // Refuel through the REAL purchase path. This file is pasted into the
       // console and cannot import FUEL_PRICE, so recomputing `need * 0.4` here
       // was a fourth copy of the pricing rule waiting to drift. buyEquipment
-      // charges the right amount and checks affordability itself.
+      // charges the right amount and checks affordability itself — and what it
+      // charged is the difference, which is also how the fuel cost gets into
+      // the ledger. It used to be read from `fuelNeed`/`fuelCost`, two
+      // variables that no longer existed: buyBest threw a ReferenceError on
+      // every call and no trial had run since.
+      const beforeFuel = g.commander.credits;
       g.buyEquipment('fuel');
+      const fuelCost = beforeFuel - g.commander.credits;
+
+      const expect = expectedPrices(destIndex);
       let best = -1, bestScore = 0.5;
-      for (let i = 0; i < 17; i++) {
-        if (ILLEGAL.includes(i) || !TONNES[i]) continue;
+      for (let i = 0; i < COMMODITIES.length; i++) {
+        // law.ts owns the contraband set; this was the literal [3, 6, 10]
+        if (isContraband(i) || !isTonne(i)) continue;
         const m = g.market[i];
         if (m.quantity <= 0) continue;
         const cost = Math.round(m.price * 10);
         const units = Math.min(m.quantity, Math.floor(g.commander.credits / cost), 20 - this.cargoTonnes());
         if (units <= 0) continue;
-        const score = units * (expSell(i, dest.economy) - m.price);
+        const score = units * (expect[i] - m.price);
         if (score > bestScore) { bestScore = score; best = i; }
       }
       let bought = 0, spent = 0;
@@ -76,12 +116,12 @@
           bought++; spent += cost;
         }
       }
-      return { commodity: best, bought, spent, fuelCost: fuelNeed > 0 ? fuelCost : 0 };
+      return { commodity: best, bought, spent, fuelCost };
     },
 
     sellAll() {
       let revenue = 0;
-      for (let i = 0; i < 17; i++) {
+      for (let i = 0; i < COMMODITIES.length; i++) {
         const m = g.market[i];
         while (g.commander.cargo[i] > 0) {
           g.commander.cargo[i]--; m.quantity++;
@@ -126,17 +166,17 @@
         this.cControl = kit.act(kit.defendBrain, kit.observe(me, tv, this.obsBuf), this.scratch);
       }
       const c = this.cControl;
-      // trader-Cobra dynamics: the distribution the policy trained in
-      const maxPitch = 0.5 * 1.4, maxRoll = 0.5 * 2.4;
-      const ramp = (cur, tgt, active) => {
-        const r = active ? 4.0 : 5.0;
-        const nx = cur + (tgt - cur) * Math.min(1, r * dt);
-        return Math.abs(nx) < 0.001 && !active ? 0 : nx;
-      };
-      this.cPitch = ramp(this.cPitch, c.pitch * maxPitch, c.pitch !== 0);
-      this.cRoll = ramp(this.cRoll, c.roll * maxRoll, c.roll !== 0);
-      if (c.throttle > 0) g.player.speed = Math.min(220, g.player.speed + 100 * dt);
-      if (c.throttle < 0) g.player.speed = Math.max(0, g.player.speed - 100 * dt);
+      // Trader-Cobra dynamics: the distribution the policy trained in, and
+      // therefore also what the purchasable combat computer flies. These were
+      // written out here as 0.5*1.4, 0.5*2.4, 220 and 100 — byte-identical to
+      // combat-computer.ts's caps, which is why importing them changes no
+      // measurement in docs/JAMESON-TRIALS.md; it only removes the copy.
+      // (playtest.js and gang-trial.js are different: they claim to measure
+      // what a COMMANDER survives, so they fly src/player.ts's numbers.)
+      this.cPitch = ccRamp(this.cPitch, c.pitch * CC_MAX_PITCH, c.pitch !== 0, dt);
+      this.cRoll = ccRamp(this.cRoll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
+      if (c.throttle > 0) g.player.speed = Math.min(CC_MAX_SPEED, g.player.speed + CC_ACCEL * dt);
+      if (c.throttle < 0) g.player.speed = Math.max(0, g.player.speed - CC_ACCEL * dt);
       if (this.cRoll) g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(0, 0, 1), this.cRoll * dt));
       if (this.cPitch) g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(1, 0, 0), this.cPitch * dt));
       if (c.fire) g.fireLaser();
@@ -241,7 +281,7 @@
       if (g.mode === 'docked') revenue = this.sellAll();
       const rec = {
         leg: `${from} -> ${g.systems[g.commander.systemIndex].name}`,
-        cargo: buy.commodity >= 0 ? `${buy.bought}t ${NAMES[buy.commodity]}` : 'empty',
+        cargo: buy.commodity >= 0 ? `${buy.bought}t ${COMMODITIES[buy.commodity].name}` : 'empty',
         tradeProfit: +((revenue - buy.spent - buy.fuelCost) / 10).toFixed(1),
         bounty: +((g.commander.credits - creditsStart - revenue) / 10).toFixed(1),
         credits: +(g.commander.credits / 10).toFixed(1),
@@ -257,9 +297,16 @@
       const a = g.systems.findIndex((s) => s.name === systemA);
       const b = g.systems.findIndex((s) => s.name === systemB);
       if (a < 0 || b < 0) { console.error('unknown system name'); return; }
-      const backup = localStorage.getItem('elite-web-commander');
+      // The commander lives in a SLOT (storage.ts) — `elite-web-commander:1`
+      // by default, with the mid-flight world beside it. This backed up and
+      // cleared the pre-slots `elite-web-commander`, which no loader has read
+      // since slots arrived, so `respawn()` reloaded the player's OWN
+      // commander rather than a fresh Jameson, every dock overwrote the real
+      // save, and the restore put it somewhere nothing looks.
+      const keys = Object.values(slotKeys());
+      const backup = keys.map((k) => localStorage.getItem(k));
       try {
-        localStorage.removeItem('elite-web-commander');
+        for (const k of keys) localStorage.removeItem(k);
         g.respawn(); // fresh 100.0 Cr Jameson at Lave
         this.log = [];
         console.log(`Commander Jameson reporting. ${legs} legs, ${systemA} <-> ${systemB}.`);
@@ -277,8 +324,10 @@
           `${g.commander.kills} kills, legal ${g.commander.legalStatus}, ${g.mode}`);
         return this.log;
       } finally {
-        if (backup) localStorage.setItem('elite-web-commander', backup);
-        else localStorage.removeItem('elite-web-commander');
+        keys.forEach((k, i) => {
+          if (backup[i] === null) localStorage.removeItem(k);
+          else localStorage.setItem(k, backup[i]);
+        });
         console.log('your commander save is restored — reload the page');
       }
     },

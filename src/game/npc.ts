@@ -20,7 +20,23 @@ import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
  * `minSpeed` on the pirate hulls in ai-training/core.ts (110/260 and 130/300, both
  * about 0.43) — invariant 2.
  */
-const MIN_CRUISE_FRACTION = 0.43;
+export const MIN_CRUISE_FRACTION = 0.43;
+
+/**
+ * How hard a brain-flown NPC throttles, units/s. ONE number for every hull,
+ * where ai-training/core.ts gives each `ShipClass` its own `accel` — see the
+ * parity block in test/run.ts, which compares them.
+ */
+export const BRAIN_ACCEL = 120;
+
+/**
+ * How a brain-flown NPC's pitch/roll rates ramp up and bleed off. The same
+ * pair as RATE_RAMP/RATE_DECAY in ai-training/core.ts, which is the model the
+ * brains were fitted in — invariant 2, and the parity block in test/run.ts
+ * compares them.
+ */
+export const BRAIN_RATE_RAMP = 4.0;
+export const BRAIN_RATE_DECAY = 5.0;
 
 /**
  * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
@@ -666,13 +682,13 @@ export class NpcShip {
     const maxPitch = this.turnRate * TURN.pitch;
     const maxRoll = this.turnRate * TURN.roll;
     const rampTo = (cur: number, target: number, active: boolean): number => {
-      const rate = active ? 4.0 : 5.0;
+      const rate = active ? BRAIN_RATE_RAMP : BRAIN_RATE_DECAY;
       const next = cur + (target - cur) * Math.min(1, rate * dt);
       return Math.abs(next) < 0.001 && !active ? 0 : next;
     };
     this.brainPitchRate = rampTo(this.brainPitchRate, c.pitch * maxPitch, c.pitch !== 0);
     this.brainRollRate = rampTo(this.brainRollRate, c.roll * maxRoll, c.roll !== 0);
-    if (c.throttle > 0) this.speed = Math.min(this.maxSpeed, this.speed + 120 * dt);
+    if (c.throttle > 0) this.speed = Math.min(this.maxSpeed, this.speed + BRAIN_ACCEL * dt);
     // Floor, mirroring ShipClass.minSpeed in ai-training/core.ts — invariant 2. A
     // fighter that can stop dead becomes a turret, because standing still is
     // how you hold a firing line. Only hostiles get it; traders and haulers
@@ -680,7 +696,7 @@ export class NpcShip {
     if (c.throttle < 0) {
       const floor = this.role === 'pirate' || this.role === 'thargoid' || this.role === 'thargon'
         ? this.maxSpeed * MIN_CRUISE_FRACTION : 0;
-      this.speed = Math.max(floor, this.speed - 120 * dt);
+      this.speed = Math.max(floor, this.speed - BRAIN_ACCEL * dt);
     }
     if (this.brainRollRate !== 0) this.object.rotateZ(this.brainRollRate * dt);
     if (this.brainPitchRate !== 0) this.object.rotateX(this.brainPitchRate * dt);

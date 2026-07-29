@@ -46,6 +46,21 @@ export function currentSlot(): number {
   return Number.isInteger(n) && n >= 1 && n <= SAVE_SLOTS ? n : 1;
 }
 
+/**
+ * Every localStorage key a slot occupies.
+ *
+ * Exported for the console harnesses, which wipe the save to start a fresh
+ * commander and put the real one back afterwards. test/playtest.js was writing
+ * the key out by hand as the pre-slots `elite-web-commander` — a key nothing
+ * has read since slots arrived — so its run neither started fresh (respawn()
+ * reloads the slot, and got the player's own commander) nor restored anything,
+ * while every dock along the way overwrote the real save. The keys themselves
+ * do not move; only the knowledge of them does.
+ */
+export function slotKeys(slot = currentSlot()): { commander: string; world: string } {
+  return { commander: slotKey(slot), world: `${WORLD_KEY}:${slot}` };
+}
+
 export function setCurrentSlot(slot: number): void {
   try {
     localStorage.setItem(CURRENT_KEY, String(slot));
