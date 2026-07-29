@@ -14,9 +14,10 @@ import {
   generateContractOffers, pirateThreat, markOf, MAX_CONTRACTS, type PirateThreat,
 } from './contracts.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
-import { PlayerShip } from '../player.ts';
+import { PlayerShip, type FlightDemand } from '../player.ts';
 import { Input } from '../engine/input.ts';
-import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
+import { flightDemand } from '../engine/flight-controls.ts';
+import { layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
 import { Hud } from '../hud/hud.ts';
 import { buildHudFrame, hostilesNear } from '../hud/hud-binding.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
@@ -46,7 +47,7 @@ import {
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
-import { CombatComputer, CC_MAX_SPEED, CC_ACCEL } from './combat-computer.ts';
+import { CombatComputer } from './combat-computer.ts';
 import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
   type Missile, type OrdnanceReply,
@@ -163,8 +164,6 @@ const WITCHPOINT_RADII = 16;
 const SUN_KILL_DIST = 21_000;   // instant death
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
-const AXIS_X_CC = new THREE.Vector3(1, 0, 0);
-const AXIS_Z_CC = new THREE.Vector3(0, 0, 1);
 
 // view quaternions: front, rear, left, right (yaw about ship Y)
 const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
@@ -1390,15 +1389,17 @@ export class Game {
   }
 
   /**
-   * The jameson-defend policy flies the player's ship (at the trader-Cobra
-   * dynamics it trained in). Manual flight input disengages instantly.
+   * The jameson-defend policy flying the player's ship, at the trader-Cobra
+   * dynamics it trained in. Manual flight input disengages instantly.
+   *
+   * It only DECIDES: what comes back is a FlightDemand exactly like the one a
+   * pair of hands produces, and the same `PlayerShip.update` flies it.
+   *
+   * @returns null when it has just handed the ship back — the pilot's own
+   *          demand stands for this frame, as it did when this method applied
+   *          itself on top of manual flight.
    */
-  /**
-   * One frame of the combat computer. The policy decides how to fly; the Game
-   * applies it and pulls the trigger, because firing has consequences an
-   * autopilot has no business deciding.
-   */
-  private combatComputerStep(dt: number): void {
+  private combatComputerDemand(dt: number): FlightDemand | null {
     const manual = this.input.held(...manualFlightKeys())
       || Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15;
     const step = this.combatComputer.step(
@@ -1406,18 +1407,9 @@ export class Game {
     if (step.kind === 'disengage') {
       this.ccEngaged = false;
       this.hud.showMessage(step.reason, step.reason === 'MANUAL OVERRIDE' ? 2 : 3);
-      return;
+      return null;
     }
-    const d = step.demand;
-    if (d.throttle > 0) this.player.speed = Math.min(CC_MAX_SPEED, this.player.speed + CC_ACCEL * dt);
-    if (d.throttle < 0) this.player.speed = Math.max(0, this.player.speed - CC_ACCEL * dt);
-    if (d.rollRate !== 0) {
-      this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_Z_CC, d.rollRate * dt));
-    }
-    if (d.pitchRate !== 0) {
-      this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_X_CC, d.pitchRate * dt));
-    }
-    if (d.fire) this.fireLaser();
+    return step.demand;
   }
 
   /**
@@ -1538,17 +1530,42 @@ export class Game {
    * them.
    */
   private updateFlight(dt: number, elapsed: number): void {
-    this.flyPlayer(dt, elapsed);
+    const demand = this.flyPlayer(dt, elapsed);
     this.stepNpcs(dt);
     this.stepProjectilesAndEffects(dt);
-    if (this.stepShipSystems(dt)) return;   // died in the attempt
+    if (this.stepShipSystems(dt, demand)) return;   // died in the attempt
     this.checkHazards();
   }
 
-  /** The player's own motion: manual, autopilot, or torus. */
-  private flyPlayer(dt: number, elapsed: number): void {
-    this.player.update(dt, this.input);
-    if (this.ccEngaged) this.combatComputerStep(dt);
+  /**
+   * Who is flying, and what they want.
+   *
+   * ONE producer per frame: the hands at the keyboard, or the combat computer
+   * when it is engaged and still willing. The trigger is the union of the two
+   * — a fitted combat computer flies the ship, it does not take your gun off
+   * you.
+   */
+  private pilotDemand(dt: number): FlightDemand {
+    const hands = flightDemand(this.input, this.player, dt);
+    // the virtual stick self-centres; the producer is pure, so the mutation
+    // is ours to do, immediately after reading it
+    if (this.input.mouseFlight) this.input.decayMouse(dt);
+    if (!this.ccEngaged) return hands;
+    const auto = this.combatComputerDemand(dt);
+    return auto ? { ...auto, fire: auto.fire || hands.fire } : hands;
+  }
+
+  /**
+   * The player's own motion: one demand, applied. The docking computer still
+   * steers on top (it asks for a HEADING, not a rate — the one pilot left
+   * outside the seam) and the torus adds its own translation.
+   *
+   * @returns the demand, so the trigger is pulled once, where laser heat and
+   *          the rest of the ship's systems live.
+   */
+  private flyPlayer(dt: number, elapsed: number): FlightDemand {
+    const demand = this.pilotDemand(dt);
+    this.player.update(dt, demand);
     if (this.dcEngaged) this.dockingComputerStep(dt);
 
     // torus drive
@@ -1571,6 +1588,7 @@ export class Game {
         .multiplyScalar(this.player.speed * (this.torusEngaged && !this.massLocked() ? 8 : 1)),
     );
 
+    return demand;
   }
 
   /** Everyone else: decisions, despawns, collisions, and who else turns up. */
@@ -1696,9 +1714,11 @@ export class Game {
    * The commander's own ship: guns, recharge, heat, and the warnings that go
    * with them. @returns true if the frame ended in death.
    */
-  private stepShipSystems(dt: number): boolean {
-    // laser + systems
-    if (this.input.held(...keymap().fire) || this.input.mouseFire) this.fireLaser();
+  private stepShipSystems(dt: number, demand: FlightDemand): boolean {
+    // laser + systems. The trigger came in with the rest of the demand — from
+    // the hands, the combat computer, or both — and is pulled HERE because
+    // this is where the gun's heat and energy live.
+    if (demand.fire) this.fireLaser();
     regenerate(this.sys, dt, { energyUnit: this.commander.equipment.energyUnit });
 
     const sunDist = this.player.position.distanceTo(this.world.sunPos);

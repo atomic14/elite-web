@@ -72,8 +72,15 @@ an NPC's does not.
   node with no canvas and no browser. Game keeps delegating accessors so
   `g.commander` still works at ~500 call sites. The station's quaternion is
   still snapshotted by hand.
-- `step()` reads the keyboard directly. There is no intent/command layer, so
-  the player, an AI and a replay are not yet the same interface.
+- **Flight** now has an intent layer: `PlayerShip.update(dt, demand)` takes a
+  `FlightDemand` (rates, throttle, trigger) and the pilots produce one —
+  `engine/flight-controls.ts` from a keyboard, `combat-computer.ts` from the
+  defence brain, a harness by writing four numbers down. `player.ts` no longer
+  imports `Input`, and `game.ts` has one path: produce a demand, apply it.
+  What is left is the rest of the keyboard: `step()` still reads command keys
+  (missiles, charts, hyperspace) directly, so a replay can fly the ship but
+  cannot yet press T. The docking computer is the other holdout — it asks for
+  a HEADING rather than a rate, and still steers on top.
 - `Game`'s constructor calls `createRenderStack`, so a Game still needs a
   browser even though everything it simulates does not.
 
@@ -94,7 +101,8 @@ the fix belongs there rather than in this document.
 play.html / index.html / viewer.html   the game, the landing page, the AI viewer
 src/
   main.ts                   boot: new Game(canvas)
-  player.ts                 the player's flight model
+  player.ts                 the player's flight model — flies a FlightDemand,
+                            and has never heard of a keyboard
 
   game/
     game.ts                 THE ORCHESTRATOR: the frame, the step order, input
@@ -157,6 +165,7 @@ src/
 
   engine/render-stack.ts    the ONLY file that needs a GPU
   engine/input.ts           keyboard state (held/pressed/counts)
+  engine/flight-controls.ts what the hands are asking for: keys -> FlightDemand
   engine/keymap.ts          flight bindings, both layouts
   ships/geometry.ts         every hull as vertex/edge/face tables
   world/                    per-system scenery: shader sun and planet, station

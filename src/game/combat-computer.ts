@@ -5,12 +5,15 @@
 // well and shoots adequately — which is exactly what the training measured, so
 // it is honest about what it is.
 //
-// The module works out what the autopilot WANTS (pitch, roll, throttle,
-// trigger) and reports it; the Game applies it to the ship and pulls the
-// trigger, because firing has consequences — legal status, bounties, the
-// station's Vipers — that an autopilot has no business deciding.
+// The module works out what the autopilot WANTS and reports it as a
+// `FlightDemand` — the SAME thing a human's hands produce
+// (engine/flight-controls.ts), flown by the same `PlayerShip.update`. The
+// Game applies it and pulls the trigger, because firing has consequences —
+// legal status, bounties, the station's Vipers — that an autopilot has no
+// business deciding.
 
 import type * as THREE from 'three';
+import type { FlightDemand } from '../player.ts';
 import {
   act, observe, makeScratch, type ObservableShip, type Brain,
 } from '../ai-training/policy.ts';
@@ -31,18 +34,10 @@ export const CC_ACCEL = 100;
 /** Decisions per second, as the NPCs get. */
 const DECISION_INTERVAL = 0.1;
 
-export interface AutopilotDemand {
-  pitchRate: number;
-  rollRate: number;
-  /** -1, 0 or +1 */
-  throttle: number;
-  fire: boolean;
-}
-
 export type AutopilotStep =
   /** hands off — the reason is for the player */
   | { kind: 'disengage'; reason: string }
-  | { kind: 'fly'; demand: AutopilotDemand };
+  | { kind: 'fly'; demand: FlightDemand };
 
 /** Minimal view of a ship, so this needs no PlayerShip and no scene. */
 export interface AutopilotShip {
@@ -147,7 +142,14 @@ export class CombatComputer {
     this.state.roll = ccRamp(this.state.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
     return {
       kind: 'fly',
-      demand: { pitchRate: this.state.pitch, rollRate: this.state.roll, throttle: c.throttle, fire: c.fire },
+      demand: {
+        pitchRate: this.state.pitch,
+        rollRate: this.state.roll,
+        throttle: c.throttle,
+        fire: c.fire,
+        // it cruises rather than sprints — see FlightDemand.limits
+        limits: { accel: CC_ACCEL, maxSpeed: CC_MAX_SPEED },
+      },
     };
   }
 }

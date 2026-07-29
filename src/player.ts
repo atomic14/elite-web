@@ -1,10 +1,49 @@
-import * as THREE from 'three';
-import type { Input } from './engine/input.ts';
-import { keymap } from './engine/keymap.ts';
-
+// The player's flight model, and the language it is flown in.
+//
 // Elite-style flight: no inertia sliding, the ship goes where the nose
 // points. Roll/pitch rates ramp while a key is held and decay when released,
 // which gives the classic "keyboard analogue" feel.
+//
+// It knows nothing about keyboards. `update()` takes a FlightDemand — what
+// the pilot WANTS — and whoever is flying produces one: the human through
+// engine/flight-controls.ts, the defence policy through
+// game/combat-computer.ts, a harness or a replay by writing four numbers
+// down. That is the whole seam, and it is why no browser reaches this file.
+import * as THREE from 'three';
+
+/**
+ * What a pilot is asking of the ship this frame.
+ *
+ * Turn RATES rather than stick deflection, because the ramp belongs to the
+ * pilot and not to the hull: the human ramps against MAX_ROLL/MAX_PITCH with
+ * RATE_RAMP/RATE_DECAY, and the combat computer deliberately ramps against
+ * the softer caps the defence brain was trained at (CC_MAX_*, ccRamp). Both
+ * hand the ship a rate in rad/s; the ship turns at it and asks nothing.
+ */
+export interface FlightDemand {
+  /** roll rate, rad/s, about the ship's own Z */
+  rollRate: number;
+  /** pitch rate, rad/s, about the ship's own X (+ is nose up) */
+  pitchRate: number;
+  /** −1 brake · 0 coast · +1 open the throttle */
+  throttle: number;
+  /**
+   * The trigger. The ship does NOT fire — firing has consequences (legal
+   * status, bounties, the station's Vipers), so the Game reads this and
+   * decides, exactly as it does with an NPC's FireEvent.
+   */
+  fire: boolean;
+  /**
+   * Throttle envelope to fly this demand at; the ship's own when omitted.
+   *
+   * The one widening of the old `AutopilotDemand`, and it earns its keep: the
+   * combat computer cruises rather than sprints (CC_ACCEL 100 to a cap of
+   * 220, against the commander's 220 to 400). Routing its demand through the
+   * ship without this would quietly fly the autopilot at full commander
+   * throttle — a behaviour change smuggled in by a refactor.
+   */
+  limits?: { accel: number; maxSpeed: number };
+}
 
 const MAX_SPEED = 400;
 const ACCEL = 220;
@@ -37,8 +76,9 @@ const RATE_DECAY = 12.0;
 /**
  * The player's flight envelope, in one place a harness can read.
  *
- * Nothing in `src` uses this — `update()` below reads the constants directly.
- * It exists because the console harnesses that fly the player's ship with a
+ * `engine/flight-controls.ts` reads it to turn a keyboard into a demand, and
+ * `update()` below reads the constants directly.
+ * It also exists because the console harnesses that fly the player's ship with a
  * trained policy (test/playtest.js, test/gang-trial.js) each hand-copied these
  * numbers, and both had drifted to roughly HALF the real pitch and roll —
  * 0.7/1.2 against 1.45/2.5, ramping 4/5 against 4/12. Every "can a commander
@@ -92,28 +132,21 @@ export class PlayerShip {
     return out.set(0, 0, -1).applyQuaternion(this.quaternion);
   }
 
-  update(dt: number, input: Input): void {
-    const keys = keymap(); // classic (1984) by default, modern as a toggle
-    let rollIn =
-      (input.held(...keys.rollLeft) ? 1 : 0) - (input.held(...keys.rollRight) ? 1 : 0);
-    let pitchIn =
-      (input.held(...keys.pitchUp) ? 1 : 0) - (input.held(...keys.pitchDown) ? 1 : 0);
+  /**
+   * Fly one step of whatever the pilot asked for.
+   *
+   * The order is load-bearing and unchanged: rates, then throttle, then roll,
+   * then pitch, then normalise, then move. Rotating before moving is what
+   * makes a turn bite on the frame you asked for it.
+   */
+  update(dt: number, demand: FlightDemand): void {
+    this.rollRate = demand.rollRate;
+    this.pitchRate = demand.pitchRate;
 
-    // mouse flight: analogue axes, keyboard still overrides when touched
-    if (input.mouseFlight) {
-      if (rollIn === 0) rollIn = -input.mouseX;
-      if (pitchIn === 0) pitchIn = input.mouseY;
-      input.decayMouse(dt);
-    }
-
-    this.rollRate = rampFlightRate(this.rollRate, rollIn * MAX_ROLL, rollIn !== 0, dt);
-    this.pitchRate = rampFlightRate(this.pitchRate, pitchIn * MAX_PITCH, pitchIn !== 0, dt);
-
-    if (input.held(...keys.accel)) this.speed = Math.min(MAX_SPEED, this.speed + ACCEL * dt);
-    // slash only decelerates unshifted — ? opens the controls guide
-    const decelHeld = keys.decel.some((k) =>
-      input.held(k) && (k !== 'Slash' || !input.held('ShiftLeft', 'ShiftRight')));
-    if (decelHeld) this.speed = Math.max(0, this.speed - ACCEL * dt);
+    const accel = demand.limits?.accel ?? ACCEL;
+    const maxSpeed = demand.limits?.maxSpeed ?? MAX_SPEED;
+    if (demand.throttle > 0) this.speed = Math.min(maxSpeed, this.speed + accel * dt);
+    if (demand.throttle < 0) this.speed = Math.max(0, this.speed - accel * dt);
 
     if (this.rollRate !== 0) {
       this.tmpQ.setFromAxisAngle(AXIS_Z, this.rollRate * dt);
