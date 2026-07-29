@@ -10,6 +10,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
+import { dockingOutcome, ROLL_TOLERANCE } from '../src/game/docking.ts';
 import { seedWorld, random } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import {
@@ -547,6 +548,40 @@ console.log('\nsystem population');
     const launching = planPopulation(sys(0), 'launch', 1, threat, half);
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
+  }
+}
+
+// --- docking has one rule ---------------------------------------------------
+
+// It had two. `arrived` in docking.ts, which NPC traders dock on and which
+// has NO roll test, and a re-implementation in game.ts checkStation() with a
+// bounding box, a slot channel and a roll test. An NPC could thread a
+// letterbox the player could not, and only the NPC's half was testable.
+
+console.log('\ndocking');
+{
+  const station = new THREE.Object3D();
+  station.updateMatrixWorld(true);
+  const DOCK_Z = 160;
+  const scratch = { v: new THREE.Vector3(), q: new THREE.Quaternion(), r: new THREE.Vector3() };
+  const level = new THREE.Quaternion();
+  const rolled = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 1.2);
+  const at = (x: number, y: number, z: number, q = level) =>
+    dockingOutcome(new THREE.Vector3(x, y, z), q, station, DOCK_Z, scratch);
+
+  check('far away is clear', at(0, 0, 5000) === 'clear');
+  check('lined up in the slot, level, is docked', at(0, 0, -(DOCK_Z - 20)) === 'docked');
+  check('...and rolled 69 degrees is a slot miss',
+    at(0, 0, -(DOCK_Z - 20), rolled) === 'slotMiss');
+  check('off to the side of the face is the hull', at(120, 0, -(DOCK_Z - 20)) === 'hull');
+  check('too high in the channel is the hull', at(0, 40, -(DOCK_Z - 20)) === 'hull');
+  check('the far side of the station is the hull', at(0, 0, DOCK_Z - 20) === 'hull');
+  {
+    // the roll tolerance is a real edge, not a formality
+    const just = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), ROLL_TOLERANCE - 0.05);
+    const over = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), ROLL_TOLERANCE + 0.05);
+    check('just inside the roll tolerance docks', at(0, 0, -(DOCK_Z - 20), just) === 'docked');
+    check('just outside it does not', at(0, 0, -(DOCK_Z - 20), over) === 'slotMiss');
   }
 }
 

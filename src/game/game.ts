@@ -22,7 +22,7 @@ import {
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip, CONSTRICTOR_SPEC, type NpcSpec, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
-import { planDocking, makeDockPlan } from './docking.ts';
+import { planDocking, makeDockPlan, dockingOutcome } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
 import {
@@ -1479,34 +1479,27 @@ export class Game {
 
   // --- docking -------------------------------------------------------------
 
+  /**
+   * Are we down, bounced, or clear? The geometry is docking.ts's; what it
+   * costs is ours.
+   */
   private checkStation(): void {
     const station = this.world.station;
-    const dockZ = this.world.stationDockZ;
-    const box = dockZ + 45;
-    const local = this.tmp.copy(this.player.position);
-    station.worldToLocal(local);
-    // deliberately cheap: an axis-aligned cube, slightly larger than the hull
-    if (Math.abs(local.x) > box || Math.abs(local.y) > box || Math.abs(local.z) > box) return;
-
-    // slot channel on the local -Z face; the visual slot is 96x20 but the
-    // test is padded (124x52) as tolerance for the player's hull size
-    const inSlot = local.z < -(dockZ - 60) && Math.abs(local.x) < 62 && Math.abs(local.y) < 26;
-    if (inSlot) {
-      // roll alignment: our wings vs the slot's long axis
-      this.tmpQ.copy(station.quaternion).invert().multiply(this.player.quaternion);
-      const right = this.tmp2.set(1, 0, 0).applyQuaternion(this.tmpQ);
-      const rollOff = Math.atan2(Math.abs(right.y), Math.abs(right.x));
-      if (rollOff < 0.65) {
-        this.enterDocked();
-        return;
-      }
+    const outcome = dockingOutcome(
+      this.player.position, this.player.quaternion, station, this.world.stationDockZ,
+      { v: this.tmp, q: this.tmpQ, r: this.tmp2 });
+    if (outcome === 'clear') return;
+    if (outcome === 'docked') {
+      this.enterDocked();
+      return;
     }
-    // hit the hull (or fluffed the slot)
+    // hit the hull, or fluffed the slot
     const away = this.tmp2.copy(this.player.position).sub(station.position).normalize();
     this.player.position.copy(station.position).addScaledVector(away, 420);
     this.player.speed = 0;
     this.applyPlayerDamage(0.9, station.position);
-    this.hud.showMessage(inSlot ? 'DOCKING FAILURE — MATCH SLOT ROTATION' : 'COLLISION', 3);
+    this.hud.showMessage(
+      outcome === 'slotMiss' ? 'DOCKING FAILURE — MATCH SLOT ROTATION' : 'COLLISION', 3);
   }
 
   private dockingComputer(): void {

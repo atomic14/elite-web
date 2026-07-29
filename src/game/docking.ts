@@ -124,3 +124,66 @@ export function makeDockPlan(): DockPlan {
     lateral: 0,
   };
 }
+
+
+// --- who is actually docked ------------------------------------------------
+//
+// This lived twice: `arrived` above, which NPC traders dock on and which has
+// NO roll test at all, and a re-implementation in game.ts checkStation() with
+// a bounding box, a slot channel and a roll test. So an NPC could thread a
+// letterbox the player could not, and only the NPC's half was testable.
+//
+// One rule, one home. The consequence — bounce, damage, message, or actually
+// docking — stays with the Game, because that is what it costs.
+
+/** Bounding cube around the station, a little larger than the hull. */
+const HULL_BOX_MARGIN = 45;
+/**
+ * The visible slot is 96x20; the test is padded to 124x52 as tolerance for
+ * the player's own hull.
+ */
+const SLOT_HALF_WIDTH = 62;
+const SLOT_HALF_HEIGHT = 26;
+/** How far into the -Z face counts as being in the channel. */
+const SLOT_DEPTH = 60;
+/** Wings vs the slot's long axis, in radians. */
+export const ROLL_TOLERANCE = 0.65;
+
+export type DockingOutcome =
+  /** nothing near enough to matter */
+  | 'clear'
+  /** through the slot, lined up — you are down */
+  | 'docked'
+  /** in the channel but rolled wrong */
+  | 'slotMiss'
+  /** flew into the hull */
+  | 'hull';
+
+/**
+ * Where a ship is relative to the slot.
+ *
+ * @param scratch a Vector3 and a Quaternion to work in; this runs every frame.
+ */
+export function dockingOutcome(
+  pos: THREE.Vector3,
+  quat: THREE.Quaternion,
+  station: THREE.Object3D,
+  dockZ: number,
+  scratch: { v: THREE.Vector3; q: THREE.Quaternion; r: THREE.Vector3 },
+): DockingOutcome {
+  const box = dockZ + HULL_BOX_MARGIN;
+  const local = scratch.v.copy(pos);
+  station.worldToLocal(local);
+  // deliberately cheap: an axis-aligned cube
+  if (Math.abs(local.x) > box || Math.abs(local.y) > box || Math.abs(local.z) > box) {
+    return 'clear';
+  }
+  const inSlot = local.z < -(dockZ - SLOT_DEPTH)
+    && Math.abs(local.x) < SLOT_HALF_WIDTH && Math.abs(local.y) < SLOT_HALF_HEIGHT;
+  if (!inSlot) return 'hull';
+
+  scratch.q.copy(station.quaternion).invert().multiply(quat);
+  const right = scratch.r.set(1, 0, 0).applyQuaternion(scratch.q);
+  const rollOff = Math.atan2(Math.abs(right.y), Math.abs(right.x));
+  return rollOff < ROLL_TOLERANCE ? 'docked' : 'slotMiss';
+}
