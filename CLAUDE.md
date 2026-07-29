@@ -180,6 +180,28 @@ vite.config.ts; add new pages there or they won't build.
   destructive tests and restore after; saves happen on dock/equip-purchase
   only.
 
+## Headless: what it takes to run game code under node
+
+The goal is for the **real world step** to be what training runs against,
+instead of the parallel model in `src/sim`. three.js is NOT the obstacle —
+`worldToLocal`, quaternions and `rotateOnAxis` all work in node with no canvas
+and no WebGL (measured, not assumed). Four things were, and three are fixed:
+
+- **No side effects at module scope.** `npc.ts` assigned `window.__policyKit`
+  as a bare statement, so importing the file touched `window`. It is
+  `installPolicyKit()` now, called by the Game. Don't reintroduce the pattern.
+- **Explicit `.ts` on relative imports.** Vite resolves extensionless, node
+  does not. `src/sim` always had them; the rest of `src` does now.
+- **`with { type: 'json' }` on JSON imports.** Same story — Vite infers, node
+  requires the attribute. The brain files carry it.
+- **Still open: `Game`'s constructor builds a renderer, composer and DOM
+  listeners**, so the Game itself cannot be constructed headlessly. That is
+  what the world step has to be lifted out of.
+
+The payoff is already real: the police-hostility checks were four regexes
+against source text because npc.ts could not be imported. They are now ten
+tests that call `isHostileToPlayer` directly.
+
 ## Screens: the contract to build against
 
 `src/ui/screen-host.ts` routes every overlay. A screen owns its rendering, its

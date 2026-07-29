@@ -1,13 +1,13 @@
 import {
   type StarSystem, type MarketEntry, ECONOMY_NAMES, GOVERNMENT_NAMES, COMMODITIES, speciesName,
-} from '../galaxy/galaxy';
-import { planetDescription } from '../galaxy/goatsoup';
-import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation';
+} from '../galaxy/galaxy.ts';
+import { planetDescription } from '../galaxy/goatsoup.ts';
+import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
   type CommanderData, type Contract, type SlotSummary,
   rating, cargoTonnes, formatCredits, cargoCapacity,
   MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned,
-} from '../game/commander';
+} from '../game/commander.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.

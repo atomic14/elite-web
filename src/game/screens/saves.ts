@@ -17,12 +17,12 @@ import {
   saveCommander, deleteSlot, currentSlot, setCurrentSlot, readSlot,
   formatCredits, SAVE_SLOTS, DEFAULT_NAME,
   type CommanderData,
-} from '../commander';
-import { renderSaves, renderNaming } from '../../ui/screens';
-import type { Screen, ScreenOutcome } from '../../ui/screen-host';
-import type { StarSystem } from '../../galaxy/galaxy';
-import type { Input } from '../../engine/input';
-import { sfx } from '../../audio';
+} from '../commander.ts';
+import { renderSaves, renderNaming } from '../../ui/screens.ts';
+import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
+import type { StarSystem } from '../../galaxy/galaxy.ts';
+import type { Input } from '../../engine/input.ts';
+import { sfx } from '../../audio.ts';
 
 /** The slice of the Game these screens are allowed to see. */
 export interface SavesContext {

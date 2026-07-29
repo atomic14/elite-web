@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import type { StarSystem } from '../galaxy/galaxy';
-import { describeSystem } from '../galaxy/galaxy';
-import { formatCredits } from '../game/commander';
+import type { StarSystem } from '../galaxy/galaxy.ts';
+import { describeSystem } from '../galaxy/galaxy.ts';
+import { formatCredits } from '../game/commander.ts';
 
 // The classic console: elliptical 3D scanner (dot + vertical stick per
 // contact), station compass, gauge bars, and the message line.

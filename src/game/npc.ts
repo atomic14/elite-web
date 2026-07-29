@@ -4,18 +4,18 @@ import {
   COBRA_MK3, SIDEWINDER, VIPER, ADDER, KRAIT, MAMBA, ASP, FER_DE_LANCE,
   PYTHON, ANACONDA, WORM, THARGOID, THARGON, CONSTRICTOR,
   GECKO, MORAY, BOA, SHUTTLE, TRANSPORTER, GENERATION_SHIP,
-} from '../ships/geometry';
+} from '../ships/geometry.ts';
 import {
   observe, observePack, act, makeScratch, brainFromFile,
   type Brain, type BrainFile, type ObservableShip,
-} from '../sim/policy';
-import { TURN } from '../sim/core';
-import { planDocking, makeDockPlan, type DockPlan } from './docking';
-import pirateBrainFile from '../sim/brains/pirate-attack-g3.json';
-import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json';
-import sharpBrainFile from '../sim/brains/pirate-attack-g2.json';
-import legacyBrainFile from '../sim/brains/pirate-attack-r2.json';
-import defendBrainFile from '../sim/brains/jameson-defend-g1.json';
+} from '../sim/policy.ts';
+import { TURN } from '../sim/core.ts';
+import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
+import pirateBrainFile from '../sim/brains/pirate-attack-g3.json' with { type: 'json' };
+import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
+import sharpBrainFile from '../sim/brains/pirate-attack-g2.json' with { type: 'json' };
+import legacyBrainFile from '../sim/brains/pirate-attack-r2.json' with { type: 'json' };
+import defendBrainFile from '../sim/brains/jameson-defend-g1.json' with { type: 'json' };
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
 //
@@ -246,12 +246,22 @@ function sharpBrainFor(tier: number): boolean {
   return flag === 'pro' ? tier >= 1 : true;
 }
 
-// Test-harness access to the trained policies (used by the autopilot
-// commanders in docs/JAMESON-TRIALS.md to fly the *player's* ship).
-(window as unknown as Record<string, unknown>).__policyKit = {
-  act, observe, observePack, makeScratch,
-  pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
-};
+/**
+ * Test-harness access to the trained policies (used by the autopilot
+ * commanders in docs/JAMESON-TRIALS.md to fly the *player's* ship).
+ *
+ * A FUNCTION, called by the Game, rather than an assignment at module scope.
+ * As a bare statement it ran on import, so `import('./npc.ts')` under node
+ * threw on `window` — which is why the police-hostility checks in test/run.ts
+ * had to assert against source text with a regex instead of calling
+ * isHostileToPlayer(). three.js maths is fine headless; this was the blocker.
+ */
+export function installPolicyKit(): void {
+  (window as unknown as Record<string, unknown>).__policyKit = {
+    act, observe, observePack, makeScratch,
+    pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
+  };
+}
 
 // NPC ships. Behaviour matrix:
 //  - traders  fly in from the system edge, do business near the station, and

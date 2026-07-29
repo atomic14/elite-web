@@ -11,7 +11,7 @@
 // It is named for one possible output: "...its inhabitants' ancient mating
 // traditions and its exotic goat soup".
 
-import type { StarSystem } from './galaxy';
+import type { StarSystem } from './galaxy.ts';
 
 // Options for tokens 0x81…0xA4, in order. \x?? escapes are nested tokens.
 const DESC_LIST: string[][] = [

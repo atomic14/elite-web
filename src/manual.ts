@@ -7,7 +7,7 @@
 // again while developing. So it is generated from `allLayouts()`: change a
 // binding in keymap.ts and this page changes with it, or it does not build.
 
-import { allLayouts, type Keymap, type LayoutName } from './engine/keymap';
+import { allLayouts, type Keymap, type LayoutName } from './engine/keymap.ts';
 
 /** Physical key codes are not what anybody calls these. */
 const LABELS: Record<string, string> = {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { Input } from './engine/input';
-import { keymap } from './engine/keymap';
+import type { Input } from './engine/input.ts';
+import { keymap } from './engine/keymap.ts';
 
 // Elite-style flight: no inertia sliding, the ship goes where the nose
 // points. Roll/pitch rates ramp while a key is held and decay when released,

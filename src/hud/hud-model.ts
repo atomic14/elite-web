@@ -10,9 +10,9 @@
 // passed in, because this runs every frame and allocating would show.
 
 import * as THREE from 'three';
-import type { HudState, ScannerContact } from './hud';
-import type { NpcShip } from '../game/npc';
-import { isHostileToPlayer } from '../game/npc';
+import type { HudState, ScannerContact } from './hud.ts';
+import type { NpcShip } from '../game/npc.ts';
+import { isHostileToPlayer } from '../game/npc.ts';
 
 /** Everything on the scanner: the station, ships, missiles and cargo. */
 export function scannerContacts(

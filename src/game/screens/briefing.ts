@@ -1,8 +1,8 @@
 // The mission briefing: several pages of text, read with left and right.
 
-import { renderBriefing, BRIEFING_PAGES } from '../../ui/screens';
-import type { Screen, ScreenOutcome } from '../../ui/screen-host';
-import type { Input } from '../../engine/input';
+import { renderBriefing, BRIEFING_PAGES } from '../../ui/screens.ts';
+import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
+import type { Input } from '../../engine/input.ts';
 
 export class BriefingScreen implements Screen {
   readonly id = 'briefing' as const;

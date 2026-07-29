@@ -13,7 +13,7 @@
 // bouncing off the station takes no damage at all.
 
 import * as THREE from 'three';
-import type { NpcShip } from './npc';
+import type { NpcShip } from './npc.ts';
 
 /** How much the ship that flew into something loses, and takes. */
 export const RAM_DAMAGE = 0.45;

@@ -27,7 +27,7 @@
 // only shows up in the test run. Assign fields explicitly instead; it is the
 // price of screens being unit-testable outside a browser.
 
-import type { Input } from '../engine/input';
+import type { Input } from '../engine/input.ts';
 
 /**
  * Every overlay in the game. One line per screen — deliberately the only

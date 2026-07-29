@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NOISE_GLSL } from './sun';
+import { NOISE_GLSL } from './sun.ts';
 
 // Wireframe-styled planet, but procedural: glowing lat/long graticule plus
 // noise-contour coastlines, day/night terminator, and a fresnel atmosphere

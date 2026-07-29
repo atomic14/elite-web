@@ -11,41 +11,41 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy';
-import { LivingGalaxy } from '../galaxy/living';
-import { generateContractOffers, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts';
-import { buildSystemScene, type SystemScene } from '../world/system-scene';
-import { createStarfield, SpaceDust } from '../world/starfield';
-import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
-import { PlayerShip } from '../player';
-import { Input } from '../engine/input';
-import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap';
-import { Hud, SCANNER_RANGE, type HudState, type ScreenTarget } from '../hud/hud';
+import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
+import { LivingGalaxy } from '../galaxy/living.ts';
+import { generateContractOffers, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts.ts';
+import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
+import { createStarfield, SpaceDust } from '../world/starfield.ts';
+import { buildShip, MISSILE, CANISTER } from '../ships/geometry.ts';
+import { PlayerShip } from '../player.ts';
+import { Input } from '../engine/input.ts';
+import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
+import { Hud, SCANNER_RANGE, type HudState, type ScreenTarget } from '../hud/hud.ts';
 import {
   scannerContacts, shipIdUnderView, nearestHostile, projectMarker, dockingAid,
-} from '../hud/hud-model';
-import { TunnelEffect } from '../hud/tunnel';
-import { sfx } from '../audio';
-import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
-import { act, observe, makeScratch, type ObservableShip } from '../sim/policy';
-import { planDocking, makeDockPlan } from './docking';
-import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions';
+} from '../hud/hud-model.ts';
+import { TunnelEffect } from '../hud/tunnel.ts';
+import { sfx } from '../audio.ts';
+import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
+import { act, observe, makeScratch, type ObservableShip } from '../sim/policy.ts';
+import { planDocking, makeDockPlan } from './docking.ts';
+import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import {
   SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
   type SavesContext,
-} from './screens/saves';
+} from './screens/saves.ts';
 import {
   MarketScreen, EquipScreen, buyEquipment, makeLocalMarket, type TradeContext,
-} from './screens/trade';
-import { StatusScreen, type StatusContext } from './screens/status';
-import { DataScreen, type DataContext } from './screens/data';
-import { BriefingScreen } from './screens/briefing';
-import { ContractsScreen, type ContractsContext } from './screens/contracts';
-import { ChartScreen, type ChartContext } from './screens/chart';
-import { ScreenHost } from '../ui/screen-host';
+} from './screens/trade.ts';
+import { StatusScreen, type StatusContext } from './screens/status.ts';
+import { DataScreen, type DataContext } from './screens/data.ts';
+import { BriefingScreen } from './screens/briefing.ts';
+import { ContractsScreen, type ContractsContext } from './screens/contracts.ts';
+import { ChartScreen, type ChartContext } from './screens/chart.ts';
+import { ScreenHost } from '../ui/screen-host.ts';
 import {
   daysForJump, nearestSystemTo, witchspaceChance, WITCHSPACE_ESCAPE_COST,
-} from '../galaxy/navigation';
+} from '../galaxy/navigation.ts';
 /**
  * Player gunnery: a real ray against the hull, plus a small graze tolerance.
  *
@@ -139,12 +139,12 @@ import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
   type CommanderData, type LaserType, type Contract,
-} from './commander';
+} from './commander.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver, describeContract,
   distanceTenths, type ChartState,
-} from '../ui/screens';
+} from '../ui/screens.ts';
 
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
 
@@ -417,6 +417,7 @@ export class Game {
     // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
     // docs/JAMESON-TRIALS.md) drives the whole game through this
     (window as unknown as Record<string, unknown>).__game = this;
+    installPolicyKit();
 
     // Screens register themselves with the host and are addressed by id from
     // then on. Adding one is a new file plus a line here and a line in

@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import type { StarSystem } from '../galaxy/galaxy';
-import { createSun, type Sun } from './sun';
-import { createPlanet, type Planet } from './planet';
-import { buildShip, buildDodoStation, CORIOLIS } from '../ships/geometry';
+import type { StarSystem } from '../galaxy/galaxy.ts';
+import { createSun, type Sun } from './sun.ts';
+import { createPlanet, type Planet } from './planet.ts';
+import { buildShip, buildDodoStation, CORIOLIS } from '../ships/geometry.ts';
 
 // Assembles the static in-system world deterministically from the system
 // seed: sun, planet, station. Ships and rocks are NPCs, owned by the game.

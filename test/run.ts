@@ -9,6 +9,7 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
+import { isHostileToPlayer } from '../src/game/npc.ts';
 import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
 } from '../src/galaxy/galaxy.ts';
@@ -503,27 +504,40 @@ console.log('\nchart metric has one owner');
 // takeDamage() sets `provoked` for damage from ANY source, including another
 // NPC. isHostileToPlayer() used to read that flag, so a Viper fighting a
 // pirate turned on a clean commander — which is what Chris flew into while
-// approaching a station. The distinction already existed (`provokedByPlayer`,
-// used for the chase logic) and only the hostility test was wrong.
+// approaching a station.
 //
-// Asserted at source level because npc.ts touches `window` at module scope
-// and cannot be imported under node.
+// These were four regex assertions against source text, because npc.ts could
+// not be imported under node. It can now, so they call the function instead.
 
 console.log('\npolice hostility');
 {
-  const src = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
-  const npcSrc = src('../src/game/npc.ts');
-  const gameSrc = src('../src/game/game.ts');
-  const hostile = npcSrc.slice(npcSrc.indexOf('export function isHostileToPlayer'),
-    npcSrc.indexOf('export interface NpcSpec'));
-  check('police read provokedByPlayer, not provoked',
-    /police' && \(legalStatus >= 2 \|\| npc\.provokedByPlayer\)/.test(hostile));
-  check('bounty hunters read provokedByPlayer, not provoked',
-    /hunter' && \(legalStatus >= 1 \|\| npc\.provokedByPlayer\)/.test(hostile));
-  check('no bare `npc.provoked` left in the hostility test',
-    !/npc\.provoked[^B]/.test(hostile));
+  const npcLike = (role: string, over: Record<string, unknown> = {}) =>
+    ({ alive: true, inert: false, satisfied: false, role, provoked: false,
+       provokedByPlayer: false, ...over }) as unknown as Parameters<typeof isHostileToPlayer>[0];
+
+  check('pirates are hostile to anyone',
+    isHostileToPlayer(npcLike('pirate'), 0));
+  check('a pirate paid off in cargo breaks off',
+    !isHostileToPlayer(npcLike('pirate', { satisfied: true }), 0));
+  check('police ignore a clean commander',
+    !isHostileToPlayer(npcLike('police'), 0));
+  check('police hunt a fugitive',
+    isHostileToPlayer(npcLike('police', { legalStatus: 2 }), 2));
+  check('POLICE IN A FIGHT WITH SOMEONE ELSE STAY FRIENDLY',
+    !isHostileToPlayer(npcLike('police', { provoked: true }), 0));
+  check('police you shot at come for you',
+    isHostileToPlayer(npcLike('police', { provoked: true, provokedByPlayer: true }), 0));
+  check('bounty hunters ignore a clean commander',
+    !isHostileToPlayer(npcLike('hunter'), 0));
+  check('bounty hunters in a fight with someone else stay friendly',
+    !isHostileToPlayer(npcLike('hunter', { provoked: true }), 0));
+  check('a destroyed ship is hostile to nobody',
+    !isHostileToPlayer(npcLike('pirate', { alive: false }), 0));
+
+  // the station's own Vipers are launched AT you, so they must read hostile
+  const game = readFileSync(new URL('../src/game/game.ts', import.meta.url), 'utf8');
   check('station defence vipers still come for you',
-    /viper\.provokedByPlayer = true/.test(gameSrc));
+    /viper\.provokedByPlayer = true/.test(game));
 }
 
 // --- sim/game combat parity (invariant 2) -----------------------------------

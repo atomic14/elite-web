@@ -12,7 +12,7 @@
 // for the campaign simulator, and COMMODITIES is a value import, not a type.
 import { COMMODITIES, type StarSystem, type MarketEntry } from '../galaxy/galaxy.ts';
 import { distanceTenths } from '../galaxy/navigation.ts';
-import type { Contract } from './commander';
+import type { Contract } from './commander.ts';
 
 /** Chart distance in tenths of a light-year (the original's metric). */
 // Was a second copy of the chart metric. It now comes from the one owner, and

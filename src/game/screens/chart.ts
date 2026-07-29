@@ -19,12 +19,12 @@ import {
   renderChart, drawChart, renderLocalChart, drawLocalChart, renderMarketEstimate,
   nearestSystem, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE,
   type ChartState,
-} from '../../ui/screens';
-import type { Screen, ScreenOutcome, ScreenId } from '../../ui/screen-host';
-import type { CommanderData } from '../commander';
-import type { StarSystem } from '../../galaxy/galaxy';
-import type { Input } from '../../engine/input';
-import { sfx } from '../../audio';
+} from '../../ui/screens.ts';
+import type { Screen, ScreenOutcome, ScreenId } from '../../ui/screen-host.ts';
+import type { CommanderData } from '../commander.ts';
+import type { StarSystem } from '../../galaxy/galaxy.ts';
+import type { Input } from '../../engine/input.ts';
+import { sfx } from '../../audio.ts';
 
 export interface ChartContext {
   readonly commander: CommanderData;

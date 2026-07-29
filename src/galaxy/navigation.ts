@@ -17,7 +17,7 @@
 // UI that draws it or the ship that flies it. Everything above may import it;
 // it imports nothing but the system type.
 
-import type { StarSystem } from './galaxy';
+import type { StarSystem } from './galaxy.ts';
 
 /**
  * Chart distance in tenths of a light-year, after the original's asymmetric

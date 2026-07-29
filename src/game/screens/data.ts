@@ -8,10 +8,10 @@
 // single screen. Pushing it on the real stack deletes the problem: `back`
 // returns to whatever is underneath, whatever that happens to be.
 
-import { renderSystemData } from '../../ui/screens';
-import type { Screen, ScreenOutcome } from '../../ui/screen-host';
-import type { StarSystem } from '../../galaxy/galaxy';
-import type { Input } from '../../engine/input';
+import { renderSystemData } from '../../ui/screens.ts';
+import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
+import type { StarSystem } from '../../galaxy/galaxy.ts';
+import type { Input } from '../../engine/input.ts';
 
 export interface DataContext {
   /** the system being read about — not necessarily the one you are in */

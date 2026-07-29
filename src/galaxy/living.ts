@@ -18,7 +18,7 @@
 //    deadlines (a jump costs days), so it never needs a real-time tick
 //  - everything here is pure data + maths: no three.js, no DOM
 
-import type { StarSystem } from './galaxy';
+import type { StarSystem } from './galaxy.ts';
 
 /** A trade run in flight between two systems. */
 export interface Convoy {

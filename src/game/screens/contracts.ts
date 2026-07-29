@@ -3,11 +3,11 @@
 // The rules live in game/contracts.ts so the headless campaign runs the same
 // code the game does (CLAUDE.md invariant 7). This is only the screen.
 
-import { renderContracts } from '../../ui/screens';
-import type { Screen, ScreenOutcome } from '../../ui/screen-host';
-import type { Contract, CommanderData } from '../commander';
-import type { StarSystem } from '../../galaxy/galaxy';
-import type { Input } from '../../engine/input';
+import { renderContracts } from '../../ui/screens.ts';
+import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
+import type { Contract, CommanderData } from '../commander.ts';
+import type { StarSystem } from '../../galaxy/galaxy.ts';
+import type { Input } from '../../engine/input.ts';
 
 export interface ContractsContext {
   readonly commander: CommanderData;
