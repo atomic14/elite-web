@@ -20,7 +20,10 @@ import { buildShip, MISSILE, CANISTER } from '../ships/geometry';
 import { PlayerShip } from '../player';
 import { Input } from '../engine/input';
 import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap';
-import { Hud, SCANNER_RANGE, type ScannerContact, type ScreenTarget } from '../hud/hud';
+import { Hud, SCANNER_RANGE, type HudState, type ScreenTarget } from '../hud/hud';
+import {
+  scannerContacts, shipIdUnderView, nearestHostile, projectMarker, dockingAid,
+} from '../hud/hud-model';
 import { TunnelEffect } from '../hud/tunnel';
 import { sfx } from '../audio';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc';
@@ -2590,52 +2593,29 @@ export class Game {
 
   private renderHud(dt: number): void {
     this.updateSight();
-    const contacts: ScannerContact[] = [{ position: this.world.station.position, kind: 'station' }];
-    for (const npc of this.npcs) {
-      if (!npc.alive) continue;
-      const kind =
-        npc.role === 'asteroid' ? 'asteroid'
-        : npc.role === 'thargoid' || npc.role === 'thargon' ? 'thargoid'
-        : isHostileToPlayer(npc, this.commander.legalStatus) ? 'hostile'
-        : 'ship';
-      contacts.push({ position: npc.object.position, kind });
-    }
-    for (const m of this.missiles) contacts.push({ position: m.object.position, kind: 'missile' });
-    for (const c of this.canisters) contacts.push({ position: c.object.position, kind: 'cargo' });
+    const contacts = scannerContacts(
+      this.world.station.position, this.npcs, this.missiles, this.canisters,
+      this.commander.legalStatus);
 
     const altitude =
       this.player.position.distanceTo(this.world.planet.mesh.position) - this.world.planetRadius;
     const condition = this.mode !== 'flight' ? 'GREEN' : this.hostilesNear() ? 'RED' : 'YELLOW';
     // in witch-space the compass tracks the nearest Thargoid instead
-    const nearestHostile = this.witchspace
+    const thargoidTarget = this.witchspace
       ? this.npcs.find((n) => n.alive && !n.inert && (n.role === 'thargoid' || n.role === 'thargon'))
           ?.object.position
       : undefined;
     const sunDistNow = this.player.position.distanceTo(this.world.sun.group.position);
-    const compassTarget = nearestHostile ??
+    const compassTarget = thargoidTarget ??
       (sunDistNow < 130000 && !this.witchspace
         ? this.world.sun.group.position // sun-skimming: navigate the heat by compass
         : this.player.position.distanceTo(this.world.station.position) < this.world.planetRadius * 3
           ? this.world.station.position
           : this.world.planet.mesh.position);
 
-    // auto ship-ID: name the ship nearest the current view axis
-    let shipId = '';
-    if (this.mode === 'flight') {
-      const dir = this.viewDir(this.tmp);
-      let bestAngle = 0.06;
-      for (const npc of this.npcs) {
-        if (!npc.alive) continue;
-        const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
-        const dist = to.length();
-        if (dist > 4500) continue;
-        const angle = dir.angleTo(to.normalize());
-        if (angle < bestAngle) {
-          bestAngle = angle;
-          shipId = `${(npc.object.name || 'ASTEROID').toUpperCase()} ${(dist / 1000).toFixed(1)}KM`;
-        }
-      }
-    }
+    const shipId = this.mode === 'flight'
+      ? shipIdUnderView(this.npcs, this.player.position, this.viewDir(this.tmp), this.tmp2)
+      : '';
     const e = this.commander.equipment;
     const hasLaser =
       this.view === 0 ||
@@ -2643,81 +2623,24 @@ export class Game {
       (this.view === 2 && e.leftLaser) ||
       (this.view === 3 && e.rightLaser);
 
-    // docking aid: only while actually lining up — near the slot side AND
-    // flying toward the station (departures launch facing away, so the aid
-    // stays out of the way after lift-off)
-    let dockAid: import('../hud/hud').HudState['dockAid'] = null;
-    let slotMarker: import('../hud/hud').HudState['slotMarker'] = null;
+    let dockAid: HudState['dockAid'] = null;
+    let slotMarker: HudState['slotMarker'] = null;
     if (this.mode === 'flight' && !this.witchspace) {
-      const st = this.world.station;
-      const dist = this.player.position.distanceTo(st.position);
-      const facingStation = this.player
-        .getForward(this.tmp)
-        .dot(this.tmp2.copy(st.position).sub(this.player.position).normalize()) > 0.35;
-      const slotN = this.tmp.set(0, 0, -1).applyQuaternion(st.quaternion);
-      const onSlotSide = this.tmp2.copy(this.player.position).sub(st.position).dot(slotN) > 0;
-      if (dist < 3000 && onSlotSide) {
-        // Where the slot actually IS, on screen. Close in the station fills the
-        // view and the entrance can sit off to one side, or off-frame entirely
-        // — you end up staring at a blank black face concluding there is no
-        // entrance. Deliberately NOT gated on facing the station: "which way is
-        // the slot" is precisely the question you have when looking the wrong
-        // way. The alignment aid below stays gated, so it still only appears
-        // when you're actually lining up.
-        this.tmp3.set(0, 0, -this.world.stationDockZ);
-        st.localToWorld(this.tmp3);
-        const behind = this.tmp3.clone().sub(this.player.position)
-          .dot(this.player.getForward(this.tmp2)) <= 0;
-        this.tmp3.project(this.camera);
-        slotMarker = {
-          x: behind ? -this.tmp3.x : this.tmp3.x,
-          y: behind ? -this.tmp3.y : this.tmp3.y,
-          behind,
-        };
-
-        if (facingStation) {
-          const local = this.tmp2.copy(this.player.position);
-          st.worldToLocal(local);
-          this.tmpQ.copy(st.quaternion).invert().multiply(this.player.quaternion);
-          const right = this.tmp.set(1, 0, 0).applyQuaternion(this.tmpQ);
-          const roll = Math.atan2(right.y, right.x);
-          dockAid = {
-            x: local.x,
-            y: local.y,
-            roll,
-            inSlot: Math.abs(local.x) < 62 && Math.abs(local.y) < 26,
-            rollOk: Math.atan2(Math.abs(right.y), Math.abs(right.x)) < 0.65,
-          };
-        }
-      }
+      ({ dockAid, slotMarker } = dockingAid(
+        this.world.station, this.world.stationDockZ,
+        this.player.position, this.player.quaternion, this.player.getForward(this.tmp),
+        this.camera, { a: this.tmp2, b: this.tmp3, q: this.tmpQ }));
     }
 
-    // Nearest hostile, for the off-screen threat arrow. Same projection as
-    // the docking port marker: project into clip space, and mirror it when the
-    // ship is behind us so the arrow points backwards rather than at its
-    // reflection through the camera.
-    let threatMarker: import('../hud/hud').HudState['threatMarker'] = null;
+    // Nearest hostile, for the off-screen threat arrow.
+    let threatMarker: HudState['threatMarker'] = null;
     if (this.mode === 'flight' && !this.witchspace) {
-      let nearest: NpcShip | null = null;
-      let best = Infinity;
-      let count = 0;
-      for (const npc of this.npcs) {
-        if (!isHostileToPlayer(npc, this.commander.legalStatus)) continue;
-        const d = npc.object.position.distanceTo(this.player.position);
-        if (d > 9000) continue;
-        count += 1;
-        if (d < best) { best = d; nearest = npc; }
-      }
-      if (nearest) {
-        this.tmp3.copy(nearest.object.position);
-        const toward = this.tmp2.copy(this.tmp3).sub(this.player.position);
-        const behind = toward.dot(this.player.getForward(this.tmp)) <= 0;
-        this.tmp3.project(this.camera);
+      const found = nearestHostile(this.npcs, this.player.position, this.commander.legalStatus);
+      if (found) {
         threatMarker = {
-          x: behind ? -this.tmp3.x : this.tmp3.x,
-          y: behind ? -this.tmp3.y : this.tmp3.y,
-          behind,
-          count,
+          ...projectMarker(found.npc.object.position, this.player.position,
+            this.player.getForward(this.tmp), this.camera, this.tmp3),
+          count: found.count,
         };
       }
     }
