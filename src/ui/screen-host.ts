@@ -108,21 +108,12 @@ export class ScreenHost {
    * It must only paint. Touching the stack from here would recurse.
    */
   private readonly showBase: () => void;
-  private readonly repaintLegacy: (id: ScreenId) => void;
 
   /**
    * @param showBase repaint whatever is underneath the stack.
-   * @param repaintLegacy repaint a screen that has NOT migrated yet, when it
-   * is uncovered. Migrated screens repaint themselves via `render()`; an
-   * unmigrated one has no implementation to call, so without this it keeps
-   * showing whatever was on top of it. Closing the data screen over the
-   * galactic chart left "DATA ON QUTIRI" on a chart-mode display.
-   *
-   * Delete this parameter once every id in ScreenId has a Screen.
    */
-  constructor(showBase: () => void, repaintLegacy: (id: ScreenId) => void = () => {}) {
+  constructor(showBase: () => void) {
     this.showBase = showBase;
-    this.repaintLegacy = repaintLegacy;
   }
 
   register(screen: Screen): void {
@@ -176,8 +167,11 @@ export class ScreenHost {
     this.menuSelected = 0;
     const top = this.top;
     if (!top) this.showBase();
-    else if (top.screen) top.screen.render();   // uncovered — re-paint itself
-    else this.repaintLegacy(top.id);            // ...or ask the Game to
+    // Every id has a registered Screen now, so an uncovered one repaints
+    // itself. This used to fall back to a `repaintLegacy` callback into the
+    // Game for screens that had not migrated; all ten have, and the parameter
+    // was already being passed as a no-op.
+    else top.screen?.render();
     return this.stack.length > 0;
   }
 

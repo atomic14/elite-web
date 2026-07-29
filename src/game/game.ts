@@ -76,40 +76,6 @@ import { ScreenHost } from '../ui/screen-host.ts';
 import { createRenderStack, BEAM_Z, type RenderStack } from '../engine/render-stack.ts';
 import { nearestSystemTo } from '../galaxy/navigation.ts';
 /**
- * Player gunnery: a real ray against the hull, plus a small graze tolerance.
- *
- * The old test was purely angular — `atan(radius * k / dist)` — where `radius`
- * is the hull's *maximum* extent, so the cone circumscribes the ship. That
- * grants hits on empty space beside a thin hull and, worse, makes every ship a
- * sphere: an Anaconda is no easier to hit down its 110-unit flank than
- * head-on, which is not what the player sees.
- *
- * So: cast the shot at the actual hull mesh first. GRAZE is then a genuine
- * aim-assist dial rather than a shape approximation — the beam has width, and
- * a shot that just clips the silhouette still counts.
- *
- * NOT shared with the sim, and deliberately so: ai-training/core.ts models NPC
- * gunnery, which stays the cone both sides use. The player's own gun is never
- * simulated in training, so this can't break parity (invariant 2).
- *
- * 0.9, raised from 0.35, because the ships you most want to shoot out-turn
- * you. A Sidewinder pitches and rolls at 106% of the player's rates, an Asp
- * 116%, a Viper 126% — they are SUPPOSED to weave, and that is the fight
- * working. At 0.35 the tolerance was the central 12% of a hull's area, so a
- * target doing its job correctly was close to unhittable.
- *
- * Measured rather than guessed, against a weaving pirate with 200ms of
- * reaction lag standing in for a human:
- *
- *              0.35            0.9
- *   tier 1     12% acc, 230    33% acc, 85 shots, killed 5 of 5
- *   tier 0      6% acc          7%
- *
- * The Sidewinder barely moves, and that is the honest limit of this dial: it
- * is small AND more agile than you, so its defence is tracking rather than
- * tolerance. Widening further would start granting hits on empty space.
- */
-/**
  * Playtesting cheat: `window.__cheat = true` fits anything from the catalogue
  * anywhere, free and regardless of tech level. Deliberately a console handle
  * like `__scriptedPirates` and `__packBrain` rather than a key binding — it is
@@ -986,7 +952,6 @@ export class Game {
     this.player.position.copy(this.world.station.position).addScaledVector(n, 450);
     this.lookAlong(n);
     this.player.speed = 120;
-    this.baseMode = 'flight';
     this.baseMode = 'flight';
     this.view = 0;
     hideScreen();

@@ -142,9 +142,9 @@ export const CLASSES: Record<string, ShipClass> = {
   playerCobraSlow: { name: 'Cobra Mk III (player, knife-fighting)', hp: 1.0, maxSpeed: 90, turnRate: 1.036, radius: 34, accel: 120 },
 };
 
-// laser model — mirrors the player's pulse laser in game.ts
+// laser model — mirrors the player's pulse laser in game/gunnery.ts
 /**
- * Ships are solid. Mirrors game.ts's ramming rule (0.45 to both, shoved
+ * Ships are solid. Mirrors game/collisions.ts's ramming rule (0.45 to both, shoved
  * apart, most of the speed scrubbed off).
  *
  * Added in the collision round: without this, flying *through* the target was

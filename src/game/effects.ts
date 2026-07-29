@@ -79,10 +79,6 @@ export class Effects {
     this.tracers = [];
   }
 
-  /** @internal for tests and the HUD's contact list */
-  get counts(): { explosions: number; tracers: number } {
-    return { explosions: this.explosions.length, tracers: this.tracers.length };
-  }
 }
 
 

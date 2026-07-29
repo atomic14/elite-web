@@ -92,13 +92,6 @@ export class World {
     this.npcs.length = 0;
   }
 
-  /** Everything the world is made of, gone. */
-  clear(): void {
-    this.clearNpcs();
-    this.cargo.clear();
-    this.effects.clear();
-  }
-
   /**
    * The ships, as plain data.
    *

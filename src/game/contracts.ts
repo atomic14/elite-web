@@ -103,10 +103,6 @@ export function applyMarketPressure(
   });
 }
 
-/** How many pirates a system throws at an anonymous ship (no mark supplied). */
-export function pirateCount(sys: StarSystem, danger: number, rng: () => number = random): number {
-  return Math.max(0, Math.round((7 - sys.government) / 2 + danger * 3 + rng() * 2 - 1));
-}
 
 // --- who's worth robbing ----------------------------------------------------
 //

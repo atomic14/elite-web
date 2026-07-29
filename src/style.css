@@ -23,7 +23,7 @@ html, body {
 #crosshair {
   position: absolute;
   /*
-   * MUST match SIGHT_Y in game.ts, which shifts the camera projection so the
+   * MUST match SIGHT_Y in engine/render-stack.ts, which shifts the camera projection so the
    * gun axis lands here. Sitting above the canvas centre is deliberate — the
    * console covers the bottom of the screen — but the AXIS is moved to meet
    * the sight, not the other way round. When this was 42% against an
@@ -36,7 +36,7 @@ html, body {
 }
 /*
  * A ring, not a cross, and the radius is set from JS (--sight-r) to the exact
- * angle of the aim assist in game.ts. Anything inside the ring is inside the
+ * angle of AIM_ASSIST in game/gunnery.ts. Anything inside the ring is inside the
  * envelope the shot will reach for, so the sight teaches the mechanic instead
  * of decorating it. The centre pip keeps it reading as a gunsight, and the
  * four ticks keep the 1984 silhouette.
@@ -305,7 +305,7 @@ body.screen-open #screen { top: 50%; max-height: 88vh; }
   /*
    * Centred in the space you can actually see, not the canvas: the cockpit
    * console owns the bottom ~21%, so 50% leaves a big void above the panel
-   * and almost nothing below it. Same reasoning as SIGHT_Y in game.ts.
+   * and almost nothing below it. Same reasoning as SIGHT_Y in engine/render-stack.ts.
    *
    * These two values are the fallback for a screen shown without the
    * `screen-open` class; with it (see below) the console is hidden and the
