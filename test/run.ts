@@ -12,6 +12,13 @@ import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
 import { dockingOutcome, ROLL_TOLERANCE } from '../src/game/docking.ts';
 import {
+  checkJump, resolveJump, jumpCost, refusalMessage,
+} from '../src/game/hyperspace.ts';
+import {
+  WITCHSPACE_ESCAPE_COST, witchspaceChance, distanceTenths,
+} from '../src/galaxy/navigation.ts';
+import type { CommanderData } from '../src/game/commander.ts';
+import {
   stepTrumbles, trumbleMessage, BREED_INTERVAL, MAX_TRUMBLES,
 } from '../src/game/trumbles.ts';
 import {
@@ -557,6 +564,71 @@ console.log('\nsystem population');
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
   }
+}
+
+// --- hyperspace -------------------------------------------------------------
+
+console.log('\nhyperspace');
+{
+  const sys = generateGalaxy(1);
+  const cmdr = (systemIndex: number, fuel: number, stage = 0) =>
+    ({ systemIndex, fuel, day: 0, mission: { stage } }) as unknown as CommanderData;
+  // Lave -> Diso is a short hop; something far away is not
+  const near = sys.reduce((best, s) => {
+    const d = distanceTenths(sys[7], s);
+    return s.index !== 7 && d > 0 && d < distanceTenths(sys[7], best) ? s : best;
+  }, sys[0]);
+
+  check('no target set is refused',
+    checkJump(cmdr(7, 70), sys, null, false, false).ok === false);
+  check('...and so is jumping to where you already are',
+    checkJump(cmdr(7, 70), sys, 7, false, false).ok === false);
+  {
+    const r = checkJump(cmdr(7, 0), sys, near.index, false, false);
+    check('an empty tank is refused', !r.ok && r.reason === 'noFuel');
+    check('...with the right line',
+      refusalMessage('noFuel', false).includes('RANGE')
+      && refusalMessage('noFuel', true).includes('WITCH-SPACE'));
+  }
+  check('a countdown already running is not restarted',
+    checkJump(cmdr(7, 70), sys, near.index, false, true).ok === false);
+  {
+    const r = checkJump(cmdr(7, 70), sys, near.index, false, false);
+    check('a jump in range is allowed',
+      r.ok && r.cost === distanceTenths(sys[7], near));
+  }
+
+  {
+    // witch-space charges a flat rate regardless of how far the target is
+    const far = sys.reduce((a, b) =>
+      distanceTenths(sys[7], a) > distanceTenths(sys[7], b) ? a : b);
+    check('escaping witch-space is a flat fare, not the chart distance',
+      jumpCost(sys[7], far, true) === WITCHSPACE_ESCAPE_COST
+      && jumpCost(sys[7], far, false) > WITCHSPACE_ESCAPE_COST);
+    const c = cmdr(7, WITCHSPACE_ESCAPE_COST);
+    check('...and is affordable on exactly that much fuel',
+      checkJump(c, sys, far.index, true, false).ok === true);
+    const r = resolveJump(c, sys, far.index, true, () => 0);
+    check('...and cannot itself mis-jump', !r.misjump && c.fuel === 0);
+  }
+
+  {
+    const c = cmdr(7, 70);
+    const r = resolveJump(c, sys, near.index, false, () => 1); // never mis-jumps
+    check('a jump moves you, spends fuel and takes time',
+      c.systemIndex === near.index && c.fuel === 70 - jumpCost(sys[7], near, false)
+      && r.days > 0 && c.day === r.days);
+  }
+  {
+    // the original's cruelty: a mis-jump still charges full fare
+    const c = cmdr(7, 70);
+    const r = resolveJump(c, sys, near.index, false, () => 0); // always mis-jumps
+    check('a mis-jump costs the fuel and gets you nowhere',
+      r.misjump && r.days === 0 && c.systemIndex === 7
+      && c.fuel === 70 - jumpCost(sys[7], near, false));
+  }
+  check('the courier run is the dangerous one',
+    witchspaceChance(3) > witchspaceChance(0));
 }
 
 // --- trumbles ---------------------------------------------------------------

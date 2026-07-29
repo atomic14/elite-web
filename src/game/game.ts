@@ -25,6 +25,7 @@ import { NpcShip, CONSTRICTOR_SPEC, type NpcSpec, isHostileToPlayer, pirateSpecF
 import { planDocking, makeDockPlan, dockingOutcome } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
+import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import {
   stepMissionAtDock, constrictorDestroyed, constrictorLurksHere, missionHeadline,
@@ -66,9 +67,7 @@ import { ContractsScreen, type ContractsContext } from './screens/contracts.ts';
 import { ChartScreen, type ChartContext } from './screens/chart.ts';
 import { ScreenHost } from '../ui/screen-host.ts';
 import { createRenderStack, BEAM_Z, type RenderStack } from '../engine/render-stack.ts';
-import {
-  daysForJump, nearestSystemTo, witchspaceChance, WITCHSPACE_ESCAPE_COST,
-} from '../galaxy/navigation.ts';
+import { nearestSystemTo } from '../galaxy/navigation.ts';
 /**
  * Player gunnery: a real ray against the hull, plus a small graze tolerance.
  *
@@ -146,8 +145,7 @@ import {
 } from './commander.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
-  renderGameOver, describeContract,
-  distanceTenths, type ChartState,
+  renderGameOver, describeContract, type ChartState,
 } from '../ui/screens.ts';
 
 
@@ -1158,42 +1156,27 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   startHyperspace(): void {
-    if (this.hyperCountdown >= 0) return;
-    const t = this.chart.targetIndex;
-    if (t === null || t === this.commander.systemIndex) {
-      this.hud.showMessage('NO HYPERSPACE TARGET SET', 3);
+    const check = checkJump(this.commander, this.systems, this.chart.targetIndex,
+      this.witchspace, this.hyperCountdown >= 0);
+    if (!check.ok) {
+      if (check.reason === 'alreadyJumping') return;
+      this.hud.showMessage(refusalMessage(check.reason, this.witchspace), 4);
       sfx.beep(220);
       return;
     }
-    const cost = this.witchspace
-      ? WITCHSPACE_ESCAPE_COST : distanceTenths(this.system, this.systems[t]);
-    if (cost > this.commander.fuel) {
-      this.hud.showMessage(
-        this.witchspace ? 'INSUFFICIENT FUEL — STRANDED IN WITCH-SPACE' : 'TARGET OUT OF FUEL RANGE', 4);
-      sfx.beep(220);
-      return;
-    }
-    this.hyperCountdown = 5;
-    this.hud.showMessage('HYPERSPACE IN 5', 1.2);
+    this.hyperCountdown = COUNTDOWN;
+    this.hud.showMessage(`HYPERSPACE IN ${COUNTDOWN}`, 1.2);
     sfx.beep(700, 0.07);
   }
 
   private completeHyperspace(): void {
-    const t = this.chart.targetIndex!;
-    if (this.witchspace) {
-      // escaping the mis-jump costs a flat 1.0 LY
-      this.commander.fuel -= Math.min(this.commander.fuel, WITCHSPACE_ESCAPE_COST);
-    } else {
-      this.commander.fuel -= distanceTenths(this.system, this.systems[t]);
-      if (random() < witchspaceChance(this.commander.mission.stage)) {
-        this.enterWitchspace(); // target retained for the escape jump
-        return;
-      }
+    const target = this.chart.targetIndex!;
+    const jump = resolveJump(this.commander, this.systems, target, this.witchspace);
+    if (jump.misjump) {
+      this.enterWitchspace(); // target retained for the escape jump
+      return;
     }
-    const daysPassed = daysForJump(distanceTenths(this.system, this.systems[t]));
-    this.commander.day += daysPassed;
-    this.living.advance(daysPassed, COMMODITIES.map((c) => c.gradient));
-    this.commander.systemIndex = t;
+    this.living.advance(jump.days, COMMODITIES.map((c) => c.gradient));
     this.chart.targetIndex = null;
     this.arriveInSystem();
     this.hud.showMessage(`ARRIVED: ${this.system.name.toUpperCase()}`, 4);
