@@ -13,11 +13,11 @@
  * Flying the defence policy made everything look survivable, because that
  * policy evades superbly and shoots badly. A real player does neither.
  *
- * Read-only. It wraps a handful of Game methods to observe them — the three
- * it measures, plus the five that can damage you, so damage is attributed to
- * its actual source instead of being guessed from its size. It writes nothing
- * to the commander and touches no localStorage, and stopping restores
- * everything it patched.
+ * Read-only. It wraps three Game methods to observe them, and reads the cause
+ * of each hit off `applyPlayerDamage`'s third argument, which the world step
+ * fills in — so damage is attributed rather than guessed at from its size. It
+ * writes nothing to the commander and touches no localStorage, and stopping
+ * restores everything it patched.
  */
 (() => {
   const g = window.__game;
@@ -42,7 +42,7 @@
      * several perfect shots — his first g1 wave read 85% enemy accuracy, which
      * is the hit cap, at a range where the model allows about 50%.
      *
-     * The cause comes from the game now; see CAUSES below for how, and for
+     * The cause comes from the game now; see SOURCES below for how, and for
      * why reading it off the magnitude was never safe.
      */
     damageBy: { laser: 0, ram: 0, missile: 0, station: 0, cargo: 0, unknown: 0 },
@@ -128,9 +128,10 @@
       };
       console.log(JSON.stringify(out, null, 1));
       if (this.countBy.unknown) {
-        console.warn(`__rec: ${this.countBy.unknown} hit(s) came from somewhere `
-          + 'CAUSES does not name — game.ts has grown a new way to hurt you, or '
-          + 'renamed an old one. Do not read DAMAGE_BY_CAUSE as complete.');
+        console.warn(`__rec: ${this.countBy.unknown} hit(s) arrived with a source `
+          + 'SOURCES does not name — the game has grown a new way to hurt you. '
+          + 'Add it to DamageSource\'s list here. Do not read DAMAGE_BY_CAUSE '
+          + 'as complete.');
       }
       return out;
     },
@@ -139,68 +140,34 @@
   };
 
   /**
-   * Which of game.ts's applyPlayerDamage callers produced a hit — asked, not
-   * guessed.
+   * What produced a hit — asked, not guessed.
    *
-   * `applyPlayerDamage(amount, from)` takes a position, not a source, so this
-   * used to reverse-engineer the cause from the magnitude: 0.1-0.221 laser,
+   * `applyPlayerDamage(amount, from, source)` carries the cause now, because
+   * the world step knows it statically at each of the five places it bills the
+   * player, and `DamageSource` in src/game/combat.ts is the whole list.
+   *
+   * It used to be reverse-engineered from the magnitude — 0.1-0.221 laser,
    * 0.45 ram, 1.3 missile, 0.9 station, 0.06 cargo. A classifier like that
-   * cannot fail, it can only be wrong quietly — and it already overlapped, as
-   * NPC_VS_NPC_DAMAGE (0.11) sits inside the laser window. Any balance change
-   * that moved RAM_DAMAGE or the shot roll would have rewritten this table
-   * with no warning, and this table is the reason the harness exists: it is
-   * what separates "they shot you" from "one of them flew into you".
+   * cannot fail, only be wrong quietly, and it already overlapped, as
+   * NPC_VS_NPC_DAMAGE (0.11) sits inside the laser window; any balance change
+   * to RAM_DAMAGE or the shot roll rewrote the table with no warning. And this
+   * table is the reason the harness exists: it is what separates "they shot
+   * you" from "one of them flew into you".
    *
-   * So each of the five methods that CAN damage the player announces itself
-   * while it runs. TypeScript's `private` is erased, so they are ordinary
-   * prototype methods: assigning to the instance shadows one, `delete` puts it
-   * back. The save/restore matters, because two of them nest —
-   * resolveNpcFire runs inside stepNpcs, applyOrdnance inside
-   * stepProjectilesAndEffects — and the innermost is the true cause.
+   * The generation after that wrapped the five step phases by name to have
+   * each announce itself, which was already broken by the time it mattered —
+   * those methods live on WorldStep now, not the Game, so every hit landed in
+   * `unknown`. An argument cannot go stale that way.
    *
-   * If game.ts renames one, start() says so and its damage lands in `unknown`.
-   * A harness that admits it no longer knows beats one that is confidently
-   * wrong.
+   * Anything the game sends that is not in this list still lands in `unknown`
+   * and report() says so. A harness that admits it no longer knows beats one
+   * that is confidently wrong.
    */
-  const CAUSES = {
-    resolveNpcFire: 'laser',              // an NPC's gun found you
-    applyOrdnance: 'missile',             // a missile got past the E.C.M.
-    checkStation: 'station',              // you flew into the Coriolis
-    stepNpcs: 'ram',                      // a ship rammed you
-    stepProjectilesAndEffects: 'cargo',   // a canister broke on the hull
-  };
+  const SOURCES = ['laser', 'missile', 'ram', 'station', 'cargo'];
 
   const SAMPLE_HZ = 10;
   let sampleAccum = 0;
   let origUpdate = null, npcProto = null, origApply = null, origFire = null;
-  /** the innermost announced cause, while a wrapped method is on the stack */
-  let cause = 'unknown';
-  const wrappedCauses = [];
-
-  function patchCauses() {
-    for (const [method, kind] of Object.entries(CAUSES)) {
-      const orig = g[method];
-      if (typeof orig !== 'function') {
-        console.warn(`__rec: Game.${method} is gone — "${kind}" damage will be `
-          + 'reported as "unknown". Update CAUSES in test/combat-recorder.js.');
-        continue;
-      }
-      const bound = orig.bind(g);
-      g[method] = (...args) => {
-        const outer = cause;
-        cause = kind;
-        try { return bound(...args); } finally { cause = outer; }
-      };
-      wrappedCauses.push(method);
-    }
-  }
-
-  function unpatchCauses() {
-    // delete the shadowing own property; the prototype method is untouched
-    for (const method of wrappedCauses) delete g[method];
-    wrappedCauses.length = 0;
-    cause = 'unknown';
-  }
 
   const hostiles = () => g.npcs.filter((n) => n.alive
     && (n.role === 'pirate' || n.role === 'thargoid' || n.role === 'thargon'
@@ -208,13 +175,11 @@
     && n.object.position.distanceTo(g.player.position) < 9000);
 
   function patch() {
-    patchCauses();
-
-    // damage to the player, tagged by whichever wrapped method is running
+    // damage to the player, tagged by the step that billed it
     origApply = g.applyPlayerDamage.bind(g);
-    g.applyPlayerDamage = (amt, from) => {
+    g.applyPlayerDamage = (amt, from, source) => {
       if (rec.running) {
-        const kind = cause;
+        const kind = SOURCES.includes(source) ? source : 'unknown';
         rec.damageBy[kind] += amt;
         rec.countBy[kind] += 1;
         rec.damageTaken += amt;
@@ -224,7 +189,7 @@
           rec.events.push({ t: +rec.t.toFixed(1), what: kind === 'ram' ? 'a ship rammed you' : 'missile hit you' });
         }
       }
-      return origApply(amt, from);
+      return origApply(amt, from, source);
     };
 
     // the player's own trigger: count a hit by watching hostile hp fall
@@ -298,7 +263,6 @@
   }
 
   function unpatch() {
-    unpatchCauses();
     if (origApply) g.applyPlayerDamage = origApply;
     if (origFire) g.fireLaser = origFire;
     if (origUpdate) g.update = origUpdate;

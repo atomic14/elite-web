@@ -13,11 +13,19 @@
 //
 // The geometry of what a shot passes through is shot.ts; the numbers are
 // gunnery.ts. This is the consequences.
+//
+// The two free functions at the bottom are the player's own gun and the
+// player's own hull, taken over a GameState: they build the arguments
+// `Combat.fire`/`hitPlayer` want out of the state and hand the events back to
+// whoever asked. That is what lets a caller other than the Game pull the real
+// trigger and take the real damage, and decide for itself what the events mean.
 
 import * as THREE from 'three';
 import type { World } from './world.ts';
 import type { NpcShip } from './npc.ts';
+import type { GameState } from './state.ts';
 import type { ShipSystems } from './systems.ts';
+import { viewDirection } from './world-step.ts';
 import { type CommanderData, formatCredits, killValue } from './commander.ts';
 import { laserForView, canFire, chargeShot } from './gunnery.ts';
 import { traceShot } from './shot.ts';
@@ -51,6 +59,30 @@ export type CombatEvent =
   | { kind: 'died'; reason: string };
 
 const say = (text: string, seconds: number): CombatEvent => ({ kind: 'message', text, seconds });
+
+/**
+ * What hurt the player. Five things can, and this is the whole list — the five
+ * `StepHost.applyPlayerDamage` calls in world-step.ts.
+ *
+ * It exists because the source is a STATIC fact at each of those call sites and
+ * was being guessed at afterwards from the size of the number:
+ * test/combat-recorder.js classified 0.1-0.221 as a laser, 0.45 as a ram and
+ * 1.3 as a missile, which cannot error — only be quietly wrong, as it already
+ * was, since `NPC_VS_NPC_DAMAGE` (0.11) sits inside that laser window. Any
+ * balance change to `RAM_DAMAGE` or the shot roll rewrote the table with no
+ * warning. The game knows; now it says.
+ */
+export type DamageSource =
+  /** an NPC's gun found you */
+  | 'laser'
+  /** a missile got past the E.C.M. */
+  | 'missile'
+  /** a ship flew into you */
+  | 'ram'
+  /** you flew into the Coriolis */
+  | 'station'
+  /** a canister broke on the hull */
+  | 'cargo';
 
 /** Scratch vectors, so resolving a shot allocates nothing. */
 export interface CombatScratch {
@@ -253,4 +285,47 @@ export class Combat {
     if (result.destroyed) out.push({ kind: 'died', reason: 'SHIP DESTROYED' });
     return out;
   }
+}
+
+// --- the player's gun and the player's hull, over a state --------------------
+//
+// `Combat` takes each ingredient separately, deliberately — it is what makes it
+// testable, and what lets `destroy()` be handed a different commander. But the
+// player's own trigger always wants the same seven arguments and they all come
+// out of one GameState, and that assembly was two methods of game.ts built from
+// `this`. Here, it is assembly over an argument: the Game passes its state, and
+// so can anything else holding one.
+//
+// Neither applies anything. The caller decides what the events mean — the HUD
+// and the law for the Game, a report for a caller that wants the numbers.
+
+/**
+ * Pull the player's trigger, in whatever view they are looking through.
+ *
+ * @param scratch reused across frames; `b` carries the view direction, because
+ * `Combat.fire` writes the trace's own working vector into `a`.
+ */
+export function firePlayerLaser(
+  state: GameState, combat: Combat, scratch: CombatScratch,
+): CombatEvent[] {
+  const { commander, sys, player, session } = state;
+  return combat.fire(
+    commander, sys, player.position,
+    viewDirection(player.quaternion, session.view, scratch.b),
+    session.view, session.witchspace, scratch);
+}
+
+/**
+ * The player takes a hit of `amount`, from `from`.
+ *
+ * The source of the hit is NOT here: `Combat.hitPlayer` only needs to know
+ * whether it came from ahead, and who is attributing the damage is the caller's
+ * business — see `DamageSource` and `StepHost.applyPlayerDamage`.
+ */
+export function damagePlayer(
+  state: GameState, combat: Combat, amount: number, from: THREE.Vector3,
+  scratch: CombatScratch,
+): CombatEvent[] {
+  const { sys, player } = state;
+  return combat.hitPlayer(sys, amount, from, player.position, player.quaternion, scratch);
 }

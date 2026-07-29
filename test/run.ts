@@ -19,7 +19,7 @@ import {
 } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
 import {
-  WorldStep, massLocked, FIXED_DT, type StepEvent, type StepHost,
+  WorldStep, viewDirection, massLocked, FIXED_DT, type StepEvent, type StepHost,
 } from '../src/game/world-step.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
@@ -38,7 +38,10 @@ import {
   dumpCargo, offerBribe, appetiteOf, OPPORTUNIST_FLOOR, GANG_FLOOR,
 } from '../src/game/jettison.ts';
 import { breachLoss, CARGO_LOSS_CHANCE } from '../src/game/systems.ts';
-import { Combat } from '../src/game/combat.ts';
+import {
+  Combat, firePlayerLaser, damagePlayer,
+  type CombatEvent, type DamageSource,
+} from '../src/game/combat.ts';
 import {
   CONTRABAND, isContraband, contrabandTonnes, carryingContraband,
   fineFor, offenceFor, LEGAL_NAMES,
@@ -959,15 +962,17 @@ console.log('\nheadless world step');
     };
     const log = {
       deaths: [] as string[], saves: 0, docks: 0, shots: 0, damage: 0, hermits: 0,
+      /** every hit the player took, and what the step said did it */
+      hits: [] as { amount: number; source: DamageSource }[],
     };
     // The host is the ONLY thing standing behind the step, and it is a stub:
     // no Hud, no screens, no localStorage, no renderer.
     const host: StepHost = {
       inFlight: () => log.deaths.length === 0 && log.docks === 0,
-      applyPlayerDamage: (amount, from) => {
+      applyPlayerDamage: (amount, from, source) => {
         log.damage += amount;
-        combat.hitPlayer(state.sys, amount, from,
-          state.player.position, state.player.quaternion, scratch);
+        log.hits.push({ amount, source });
+        damagePlayer(state, combat, amount, from, scratch);
       },
       destroyNpc: (npc) => { combat.destroy(state.commander, npc); },
       wreckNpc: (npc) => { combat.wreck(npc); },
@@ -1083,6 +1088,187 @@ console.log('\nheadless world step');
     const c = arrival(8_888_888);
     fly(c, 600);
     check('...while a different seed does not', trace(c) !== first);
+  }
+
+  // --- the player's gun and hull, assembled from a state ---------------------
+  //
+  // `Combat.fire` wants seven arguments and `hitPlayer` six, and game.ts built
+  // every one of them out of `this` — so the player's own trigger could only be
+  // pulled by a Game. combat.ts's firePlayerLaser/damagePlayer do the assembly
+  // over a GameState instead, which is what lets another caller fire the real
+  // gun and hand the events somewhere other than the HUD.
+  //
+  // The property that matters is not that the new functions work: it is that
+  // they are the SAME call. So each of these runs the shot twice from an
+  // identical seeded state — once with the arguments spelled out as game.ts
+  // spelled them, once through the extraction — and demands the events, the
+  // target's hp and the ship's systems all come out identical.
+  {
+    /** the same state twice: a pirate parked dead ahead, tough enough to live */
+    const dueller = () => {
+      seedWorld(60_606);
+      const state = freshState(newCommander());
+      state.world.build(state.systems[state.commander.systemIndex]);
+      state.player.position.set(0, 0, 0);
+      state.player.quaternion.identity();          // nose along -Z
+      const npc = state.world.spawn('pirate', new THREE.Vector3(0, 0, -400), 1);
+      npc.hp = 9;                                  // takes the hit, survives it
+      // a ship spawned this frame has no world matrix yet, and the raycast
+      // reads matrixWorld — without this the shot is tested against the origin
+      npc.object.updateMatrixWorld(true);
+      return {
+        state, npc,
+        combat: new Combat(state.world),
+        scratch: {
+          a: new THREE.Vector3(), b: new THREE.Vector3(),
+          q: new THREE.Quaternion(), ray: new THREE.Raycaster(),
+        },
+      };
+    };
+
+    /** an event list as comparable text: kinds, and the numbers inside them */
+    const digest = (events: readonly CombatEvent[]) => JSON.stringify(events.map((e) =>
+      e.kind === 'message' ? [e.kind, e.text, e.seconds]
+        : e.kind === 'offence' ? [e.kind, e.level]
+          : e.kind === 'wrecked' ? [e.kind, e.npc.role]
+            : e.kind === 'beam' ? [e.kind, e.at ? e.at.toArray() : null]
+              : e.kind === 'died' ? [e.kind, e.reason] : [e.kind]));
+    /** what the shot LEFT behind: the target's hp and the ship's systems */
+    const after = (d: ReturnType<typeof dueller>) =>
+      JSON.stringify([d.npc.hp, d.state.sys]);
+
+    const tmp = new THREE.Vector3();
+    const byHand = dueller();
+    const handEvents = digest(byHand.combat.fire(
+      byHand.state.commander, byHand.state.sys, byHand.state.player.position,
+      viewDirection(byHand.state.player.quaternion, byHand.state.session.view, tmp),
+      byHand.state.session.view, byHand.state.session.witchspace, byHand.scratch));
+
+    const extracted = dueller();
+    const outEvents = digest(
+      firePlayerLaser(extracted.state, extracted.combat, extracted.scratch));
+
+    check('the extracted trigger reports what game.ts\'s seven arguments did',
+      handEvents === outEvents);
+    check('...and it was a hit, so the comparison is not of two empty lists',
+      handEvents.includes('"offence"') && byHand.npc.hp < 9);
+    check('...leaving the same hp on the target and the same heat in the gun',
+      after(byHand) === after(extracted));
+
+    // The view is read from the state, not assumed to be the nose: a rear-view
+    // shot hits what is BEHIND you, and that is the one argument of the seven
+    // that was easiest to lose in the move.
+    const rear = dueller();
+    rear.npc.object.position.set(0, 0, 400);
+    rear.npc.object.updateMatrixWorld(true);
+    rear.state.session.view = 1;                   // looking aft
+    rear.state.commander.equipment.rearLaser = true;
+    const aft = digest(firePlayerLaser(rear.state, rear.combat, rear.scratch));
+    check('a rear-view shot still hits what is behind you',
+      aft.includes('"offence"') && rear.npc.hp < 9);
+    // ...and without the mount there is nothing to fire, which is the other
+    // half of the view reaching the gun
+    const noMount = dueller();
+    noMount.npc.object.position.set(0, 0, 400);
+    noMount.npc.object.updateMatrixWorld(true);
+    noMount.state.session.view = 1;
+    check('...and with no rear mount fitted, nothing happens at all',
+      firePlayerLaser(noMount.state, noMount.combat, noMount.scratch).length === 0
+        && noMount.npc.hp === 9);
+
+    // ...and the damage model, the same way. The shield absorbs it, so
+    // applyDamage draws no rng and the two calls are directly comparable.
+    const hitByHand = dueller();
+    const shieldWas = hitByHand.state.sys.foreShield;
+    const hitFrom = new THREE.Vector3(0, 0, -400);
+    const handHit = digest(hitByHand.combat.hitPlayer(
+      hitByHand.state.sys, 0.5, hitFrom,
+      hitByHand.state.player.position, hitByHand.state.player.quaternion,
+      hitByHand.scratch));
+    const hitExtracted = dueller();
+    const outHit = digest(
+      damagePlayer(hitExtracted.state, hitExtracted.combat, 0.5, hitFrom,
+        hitExtracted.scratch));
+    check('the extracted damage path reports the same as the hand-built call',
+      handHit === outHit);
+    check('...and takes it off the same shield, which really did drop',
+      JSON.stringify(hitByHand.state.sys) === JSON.stringify(hitExtracted.state.sys)
+        && hitExtracted.state.sys.foreShield < shieldWas);
+
+    // From behind it is the AFT shield. Which shield takes a hit is the one
+    // thing hitPlayer resolves out of the player's transform, so it is the bit
+    // the extraction could most easily have got wrong.
+    const fromAft = dueller();
+    damagePlayer(fromAft.state, fromAft.combat, 0.5, new THREE.Vector3(0, 0, 400),
+      fromAft.scratch);
+    check('a hit from astern lands on the aft shield',
+      fromAft.state.sys.aftShield < shieldWas
+        && fromAft.state.sys.foreShield === shieldWas);
+  }
+
+  // --- and every hit says what did it ----------------------------------------
+  //
+  // Five things can hurt the player and the step knows which one it is at each
+  // call. It used to pass only the amount and a position, so anything wanting
+  // to attribute the damage — test/combat-recorder.js, and the report a combat
+  // simulator owes — had to classify it by magnitude: 0.1-0.221 laser, 0.45
+  // ram, 1.3 missile. That cannot error, only be quietly wrong, and it already
+  // overlapped (NPC_VS_NPC_DAMAGE is 0.11). `source` replaces the guess.
+  {
+    const SOURCES: DamageSource[] = ['laser', 'missile', 'ram', 'station', 'cargo'];
+    const seen = new Set<DamageSource>();
+    const tag = (r: ReturnType<typeof arrival>) => r.log.hits.map((h) => h.source);
+
+    // an NPC's gun, over a long enough fight to connect
+    const fight = arrival(4_246);
+    fly(fight, 600);
+    for (const s of tag(fight)) seen.add(s);
+    check('an NPC laser hit is tagged "laser"',
+      fight.log.hits.length > 0 && tag(fight).includes('laser'));
+    check('...with the amount npcShotDamage produces, not a name for a number',
+      fight.log.hits.filter((h) => h.source === 'laser')
+        .every((h) => h.amount >= 0.1 && h.amount <= 0.221));
+
+    // a canister on the hull, with no scoop fitted
+    const canister = arrival(4_247);
+    canister.state.commander.equipment.scoops = false;
+    canister.state.world.cargo.spawn(canister.state.player.position.clone(), 1, [0]);
+    fly(canister, 2);
+    const onHull = canister.log.hits.filter((h) => h.source === 'cargo');
+    check('a canister breaking on the hull is tagged "cargo"', onHull.length === 1);
+    check('...at 0.06', onHull[0]?.amount === 0.06);
+    for (const s of tag(canister)) seen.add(s);
+
+    // a ship flying into you
+    const ram = arrival(4_248);
+    ram.state.world.spawn('pirate', ram.state.player.position.clone(), 2);
+    fly(ram, 1);
+    const rammed = ram.log.hits.filter((h) => h.source === 'ram');
+    check('a ram is tagged "ram"', rammed.length >= 1);
+    check(`...at RAM_DAMAGE (${RAM_DAMAGE})`,
+      rammed.every((h) => h.amount === RAM_DAMAGE));
+    for (const s of tag(ram)) seen.add(s);
+
+    // the Coriolis wall
+    const wall = arrival(4_249);
+    wall.state.player.position.copy(wall.state.world.station.position);
+    fly(wall, 1);
+    const scraped = wall.log.hits.filter((h) => h.source === 'station');
+    check('flying into the station is tagged "station"', scraped.length === 1);
+    check('...at 0.9', scraped[0]?.amount === 0.9);
+    for (const s of tag(wall)) seen.add(s);
+
+    // a missile that got through
+    const missile = arrival(4_250);
+    missile.ordnance.launchHostile(
+      missile.state.player.position.clone().add(new THREE.Vector3(0, 0, -600)));
+    fly(missile, 300);
+    const hit = missile.log.hits.filter((h) => h.source === 'missile');
+    check('a missile getting through is tagged "missile"', hit.length >= 1);
+    for (const s of tag(missile)) seen.add(s);
+
+    check('all five ways to be hurt are named, and nothing else is',
+      SOURCES.every((s) => seen.has(s)) && seen.size === SOURCES.length);
   }
 
   // massLocked() is the flight keys' rule and the torus drive's, and it is one

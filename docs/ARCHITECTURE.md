@@ -94,7 +94,11 @@ an NPC's does not.
   steps of it and asserts the run replays byte-identically), which is what the
   trainer needs. What it cannot own it asks for through `StepHost` — eleven
   verbs and one question, all of them consequences that reach outside the sky
-  (a bounty, a legal status, a save, a screen, the end of the run).
+  (a bounty, a legal status, a save, a screen, the end of the run). One of them
+  carries a fact only the step has: `applyPlayerDamage` names its
+  `DamageSource`, because what hurt you is known statically at each of the five
+  places it bills you and can only be guessed at afterwards from the size of
+  the number.
 - **The same shape three times over.** `persistence.ts` (capture, restore,
   autosave, resume) and `station.ts` (dock, launch, the menu between them) came
   out the same way: a module that decides and reports, one host object literal
@@ -184,7 +188,10 @@ src/
     brains.ts               the five trained policies, and who flies which
 
     combat.ts               what happens when something is shot: bounties, kills,
-                            wrecks, loot
+                            wrecks, loot — plus the player's own trigger and
+                            hull taken over a GameState (firePlayerLaser,
+                            damagePlayer), and DamageSource, the five things
+                            that can hurt the commander
     gunnery.ts              BOTH guns: the player's mounts, heat and aim assist,
                             and the NPC's hit rolls, damage and missile choice
     shot.ts                 what a shot passed through: ray first, then graze cone

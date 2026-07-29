@@ -53,7 +53,10 @@ import {
 import { type Canister } from './cargo.ts';
 import { spawnPopulation } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
-import { Combat, BEAM_FLASH, type CombatEvent } from './combat.ts';
+import {
+  Combat, BEAM_FLASH, firePlayerLaser, damagePlayer,
+  type CombatEvent, type DamageSource,
+} from './combat.ts';
 import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.ts';
 import { constrictorLurksHere } from './missions.ts';
 import { World } from './world.ts';
@@ -370,7 +373,8 @@ export class Game {
   private stepHost(): StepHost {
     return {
       inFlight: () => this.mode === 'flight',
-      applyPlayerDamage: (amount, from) => this.applyPlayerDamage(amount, from),
+      applyPlayerDamage: (amount, from, source) =>
+        this.applyPlayerDamage(amount, from, source),
       destroyNpc: (npc) => this.destroyNpc(npc),
       wreckNpc: (npc) => this.wreckNpc(npc),
       fireLaser: () => this.fireLaser(),
@@ -991,11 +995,15 @@ export class Game {
     sfx.beep(300, 0.18);
   }
 
-  /** @internal — driven by test/playtest.js */
+  /**
+   * Pull the trigger. The arguments are built from the state by combat.ts, so
+   * the same gun can be fired against a state that is not this Game's; what
+   * lands on the HUD and in the law is what makes this one the Game's.
+   *
+   * @internal — driven by test/playtest.js, wrapped by test/combat-recorder.js
+   */
   fireLaser(): void {
-    this.applyCombat(this.combat.fire(
-      this.commander, this.sys, this.player.position, this.viewDir(this.tmp),
-      this.view, this.witchspace, this.combatScratch));
+    this.applyCombat(firePlayerLaser(this.state, this.combat, this.combatScratch));
   }
 
   /** Destruction credited to the player. @internal — driven by test/playtest.js */
@@ -1008,12 +1016,20 @@ export class Game {
     this.applyCombat(this.combat.wreck(npc));
   }
 
-  /** @internal — driven by test/playtest.js */
-  applyPlayerDamage(amount: number, from: THREE.Vector3): void {
+  /**
+   * The player takes a hit.
+   *
+   * `source` says what did it and this implementation ignores it — the flash is
+   * the same whatever hit you. It is on the signature because a caller wrapping
+   * this method is the only place the fact is still available: see
+   * `DamageSource`, and test/combat-recorder.js, which reads it off argument
+   * three instead of guessing from `amount`.
+   *
+   * @internal — wrapped by test/combat-recorder.js
+   */
+  applyPlayerDamage(amount: number, from: THREE.Vector3, _source: DamageSource): void {
     this.hud.flashDamage();
-    this.applyCombat(this.combat.hitPlayer(
-      this.sys, amount, from, this.player.position, this.player.quaternion,
-      this.combatScratch));
+    this.applyCombat(damagePlayer(this.state, this.combat, amount, from, this.combatScratch));
   }
 
   /**

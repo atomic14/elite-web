@@ -43,6 +43,7 @@ import { planDocking, dockingOutcome } from './docking.ts';
 import { regenerate, updateCabinTemp, scoopFuel } from './systems.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE } from './gunnery.ts';
+import type { DamageSource } from './combat.ts';
 import { Ordnance, ordnanceMessage, type OrdnanceReply } from './ordnance.ts';
 import type { NpcShip, FireEvent } from './npc.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
@@ -129,8 +130,14 @@ const say = (text: string, seconds: number): StepEvent => ({ kind: 'message', te
 export interface StepHost {
   /** is the ship still flying? `Game.mode` is a screen-stack question */
   inFlight(): boolean;
-  /** the player took a hit — shields, hull, the damage flash, and maybe death */
-  applyPlayerDamage(amount: number, from: THREE.Vector3): void;
+  /**
+   * The player took a hit — shields, hull, the damage flash, and maybe death.
+   *
+   * `source` is what did it, and the step is the only place that knows: it is a
+   * static fact at each of the five calls below, where downstream it can only
+   * be guessed at from the size of the number. See `DamageSource`.
+   */
+  applyPlayerDamage(amount: number, from: THREE.Vector3, source: DamageSource): void;
   /** a kill credited to the player: bounty, rating, contracts, the law */
   destroyNpc(npc: NpcShip): void;
   /** a ship out of the sky with no credit to anyone */
@@ -300,7 +307,7 @@ export class WorldStep {
     // and bouncing off the station is free.
     for (const npc of playerVsNpcs(
       player.position, (k) => { player.speed *= k; }, world.npcs, this.scratch)) {
-      this.host.applyPlayerDamage(RAM_DAMAGE, npc.object.position);
+      this.host.applyPlayerDamage(RAM_DAMAGE, npc.object.position, 'ram');
       out.push(say('COLLISION', 2));
       if (npc.takeDamage(RAM_DAMAGE, player.position, true)) this.host.destroyNpc(npc);
     }
@@ -355,7 +362,7 @@ export class WorldStep {
     // ours to decide, because it touches the hold, legal status and damage.
     for (const { canister: c } of world.cargo.update(dt, player.position)) {
       if (!commander.equipment.scoops) {
-        this.host.applyPlayerDamage(0.06, c.object.position);
+        this.host.applyPlayerDamage(0.06, c.object.position, 'cargo');
         out.push(say('CANISTER DESTROYED ON HULL', 2));
       } else if (cargoTonnes(commander) >= cargoCapacity(commander)) {
         out.push(say(
@@ -389,7 +396,7 @@ export class WorldStep {
       } else if (e.kind === 'hitPlayer') {
         world.effects.explosion(e.at, 0xff8866);
         sfx.explosion();
-        this.host.applyPlayerDamage(e.damage, e.at);
+        this.host.applyPlayerDamage(e.damage, e.at, 'missile');
       } else if (e.kind === 'ecmDefeated') {
         world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
         this.state.ecmDetectedTimer = 2;
@@ -540,7 +547,7 @@ export class WorldStep {
     const away = this.tmp2.copy(player.position).sub(station.position).normalize();
     player.position.copy(station.position).addScaledVector(away, 420);
     player.speed = 0;
-    this.host.applyPlayerDamage(0.9, station.position);
+    this.host.applyPlayerDamage(0.9, station.position, 'station');
     out.push(say(
       outcome === 'slotMiss' ? 'DOCKING FAILURE — MATCH SLOT ROTATION' : 'COLLISION', 3));
   }
@@ -597,7 +604,9 @@ export class WorldStep {
       world.effects.tracer(
         npc.nosePosition(this.tmp).clone(), to,
         npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
-      if (hit) this.host.applyPlayerDamage(npcShotDamage(random()), npc.object.position);
+      if (hit) {
+        this.host.applyPlayerDamage(npcShotDamage(random()), npc.object.position, 'laser');
+      }
       return;
     }
     // NPC shooting NPC
