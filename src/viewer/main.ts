@@ -5,14 +5,14 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { buildShip, COBRA_MK3, SIDEWINDER } from '../ships/geometry.ts';
 import { createStarfield } from '../world/starfield.ts';
-import { Episode, type ShotEvent } from '../sim/scenario.ts';
-import { brainFromFile, randomBrain, type BrainFile } from '../sim/policy.ts';
-import { makeRng, type SimShip, forward } from '../sim/core.ts';
-import pirateR1BrainFile from '../sim/brains/pirate-attack.json' with { type: 'json' };
-import pirateBrainFile from '../sim/brains/pirate-attack-g1.json' with { type: 'json' };
-import traderBrainFile from '../sim/brains/trader-evade.json' with { type: 'json' };
-import packBrainFile from '../sim/brains/pirate-pack.json' with { type: 'json' };
-import defendBrainFile from '../sim/brains/jameson-defend-g1.json' with { type: 'json' };
+import { Episode, type ShotEvent } from '../ai-training/scenario.ts';
+import { brainFromFile, randomBrain, type BrainFile } from '../ai-training/policy.ts';
+import { makeRng, type SimShip, forward } from '../ai-training/core.ts';
+import pirateR1BrainFile from '../ai-training/brains/pirate-attack.json' with { type: 'json' };
+import pirateBrainFile from '../ai-training/brains/pirate-attack-g1.json' with { type: 'json' };
+import traderBrainFile from '../ai-training/brains/trader-evade.json' with { type: 'json' };
+import packBrainFile from '../ai-training/brains/pirate-pack.json' with { type: 'json' };
+import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
 
 // Combat viewer: replays the training environment with the real wireframe
 // ships, so trained behaviour can be watched (and compared to baselines).

@@ -189,12 +189,12 @@ A/B the old scripted AI.
 
 ### 5. The sim is the game's physics, twice
 
-`src/sim/` is a **render-free copy of the combat-relevant physics** (ship
+`src/ai-training/` is a **render-free copy of the combat-relevant physics** (ship
 classes, turn rates, the pulse-laser model) with its own tiny vec/quat
 math — no three.js — so Node can run millions of ship-steps per minute for
 training, and the browser viewer can replay identical episodes. **The
 contract: if you change combat numbers in game/npc.ts or game.ts, mirror
-them in sim/core.ts** (and ideally retrain). The policies' observation is
+them in ai-training/core.ts** (and ideally retrain). The policies' observation is
 ship-frame relative (`policy.ts` docstring) which is what makes them
 position/orientation invariant.
 
@@ -273,5 +273,5 @@ ships.
 2. `ships/geometry.ts` — the data-as-art bit.
 3. `player.ts` then `game/npc.ts` — flight, then behaviours.
 4. `game/game.ts` — top to bottom once, with the mode machine in mind.
-5. `sim/core.ts` → `sim/policy.ts` → `train/evolve.ts` — the AI stack
+5. `ai-training/core.ts` → `ai-training/policy.ts` → `train/evolve.ts` — the AI stack
    (then docs/AI-TRAINING.md and docs/TRAINING-LOG.md for the results).

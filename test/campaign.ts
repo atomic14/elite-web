@@ -24,7 +24,7 @@ import {
   newCommander, cargoCapacity, cargoTonnes, rating, killValue, EQUIPMENT_CATALOGUE,
   equipmentOwned, MAX_FUEL, type CommanderData, type Contract,
 } from '../src/game/commander.ts';
-import { makeRng } from '../src/sim/core.ts';
+import { makeRng } from '../src/ai-training/core.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
 
 const COMMANDERS = Number(process.argv[2] ?? 40);

@@ -82,8 +82,8 @@ live site deploys from Cloudflare Pages (build `npm run build`, output
 `dist`) — and since npm runs `prebuild` before `build`, a commit that fails
 lint or tests fails the deploy build rather than shipping.
 
-> Retraining overwrites the committed neural weights in `src/sim/brains/`
-> that the game imports — `git checkout src/sim/brains` restores them.
+> Retraining overwrites the committed neural weights in `src/ai-training/brains/`
+> that the game imports — `git checkout src/ai-training/brains` restores them.
 
 You start docked at Lave Station with 100.0 Cr, a full tank and 3 missiles.
 Progress saves automatically every time you dock.
@@ -275,9 +275,9 @@ detected — as on the original's dashboard.
   blauen Donau* while you docked; the tune is Strauss, 1866, and comfortably
   public domain, so it is synthesised here from note data rather than shipping
   audio from the original game — this repo contains no assets from Elite.
-- `src/sim/` + `train/` — render-free combat simulator, tiny MLP policies
+- `src/ai-training/` + `train/` — render-free combat simulator, tiny MLP policies
   (1.9k params, keyboard-style discrete actions) and a neuroevolution
-  self-play trainer; trained weights live in `src/sim/brains/`. The combat
+  self-play trainer; trained weights live in `src/ai-training/brains/`. The combat
   viewer (`viewer.html`) replays matchups with the real wireframe ships.
   See `docs/AI-TRAINING.md` and `docs/TRAINING-LOG.md`.
 - Rendering: three.js + UnrealBloom for the phosphor glow.

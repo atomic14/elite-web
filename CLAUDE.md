@@ -24,6 +24,13 @@ They are where every existing player's commander lives; renaming them orphans
 every save silently, which is exactly the bug class that ate New Commander and
 Import earlier. They stay as they are, forever.
 
+**`src/ai-training/` is the neuroevolution simulator; `train/` is the scripts
+that drive it.** It was `src/sim`, which said nothing about who it was for and
+read as "the simulation" beside `src/game` — which is also a simulation. The
+simulator is render-free and self-contained (its own vector maths, no
+three.js) so 150,000 episodes run at speed under node; the game does NOT use
+it, which is what invariant 2 is about.
+
 ## Commands
 
 ```sh
@@ -72,7 +79,7 @@ vite.config.ts; add new pages there or they won't build.
    sim determinism, and that the shipped brains still beat their baselines).
 2. **Sim/game parity**: combat numbers (ship classes, laser damage/cooldown/
    heat, turn rates) exist twice — `src/game/{npc,game}.ts` and
-   `src/sim/core.ts`. Change one → change the other, and note that trained
+   `src/ai-training/core.ts`. Change one → change the other, and note that trained
    brains were fitted to the old numbers (consider retraining).
 3. **No logarithmicDepthBuffer** on the renderer: it disables polygonOffset,
    which is what keeps black hull fills behind wireframe edges.
@@ -86,8 +93,8 @@ vite.config.ts; add new pages there or they won't build.
 7. **Contract/market rules live in `src/game/contracts.ts`**, not game.ts,
    so the headless campaign simulator runs the *same* code the game does.
    Keep new economic rules there.
-8. Retraining overwrites `src/sim/brains/*.json` which the game/viewer
-   import at build time. `git checkout src/sim/brains` restores shipped
+8. Retraining overwrites `src/ai-training/brains/*.json` which the game/viewer
+   import at build time. `git checkout src/ai-training/brains` restores shipped
    weights. Shipped-in-game: **`pirate-attack-r2`** (pirates),
    **`jameson-defend-g1`** (armed traders + anything player-assist),
    **`pirate-pack-r4-selectonly`** (organised gangs only — `npc.ts`,
@@ -113,7 +120,7 @@ vite.config.ts; add new pages there or they won't build.
    The sim handed every ship the player's pulse laser — 0.24s cadence through
    a ~0.027 rad cone, deterministic hits — where `npc.ts` gives an NPC 1.30s
    through a 0.25 rad gate and then rolls dice on range. Lined up, 0.667
-   damage/second against 0.041. `src/sim/core.ts` now models both as
+   damage/second against 0.041. `src/ai-training/core.ts` now models both as
    `LASER` and `NPC_GUN`, hulls declare `gun`, and `test/run.ts` asserts
    cadence, gate, hit cap and damage are EQUAL rather than documenting a
    5.4x ratio. Change one side, change the other (invariant 2).
@@ -234,7 +241,7 @@ their tests can drive them directly.
 ## Headless: what it takes to run game code under node
 
 The goal is for the **real world step** to be what training runs against,
-instead of the parallel model in `src/sim`. three.js is NOT the obstacle —
+instead of the parallel model in `src/ai-training`. three.js is NOT the obstacle —
 `worldToLocal`, quaternions and `rotateOnAxis` all work in node with no canvas
 and no WebGL (measured, not assumed). Four things were, and three are fixed:
 
@@ -242,7 +249,7 @@ and no WebGL (measured, not assumed). Four things were, and three are fixed:
   as a bare statement, so importing the file touched `window`. It is
   `installPolicyKit()` now, called by the Game. Don't reintroduce the pattern.
 - **Explicit `.ts` on relative imports.** Vite resolves extensionless, node
-  does not. `src/sim` always had them; the rest of `src` does now.
+  does not. `src/ai-training` always had them; the rest of `src` does now.
 - **`with { type: 'json' }` on JSON imports.** Same story — Vite infers, node
   requires the attribute. The brain files carry it.
 - **Everything needing a GPU is confined to `engine/render-stack.ts`** —

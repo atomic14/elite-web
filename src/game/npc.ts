@@ -8,15 +8,15 @@ import {
 import {
   observe, observePack, act, makeScratch, brainFromFile,
   type Brain, type BrainFile, type ObservableShip,
-} from '../sim/policy.ts';
-import { TURN } from '../sim/core.ts';
+} from '../ai-training/policy.ts';
+import { TURN } from '../ai-training/core.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
-import pirateBrainFile from '../sim/brains/pirate-attack-g3.json' with { type: 'json' };
-import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
-import sharpBrainFile from '../sim/brains/pirate-attack-g2.json' with { type: 'json' };
-import legacyBrainFile from '../sim/brains/pirate-attack-r2.json' with { type: 'json' };
-import defendBrainFile from '../sim/brains/jameson-defend-g1.json' with { type: 'json' };
+import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
+import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
+import sharpBrainFile from '../ai-training/brains/pirate-attack-g2.json' with { type: 'json' };
+import legacyBrainFile from '../ai-training/brains/pirate-attack-r2.json' with { type: 'json' };
+import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
 //
@@ -31,7 +31,7 @@ import defendBrainFile from '../sim/brains/jameson-defend-g1.json' with { type: 
 // a turret that hangs in space and snipes.
 //
 // So g3 is trained where that move does not exist: pirate hulls carry a
-// `minSpeed` (sim/core.ts) and cannot throttle below about 43% of top speed,
+// `minSpeed` (ai-training/core.ts) and cannot throttle below about 43% of top speed,
 // and the fitness pays for time spent ON THE TARGET'S SIX rather than for
 // damage by any route. Measured against a target that stops to fight:
 //
@@ -142,7 +142,7 @@ function brainsEnabled(): boolean {
  * Range at which trained pilots hand back to the scripted break-off.
  *
  * The sim the policies were trained in has NO collision model — `radius` in
- * sim/core.ts is used only for the laser cone. Flying straight through the
+ * ai-training/core.ts is used only for the laser cone. Flying straight through the
  * target is therefore free in training, so the optimal learned behaviour is to
  * close to zero range and sit there shooting. In the game, where ships are
  * solid, that reads as deliberate ramming: the pirate slides past you and
@@ -154,7 +154,7 @@ function brainsEnabled(): boolean {
  *
  * Matches attack()'s existing 220-unit break-off, which brain-flown ships
  * previously never reached because brainFly returns before attack() is called.
- * The real fix is a collision model in sim/core.ts plus a retrain — this is
+ * The real fix is a collision model in ai-training/core.ts plus a retrain — this is
  * the guard rail until then (docs/TRAINING-LOG.md).
  */
 const RAM_GUARD = 220;
@@ -205,14 +205,14 @@ const TARGET_SPEED_FLOOR = 150;
 
 /**
  * Hostiles cannot throttle below this fraction of their top speed. Mirrors
- * `minSpeed` on the pirate hulls in sim/core.ts (110/260 and 130/300, both
+ * `minSpeed` on the pirate hulls in ai-training/core.ts (110/260 and 130/300, both
  * about 0.43) — invariant 2.
  */
 const MIN_CRUISE_FRACTION = 0.43;
 
 /**
  * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
- * LASER.range in sim/core.ts, and it has to: a brain trained to open fire at
+ * LASER.range in ai-training/core.ts, and it has to: a brain trained to open fire at
  * 3000 units was silently refused the shot by a 2600 gate, so it would sit
  * there pointing straight at the target and never pull the trigger.
  *
@@ -984,7 +984,7 @@ export class NpcShip {
     const c = this.brainControl;
 
     // integrate the discrete control (mirrors sim stepShip)
-    // must match TURN in sim/core.ts — invariant 2
+    // must match TURN in ai-training/core.ts — invariant 2
     const maxPitch = this.turnRate * TURN.pitch;
     const maxRoll = this.turnRate * TURN.roll;
     const rampTo = (cur: number, target: number, active: boolean): number => {
@@ -995,7 +995,7 @@ export class NpcShip {
     this.brainPitchRate = rampTo(this.brainPitchRate, c.pitch * maxPitch, c.pitch !== 0);
     this.brainRollRate = rampTo(this.brainRollRate, c.roll * maxRoll, c.roll !== 0);
     if (c.throttle > 0) this.speed = Math.min(this.maxSpeed, this.speed + 120 * dt);
-    // Floor, mirroring ShipClass.minSpeed in sim/core.ts — invariant 2. A
+    // Floor, mirroring ShipClass.minSpeed in ai-training/core.ts — invariant 2. A
     // fighter that can stop dead becomes a turret, because standing still is
     // how you hold a firing line. Only hostiles get it; traders and haulers
     // are allowed to come to rest.

@@ -105,10 +105,10 @@ regime where simple methods beat sophisticated ones.
 
 The architecture:
 
-- `src/sim/core.ts` — a **render-free copy of the combat physics**, own
+- `src/ai-training/core.ts` — a **render-free copy of the combat physics**, own
   vector/quaternion maths, no three.js. Node runs it flat out; the browser
   viewer replays identical episodes.
-- `src/sim/policy.ts` — a **1,899-parameter MLP** (14 → 32 → 32 → 11) whose
+- `src/ai-training/policy.ts` — a **1,899-parameter MLP** (14 → 32 → 32 → 11) whose
   observation is entirely in the ship's own frame, and whose outputs are
   the *same discrete keyboard controls a human gets*: pitch ±/0, roll ±/0,
   throttle ±/0, fire y/n. No cheating with continuous steering.

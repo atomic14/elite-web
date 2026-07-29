@@ -2,7 +2,7 @@
 
 > **Status update (2026-07-26): Phases 1-2 are DONE and reproducible.**
 > The sim core, policy MLP and neuroevolution trainer described below are
-> implemented (`src/sim/`, `train/evolve.ts`). The trained pirate reached
+> implemented (`src/ai-training/`, `train/evolve.ts`). The trained pirate reached
 > fitness parity with the scripted hunter (18.36 vs 18.34) in 210 s of CPU;
 > the self-play evader survives a pirate that kills the scripted trader
 > almost instantly (≈14 vs ≈1 fitness). Runs, curves and hyperparameters:
@@ -53,7 +53,7 @@ the regime where simple methods beat fancy ones.
 ### 1. Extract the sim core
 
 Pull the kinematics + combat resolution out of `npc.ts`/`game.ts` into a
-pure module (`src/sim/core.ts`) with no three.js scene dependencies (vector
+pure module (`src/ai-training/core.ts`) with no three.js scene dependencies (vector
 math only). The game and the trainer both consume it — so a trained policy
 behaves identically in training and in the shipped game. This refactor is
 worth doing regardless of RL.

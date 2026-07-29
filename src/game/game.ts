@@ -75,7 +75,7 @@ import {
  * aim-assist dial rather than a shape approximation — the beam has width, and
  * a shot that just clips the silhouette still counts.
  *
- * NOT shared with the sim, and deliberately so: sim/core.ts models NPC
+ * NOT shared with the sim, and deliberately so: ai-training/core.ts models NPC
  * gunnery, which stays the cone both sides use. The player's own gun is never
  * simulated in training, so this can't break parity (invariant 2).
  *

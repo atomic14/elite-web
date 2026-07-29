@@ -15,10 +15,10 @@ node --experimental-strip-types --no-warnings train/evaluate.ts 40
 
 Each run prints per-generation `best / mean / scripted-ref` fitness, appends
 a JSONL curve to `train/logs/`, and writes the winning brain to
-`src/sim/brains/<name>.json` (with its hyperparameters and score in `meta`).
+`src/ai-training/brains/<name>.json` (with its hyperparameters and score in `meta`).
 
 > **Footgun warning:** training OVERWRITES the committed brain files, and the
-> game imports them at build time — `git checkout src/sim/brains` to restore
+> game imports them at build time — `git checkout src/ai-training/brains` to restore
 > the shipped ones. The brains referenced by the game are
 > `pirate-attack-r2.json` and `jameson-defend.json`.
 
@@ -33,7 +33,7 @@ a JSONL curve to `train/logs/`, and writes the winning brain to
 | `defend` | an ARMED trader ("Jameson") | 2× pirate-attack-r2 | `npm run train -- defend --gens 300 --pop 48` |
 
 Flags: `--gens --pop --eps --elites` (numbers), `--opponent <brain-name>`
-(loads `src/sim/brains/<name>.json` as the frozen opponent),
+(loads `src/ai-training/brains/<name>.json` as the frozen opponent),
 `--seed-brain <name>` (start the population from a previous champion —
 league play), `--out <name>` (output brain name).
 

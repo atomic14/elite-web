@@ -15,11 +15,11 @@
 //     spread of attackers at the moments shots land (the flanking measure).
 
 import { readFileSync } from 'node:fs';
-import { Episode, type Controller } from '../src/sim/scenario.ts';
-import { randomBrain, brainFromFile, type Brain, type BrainFile } from '../src/sim/policy.ts';
-import { makeRng, vSub, vNorm, vDot, type SimShip } from '../src/sim/core.ts';
+import { Episode, type Controller } from '../src/ai-training/scenario.ts';
+import { randomBrain, brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
+import { makeRng, vSub, vNorm, vDot, type SimShip } from '../src/ai-training/core.ts';
 
-const BRAINS_DIR = new URL('../src/sim/brains/', import.meta.url).pathname;
+const BRAINS_DIR = new URL('../src/ai-training/brains/', import.meta.url).pathname;
 const N = Number(process.argv[2] ?? 60); // episodes per matchup
 const HOLD_OUT_BASE = 10_000_019;
 const DT = 1 / 15;

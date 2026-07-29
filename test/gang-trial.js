@@ -10,7 +10,7 @@
  * answer is built on two approximations pointing in opposite directions, and
  * neither is small.
  *
- * The sim UNDERSTATES the gang. `src/sim/core.ts` only models two pirate
+ * The sim UNDERSTATES the gang. `src/ai-training/core.ts` only models two pirate
  * hulls, pirateCobra (hp 1.1) and pirateSidewinder (0.55), and has no
  * missiles. A real tier-2 gang flies Fer-de-Lance, Asp and Python — hp 1.3 to
  * 1.8, turn rates up to 1.2 — and every one of them carries missiles, which do

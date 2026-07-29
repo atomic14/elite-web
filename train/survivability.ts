@@ -30,12 +30,12 @@
 // the torus drive, and RAM_GUARD breaking pirates off at knife range — none
 // of which exist here. Treat this as the floor, not the answer.
 
-import { Episode, type Controller } from '../src/sim/scenario.ts';
-import { brainFromFile, type Brain, type BrainFile } from '../src/sim/policy.ts';
+import { Episode, type Controller } from '../src/ai-training/scenario.ts';
+import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { readFileSync } from 'node:fs';
 import { durability } from '../src/game/systems.ts';
 
-const BRAINS = new URL('../src/sim/brains/', import.meta.url);
+const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
 const load = (name: string): Brain =>
   brainFromFile(JSON.parse(readFileSync(new URL(`${name}.json`, BRAINS), 'utf8')) as BrainFile);
 

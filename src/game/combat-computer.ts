@@ -13,7 +13,7 @@
 import type * as THREE from 'three';
 import {
   act, observe, makeScratch, type ObservableShip, type Brain,
-} from '../sim/policy.ts';
+} from '../ai-training/policy.ts';
 import { isHostileToPlayer, type NpcShip } from './npc.ts';
 import type { ShipSystems } from './systems.ts';
 
@@ -131,7 +131,7 @@ export class CombatComputer {
   }
 }
 
-/** Mirrors the rate ramp in npc.ts brainFly and sim/core.ts stepShip. */
+/** Mirrors the rate ramp in npc.ts brainFly and ai-training/core.ts stepShip. */
 function ramp(cur: number, target: number, active: boolean, dt: number): number {
   const rate = active ? 4.0 : 5.0;
   const next = cur + (target - cur) * Math.min(1, rate * dt);

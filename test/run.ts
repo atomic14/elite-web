@@ -29,9 +29,9 @@ import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/contracts.ts';
 import { killValue } from '../src/game/commander.ts';
-import { Episode, type Controller } from '../src/sim/scenario.ts';
-import { brainFromFile, randomBrain, type BrainFile } from '../src/sim/policy.ts';
-import { makeRng } from '../src/sim/core.ts';
+import { Episode, type Controller } from '../src/ai-training/scenario.ts';
+import { brainFromFile, randomBrain, type BrainFile } from '../src/ai-training/policy.ts';
+import { makeRng } from '../src/ai-training/core.ts';
 
 let passed = 0;
 let failed = 0;
@@ -270,7 +270,7 @@ check('different seeds produce different episodes', runEpisode(1) !== runEpisode
 // --- the shipped brains still beat their baselines ---------------------------
 
 console.log('\ntrained policies (held-out seeds)');
-const BRAINS = new URL('../src/sim/brains/', import.meta.url).pathname;
+const BRAINS = new URL('../src/ai-training/brains/', import.meta.url).pathname;
 const load = (n: string) =>
   brainFromFile(JSON.parse(readFileSync(`${BRAINS}${n}.json`, 'utf8')) as BrainFile);
 const pirateR2 = load('pirate-attack-r2');
@@ -1007,7 +1007,7 @@ console.log('\npolice hostility');
 
 // --- sim/game combat parity (invariant 2) -----------------------------------
 
-// The combat numbers exist twice — src/sim/core.ts and src/game/{npc,game}.ts
+// The combat numbers exist twice — src/ai-training/core.ts and src/game/{npc,game}.ts
 // — and CLAUDE.md asks you to change both together. That has been a manual
 // promise until now, and it is exactly the kind nobody keeps: the two files
 // are edited months apart, drift is silent, and every trained brain was
@@ -1020,7 +1020,7 @@ console.log('\npolice hostility');
 console.log('\nsim/game combat parity');
 {
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
-  const core = read('../src/sim/core.ts');
+  const core = read('../src/ai-training/core.ts');
   const npc = read('../src/game/npc.ts');
   const game = read('../src/game/game.ts');
 

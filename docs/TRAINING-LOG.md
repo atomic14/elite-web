@@ -5,16 +5,16 @@ Reproduce any run with the command shown. The whole trainer path is seeded
 (mulberry32, single-threaded, no Math.random) — a rerun with identical CLI
 args is bit-identical **on the same Node build/platform**; across platforms
 expect tiny drift (Math.tanh/acos are not correctly-rounded by spec).
-League/defend rounds load their frozen opponents from `src/sim/brains/` —
+League/defend rounds load their frozen opponents from `src/ai-training/brains/` —
 rerun them against the **committed** round-1 brains (or archived copies),
 because retraining a phase overwrites its committed brain file.
 
 ## Infrastructure
 
-- **Simulator**: `src/sim/core.ts` — render-free flight + laser model
+- **Simulator**: `src/ai-training/core.ts` — render-free flight + laser model
   mirroring the game's numbers (ship classes from `npc.ts`, pulse-laser model
   from `game.ts`). Deterministic: seeded mulberry32 RNG, fixed dt = 1/15 s.
-- **Policy**: `src/sim/policy.ts` — MLP 14 → 32 → 32 → 11 (tanh), 1,899
+- **Policy**: `src/ai-training/policy.ts` — MLP 14 → 32 → 32 → 11 (tanh), 1,899
   parameters. Observation is ship-frame relative (see file docstring).
   Discrete action heads: pitch ±/0, roll ±/0, throttle ±/0, fire y/n —
   exactly the keyboard interface a human gets.
@@ -72,7 +72,7 @@ cone. Accuracy typically 60-80%.
 
 ## Artefacts
 
-- `src/sim/brains/*.json` — six brains, each with meta (fitness, date,
+- `src/ai-training/brains/*.json` — six brains, each with meta (fitness, date,
   hyperparams): `pirate-attack`, `pirate-attack-r2` (shipped, pirates),
   `trader-evade`, `trader-evade-r2`, `pirate-pack`, `jameson-defend`
   (shipped, armed traders)
@@ -273,7 +273,7 @@ went down.
 It is the strongest argument yet for the evaluation harness. Both runs
 looked like successes from inside the trainer; only held-out cross-play
 against baselines exposed them. **The r2 brains stay shipped**, and the
-r3 weights are kept in `src/sim/brains/` purely as evidence.
+r3 weights are kept in `src/ai-training/brains/` purely as evidence.
 
 ### What would actually help next
 
@@ -397,7 +397,7 @@ unchanged pending a balance decision.
 Reported from play: "the enemy ship flies towards me, then goes behind and
 seems to kamikaze into me."
 
-`src/sim/core.ts` has no collision detection. `radius` appears in the ship
+`src/ai-training/core.ts` has no collision detection. `radius` appears in the ship
 classes but is used only to size the laser cone (`core.ts` line ~191).
 Two ships may occupy the same point at no cost.
 
@@ -427,7 +427,7 @@ trained pirate hands back to the scripted break-off. Measured over 80 s of
 **UPDATE — the collision model shipped; the retrain turned out to be
 unnecessary.** See "Collision round" at the end of this file.
 
-**The original plan was a collision model in `sim/core.ts` plus a retrain.** That
+**The original plan was a collision model in `ai-training/core.ts` plus a retrain.** That
 is a sim/game parity issue (CLAUDE.md invariant 2) and the shipped brains
 were all fitted without it, so every one of them would need re-validating
 through the tournament. Worth doing as its own round: it would let the
@@ -436,7 +436,7 @@ game override them at knife range.
 
 ## Collision round — ships are solid, and the retrain that wasn't needed
 
-`sim/core.ts` now has `COLLISION` + `resolveCollision`, and `Episode.step`
+`ai-training/core.ts` now has `COLLISION` + `resolveCollision`, and `Episode.step`
 resolves every pirate-trader and pirate-pirate pairing. The game gained
 NPC-vs-NPC collisions to match (it previously only collided the *player*
 with NPCs, so ships visibly flew through each other).

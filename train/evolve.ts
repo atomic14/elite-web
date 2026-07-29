@@ -6,7 +6,7 @@
 //   npm run train -- defend [--opponent pirate-attack-r2] [--out jameson-defend]
 //
 // WARNING: without --out, each phase writes over the committed brain in
-// src/sim/brains/ that the game/viewer import. `git checkout src/sim/brains`
+// src/ai-training/brains/ that the game/viewer import. `git checkout src/ai-training/brains`
 // restores the shipped ones.
 //
 // attack: a pirate policy learns to hunt a trader (scripted by default, or a
@@ -21,13 +21,13 @@
 // random numbers keep comparisons fair).
 
 import { mkdirSync, writeFileSync, readFileSync, appendFileSync } from 'node:fs';
-import { Episode, type Controller } from '../src/sim/scenario.ts';
+import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import {
   randomBrain, mutate, brainFromFile, OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
   observe, act, makeScratch,
   type Brain, type BrainFile,
-} from '../src/sim/policy.ts';
-import { makeRng, makeShip, v3, q4, CLASSES } from '../src/sim/core.ts';
+} from '../src/ai-training/policy.ts';
+import { makeRng, makeShip, v3, q4, CLASSES } from '../src/ai-training/core.ts';
 
 const args = process.argv.slice(2);
 const PHASES = ['attack', 'evade', 'pack', 'defend'];
@@ -52,7 +52,7 @@ const DT = 1 / 15;
 const OUT_NAME = getStrArg('out',
   phase === 'attack' ? 'pirate-attack' : phase === 'evade' ? 'trader-evade' : phase === 'defend' ? 'jameson-defend' : 'pirate-pack');
 
-const BRAINS_DIR = new URL('../src/sim/brains/', import.meta.url).pathname;
+const BRAINS_DIR = new URL('../src/ai-training/brains/', import.meta.url).pathname;
 const LOGS_DIR = new URL('./logs/', import.meta.url).pathname;
 mkdirSync(BRAINS_DIR, { recursive: true });
 mkdirSync(LOGS_DIR, { recursive: true });
@@ -474,7 +474,7 @@ const out: BrainFile = {
 const outPath = `${BRAINS_DIR}${OUT_NAME}.json`;
 try {
   readFileSync(outPath);
-  console.log(`NOTE: overwriting existing brain ${OUT_NAME}.json (git checkout src/sim/brains restores shipped weights)`);
+  console.log(`NOTE: overwriting existing brain ${OUT_NAME}.json (git checkout src/ai-training/brains restores shipped weights)`);
 } catch { /* new file */ }
 writeFileSync(outPath, JSON.stringify(out));
 console.log(`saved ${outPath} (fitness ${bestFitness.toFixed(2)}), log: ${logPath}`);

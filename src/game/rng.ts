@@ -20,7 +20,7 @@
 // an injectable rng instead, because they are pure and their tests want to
 // control it directly. Both are right for what they are.
 
-// The generator is written out here rather than reusing sim/core.ts's
+// The generator is written out here rather than reusing ai-training/core.ts's
 // makeRng, for one reason: makeRng closes over its state, and a snapshot needs
 // to READ that state. A save taken mid-flight has to resume the same stream it
 // was on, or the reception waiting for you changes the moment you reload —
