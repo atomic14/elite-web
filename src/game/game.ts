@@ -25,6 +25,7 @@ import { NpcShip, CONSTRICTOR_SPEC, type NpcSpec, isHostileToPlayer, pirateSpecF
 import { planDocking, makeDockPlan, dockingOutcome } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
+import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import {
   stepMissionAtDock, constrictorDestroyed, constrictorLurksHere, missionHeadline,
 } from './missions.ts';
@@ -140,7 +141,7 @@ function cheatMode(): boolean {
 
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL,
-  cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
+  cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, killValue,
   type CommanderData, type Contract,
 } from './commander.ts';
 import {
@@ -1409,42 +1410,14 @@ export class Game {
     if (result.destroyed) this.die('SHIP DESTROYED');
   }
 
-  /**
-   * Trumbles breed exponentially and eat the hold. Cabin heat drives them
-   * out — which means a sun-skim, the same manoeuvre that refuels you.
-   */
+  /** Trumbles breed and eat; heat drives them out. Rules in trumbles.ts. */
   private updateTrumbles(dt: number): void {
-    const c = this.commander;
-    if (c.trumbles <= 0) return;
-
-    if (this.cabinTemp > TRUMBLE_PURGE_TEMP) {
-      this.trumbleTimer = 0;
-      const before = c.trumbles;
-      c.trumbles = Math.max(0, c.trumbles - Math.ceil(c.trumbles * dt));
-      if (c.trumbles === 0) {
-        this.hud.showMessage('THE LAST TRUMBLE FLEES THE HEAT. PEACE AT LAST.', 5);
-      } else if (before !== c.trumbles) {
-        this.hud.showMessage(`TRUMBLES FLEEING THE HEAT — ${c.trumbles} LEFT`, 1.5);
-      }
-      return;
-    }
-
-    this.trumbleTimer -= dt;
-    if (this.trumbleTimer > 0) return;
-    this.trumbleTimer = 20;
-    c.trumbles = Math.min(999, Math.round(c.trumbles * 1.6) + 1);
-    // they are always hungry
-    const carried = c.cargo.map((qty, i) => ({ qty, i })).filter((x) => x.qty > 0);
-    const appetite = Math.floor(c.trumbles / 8);
-    if (appetite > 0 && carried.length) {
-      const pick = carried[Math.floor(random() * carried.length)];
-      const eaten = Math.min(pick.qty, appetite);
-      c.cargo[pick.i] -= eaten;
-      this.hud.showMessage(
-        `TRUMBLES (${c.trumbles}) ATE ${eaten}${COMMODITIES[pick.i].unit} ${COMMODITIES[pick.i].name.toUpperCase()}`, 4);
-      sfx.beep(500, 0.1);
-    } else if (c.trumbles > 4) {
-      this.hud.showMessage(`TRUMBLES ABOARD: ${c.trumbles}`, 2);
+    const r = stepTrumbles(this.commander, dt, this.cabinTemp, this.trumbleTimer);
+    this.trumbleTimer = r.timer;
+    for (const e of r.events) {
+      const secs = e.kind === 'purged' ? 5 : e.kind === 'fleeing' ? 1.5 : e.kind === 'ate' ? 4 : 2;
+      this.hud.showMessage(trumbleMessage(e), secs);
+      if (e.kind === 'ate') sfx.beep(500, 0.1);
     }
   }
 

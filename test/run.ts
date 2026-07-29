@@ -12,6 +12,9 @@ import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
 import { dockingOutcome, ROLL_TOLERANCE } from '../src/game/docking.ts';
 import {
+  stepTrumbles, trumbleMessage, BREED_INTERVAL, MAX_TRUMBLES,
+} from '../src/game/trumbles.ts';
+import {
   npcHitChance, NPC_HIT_CAP, NPC_HIT_FLOOR, NPC_HIT_BASE, NPC_HIT_FALLOFF,
   NPC_DAMAGE_LO, NPC_DAMAGE_SPREAD,
 } from '../src/game/gunnery.ts';
@@ -554,6 +557,58 @@ console.log('\nsystem population');
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
   }
+}
+
+// --- trumbles ---------------------------------------------------------------
+
+console.log('\ntrumbles');
+{
+  const cmdr = (trumbles: number, cargo: number[] = new Array(17).fill(0)) =>
+    ({ trumbles, cargo: [...cargo] }) as unknown as Parameters<typeof stepTrumbles>[0];
+  const half = () => 0.5;
+
+  {
+    const c = cmdr(0);
+    const r = stepTrumbles(c, 1, 0, 0, half);
+    check('no trumbles, nothing happens', r.events.length === 0 && c.trumbles === 0);
+  }
+  {
+    const c = cmdr(1);
+    const r = stepTrumbles(c, 1, 0, 0, half);
+    check('they breed', c.trumbles > 1 && r.timer === BREED_INTERVAL);
+  }
+  {
+    // one dt per brood interval, so each call is one generation
+    const c = cmdr(1);
+    let timer = 0;
+    for (let i = 0; i < 8; i++) timer = stepTrumbles(c, BREED_INTERVAL, 0, timer, half).timer;
+    check(`...exponentially (1 -> ${c.trumbles} in 8 broods)`, c.trumbles > 20);
+    check('...but not without bound', c.trumbles <= MAX_TRUMBLES);
+  }
+  {
+    const cargo = new Array(17).fill(0); cargo[0] = 10;
+    const c = cmdr(16, cargo);
+    const r = stepTrumbles(c, 1, 0, 0, half);
+    check('a big enough brood eats the hold',
+      c.cargo[0] < 10 && r.events.some((e) => e.kind === 'ate'));
+  }
+  {
+    const cargo = new Array(17).fill(0); cargo[0] = 10;
+    const c = cmdr(4, cargo);
+    stepTrumbles(c, 1, 0, 0, half);
+    check('a small one is not hungry enough to bite', c.cargo[0] === 10);
+  }
+  {
+    // the cure is a sun-skim — the same manoeuvre that refuels you
+    const c = cmdr(50);
+    const r = stepTrumbles(c, 1, 0.9, BREED_INTERVAL, half);
+    check('cabin heat drives them out', c.trumbles < 50 && r.timer === 0);
+    const c2 = cmdr(1);
+    const r2 = stepTrumbles(c2, 1, 0.9, 0, half);
+    check('...to the last one', c2.trumbles === 0 && r2.events[0]?.kind === 'purged');
+  }
+  check('every event has a line', ['purged', 'fleeing', 'ate', 'breeding'].every((k) =>
+    trumbleMessage({ kind: k, left: 1, total: 1, commodity: 0, tonnes: 1 } as never).length > 0));
 }
 
 // --- docking has one rule ---------------------------------------------------
