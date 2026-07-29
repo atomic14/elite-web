@@ -139,6 +139,17 @@ import {
 
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
 
+/**
+ * The world advances in slices of exactly this. 60Hz, matching the rate the
+ * NPC brains decide at (10Hz, every sixth step) and the rate every combat
+ * number in this project was measured against.
+ */
+export const FIXED_DT = 1 / 60;
+/** Longest real interval we will try to simulate, before dropping the backlog. */
+const MAX_FRAME_TIME = 0.25;
+/** ...and the most steps one frame may run, so a stall cannot spiral. */
+const MAX_STEPS_PER_FRAME = 5;
+
 const MISSILE_SPEED = 700;
 // Sun proximity tuning (ordered: heat starts < scooping < temp maxes < death).
 // The sun itself orbits ~320k out (world/system-scene.ts).
@@ -403,11 +414,32 @@ export class Game {
       new ChartScreen('local', () => this.chartContext()),
     ]) this.screens.register(screen);
 
+    // Fixed timestep, decoupled from the frame rate.
+    //
+    // The world only ever advances in FIXED_DT slices, whatever the display is
+    // doing. A variable dt means a 144Hz machine and a 30Hz one get different
+    // physics from the same inputs — which is a bug on its own, and fatal to
+    // the thing this is for: a run that cannot be reproduced cannot be
+    // replayed, tested against, or trained on.
+    //
+    // The clamp stops the spiral of death: after a long stall (a tab in the
+    // background, a hyperspace hitch) we drop the backlog rather than trying
+    // to catch up, because catching up costs more time than we lost.
     let last = performance.now();
+    let accumulator = 0;
+    let simTime = 0;
     const frame = (now: number): void => {
-      const dt = Math.min((now - last) / 1000, 0.1);
+      accumulator += Math.min((now - last) / 1000, MAX_FRAME_TIME);
       last = now;
-      this.update(dt, now / 1000);
+      let steps = 0;
+      while (accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
+        simTime += FIXED_DT;
+        this.step(FIXED_DT, simTime);
+        accumulator -= FIXED_DT;
+        steps += 1;
+      }
+      if (steps === MAX_STEPS_PER_FRAME) accumulator = 0; // gave up catching up
+      this.draw(FIXED_DT);
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
@@ -1629,33 +1661,50 @@ export class Game {
   // --- per-frame -----------------------------------------------------------
 
   /** @internal — driven by test/playtest.js */
+  /**
+   * One simulation step and one frame drawn.
+   *
+   * Kept as a single call because the console harnesses drive the game with it
+   * (test/playtest.js, test/gang-trial.js) — the real loop separates them, and
+   * steps a FIXED dt however long the frame took.
+   */
   update(dt: number, elapsed: number): void {
+    this.step(dt, elapsed);
+    this.draw(dt);
+  }
+
+  /**
+   * Advance the world by exactly `dt`.
+   *
+   * Draws nothing and reads no clock. Everything about the world that can
+   * change lives downstream of this call, which is what makes a fixed
+   * timestep worth having: the same inputs and the same seed produce the same
+   * outcome regardless of frame rate.
+   */
+  step(dt: number, elapsed: number): void {
     // pause (flight only — everything else is inherently paused)
     if (this.mode === 'flight' && this.input.pressed('KeyP')) this.paused = !this.paused;
     if (this.mode !== 'flight') this.paused = false;
     if (this.paused) {
       this.hud.showMessage('PAUSED — P TO RESUME', 0.4);
-      this.render.composer.render();
-      this.renderHud(dt);
       this.input.endFrame();
       return;
     }
     if (!this.tunnel.active) this.handleInput(dt);
     else this.input.endFrame();
     this.tunnel.update(dt);
+    if (this.mode === 'flight') this.updateFlight(dt, elapsed);
+    this.input.endFrame();
+  }
 
-    if (this.mode === 'flight') {
-      this.updateFlight(dt, elapsed);
-    }
-
-
+  /** Put the current world on screen. Changes nothing about it. */
+  draw(dt: number): void {
     this.render.camera.position.copy(this.player.position);
     this.render.camera.quaternion.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
     this.beamTimer -= dt;
     this.render.beams.visible = this.beamTimer > 0;
     this.render.composer.render();
     this.renderHud(dt);
-    this.input.endFrame();
   }
 
   /**
