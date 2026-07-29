@@ -18,14 +18,34 @@ Three audiences, and the design has to serve all three:
 
 ## The one rule
 
-**Nothing that happens in the simulator leaves it.** Every hazard is an
-instance of that rule:
+**Nothing that happens in the simulator leaves it.**
+
+The load-bearing case, in Chris's words: **it must not advance you toward
+E L I T E — that requires real kills.** Concretely, a simulator kill must not
+touch either of:
+
+- `commander.kills` — the body count on the status screen
+- `commander.combatScore` — what `rating()` reads, and therefore the whole
+  Harmless → E L I T E ladder
+
+Those are two separate fields for a reason (`killValue()` weights a kill by
+threat tier, so the rating counts difficulty and not bodies), and a simulator
+that credited either would hollow out the only long-term progression the game
+has. It is the one thing here that would be unforgivable to get wrong: a player
+could grind the ladder in a training room, for free, at a station, with no risk.
+
+Everything else is the same rule applied:
 
 - no save writes — autosave suspended, the world blob untouched
-- no credits, bounty, kill count, combat rating, contract progress, legal status
+- no credits, no bounty, no contract progress, no legal status
 - no cargo or equipment lost to a hull breach
 - missiles, fuel and E.C.M. charges restored on exit
 - death ends the exercise, not the career: no escape pod, no run over
+
+**This wants a test, not care.** `combat.ts`'s `destroy()` is what increments
+both fields, and it is reached from four places. Assert that a full simulated
+engagement — kills, deaths, breaches, bounties — leaves `kills`,
+`combatScore`, `credits`, `legalStatus` and the save blob bit-identical.
 
 The seam already exists. `StepHost` in `world-step.ts` is exactly the list of
 verbs that reach outside the sky — `destroyNpc`, `raiseLegal`, `die`, `dock`,
@@ -110,13 +130,32 @@ one thing that is also a player feature.
 - Not a `window.__` handle: it is a screen, per the Screen contract. One file in
   `src/game/screens/`, one line in `ScreenId`, one registration.
 
-## Open questions for Chris
+## Settled
 
-1. Does it cost credits? Free is friendlier; a fee makes it a considered choice
-   and is more 1984.
-2. Every station, or gated on tech level / government?
-3. Which key on the docked menu — this drags in invariant 6's four places.
-4. Sparring mode as well as scored scenarios: one ship, endless, until you quit?
+1. **Free.** No credit cost — it should never be a reason not to practise.
+2. **Every station.** No tech-level or government gate.
+3. **`T` — COMBAT TRAINING** on the docked menu. Free there (docked uses
+   B C D E G H I L M N Q S X Z). `T` also arms a missile in FLIGHT, which is
+   fine and is the established convention: `C` is contracts docked and the
+   docking computer in flight, `M` is the market docked and launch-missile in
+   flight. The tables are per-mode.
+
+   **Invariant 6 applies**: a key lives in four places that must change
+   together — `src/engine/keymap.ts`, the binding table in
+   `src/game/controls.ts`, the `?` help panel in `play.html`, and the README
+   table. An audit found 13 existing disagreements, including `B` for the
+   distress beacon, which costs you cargo and is in no help panel. Add `T` to
+   all four, and add its screen's own keys to the panel too.
+4. **Three modes**, not one:
+   - **Scenario** — a named fight, scored, ends by itself. The unit of export.
+   - **Sparring** — one opponent, endless, respawning, until you quit. For
+     learning a hull's behaviour rather than winning.
+   - **Waves** — escalating, endless, until you die. Scored on waves survived,
+     and the mode that answers "how many can I actually take?" — which is the
+     question `npm run survivability` currently answers with a bot.
+
+   All three export; waves and sparring emit a record per wave / per kill so a
+   long session is still usable data rather than one summary line.
 
 ## Deliberate deviation
 
