@@ -18,9 +18,23 @@ export interface PopulationPlan {
   asteroids: number;
   /** the reception committee — arrivals only; launching from a station is safe */
   pirates: number;
+  /** a lone bounty hunter working the system */
+  hunter: boolean;
+  /** a hollowed-out rock that trades ore and asks no questions */
+  hermit: boolean;
+  /** centuries under way, still shedding cargo — arrivals only */
+  generationShip: boolean;
   /** null when launching, since nobody organised for you */
   threat: PirateThreat | null;
 }
+
+/** A bounty hunter is likelier to be about when you arrive than when you leave. */
+export const HUNTER_CHANCE_ARRIVAL = 0.35;
+export const HUNTER_CHANCE_LAUNCH = 0.2;
+/** A rock hermit hides out among the asteroids (homage to Oolite). */
+export const HERMIT_CHANCE = 0.3;
+/** Very rarely, a generation ship crosses the system. */
+export const GENERATION_SHIP_CHANCE = 0.08;
 
 /** Never fewer than one trader, never more than four. */
 export const MIN_TRADERS = 1;
@@ -57,5 +71,12 @@ export function planPopulation(
     asteroids: 2 + Math.floor(rng() * 3),
     pirates: situation === 'arrival' && threat ? threat.count : 0,
     threat: situation === 'arrival' ? threat : null,
+    // These three were rolled inline in game.ts, outside the plan — so the
+    // headless campaign measured a galaxy with no bounty hunters and no
+    // hermits, while the game spawned both. A hunter is hostile to any
+    // offender, so that was not cosmetic.
+    hunter: rng() < (situation === 'arrival' ? HUNTER_CHANCE_ARRIVAL : HUNTER_CHANCE_LAUNCH),
+    hermit: rng() < HERMIT_CHANCE,
+    generationShip: situation === 'arrival' && rng() < GENERATION_SHIP_CHANCE,
   };
 }

@@ -10,8 +10,7 @@ import * as THREE from 'three';
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
-import { generateContractOffers, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts.ts';
-import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
+import { generateContractOffers, pirateThreat, markOf, type PirateThreat } from './contracts.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
 import { PlayerShip } from '../player.ts';
 import { Input } from '../engine/input.ts';
@@ -22,10 +21,11 @@ import {
 } from '../hud/hud-model.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
-import { NpcShip, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
+import { NpcShip, CONSTRICTOR_SPEC, type NpcSpec, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
 import { planDocking, makeDockPlan } from './docking.ts';
-import { Effects } from './effects.ts';
-import { CargoField, type Canister } from './cargo.ts';
+import { type Canister } from './cargo.ts';
+import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
+import { World, TRADER_ARRIVAL_RANGE } from './world.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
 import { saveWorld, readWorld, clearWorld } from './commander.ts';
 import {
@@ -241,19 +241,21 @@ const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
 export class Game {
   /** everything that needs a GPU — see engine/render-stack.ts */
   private readonly render: RenderStack;
-  private readonly scene = new THREE.Scene();
-  /** explosions and tracers — purely visual, see effects.ts */
-  private readonly effects = new Effects(this.scene);
-  /** canisters and capsules adrift — see cargo.ts */
-  private readonly cargo = new CargoField(this.scene);
 
 
   systems: StarSystem[];
   commander: CommanderData;
   /** level-1 simulation: trade flowing between all 256 systems */
   living: LivingGalaxy;
-  world!: SystemScene;
-  npcs: NpcShip[] = [];
+  readonly world = new World();
+
+  /**
+   * The ships in the sky, and the scene they are in. Owned by `world`; kept
+   * here because the console harnesses (test/playtest.js, gang-trial.js,
+   * combat-recorder.js) and the docs reach for `g.npcs` and `g.scene` by name.
+   */
+  get npcs(): NpcShip[] { return this.world.npcs; }
+  get scene(): THREE.Scene { return this.world.scene; }
 
   readonly player: PlayerShip;
   readonly input = new Input();
@@ -407,18 +409,18 @@ export class Game {
   /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
   private readonly ordnance = new Ordnance(() => ({
     commander: this.commander,
-    npcs: this.npcs,
+    npcs: this.world.npcs,
     playerPos: this.player.position,
     viewDir: (out) => this.viewDir(out),
     message: (text, seconds) => this.hud.showMessage(text, seconds),
-    add: (o) => this.scene.add(o),
-    remove: (o) => this.scene.remove(o),
+    add: (o) => this.world.scene.add(o),
+    remove: (o) => this.world.scene.remove(o),
   }));
 
   /** Missiles in flight. Owned by `ordnance`; exposed for the HUD and saves. */
   get missiles(): Missile[] { return this.ordnance.missiles; }
   /** Cargo adrift. Owned by `cargo`; exposed for the HUD and the snapshot. */
-  get canisters(): Canister[] { return this.cargo.items; }
+  get canisters(): Canister[] { return this.world.cargo.items; }
   get targetLock(): NpcShip | null { return this.ordnance.targetLock; }
   set targetLock(v: NpcShip | null) { this.ordnance.targetLock = v; }
   get missileArmed(): boolean { return this.ordnance.armed; }
@@ -431,16 +433,16 @@ export class Game {
         e.npc.takeDamage(99, undefined, true);
         this.destroyNpc(e.npc);
       } else if (e.kind === 'hitPlayer') {
-        this.effects.explosion(e.at, 0xff8866);
+        this.world.effects.explosion(e.at, 0xff8866);
         sfx.explosion();
         this.applyPlayerDamage(e.damage, e.at);
       } else if (e.kind === 'ecmDefeated') {
-        this.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
+        this.world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
         this.ecmDetectedTimer = 2;
         this.hud.showMessage('TARGET E.C.M. — MISSILE DESTROYED', 3);
         sfx.ecm();
       } else {
-        this.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
+        this.world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
       }
     }
   }
@@ -507,7 +509,7 @@ export class Game {
   private readonly tmpM = new THREE.Matrix4();
 
   constructor(canvas: HTMLCanvasElement) {
-    this.render = createRenderStack(canvas, this.scene);
+    this.render = createRenderStack(canvas, this.world.scene);
     window.addEventListener('resize', () => this.resize());
     this.resize();
 
@@ -522,9 +524,9 @@ export class Game {
         COMMODITIES.map((c) => c.gradient));
     }
 
-    this.scene.add(createStarfield());
-    this.scene.add(this.dust.points, this.dust.streaks);
-    this.scene.add(this.render.camera);
+    this.world.scene.add(createStarfield());
+    this.world.scene.add(this.dust.points, this.dust.streaks);
+    this.world.scene.add(this.render.camera);
 
 
     this.player = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
@@ -667,15 +669,7 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   buildWorld(): void {
-    if (this.world) {
-      this.scene.remove(this.world.root);
-      this.world.dispose();
-    }
-    this.clearNpcs();
-    this.effects.clear();
-    this.cargo.clear();
-    this.world = buildSystemScene(this.system);
-    this.scene.add(this.world.root);
+    this.world.build(this.system);
     this.hud.setSystem(this.system);
   }
 
@@ -687,14 +681,12 @@ export class Game {
   enterWitchspace(): void {
     this.witchspace = true;
     this.buildWorld();
-    this.world.planet.mesh.position.set(1e8, 1e8, 0);
-    this.world.station.position.set(1e8, -1e8, 0);
-    this.world.sun.group.position.set(-1e8, 1e8, 0);
+    this.world.banishScenery();
     this.player.position.set(0, 0, 0);
     this.player.speed = 200;
     const n = 2 + (random() < 0.3 ? 1 : 0);
     for (let i = 0; i < n; i++) {
-      this.spawnNpc('thargoid',
+      this.world.spawn('thargoid',
         randomDirection(new THREE.Vector3()).multiplyScalar(3500 + random() * 2500), i);
     }
     this.encounterTimers.thargon = 4;
@@ -704,127 +696,62 @@ export class Game {
   }
 
   private clearNpcs(): void {
-    for (const n of this.npcs) this.scene.remove(n.object);
-    this.npcs = [];
+    this.world.clearNpcs();
     this.ordnance.clear();
   }
 
   /** @internal — driven by test/playtest.js */
-  spawnNpc(
-    role: NpcRole,
-    position: THREE.Vector3,
-    seed: number,
-    specOverride?: typeof CONSTRICTOR_SPEC,
-  ): NpcShip {
-    const npc = new NpcShip(role, position, seed, specOverride);
-    this.npcs.push(npc);
-    this.scene.add(npc.object);
-    return npc;
+  spawnNpc(role: NpcRole, position: THREE.Vector3, seed: number, spec?: NpcSpec): NpcShip {
+    return this.world.spawn(role, position, seed, spec);
   }
 
 
 
 
-  /** A fresh trader warps in at the system edge and heads for the station. */
-  private spawnArrivingTrader(): void {
-    const home = this.world.station.position;
-    const pos = home.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(22000));
-    const trader = this.spawnNpc('trader', pos, randomInt(100));
-    trader.traderPhase = 'arriving';
-    this.effects.explosion(pos.clone(), 0x9adfff, { count: 10, speed: 120, duration: 0.7 }); // arrival flash
-  }
 
   /**
    * Station space is policed: launching only meets legitimate traffic.
    * Arriving from hyperspace drops pirates along the corridor to the station.
    */
+  /**
+   * Station space is policed: launching only meets legitimate traffic.
+   * Arriving from hyperspace drops pirates along the corridor to the station.
+   *
+   * The rules are in population.ts, the placement in spawning.ts. This is the
+   * wiring plus the consequences — the arrival bookkeeping that jettisonCargo
+   * later reads, and the two announcements.
+   */
   private populateSystem(situation: 'launch' | 'arrival'): void {
     const sys = this.system;
-    const home = this.world.station.position;
-    const rnd = (range: number) =>
-      randomDirection(new THREE.Vector3()).multiplyScalar(range * (0.5 + random()));
-
-    // Pirates are businesses: lawlessness and the living galaxy set how many
-    // are out here, but what you're visibly worth sets who they are and
-    // whether they bothered to organise.
     const plan = planPopulation(
       sys, situation,
       this.living.imminentArrivals(sys.index).length,
+      // Pirates are businesses: lawlessness and the living galaxy set how many
+      // are out here, but what you're visibly worth sets who they are and
+      // whether they bothered to organise.
       situation === 'arrival'
         ? pirateThreat(sys, this.living.danger(sys.index),
           markOf(this.commander, this.living.notoriety(sys.index)))
         : null,
     );
 
-    for (let i = 0; i < plan.traders; i++) {
-      this.spawnNpc('trader', home.clone().add(rnd(1800)), i + sys.index);
-    }
-    for (let i = 0; i < plan.police; i++) {
-      this.spawnNpc('police', home.clone().add(rnd(1200)), i);
-    }
-    for (let i = 0; i < plan.asteroids; i++) {
-      this.spawnNpc('asteroid', home.clone().add(rnd(5000)), sys.seed[0] + i * 37);
-    }
+    const m = this.commander.mission;
+    const constrictorHere = situation === 'arrival'
+      && m.stage === 1 && m.targetIndex === this.commander.systemIndex;
 
-    if (situation === 'arrival' && plan.threat) {
-      const threat = plan.threat;
-      this.lastThreat = threat;
+    const built = spawnPopulation(
+      this.world, plan, sys, this.player.position, constrictorHere);
+
+    if (plan.threat) {
+      this.lastThreat = plan.threat;
       this.jettisonedValue = 0;
       this.arrivalCargoValue = markOf(this.commander).cargoValue;
-      const pirates = plan.pirates;
-      const toStation = home.clone().sub(this.player.position);
-      const routeLen = toStation.length();
-      const route = toStation.normalize();
-      for (let i = 0; i < pirates; i++) {
-        // scattered along the whole witchpoint→station corridor
-        const along = routeLen * (0.1 + random() * 0.75);
-        const pos = this.player.position
-          .clone()
-          .addScaledVector(route, along)
-          .add(rnd(2500));
-        // ringleaders first, then the hangers-on they brought
-        const mt = memberTier(threat.tier, i);
-        const npc = this.spawnNpc('pirate', pos, i + sys.index * 3,
-          pirateSpecForTier(mt, i + sys.index * 3));
-        npc.organised = threat.organised;
-        npc.threatTier = mt;
-      }
     }
-
-    // a lone bounty hunter is sometimes working the system
-    if (random() < (situation === 'arrival' ? 0.35 : 0.2)) {
-      this.spawnNpc('hunter', home.clone().add(rnd(6000)), sys.index);
-    }
-
-    // a rock hermit hides out among the asteroids (homage to Oolite):
-    // a hollowed-out rock that trades ore and asks no questions
-    if (random() < 0.3) {
-      this.spawnNpc('hermit', home.clone().add(rnd(14000).addScaledVector(rnd(1), 2)), sys.index);
-    }
-
-    // very rarely, a generation ship crosses the system, still under way
-    // after centuries, its hull shedding cargo
-    if (situation === 'arrival' && random() < 0.08) {
-      const pos = this.player.position.clone()
-        .add(randomDirection(new THREE.Vector3()).multiplyScalar(14000 + random() * 8000));
-      const gen = this.spawnNpc('generation', pos, 0);
-      gen.object.lookAt(home);
-      this.cargo.spawn(pos.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(700)),
-        3 + randomInt(4), [0, 1, 4, 8, 9, 12]);
-      this.genShipSeen = false;
-    }
-
-    // mission: the Constrictor lurks at its last-known system
-    const m = this.commander.mission;
-    if (situation === 'arrival' && m.stage === 1 && m.targetIndex === this.commander.systemIndex) {
-      const pos = this.player.position.clone().add(
-        randomDirection(new THREE.Vector3()).multiplyScalar(4000 + random() * 4000));
-      const constrictor = this.spawnNpc('pirate', pos, 0, CONSTRICTOR_SPEC);
-      constrictor.isMissionTarget = true;
+    if (built.generationShip) this.genShipSeen = false;
+    if (built.missionTarget) {
       this.hud.showMessage('SCANNER: UNREGISTERED PROTOTYPE DETECTED', 5);
     }
   }
-
 
   // --- mode transitions ----------------------------------------------------
 
@@ -861,7 +788,7 @@ export class Game {
     this.cabinTemp = 0;
     this.witchspace = false;
     this.beaconTimer = -1;
-    this.cargo.clear();
+    this.world.cargo.clear();
     this.checkMissionAtDock();
     this.hermitTrading = false;
     this.market = this.localMarket();
@@ -936,10 +863,10 @@ export class Game {
         rollRate: this.player.rollRate,
       },
       systems: { ...this.sys },
-      npcs: this.npcs.map((n) => ({
+      npcs: this.world.npcs.map((n) => ({
         role: n.role,
         seed: n.variantSeed,
-        targetIndex: n.npcTarget ? this.npcs.indexOf(n.npcTarget) : -1,
+        targetIndex: n.npcTarget ? this.world.npcs.indexOf(n.npcTarget) : -1,
         state: serialiseState(n.state as unknown as Record<string, unknown>),
       })),
       canisters: this.canisters.map((c) => ({
@@ -958,13 +885,13 @@ export class Game {
       missiles: this.missiles.map((m) => ({
         pos: v3(m.object.position),
         quat: q4(m.object.quaternion),
-        targetIndex: m.target ? this.npcs.indexOf(m.target) : -1,
+        targetIndex: m.target ? this.world.npcs.indexOf(m.target) : -1,
         life: m.life,
       })),
       market: structuredClone(this.market),
       hermitMarket: structuredClone(this.hermitMarket),
       contractOffers: structuredClone(this.contractOffers),
-      targetLock: this.targetLock ? this.npcs.indexOf(this.targetLock) : -1,
+      targetLock: this.targetLock ? this.world.npcs.indexOf(this.targetLock) : -1,
       missileArmed: this.missileArmed,
     };
   }
@@ -1008,14 +935,14 @@ export class Game {
       const spec = n.state.isMissionTarget ? CONSTRICTOR_SPEC
         : n.role === 'pirate' ? pirateSpecForTier(tier, n.seed)
           : undefined;
-      const npc = this.spawnNpc(n.role as NpcRole, new THREE.Vector3(), n.seed, spec);
+      const npc = this.world.spawn(n.role as NpcRole, new THREE.Vector3(), n.seed, spec);
       restoreState(npc.state as unknown as Record<string, unknown>, n.state);
     }
     // second pass: the hunting links, now that every ship exists
     snap.npcs.forEach((n, i) => {
       if (n.targetIndex >= 0) {
-        const hunter = this.npcs[i];
-        const prey = this.npcs[n.targetIndex];
+        const hunter = this.world.npcs[i];
+        const prey = this.world.npcs[n.targetIndex];
         if (hunter && prey) {
           hunter.npcTarget = prey;
           prey.attackers.push(hunter);
@@ -1023,9 +950,9 @@ export class Game {
       }
     });
 
-    this.cargo.clear();
+    this.world.cargo.clear();
     for (const c of snap.canisters) {
-      this.cargo.restore(
+      this.world.cargo.restore(
         new THREE.Vector3(...c.pos), new THREE.Vector3(...c.velocity),
         new THREE.Vector3(...c.spinAxis), c.kind, c.commodity);
     }
@@ -1037,12 +964,12 @@ export class Game {
     this.hermitMarket = structuredClone(snap.hermitMarket) as MarketEntry[];
     this.contractOffers = structuredClone(snap.contractOffers) as Contract[];
     this.ordnance.clear();
-    this.targetLock = snap.targetLock >= 0 ? (this.npcs[snap.targetLock] ?? null) : null;
+    this.targetLock = snap.targetLock >= 0 ? (this.world.npcs[snap.targetLock] ?? null) : null;
     this.missileArmed = snap.missileArmed;
     for (const m of snap.missiles) {
       this.ordnance.restore(
         new THREE.Vector3(...m.pos), new THREE.Quaternion(...m.quat),
-        m.targetIndex >= 0 ? (this.npcs[m.targetIndex] ?? null) : null, m.life);
+        m.targetIndex >= 0 ? (this.world.npcs[m.targetIndex] ?? null) : null, m.life);
     }
     this.world.station.quaternion.set(...snap.stationQuat);
     this.world.station.updateMatrixWorld(true);
@@ -1133,7 +1060,7 @@ export class Game {
     // death was optional if you refreshed.
     clearWorld();
     sfx.explosion();
-    this.effects.explosion(this.player.position.clone(), 0xff8866);
+    this.world.effects.explosion(this.player.position.clone(), 0xff8866);
     if (this.commander.equipment.escapePod) {
       // the pod gets you to the local station; ship and cargo are gone
       this.commander.equipment.escapePod = false;
@@ -1379,7 +1306,7 @@ export class Game {
       const pos = station.position.clone()
         .addScaledVector(slotN, 500 + i * 120)
         .add(randomDirection(new THREE.Vector3()).multiplyScalar(80));
-      const viper = this.spawnNpc('police', pos, i);
+      const viper = this.world.spawn('police', pos, i);
       // launched specifically for you, so this one IS your business
       viper.provoked = true;
       viper.provokedByPlayer = true;
@@ -1398,7 +1325,7 @@ export class Game {
 
     const forward = this.viewDir(this.tmp);
     const shot = traceShot(
-      this.player.position, forward, this.npcs, this.canisters,
+      this.player.position, forward, this.world.npcs, this.canisters,
       this.witchspace ? null : this.world.station, this.shotRay, this.tmp2);
     const best = shot.kind === 'ship' ? shot.ship : null;
     const hitCanister = shot.kind === 'cargo' ? shot.cargo : null;
@@ -1414,9 +1341,9 @@ export class Game {
 
     if (hitCanister) {
       sfx.hit();
-      this.effects.explosion(hitCanister.object.position.clone(), 0x8ad0ff,
+      this.world.effects.explosion(hitCanister.object.position.clone(), 0x8ad0ff,
         { count: 10, speed: 55, duration: 0.4 });
-      this.cargo.destroy(hitCanister);
+      this.world.cargo.destroy(hitCanister);
       if (hitCanister.kind === 'capsule') {
         // there is someone in that thing
         this.hud.showMessage('ESCAPE CAPSULE DESTROYED', 3);
@@ -1430,7 +1357,7 @@ export class Game {
       sfx.hit();
       // sparks off the hull, but the station itself shrugs it off
       const impact = this.player.position.clone().addScaledVector(forward, bestDist);
-      this.effects.explosion(impact, 0xd8ffcc, { count: 10, speed: 60, duration: 0.4 });
+      this.world.effects.explosion(impact, 0xd8ffcc, { count: 10, speed: 60, duration: 0.4 });
       this.hud.showMessage('STATION HULL HIT — DEFENCES SCRAMBLING', 3);
       // Offender, not fugitive: a stray shot while lining up a dock is easy to
       // make, and fugitive means every police ship in the galaxy hunts you
@@ -1442,7 +1369,7 @@ export class Game {
     if (best) {
       sfx.hit();
       // impact flash at the target so hits read clearly
-      this.effects.explosion(best.object.position.clone(), 0xd8ffcc, { count: 8, speed: 70, duration: 0.35 });
+      this.world.effects.explosion(best.object.position.clone(), 0xd8ffcc, { count: 8, speed: 70, duration: 0.35 });
       if (best.role === 'police' || best.role === 'trader' || best.role === 'hunter') this.raiseLegal(1);
       if (best.takeDamage(laser.damage, this.player.position, true)) this.destroyNpc(best);
     }
@@ -1471,7 +1398,7 @@ export class Game {
       this.hud.showMessage(`BOUNTY: ${formatCredits(npc.bounty)}`, 3);
     }
     if (npc.role === 'asteroid' && this.commander.equipment.miningLaser) {
-      this.cargo.spawn(npc.object.position, 1 + randomInt(3), [12, 12, 12, 13, 14]);
+      this.world.cargo.spawn(npc.object.position, 1 + randomInt(3), [12, 12, 12, 13, 14]);
     }
     if (npc.isMissionTarget && this.commander.mission.stage === 1) {
       this.commander.mission.stage = 2;
@@ -1483,25 +1410,24 @@ export class Game {
 
   /** Shared removal path (also used for NPC-vs-NPC kills — no player credit). */
   private wreckNpc(npc: NpcShip): void {
-    this.effects.explosion(npc.object.position.clone());
+    this.world.effects.explosion(npc.object.position.clone());
     sfx.explosion();
-    this.scene.remove(npc.object);
-    this.npcs = this.npcs.filter((n) => n !== npc);
+    this.world.despawn(npc);
     if (this.targetLock === npc) this.targetLock = null;
     // wily traders and many pirates punch out at the last moment
     if (npc.role === 'trader' || npc.role === 'pirate' || npc.role === 'hunter') {
       const chance = npc.role === 'trader' ? 0.45 : 0.2;
-      if (random() < chance) this.cargo.spawnCapsule(npc.object.position.clone());
+      if (random() < chance) this.world.cargo.spawnCapsule(npc.object.position.clone());
     }
     if (npc.cargoDrop > 0) {
-      this.cargo.spawn(
+      this.world.cargo.spawn(
         npc.object.position,
         Math.floor(random() * (npc.cargoDrop + 1)),
         [0, 1, 4, 8, 9, 11, 12], // food, textiles, liquor, machinery, alloys, furs, minerals
       );
     }
-    if (npc.role === 'thargoid' && !this.npcs.some((n) => n.alive && n.role === 'thargoid')) {
-      for (const t of this.npcs) {
+    if (npc.role === 'thargoid' && !this.world.npcs.some((n) => n.alive && n.role === 'thargoid')) {
+      for (const t of this.world.npcs) {
         if (t.role === 'thargon') t.inert = true;
       }
       this.hud.showMessage('THARGONS DEACTIVATED', 3);
@@ -1717,7 +1643,7 @@ export class Game {
     const manual = this.input.held(...manualFlightKeys())
       || Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15;
     const step = this.combatComputer.step(
-      dt, this.player, this.sys, this.npcs, this.commander.legalStatus, manual, DEFEND_BRAIN);
+      dt, this.player, this.sys, this.world.npcs, this.commander.legalStatus, manual, DEFEND_BRAIN);
     if (step.kind === 'disengage') {
       this.ccEngaged = false;
       this.hud.showMessage(step.reason, step.reason === 'MANUAL OVERRIDE' ? 2 : 3);
@@ -1894,15 +1820,15 @@ export class Game {
     this.npcTargetTimer -= dt;
     if (this.npcTargetTimer <= 0) {
       this.npcTargetTimer = 2;
-      assignNpcTargets(this.npcs, this.player.position, this.commander.legalStatus);
+      assignNpcTargets(this.world.npcs, this.player.position, this.commander.legalStatus);
     }
 
-    // Snapshot: despawns and destructions below rebuild this.npcs, and the
+    // Snapshot: despawns and destructions below rebuild this.world.npcs, and the
     // fleet handed to update() should be consistent for every ship in the
     // frame rather than shrinking underneath the loop.
-    for (const npc of [...this.npcs]) {
+    for (const npc of [...this.world.npcs]) {
       const event = npc.update(dt, this.player, this.commander.legalStatus,
-        this.world.station, this.npcs, this.world.stationDockZ);
+        this.world.station, this.world.npcs, this.world.stationDockZ);
       if (event) this.resolveNpcFire(npc, event);
 
       if (npc.wantsDespawn) {
@@ -1913,11 +1839,10 @@ export class Game {
         // watching it blow up — reported as exactly that, by someone watching
         // a trader line up perfectly and then apparently detonate.
         if (!npc.docked) {
-          this.effects.explosion(npc.object.position.clone(), 0x9adfff,
+          this.world.effects.explosion(npc.object.position.clone(), 0x9adfff,
             { count: 10, speed: 120, duration: 0.7 });
         }
-        this.scene.remove(npc.object);
-        this.npcs = this.npcs.filter((n) => n !== npc);
+        this.world.despawn(npc);
         continue;
       }
 
@@ -1928,14 +1853,14 @@ export class Game {
     // absorb a ram, two NPCs bumping must not credit the player with anything,
     // and bouncing off the station is free.
     for (const npc of playerVsNpcs(
-      this.player.position, (k) => { this.player.speed *= k; }, this.npcs, this.scratch)) {
+      this.player.position, (k) => { this.player.speed *= k; }, this.world.npcs, this.scratch)) {
       this.applyPlayerDamage(RAM_DAMAGE, npc.object.position);
       this.hud.showMessage('COLLISION', 2);
       if (npc.takeDamage(RAM_DAMAGE, this.player.position, true)) this.destroyNpc(npc);
     }
 
     const wrecked: NpcShip[] = [];
-    for (const [a, b] of npcVsNpcs(this.npcs, this.scratch)) {
+    for (const [a, b] of npcVsNpcs(this.world.npcs, this.scratch)) {
       const aPos = a.object.position.clone();
       if (a.takeDamage(RAM_DAMAGE, b.object.position, false)) wrecked.push(a);
       if (b.takeDamage(RAM_DAMAGE, aPos, false)) wrecked.push(b);
@@ -1943,32 +1868,32 @@ export class Game {
     // wreckNpc, NOT destroyNpc — see npcVsNpcs
     for (const n of wrecked) this.wreckNpc(n);
 
-    npcsVsStation(this.npcs, this.world.station, this.world.stationDockZ + 40, this.scratch);
+    npcsVsStation(this.world.npcs, this.world.station, this.world.stationDockZ + 40, this.scratch);
 
     // What turns up, and when: rules in encounters.ts, spawning here.
     for (const order of stepEncounters(this.encounterTimers, dt, {
       witchspace: this.witchspace,
       productivity: this.system.productivity,
       government: this.system.government,
-      traderCount: this.npcs.filter((n) => n.role === 'trader').length,
-      activeThargons: this.npcs.filter((n) => n.alive && n.role === 'thargon' && !n.inert).length,
-      hasThargoidMother: this.npcs.some((n) => n.alive && n.role === 'thargoid'),
+      traderCount: this.world.npcs.filter((n) => n.role === 'trader').length,
+      activeThargons: this.world.npcs.filter((n) => n.alive && n.role === 'thargon' && !n.inert).length,
+      hasThargoidMother: this.world.npcs.some((n) => n.alive && n.role === 'thargoid'),
       playerFarFromStation:
         this.player.position.distanceTo(this.world.station.position) > AMBUSH_STANDOFF,
     })) {
       if (order.kind === 'trader') {
-        this.spawnArrivingTrader();
+        spawnArrivingTrader(this.world, TRADER_ARRIVAL_RANGE);
       } else if (order.kind === 'pirateWave') {
         for (let i = 0; i < order.count; i++) {
-          this.spawnNpc('pirate',
+          this.world.spawn('pirate',
             this.player.position.clone().add(randomDirection(new THREE.Vector3())
               .multiplyScalar(9000 + random() * 4000)),
             i + randomInt(4));
         }
         this.hud.showMessage('PIRATE SIGNATURES DETECTED', 4);
       } else {
-        const mother = this.npcs.find((n) => n.alive && n.role === 'thargoid')!;
-        this.spawnNpc('thargon',
+        const mother = this.world.npcs.find((n) => n.alive && n.role === 'thargoid')!;
+        this.world.spawn('thargon',
           mother.object.position.clone().add(
             randomDirection(new THREE.Vector3()).multiplyScalar(150)),
           randomInt(8));
@@ -1981,7 +1906,7 @@ export class Game {
   private stepProjectilesAndEffects(dt: number): void {
     // The field drifts them and says what we reached; what it is worth is
     // ours to decide, because it touches the hold, legal status and damage.
-    for (const { canister: c } of this.cargo.update(dt, this.player.position)) {
+    for (const { canister: c } of this.world.cargo.update(dt, this.player.position)) {
       if (!this.commander.equipment.scoops) {
         this.applyPlayerDamage(0.06, c.object.position);
         this.hud.showMessage('CANISTER DESTROYED ON HULL', 2);
@@ -2001,7 +1926,7 @@ export class Game {
     this.updateEncounters();
 
     this.applyOrdnance(dt);
-    this.effects.update(dt);
+    this.world.effects.update(dt);
 
   }
 
@@ -2014,7 +1939,7 @@ export class Game {
     if (this.input.held(...keymap().fire) || this.input.mouseFire) this.fireLaser();
     regenerate(this.sys, dt, { energyUnit: this.commander.equipment.energyUnit });
 
-    const sunDist = this.player.position.distanceTo(this.world.sun.group.position);
+    const sunDist = this.player.position.distanceTo(this.world.sunPos);
     if (updateCabinTemp(this.sys, dt, sunDist)) {
       this.die('CABIN TEMPERATURE CRITICAL');
       return true;
@@ -2060,7 +1985,7 @@ export class Game {
     if (!this.policeScanned && !this.witchspace) {
       const carryingContraband = ILLEGAL_GOODS.some((i) => this.commander.cargo[i] > 0);
       if (carryingContraband) {
-        const policeNear = this.npcs.some((n) =>
+        const policeNear = this.world.npcs.some((n) =>
           n.alive && n.role === 'police' &&
           n.object.position.distanceTo(this.player.position) < 2600);
         if (policeNear) {
@@ -2092,9 +2017,9 @@ export class Game {
 
   /** Ground, sun and station — the ways a leg ends without a countdown. */
   private checkHazards(): void {
-    const sunDist = this.player.position.distanceTo(this.world.sun.group.position);
+    const sunDist = this.player.position.distanceTo(this.world.sunPos);
     const altitude =
-      this.player.position.distanceTo(this.world.planet.mesh.position) - this.world.planetRadius;
+      this.player.position.distanceTo(this.world.planetPos) - this.world.planetRadius;
     if (altitude < 80) {
       this.die('CRASHED INTO THE PLANET');
       return;
@@ -2111,7 +2036,7 @@ export class Game {
 
   /** Rock hermits offer trade; generation ships offer only awe. */
   private updateEncounters(): void {
-    for (const npc of this.npcs) {
+    for (const npc of this.world.npcs) {
       if (!npc.alive) continue;
       const dist = npc.object.position.distanceTo(this.player.position);
       if (npc.role === 'hermit') {
@@ -2172,7 +2097,7 @@ export class Game {
         ? this.player.position.clone()
         : this.player.position.clone().add(
             randomDirection(new THREE.Vector3()).multiplyScalar(80 + random() * 140));
-      this.effects.tracer(
+      this.world.effects.tracer(
         npc.nosePosition(this.tmp).clone(), to,
         npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
       if (hit) this.applyPlayerDamage(0.1 + random() * 0.12, npc.object.position);
@@ -2180,7 +2105,7 @@ export class Game {
     }
     // NPC shooting NPC
     const target = event.at;
-    this.effects.tracer(
+    this.world.effects.tracer(
       npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
     if (random() < 0.5) {
       if (target.takeDamage(0.11, npc.object.position)) {
@@ -2193,8 +2118,8 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   massLocked(): boolean {
     if (this.player.position.distanceTo(this.world.station.position) < 5000) return true;
-    if (this.player.position.distanceTo(this.world.planet.mesh.position) - this.world.planetRadius < 4000) return true;
-    for (const npc of this.npcs) {
+    if (this.player.position.distanceTo(this.world.planetPos) - this.world.planetRadius < 4000) return true;
+    for (const npc of this.world.npcs) {
       if (npc.alive && npc.role !== 'asteroid' &&
           npc.object.position.distanceTo(this.player.position) < 4500) return true;
     }
@@ -2202,7 +2127,7 @@ export class Game {
   }
 
   private hostilesNear(): boolean {
-    return this.npcs.some((npc) =>
+    return this.world.npcs.some((npc) =>
       isHostileToPlayer(npc, this.commander.legalStatus) &&
       npc.object.position.distanceTo(this.player.position) < 9000);
   }
@@ -2420,7 +2345,7 @@ if (i.pressed('Enter')) this.respawn();
       if (best < 0) break;
       this.commander.cargo[best] -= 1;
       this.jettisonedValue += bestValue * 4; // tenths of a credit, as markOf values it
-      this.cargo.spawn(this.player.position.clone(), 1, [best]);
+      this.world.cargo.spawn(this.player.position.clone(), 1, [best]);
       lastName = COMMODITIES[best].name.toUpperCase();
       dumped += 1;
     }
@@ -2437,7 +2362,7 @@ if (i.pressed('Enter')) this.respawn();
     // opportunist who happened to be passing.
     let bought = 0;
     let stillWant = Infinity;
-    for (const npc of this.npcs) {
+    for (const npc of this.world.npcs) {
       if (!npc.alive || npc.role !== 'pirate') continue;
       if (npc.satisfied) continue;
       const share = npc.organised ? 0.3 : 0.12;
@@ -2475,7 +2400,7 @@ if (i.pressed('Enter')) this.respawn();
     let on = false;
     if (this.mode === 'flight') {
       const forward = this.viewDir(this.tmp);
-      for (const npc of this.npcs) {
+      for (const npc of this.world.npcs) {
         if (!npc.alive || npc.role === 'asteroid') continue;
         const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
         const dist = to.length();
@@ -2518,27 +2443,27 @@ if (i.pressed('Enter')) this.respawn();
   private renderHud(dt: number): void {
     this.updateSight();
     const contacts = scannerContacts(
-      this.world.station.position, this.npcs, this.missiles, this.canisters,
+      this.world.station.position, this.world.npcs, this.missiles, this.canisters,
       this.commander.legalStatus);
 
     const altitude =
-      this.player.position.distanceTo(this.world.planet.mesh.position) - this.world.planetRadius;
+      this.player.position.distanceTo(this.world.planetPos) - this.world.planetRadius;
     const condition = this.mode !== 'flight' ? 'GREEN' : this.hostilesNear() ? 'RED' : 'YELLOW';
     // in witch-space the compass tracks the nearest Thargoid instead
     const thargoidTarget = this.witchspace
-      ? this.npcs.find((n) => n.alive && !n.inert && (n.role === 'thargoid' || n.role === 'thargon'))
+      ? this.world.npcs.find((n) => n.alive && !n.inert && (n.role === 'thargoid' || n.role === 'thargon'))
           ?.object.position
       : undefined;
-    const sunDistNow = this.player.position.distanceTo(this.world.sun.group.position);
+    const sunDistNow = this.player.position.distanceTo(this.world.sunPos);
     const compassTarget = thargoidTarget ??
       (sunDistNow < 130000 && !this.witchspace
-        ? this.world.sun.group.position // sun-skimming: navigate the heat by compass
+        ? this.world.sunPos // sun-skimming: navigate the heat by compass
         : this.player.position.distanceTo(this.world.station.position) < this.world.planetRadius * 3
           ? this.world.station.position
-          : this.world.planet.mesh.position);
+          : this.world.planetPos);
 
     const shipId = this.mode === 'flight'
-      ? shipIdUnderView(this.npcs, this.player.position, this.viewDir(this.tmp), this.tmp2)
+      ? shipIdUnderView(this.world.npcs, this.player.position, this.viewDir(this.tmp), this.tmp2)
       : '';
     const e = this.commander.equipment;
     const hasLaser =
@@ -2559,7 +2484,7 @@ if (i.pressed('Enter')) this.respawn();
     // Nearest hostile, for the off-screen threat arrow.
     let threatMarker: HudState['threatMarker'] = null;
     if (this.mode === 'flight' && !this.witchspace) {
-      const found = nearestHostile(this.npcs, this.player.position, this.commander.legalStatus);
+      const found = nearestHostile(this.world.npcs, this.player.position, this.commander.legalStatus);
       if (found) {
         threatMarker = {
           ...projectMarker(found.npc.object.position, this.player.position,
@@ -2572,7 +2497,7 @@ if (i.pressed('Enter')) this.respawn();
     const viewQuat = this.tmpQ.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
     const targets = this.mode === 'flight'
       ? screenTargets(
-        this.npcs, this.player.position,
+        this.world.npcs, this.player.position,
         this.tmp.set(0, 0, -1).applyQuaternion(viewQuat), this.render.camera,
         this.commander.legalStatus, this.targetLock, this.tmp2)
       : [];
