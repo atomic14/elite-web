@@ -600,8 +600,14 @@ function report(label: string, careers: CareerResult[], strategy: Strategy): voi
       `${upperTier(rich).toFixed(0)}% tier1+ · ${gangRate(rich).toFixed(1)} gangs/career`);
   }
 
-  // sanity assertions — this doubles as a regression test
-  let failures = 0;
+  // sanity assertions — this doubles as a regression test.
+  //
+  // NO `let failures` HERE. There is one at module scope, and the exit code is
+  // read from it; re-declaring it locally shadowed the counter, so every FAIL
+  // printed its line and then the script announced "all balance checks passed"
+  // and exited 0. CI's economy gate — eight assertions covering the wealth
+  // floor, bankruptcy rate, deaths per career and runaway wealth — was
+  // advisory-only for as long as this had been here.
   const assert = (name: string, ok: boolean, detail = '') => {
     if (!ok) { failures += 1; console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); }
   };
