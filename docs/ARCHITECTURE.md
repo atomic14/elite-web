@@ -1,5 +1,28 @@
 # Architecture — a tour for new readers
 
+## The portability test
+
+Chris's, and it is better than "is this module leaky?" because it has an
+answer rather than an opinion: **if we wanted a desktop build with the same
+core engine, could we do it?**
+
+`npm run portability` answers it. Today:
+
+```
+ports unchanged      9024 lines   59%   the game itself
+platform             4308 lines   28%   renderer, HUD, screens, input, audio,
+                                        storage — you EXPECT to rewrite these
+contaminated         1872 lines   12%   game/game.ts, and nothing else
+```
+
+The third number is the one to drive down; it was 17% across three files
+before `sun.ts` stopped needing a canvas and `storage.ts` took the
+localStorage. `game.ts` is the last file where engine and shell are braided
+— the fixed-timestep loop and step order in the same class as the render
+stack, the Input, the Hud and the DOM screens.
+
+A test suite will not catch that number regressing. This will.
+
 ## The north star
 
 **One world state. A pure step that advances it. A renderer that only reads it.**
