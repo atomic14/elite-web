@@ -8,6 +8,8 @@
 // baselines. Everything here is headless (no three.js, no DOM).
 
 import { readFileSync, readdirSync } from 'node:fs';
+import * as THREE from 'three';
+import { traceShot } from '../src/game/shot.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
@@ -538,6 +540,63 @@ console.log('\nsystem population');
     const launching = planPopulation(sys(0), 'launch', 1, threat, half);
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
+  }
+}
+
+// --- what the shot hit ------------------------------------------------------
+
+// I nearly left this in game.ts on the grounds that a raycast cannot be tested
+// without the hulls. Wrong: three.js maths runs under node with no canvas, so
+// the hulls can just be BUILT here. They are.
+
+console.log('\nshot tracing');
+{
+  const box = (x: number, y: number, z: number, size = 40) => {
+    const o = new THREE.Mesh(new THREE.BoxGeometry(size, size, size));
+    o.position.set(x, y, z);
+    o.updateMatrixWorld(true);
+    return o;
+  };
+  const ship = (x: number, y: number, z: number, over: Record<string, unknown> = {}) =>
+    ({ object: box(x, y, z), alive: true, radius: 20, ...over });
+  const ray = new THREE.Raycaster();
+  const scratch = new THREE.Vector3();
+  const origin = new THREE.Vector3(0, 0, 0);
+  const ahead = new THREE.Vector3(0, 0, -1);
+  const trace = (ships: unknown[], cargo: unknown[] = [], station: THREE.Object3D | null = null) =>
+    traceShot(origin, ahead, ships as never, cargo as never, station, ray, scratch);
+
+  check('a shot down the axis hits the ship in front of it',
+    trace([ship(0, 0, -500)]).kind === 'ship');
+  check('a shot into empty space misses',
+    trace([ship(0, 6000, -500)]).kind === 'miss');
+  check('a destroyed ship does not stop the beam',
+    trace([ship(0, 0, -500, { alive: false })]).kind === 'miss');
+  {
+    const near = ship(0, 0, -300), far = ship(0, 0, -900);
+    const hit = trace([far, near]);
+    check('the NEAREST ship is hit, whatever order they are listed in',
+      hit.kind === 'ship' && (hit as { ship: unknown }).ship === near);
+  }
+  check('beyond laser range, nothing is hit',
+    trace([ship(0, 0, -9000)]).kind === 'miss');
+  check('drifting cargo is solid',
+    trace([], [{ object: box(0, 0, -400, 12) }]).kind === 'cargo');
+  check('the station is solid',
+    trace([], [], box(0, 0, -600, 300)).kind === 'station');
+  {
+    // the station wins a tie because anything at a shorter ray distance
+    // "behind" it is in fact inside it
+    const hit = trace([ship(0, 0, -700)], [], box(0, 0, -600, 400));
+    check('the station stops a shot aimed at a ship inside it', hit.kind === 'station');
+  }
+  {
+    // the graze pass: a near miss inside the assist cone still connects
+    const offset = ship(14, 0, -400);
+    check('a near miss inside the assist envelope still counts',
+      trace([offset]).kind === 'ship');
+    const wide = ship(300, 0, -400);
+    check('...and a genuine miss does not', trace([wide]).kind === 'miss');
   }
 }
 

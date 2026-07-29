@@ -32,8 +32,9 @@ import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions
 import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer, CC_MAX_SPEED, CC_ACCEL } from './combat-computer.ts';
+import { traceShot } from './shot.ts';
 import {
-  laserForView, canFire, chargeShot, hitCone, canisterCone, LASER_RANGE, AIM_ASSIST,
+  laserForView, canFire, chargeShot, hitCone, LASER_RANGE, AIM_ASSIST,
 } from './gunnery.ts';
 import {
   stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
@@ -1115,88 +1116,14 @@ export class Game {
     sfx.laser();
 
     const forward = this.viewDir(this.tmp);
-    let best: NpcShip | null = null;
-    let bestDist = LASER_RANGE;
+    const shot = traceShot(
+      this.player.position, forward, this.npcs, this.canisters,
+      this.witchspace ? null : this.world.station, this.shotRay, this.tmp2);
+    const best = shot.kind === 'ship' ? shot.ship : null;
+    const hitCanister = shot.kind === 'cargo' ? shot.cargo : null;
+    const hitStation = shot.kind === 'station';
+    const bestDist = shot.kind === 'miss' ? 0 : shot.distance;
 
-    // 1. the honest test: does the shot actually pass through the hull?
-    this.shotRay.set(this.player.position, forward);
-    this.shotRay.far = LASER_RANGE;
-    for (const npc of this.npcs) {
-      if (!npc.alive) continue;
-      const dist = npc.object.position.distanceTo(this.player.position);
-      // cheap reject before touching triangles
-      if (dist > bestDist + npc.radius) continue;
-      // Raycaster reads matrixWorld, which three.js only refreshes during
-      // render — without this the shot is tested against the ship's position
-      // one frame ago, and against the ORIGIN for anything spawned this frame.
-      npc.object.updateMatrixWorld(true);
-      const hits = this.shotRay.intersectObject(npc.object, true);
-      for (const h of hits) {
-        if (h.distance < bestDist) {
-          bestDist = h.distance;
-          best = npc;
-        }
-      }
-    }
-
-    // Drifting cargo is solid too, and was in the same blind spot as the
-    // station: canisters live in this.canisters, not this.npcs, so shots
-    // passed straight through them and nothing happened at all.
-    let hitCanister: (typeof this.canisters)[number] | null = null;
-    for (const c of this.canisters) {
-      c.object.updateMatrixWorld(true);
-      for (const h of this.shotRay.intersectObject(c.object, true)) {
-        if (h.distance < bestDist) {
-          bestDist = h.distance;
-          best = null;
-          hitCanister = c;
-        }
-      }
-    }
-
-    // The station is solid too. Shooting it is a serious offence — GalCop
-    // does not take kindly to it — and previously did nothing at all because
-    // fireLaser only ever tested NPCs.
-    let hitStation = false;
-    if (!this.witchspace) {
-      const st = this.world.station;
-      st.updateMatrixWorld(true);
-      for (const h of this.shotRay.intersectObject(st, true)) {
-        if (h.distance < bestDist) {
-          bestDist = h.distance;
-          best = null;
-          hitCanister = null;
-          hitStation = true;
-        }
-      }
-    }
-
-    // 2. grazing shots: the beam has width, so a near-miss that clips the
-    //    silhouette still counts. Only consulted if the ray missed everything.
-    if (!best && !hitStation && !hitCanister) {
-      for (const npc of this.npcs) {
-        if (!npc.alive) continue;
-        const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
-        const dist = to.length();
-        if (dist > bestDist) continue;
-        const cone = hitCone(npc.radius, dist);
-        if (forward.angleTo(to.normalize()) < cone) {
-          best = npc;
-          bestDist = dist;
-        }
-      }
-      for (const c of this.canisters) {
-        const to = this.tmp2.copy(c.object.position).sub(this.player.position);
-        const dist = to.length();
-        if (dist > bestDist) continue;
-        const cone = canisterCone(dist);
-        if (forward.angleTo(to.normalize()) < cone) {
-          best = null;
-          hitCanister = c;
-          bestDist = dist;
-        }
-      }
-    }
     // Aim assist, the visible half: bend the cockpit beams onto whatever the
     // shot found. Chris's point — an allowance that silently counts a near
     // miss as a hit reads as a bug, where beams that visibly converge on the
