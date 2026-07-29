@@ -198,6 +198,14 @@ and no WebGL (measured, not assumed). Four things were, and three are fixed:
   listeners**, so the Game itself cannot be constructed headlessly. That is
   what the world step has to be lifted out of.
 
+Pieces of the world step that are already out, pure and unit-tested:
+`game/collisions.ts` (who is overlapping whom), `game/systems.ts` (energy,
+shields, laser heat, cabin temperature, and the damage model),
+`galaxy/navigation.ts` (distances and jump costs), `hud/hud-model.ts` (what
+the HUD needs computing). **`train/survivability.ts` imports the damage model
+now** rather than transcribing it — every balance figure this project quotes
+depends on that model, and it used to live in a comment.
+
 The payoff is already real: the police-hostility checks were four regexes
 against source text because npc.ts could not be imported. They are now ten
 tests that call `isHostileToPlayer` directly.

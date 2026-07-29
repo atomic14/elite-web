@@ -31,6 +31,9 @@ import { act, observe, makeScratch, type ObservableShip } from '../sim/policy.ts
 import { planDocking, makeDockPlan } from './docking.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import {
+  applyDamage, regenerate, updateCabinTemp, scoopFuel, freshSystems, type ShipSystems,
+} from './systems.ts';
+import {
   SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
   type SavesContext,
 } from './screens/saves.ts';
@@ -173,9 +176,6 @@ const MISSILE_SPEED = 700;
  */
 const WITCHPOINT_RADII = 16;
 
-const SUN_HEAT_START = 110_000; // cabin temp begins to climb
-const SUN_SCOOP_RANGE = 80_000; // fuel scoops gather inside this
-const SUN_HEAT_MAX = 26_000;    // cabin temp reaches 1.0 (death follows)
 const SUN_KILL_DIST = 21_000;   // instant death
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -257,7 +257,7 @@ export class Game {
   torusEngaged = false;
   witchspace = false;
   private view = 0; // 0 front, 1 rear, 2 left, 3 right
-  cabinTemp = 0;
+
   canisters: Canister[] = [];
   private thargonTimer = 0;
   private npcTargetTimer = 0;
@@ -336,11 +336,26 @@ export class Game {
     cls: { maxSpeed: 300, turnRate: 1.1 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
   };
 
-  foreShield = 1;
-  aftShield = 1;
-  energy = 4;
-  laserTemp = 0;
-  laserCooldown = 0;
+  /**
+   * Energy, shields, laser heat and cabin temperature. The model lives in
+   * systems.ts; the accessors below keep `g.energy` working for the console
+   * harnesses (test/gang-trial.js, test/combat-recorder.js) that read and
+   * write them by name.
+   */
+  readonly sys: ShipSystems = freshSystems();
+
+  get foreShield(): number { return this.sys.foreShield; }
+  set foreShield(v: number) { this.sys.foreShield = v; }
+  get aftShield(): number { return this.sys.aftShield; }
+  set aftShield(v: number) { this.sys.aftShield = v; }
+  get energy(): number { return this.sys.energy; }
+  set energy(v: number) { this.sys.energy = v; }
+  get laserTemp(): number { return this.sys.laserTemp; }
+  set laserTemp(v: number) { this.sys.laserTemp = v; }
+  get laserCooldown(): number { return this.sys.laserCooldown; }
+  set laserCooldown(v: number) { this.sys.laserCooldown = v; }
+  get cabinTemp(): number { return this.sys.cabinTemp; }
+  set cabinTemp(v: number) { this.sys.cabinTemp = v; }
   private beamTimer = 0;
   private readonly beams: THREE.LineSegments;
 
@@ -1495,27 +1510,15 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   applyPlayerDamage(amount: number, from: THREE.Vector3): void {
-    this.tmp.copy(from).sub(this.player.position).applyQuaternion(this.tmpQ.copy(this.player.quaternion).invert());
-    const fromFront = this.tmp.z < 0;
-    let remaining = amount;
-    if (fromFront) {
-      const absorbed = Math.min(this.foreShield, remaining);
-      this.foreShield -= absorbed;
-      remaining -= absorbed;
-    } else {
-      const absorbed = Math.min(this.aftShield, remaining);
-      this.aftShield -= absorbed;
-      remaining -= absorbed;
-    }
-    if (remaining > 0) {
-      // shield was already down: energy takes it, and the hit may wreck
-      // cargo or a fitting — "the ship's computer will keep you informed"
-      this.energy -= remaining * 2;
-      if (Math.random() < 0.25) this.damageSomething();
-    }
+    // only the Game knows which way the ship is pointing; the model itself
+    // just needs to be told whether the hit came from ahead
+    this.tmp.copy(from).sub(this.player.position)
+      .applyQuaternion(this.tmpQ.copy(this.player.quaternion).invert());
+    const result = applyDamage(this.sys, amount, this.tmp.z < 0);
+    if (result.wreckedSomething) this.damageSomething();
     this.hud.flashDamage();
     sfx.damage();
-    if (this.energy <= 0) this.die('SHIP DESTROYED');
+    if (result.destroyed) this.die('SHIP DESTROYED');
   }
 
   /**
@@ -1986,25 +1989,17 @@ export class Game {
 
     // laser + systems
     if (this.input.held(...keymap().fire) || this.input.mouseFire) this.fireLaser();
-    this.laserCooldown -= dt;
-    this.laserTemp = Math.max(0, this.laserTemp - 0.22 * dt);
-    this.energy = Math.min(4, this.energy + (this.commander.equipment.energyUnit ? 0.2 : 0.1) * dt);
-    if (this.energy > 1) {
-      this.foreShield = Math.min(1, this.foreShield + 0.035 * dt);
-      this.aftShield = Math.min(1, this.aftShield + 0.035 * dt);
-    }
+    regenerate(this.sys, dt, { energyUnit: this.commander.equipment.energyUnit });
 
-    // cabin temperature: the sun cooks you gradually — and sun-skimming
-    // with scoops means riding the hot zone on purpose
     const sunDist = this.player.position.distanceTo(this.world.sun.group.position);
-    const targetTemp = Math.max(0, Math.min(1, (SUN_HEAT_START - sunDist) / (SUN_HEAT_START - SUN_HEAT_MAX)));
-    this.cabinTemp += (targetTemp - this.cabinTemp) * Math.min(1, dt * 1.2);
-    if (this.cabinTemp >= 0.99) {
+    if (updateCabinTemp(this.sys, dt, sunDist)) {
       this.die('CABIN TEMPERATURE CRITICAL');
       return;
     }
-    if (this.commander.equipment.scoops && this.commander.fuel < MAX_FUEL && sunDist < SUN_SCOOP_RANGE) {
-      this.commander.fuel = Math.min(MAX_FUEL, this.commander.fuel + 5 * dt);
+    const scooped = scoopFuel(
+      dt, sunDist, this.commander.equipment.scoops, this.commander.fuel, MAX_FUEL);
+    if (scooped > 0) {
+      this.commander.fuel += scooped;
       this.hud.showMessage('FUEL SCOOPING', 0.4);
     }
 

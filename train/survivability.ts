@@ -13,16 +13,16 @@
 // without them — but it is the wrong number to make a balance decision from.
 //
 // This script leaves the sim alone and corrects only the defender's
-// durability, from game.ts's actual damage model (applyPlayerDamage):
+// durability, IMPORTED from the game's own damage model (game/systems.ts).
 //
-//   fore/aft shield  1.0 each, absorbed first, by facing
-//   energy           max 4, and overflow costs energy at 2 per point
-//                    of damage -> 2.0 more raw damage absorbed
-//   death            when energy hits 0
+// It used to be transcribed here by hand, in a comment: "fore/aft shield 1.0
+// each, absorbed first by facing; energy max 4, overflow at 2 per point". Every
+// balance figure this project has quoted rested on that transcription still
+// matching the code. It now calls durability() instead, so it cannot drift.
 //
-// A player hit consistently from the front therefore soaks 1.0 + 2.0 = 3.0
-// raw damage against the sim trader's 1.0; one manoeuvring so hits land on
-// both faces soaks 4.0. Regeneration (0.035/s per shield, 0.1-0.2/s energy)
+// A player hit consistently from the front soaks 1.0 + 2.0 = 3.0 raw damage
+// against the sim trader's 1.0; one manoeuvring so hits land on both faces
+// soaks 4.0. Regeneration (0.035/s per shield, 0.1-0.2/s energy)
 // is ignored: it is worth under a tenth of a point across a fight this short,
 // and ignoring it understates the player, which is the safe direction.
 //
@@ -33,6 +33,7 @@
 import { Episode, type Controller } from '../src/sim/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/sim/policy.ts';
 import { readFileSync } from 'node:fs';
+import { durability } from '../src/game/systems.ts';
 
 const BRAINS = new URL('../src/sim/brains/', import.meta.url);
 const load = (name: string): Brain =>
@@ -75,10 +76,12 @@ function run(pirateBrain: Brain, hp: number, gang: number): Result {
   return { kill: kills / N, ttk: kills ? ttk / kills : 45, lost: lost / N };
 }
 
+// From game/systems.ts, not from a comment: change the shield or energy model
+// and this table follows it.
 const HP = [
   [1.0, 'sim trader (what the tournament measures)'],
-  [3.0, 'player, hits landing on one face'],
-  [4.0, 'player, manoeuvring so both shields work'],
+  [durability(false), 'player, hits landing on one face'],
+  [durability(true), 'player, manoeuvring so both shields work'],
 ] as const;
 
 console.log(`\n${N} episodes per row, defender flies jameson-defend\n`);

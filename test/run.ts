@@ -11,6 +11,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
 import {
+  freshSystems, applyDamage, regenerate, durability, updateCabinTemp, scoopFuel,
+} from '../src/game/systems.ts';
+import {
   generateGalaxy, generateMarket, speciesName, describeSystem, COMMODITIES,
 } from '../src/galaxy/galaxy.ts';
 import { planetDescription } from '../src/galaxy/goatsoup.ts';
@@ -497,6 +500,97 @@ console.log('\nchart metric has one owner');
   const nav = read('../src/galaxy/navigation.ts');
   check('navigation.ts imports nothing but the system type',
     (nav.match(/^import /gm) ?? []).length === 1 && /import type \{ StarSystem \}/.test(nav));
+}
+
+// --- the ship's own numbers -------------------------------------------------
+
+// Energy, shields and heat ran inline in updateFlight, and the damage model
+// sat inside applyPlayerDamage next to a call to flashDamage(). They are now
+// game/systems.ts, which is pure and importable — so these are the first real
+// tests of the numbers every balance claim in this project rests on.
+//
+// train/survivability.ts used to carry this model in a COMMENT and hard-code
+// 3.0 and 4.0 from it. It calls durability() now.
+
+console.log('\nship systems');
+{
+  check('durability from the front is 1 shield + 4 energy / 2 = 3',
+    durability(false) === 3);
+  check('manoeuvring so both faces take hits is worth 4',
+    durability(true) === 4);
+
+  {
+    const s = freshSystems();
+    const r = applyDamage(s, 0.4, true, () => 1);
+    check('a hit from ahead is absorbed by the FORE shield',
+      Math.abs(s.foreShield - 0.6) < 1e-9 && s.aftShield === 1 && s.energy === 4);
+    check('...and does not reach the hull', !r.reachedHull && !r.destroyed);
+  }
+  {
+    const s = freshSystems();
+    applyDamage(s, 0.4, false, () => 1);
+    check('a hit from behind is absorbed by the AFT shield',
+      Math.abs(s.aftShield - 0.6) < 1e-9 && s.foreShield === 1);
+  }
+  {
+    const s = freshSystems();
+    applyDamage(s, 1.5, true, () => 1);   // 1.0 shield + 0.5 through
+    check('overflow past a flattened shield costs energy at 2 per point',
+      s.foreShield === 0 && Math.abs(s.energy - 3) < 1e-9);
+  }
+  {
+    const s = freshSystems();
+    const r = applyDamage(s, 3.0, true, () => 1);
+    check('exactly 3.0 from the front destroys the ship', r.destroyed && s.energy <= 0);
+  }
+  {
+    const s = freshSystems();
+    const r = applyDamage(s, 2.9, true, () => 1);
+    check('...and 2.9 does not', !r.destroyed && s.energy > 0);
+  }
+  {
+    const s = freshSystems();
+    const never = applyDamage(s, 1.5, true, () => 0.99);
+    const always = applyDamage(freshSystems(), 1.5, true, () => 0.01);
+    check('a hull hit rolls for wrecking a fitting',
+      !never.wreckedSomething && always.wreckedSomething);
+  }
+
+  {
+    // shields only come back once energy is healthy — a beaten ship has to
+    // break off before it gets them back, which is the whole tactical point
+    const s = freshSystems();
+    s.energy = 0.5; s.foreShield = 0; s.aftShield = 0;
+    regenerate(s, 1, { energyUnit: false });
+    check('shields do NOT regenerate while energy is below 1',
+      s.foreShield === 0 && s.aftShield === 0);
+    s.energy = 2;
+    regenerate(s, 1, { energyUnit: false });
+    check('...and do once it recovers', s.foreShield > 0 && s.aftShield > 0);
+  }
+  {
+    const plain = freshSystems(); plain.energy = 0;
+    const boosted = freshSystems(); boosted.energy = 0;
+    regenerate(plain, 1, { energyUnit: false });
+    regenerate(boosted, 1, { energyUnit: true });
+    check('an energy unit doubles the recharge rate',
+      Math.abs(boosted.energy - plain.energy * 2) < 1e-9);
+  }
+  {
+    const s = freshSystems();
+    check('deep space is cold', !updateCabinTemp(s, 1, 1_000_000) && s.cabinTemp === 0);
+    let dead = false;
+    for (let i = 0; i < 600 && !dead; i++) dead = updateCabinTemp(s, 1 / 60, 0);
+    check('sitting in the sun eventually kills you', dead);
+  }
+  {
+    check('no scoops, no fuel', scoopFuel(1, 1000, false, 0, 70) === 0);
+    check('scoops but too far out gathers nothing', scoopFuel(1, 200_000, true, 0, 70) === 0);
+    check('scooping close in gathers fuel', scoopFuel(1, 1000, true, 0, 70) > 0);
+    check('a full tank never overfills', scoopFuel(1, 1000, true, 70, 70) === 0);
+    check('...and a nearly-full one fills exactly to the top',
+      Math.abs(scoopFuel(1, 1000, true, 69.5, 70) - 0.5) < 1e-9);
+  }
 }
 
 // --- police only care about what YOU did ------------------------------------
