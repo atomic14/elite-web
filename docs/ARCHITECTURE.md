@@ -12,7 +12,7 @@ Everything else is a consequence, and each consequence is testable:
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
 | the renderer never writes state | you can delete it and still simulate | done for the HUD (hud-binding.ts) |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 338 tests, no browser | done |
+| every rule is unit-testable headless | 355 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
@@ -58,9 +58,12 @@ an NPC's does not.
 - `npc.ts` is 786 lines and holds behaviour and brain flight. The explosions,
   the ship roster and the brain selection have moved to `effects.ts`,
   `ship-specs.ts` and `brains.ts`.
-- State is in `NpcState` and `Game.session`, but ALSO in `PlayerShip`,
-  `Game.sys`, `chart`, `market`, the entity arrays, and the station's
-  quaternion. The snapshot gathers them by hand.
+- State is now `Game.state` (`state.ts`) — one object holding the galaxy, the
+  commander, the world, the player, the session, the ship systems, the dock
+  plan, the markets and the charts. `freshState(commander)` builds it under
+  node with no canvas and no browser. Game keeps delegating accessors so
+  `g.commander` still works at ~500 call sites. The station's quaternion is
+  still snapshotted by hand.
 - `step()` reads the keyboard directly. There is no intent/command layer, so
   the player, an AI and a replay are not yet the same interface.
 - `Game`'s constructor calls `createRenderStack`, so a Game still needs a

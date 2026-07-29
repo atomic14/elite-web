@@ -18,6 +18,8 @@ import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
 } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
+import { freshState } from '../src/game/state.ts';
+import { newCommander } from '../src/game/commander.ts';
 import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';
 import { compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
 import {
@@ -1386,7 +1388,22 @@ console.log('\nbehaviour-driving values are state');
 
   // and the state objects must actually be reachable for a generic walk
   check('NpcState is one object', /readonly state: NpcState;/.test(npcSrc));
-  check('SessionState is one object', /readonly session: SessionState = \{/.test(gameSrc));
+  // Structural, not a regex over source. The previous version asserted the
+  // literal text `readonly session: SessionState = {` inside game.ts, and
+  // broke the moment the state moved to state.ts — the third scraping check
+  // to break that way in this refactor. Build the state and look at it.
+  {
+    const st = freshState(newCommander());
+    check('the game state is one object a walk can reach',
+      typeof st === 'object' && st !== null);
+    check('...with the flight session inside it',
+      typeof st.session === 'object' && 'torusEngaged' in st.session);
+    check('...and the ship systems, the dock plan and the charts',
+      !!st.sys && !!st.dockPlan && !!st.chart && !!st.world && !!st.player);
+    // the snapshot walks these generically, so they must be plain data
+    check('...and the session is flat, so serialiseState can walk it',
+      Object.values(st.session).every((v) => typeof v !== 'object'));
+  }
 }
 
 // --- one source of randomness ----------------------------------------------

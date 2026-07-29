@@ -24,7 +24,7 @@ import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
 import {
   CONSTRICTOR_SPEC, pirateSpecForTier, type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
-import { planDocking, makeDockPlan, dockingOutcome } from './docking.ts';
+import { planDocking, dockingOutcome, type DockPlan } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
@@ -57,7 +57,7 @@ import {
   stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
 } from './encounters.ts';
 import {
-  regenerate, updateCabinTemp, scoopFuel, freshSystems, breachLoss,
+  regenerate, updateCabinTemp, scoopFuel, breachLoss,
   type ShipSystems,
 } from './systems.ts';
 import {
@@ -157,47 +157,10 @@ import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver, describeContract, type ChartState,
 } from '../ui/screens.ts';
+import { freshState, AUTOSAVE_INTERVAL, type GameState } from './state.ts';
+import type { SessionState } from './session.ts';
 
 
-/**
- * The flight session: every flag and timer that describes what is happening
- * right now, as opposed to who the commander is (commander.ts) or what is in
- * the sky (the entity arrays).
- *
- * One object for the same reason NpcState is one object — a snapshot is this,
- * walked generically. Written as separate fields on Game, the snapshot caught
- * five of twenty-three, and the twenty-three included `torusEngaged`: restore
- * a save taken under torus drive and the ship quietly flew at a different
- * speed from the run it came from.
- */
-export interface SessionState {
-  hyperCountdown: number;
-  torusEngaged: boolean;
-  witchspace: boolean;
-  npcTargetTimer: number;
-  autoSaveTimer: number;
-  energyLowTimer: number;
-  policeScanned: boolean;
-  defenceLaunched: boolean;
-  hermitTrading: boolean;
-  hermitCooldown: boolean;
-  jettisonedValue: number;
-  arrivalCargoValue: number;
-  genShipSeen: boolean;
-  trumbleTimer: number;
-  beaconTimer: number;
-  strandedHintTimer: number;
-  paused: boolean;
-  /**
-   * 0 front, 1 rear, 2 left, 3 right. NOT a camera setting: laserForView()
-   * picks the weapon from it and viewDir() aims the shot, so reloading in
-   * rear view used to fire the FRONT laser at empty space ahead.
-   */
-  view: number;
-  ccEngaged: boolean;
-  beamTimer: number;
-  dcEngaged: boolean;
-}
 
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
 
@@ -207,15 +170,6 @@ type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'stat
  * number in this project was measured against.
  */
 export const FIXED_DT = 1 / 60;
-/**
- * Seconds between mid-flight world saves.
- *
- * Elite let you save at a station and nowhere else, which is faithful and, on
- * a machine you can close by accident, unkind. The world is a snapshot now
- * (snapshot.ts), so it costs one JSON write to make quitting mid-fight
- * survivable.
- */
-const AUTOSAVE_INTERVAL = 20;
 /** Longest real interval we will try to simulate, before dropping the backlog. */
 const MAX_FRAME_TIME = 0.25;
 /** ...and the most steps one frame may run, so a stall cannot spiral. */
@@ -256,11 +210,24 @@ export class Game {
   private readonly render: RenderStack;
 
 
-  systems: StarSystem[];
-  commander: CommanderData;
-  /** level-1 simulation: trade flowing between all 256 systems */
-  living: LivingGalaxy;
-  readonly world = new World();
+
+  /**
+   * Everything the world step may change, in ONE object — see state.ts.
+   *
+   * The accessors below delegate to it. They exist because ~500 call sites in
+   * this file and every console harness say `g.commander` and `g.world`, and
+   * because a field on Game is a field somebody forgets to snapshot; a field
+   * on `state` is one the snapshot walks.
+   */
+  readonly state: GameState = freshState(loadCommander());
+
+  get systems(): StarSystem[] { return this.state.systems; }
+  set systems(v: StarSystem[]) { this.state.systems = v; }
+  get commander(): CommanderData { return this.state.commander; }
+  set commander(v: CommanderData) { this.state.commander = v; }
+  get living(): LivingGalaxy { return this.state.living; }
+  set living(v: LivingGalaxy) { this.state.living = v; }
+  get world(): World { return this.state.world; }
 
   /**
    * The ships in the sky, and the scene they are in. Owned by `world`; kept
@@ -270,7 +237,7 @@ export class Game {
   get npcs(): NpcShip[] { return this.world.npcs; }
   get scene(): THREE.Scene { return this.world.scene; }
 
-  readonly player: PlayerShip;
+  get player(): PlayerShip { return this.state.player; }
   readonly input = new Input();
   private readonly hud = new Hud();
   private readonly tunnel = new TunnelEffect();
@@ -279,30 +246,7 @@ export class Game {
    * Where the SHIP is. Flight, docked, or dead — the states that are not
    * screens. Overlays live on the screen stack; `mode` is the two combined.
    */
-  /** the flight session, in one place — see SessionState */
-  readonly session: SessionState = {
-    hyperCountdown: -1,
-    torusEngaged: false,
-    witchspace: false,
-    npcTargetTimer: 0,
-    autoSaveTimer: AUTOSAVE_INTERVAL,
-    energyLowTimer: 0,
-    policeScanned: false,
-    defenceLaunched: false,
-    hermitTrading: false,
-    hermitCooldown: false,
-    jettisonedValue: 0,
-    arrivalCargoValue: 0,
-    genShipSeen: false,
-    trumbleTimer: 20,
-    beaconTimer: -1,
-    strandedHintTimer: 2,
-    paused: false,
-    view: 0,
-    ccEngaged: false,
-    beamTimer: 0,
-    dcEngaged: false,
-  };
+  get session(): SessionState { return this.state.session; }
 
   get hyperCountdown(): number { return this.session.hyperCountdown; }
   set hyperCountdown(v: number) { this.session.hyperCountdown = v; }
@@ -364,18 +308,21 @@ export class Game {
     return (this.screens.topId ?? this.baseMode) as Mode;
   }
 
-  readonly chart: ChartState = { cursorX: 0, cursorY: 0, targetIndex: null };
-  market: MarketEntry[] = [];
+  get chart(): ChartState { return this.state.chart; }
+  get market(): MarketEntry[] { return this.state.market; }
+  set market(v: MarketEntry[]) { this.state.market = v; }
 
 
   /** missile armed but not yet locked (the original's yellow pylon) */
 
   /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
-  private encounterTimers: EncounterTimers = freshTimers();
+  private get encounterTimers(): EncounterTimers { return this.state.encounterTimers; }
+  private set encounterTimers(v: EncounterTimers) { this.state.encounterTimers = v; }
   /** counts down to the next mid-flight world save — see autoSave() */
   /** the station only scrambles its defence fleet once per visit */
   /** trading with a rock hermit rather than a station */
-  private hermitMarket: MarketEntry[] = [];
+  private get hermitMarket(): MarketEntry[] { return this.state.hermitMarket; }
+  private set hermitMarket(v: MarketEntry[]) { this.state.hermitMarket = v; }
   /** true after leaving a hermit, until you fly clear of it */
   /** waiting on the player to confirm erasing their commander */
   private pendingNewGame = false;
@@ -403,11 +350,13 @@ export class Game {
     };
   }
   /** the reception the current system laid on — surfaced for the HUD/tests */
-  lastThreat: PirateThreat | null = null;
+  get lastThreat(): PirateThreat | null { return this.state.lastThreat; }
+  set lastThreat(v: PirateThreat | null) { this.state.lastThreat = v; }
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
   /** what the hold was worth on arrival — sets what the pirates think they're owed */
   /** seconds until a rescue answers the distress beacon (-1 = not sent) */
-  contractOffers: Contract[] = [];
+  get contractOffers(): Contract[] { return this.state.contractOffers; }
+  set contractOffers(v: Contract[]) { this.state.contractOffers = v; }
   /**
    * Selected contract row. A property because it lives on ContractsScreen now,
    * and test/playtest.js assigns it before calling acceptContract().
@@ -416,7 +365,9 @@ export class Game {
   get contractSelected(): number { return this.contracts_.selected; }
   set contractSelected(v: number) { this.contracts_.selected = v; }
   /** where ESC returns to from the DATA ON screen */
-  private ecmDetectedTimer = 0; // console 'E' dwell
+  /** console 'E' dwell */
+  private get ecmDetectedTimer(): number { return this.state.ecmDetectedTimer; }
+  private set ecmDetectedTimer(v: number) { this.state.ecmDetectedTimer = v; }
   // combat computer: the jameson-defend policy flying the player's ship
   private readonly combatComputer = new CombatComputer();
   /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
@@ -506,7 +457,7 @@ export class Game {
    * harnesses (test/gang-trial.js, test/combat-recorder.js) that read and
    * write them by name.
    */
-  readonly sys: ShipSystems = freshSystems();
+  get sys(): ShipSystems { return this.state.sys; }
 
   get foreShield(): number { return this.sys.foreShield; }
   set foreShield(v: number) { this.sys.foreShield = v; }
@@ -534,7 +485,7 @@ export class Game {
     q: new THREE.Quaternion(), ray: new THREE.Raycaster(),
   };
   /** docking computer flying the ship in — see dockingComputerStep */
-  private readonly dockPlan = makeDockPlan();
+  private get dockPlan(): DockPlan { return this.state.dockPlan; }
   private readonly tmpQ = new THREE.Quaternion();
   /** scratch for the per-frame dashboard read, so it allocates nothing */
   private readonly hudScratch = {
@@ -548,9 +499,6 @@ export class Game {
     window.addEventListener('resize', () => this.resize());
     this.resize();
 
-    this.commander = loadCommander();
-    this.systems = generateGalaxy(this.commander.galaxy);
-    this.living = new LivingGalaxy(this.systems);
     this.living.load(this.commander.galaxyState);
     // catch the galaxy up if this save has been away a while
     if (this.living.day < this.commander.day) {
@@ -564,7 +512,6 @@ export class Game {
     this.world.scene.add(this.render.camera);
 
 
-    this.player = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
     this.buildWorld();
     // Resume mid-flight if the last session ended there; otherwise the
     // station, as Elite always did.
