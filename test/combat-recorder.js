@@ -29,6 +29,8 @@
     playerShots: 0,
     playerHits: 0,
     npcShots: 0,
+    /** missiles launched at you — not shots, and never counted as misses */
+    npcMissiles: 0,
     npcHitsOnPlayer: 0,
     damageTaken: 0,
     /**
@@ -67,7 +69,7 @@
 
     reset() {
       this.samples = []; this.events = []; this.t = 0;
-      this.playerShots = 0; this.playerHits = 0; this.npcShots = 0;
+      this.playerShots = 0; this.playerHits = 0; this.npcShots = 0; this.npcMissiles = 0;
       this.npcHitsOnPlayer = 0; this.damageTaken = 0; this.damageDealt = 0; this.kills = 0;
       for (const k of Object.keys(this.damageBy)) { this.damageBy[k] = 0; this.countBy[k] = 0; }
     },
@@ -98,6 +100,7 @@
         },
         THEM: {
           shots: this.npcShots,
+          missilesLaunched: this.npcMissiles,
           hitsOnYou: this.npcHitsOnPlayer,
           accuracy: pct(this.npcHitsOnPlayer, this.npcShots),
           laserDamageToYou: this.damageBy.laser.toFixed(2),
@@ -199,7 +202,14 @@
           npcProto.__origUpdate = orig;
           npcProto.update = function (...args) {
             const ev = orig.apply(this, args);
-            if (rec.running && ev && ev.at === 'player') rec.npcShots++;
+            // Lasers and missiles are counted apart: THEM.accuracy divides
+            // hits by shots, and a missile launch is not a shot that could
+            // have missed. A dying pirate now empties its rail (npc.ts
+            // chooseWeapon), so lumping them together would quietly deflate
+            // the enemy accuracy figure this harness exists to measure.
+            if (rec.running && ev && ev.at === 'player') {
+              if (ev.weapon === 'missile') rec.npcMissiles++; else rec.npcShots++;
+            }
             return ev;
           };
         }

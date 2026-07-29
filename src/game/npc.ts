@@ -8,6 +8,7 @@ import {
   type Brain, type ObservableShip,
 } from '../ai-training/policy.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
+import { npcPrefersMissile, npcMissileLastStand, MISSILE_RELOAD } from './gunnery.ts';
 import { TURN } from '../ai-training/core.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
@@ -113,6 +114,13 @@ export interface NpcState {
   threatTier: number;
   speed: number;
   fireCooldown: number;
+  /**
+   * Time until this ship may launch another missile. Separate from
+   * fireCooldown ON PURPOSE: the gun's reload is up to 1.7s and a ship in its
+   * last stand does not have that long, so a missile must not queue behind a
+   * bolt. It ticks in chooseWeapon.
+   */
+  missileReload: number;
   waypointTimer: number;
   brainTimer: number;
   brainPitchRate: number;
@@ -149,7 +157,17 @@ export interface PlayerRef {
   speed: number;
 }
 
-export type FireEvent = { at: 'player' } | { at: NpcShip };
+/**
+ * A shot this ship has taken, and what it took it with.
+ *
+ * The weapon is part of the report because choosing it is the SHIP's decision,
+ * not the orchestrator's — see `chooseWeapon`. Only the player is ever shot at
+ * with a missile: ordnance.ts's hostile missiles home on the player and there
+ * is nothing else for one to chase.
+ */
+export type FireEvent =
+  | { at: 'player'; weapon: 'laser' | 'missile' }
+  | { at: NpcShip; weapon: 'laser' };
 
 /**
  * The single source of truth for "does this ship attack the player?" —
@@ -300,6 +318,8 @@ export class NpcShip {
   set speed(v: number) { this.state.speed = v; }
   get fireCooldown(): number { return this.state.fireCooldown; }
   set fireCooldown(v: number) { this.state.fireCooldown = v; }
+  get missileReload(): number { return this.state.missileReload; }
+  set missileReload(v: number) { this.state.missileReload = v; }
   get waypointTimer(): number { return this.state.waypointTimer; }
   set waypointTimer(v: number) { this.state.waypointTimer = v; }
   get brainTimer(): number { return this.state.brainTimer; }
@@ -335,7 +355,7 @@ export class NpcShip {
       hp: 0, alive: true, provoked: false, provokedByPlayer: false, missiles: 0,
       isMissionTarget: false, fleeing: false, inert: false, tradeTimer: 0,
       wantsDespawn: false, docked: false, docking: false, organised: false,
-      satisfied: false, threatTier: 0, speed: 0, fireCooldown: 0,
+      satisfied: false, threatTier: 0, speed: 0, fireCooldown: 0, missileReload: 0,
       waypointTimer: 0, brainTimer: 0, brainPitchRate: 0, brainRollRate: 0,
     };
     if (role === 'hermit') {
@@ -442,15 +462,15 @@ export class NpcShip {
       // Which brain, and the two numbers that come with it — see brains.ts.
       const choice = this.role === 'pirate'
         ? pirateBrainFor(this.threatTier, this.organised) : null;
-      if (choice && distPlayer >= choice.guard) {
-        return this.brainFly(choice.brain, dt,
+      const shot = choice && distPlayer >= choice.guard
+        ? this.brainFly(choice.brain, dt,
           player.position, player.quaternion,
           choice.targetSpeed(player.speed),
           distPlayer, 'player',
-          choice.pack ? fleet : null);
-      }
-      // Inside knife range the scripted break-off takes over — see RAM_GUARD.
-      return this.attack(dt, player.position, distPlayer, true);
+          choice.pack ? fleet : null)
+        // Inside knife range the scripted break-off takes over — see RAM_GUARD.
+        : this.attack(dt, player.position, distPlayer, true);
+      return this.chooseWeapon(shot, dt, distPlayer, player.position);
     }
 
     if (this.npcTarget && this.npcTarget.alive) {
@@ -682,7 +702,9 @@ export class NpcShip {
     if (fireAt && this.fireCooldown <= 0 && dist < NPC_LASER_RANGE
         && this.facing(targetPos) < NPC_FIRE_GATE) {
       this.fireCooldown = NPC_COOLDOWN_LO + random() * NPC_COOLDOWN_SPREAD;
-      return fireAt === 'player' ? { at: 'player' } : { at: fireAt };
+      return fireAt === 'player'
+        ? { at: 'player', weapon: 'laser' }
+        : { at: fireAt, weapon: 'laser' };
     }
     return null;
   }
@@ -724,9 +746,45 @@ export class NpcShip {
         && this.facing(targetPos) < NPC_FIRE_GATE) {
       this.fireCooldown = (NPC_COOLDOWN_LO + random() * NPC_COOLDOWN_SPREAD)
         * (this.role === 'thargoid' ? THARGOID_FIRE_RATE : 1);
-      return isPlayer ? { at: 'player' } : { at: npcTarget! };
+      return isPlayer
+        ? { at: 'player', weapon: 'laser' }
+        : { at: npcTarget!, weapon: 'laser' };
     }
     return null;
+  }
+
+  /**
+   * WHICH weapon leaves the rail — and the one case where something leaves it
+   * that the flight above did not ask for.
+   *
+   * The rules are gunnery.ts's; this is the only place that applies them, so a
+   * missile is decided once and reported once. It used to be decided in
+   * game.ts, off the back of a FireEvent the ship had already produced, which
+   * meant a missile could only ever leave at the moment its owner was lined up
+   * for a LASER shot: inside 0.25 rad, with the gun loaded. A pirate that is
+   * about to die is rarely either, so it died with the missile still on the
+   * rail. That is what `npcMissileLastStand` fixes, and it is why it does not
+   * consult the gun's cooldown or its firing gate.
+   */
+  private chooseWeapon(
+    shot: FireEvent | null, dt: number, dist: number, targetPos: THREE.Vector3,
+  ): FireEvent | null {
+    if (this.missiles <= 0) return shot;
+    this.missileReload = Math.max(0, this.missileReload - dt);
+    if (this.missileReload > 0) return shot;
+    // Fall back to 1 (untouched), not 0. A divide-by-zero guard that reports
+    // "nearly dead" would make a hull-less ship empty its rack; unreachable
+    // today, since everything that carries a missile has hp, but it is the
+    // wrong way round.
+    const hull = this.maxHp > 0 ? this.hp / this.maxHp : 1;
+    if (npcMissileLastStand(hull, dist, this.facing(targetPos))
+        // ...or the old opportunistic launch, taken instead of a bolt it was
+        // about to fire anyway.
+        || (shot !== null && shot.at === 'player' && npcPrefersMissile(dist, random()))) {
+      this.missileReload = MISSILE_RELOAD;
+      return { at: 'player', weapon: 'missile' };
+    }
+    return shot;
   }
 
   private advance(dt: number): void {

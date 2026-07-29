@@ -2,8 +2,10 @@
 //
 // This file owns missiles IN FLIGHT: spawn, homing, E.C.M. defeat, impact. It
 // does NOT decide who launches one — whether an NPC reaches for a missile
-// rather than its laser is `npcPrefersMissile` in gunnery.ts, and the launch
-// itself is `Game.enemyLaunchMissile`. "Ordnance" and "gunnery" are both
+// rather than its laser is `npcPrefersMissile` and `npcMissileLastStand` in
+// gunnery.ts, applied by `NpcShip.chooseWeapon`, which reports the launch in
+// its FireEvent; `Game.enemyLaunchMissile` spends the round and calls
+// `launchHostile` below. "Ordnance" and "gunnery" are both
 // period-correct words for the same thing, so this pointer is here because
 // anyone hunting a missile rule starts in this file.
 //

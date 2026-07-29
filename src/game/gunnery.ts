@@ -131,6 +131,32 @@ export const NPC_VS_NPC_DAMAGE = 0.11;
 export const MISSILE_MIN_RANGE = 1200;
 export const MISSILE_MAX_RANGE = 3200;
 export const MISSILE_CHANCE = 0.3;
+/**
+ * Hull fraction below which a ship stops saving its missiles for later.
+ *
+ * A pirate used to go down with them still on the rail, because the only way
+ * one ever left was the opportunistic roll above: it fires at the moment the
+ * ship takes a LASER shot, and a pirate that is nearly dead is usually not
+ * lined up well enough to be taking one. A missile it never launches is worth
+ * nothing to it, so below this it launches.
+ */
+export const MISSILE_LAST_STAND_HULL = 0.4;
+/**
+ * ...and it launches on a bearing rather than a firing line. A missile homes
+ * (ordnance.ts turns it at 2.5 rad/s), so the only reason to ask for any aim
+ * at all is that it leaves the nose: the target has to be in the half of the
+ * sky the ship is pointing at. Compare NPC_FIRE_GATE's 0.25 rad for the gun.
+ */
+export const MISSILE_LAST_STAND_GATE = Math.PI / 2;
+/**
+ * Desperation widens the envelope INWARD — the knife-range launch a pirate
+ * would never waste a missile on is the only one it has left — but not all the
+ * way. Inside this the missile arrives before the player can reach the E.C.M.
+ * or turn, and an undodgeable weapon is not a fight.
+ */
+export const MISSILE_LAST_STAND_MIN_RANGE = 250;
+/** Gap between launches, so a Python does not empty both rails in one frame. */
+export const MISSILE_RELOAD = 2;
 
 /** Chance an NPC's shot connects at `dist`. */
 export function npcHitChance(dist: number): number {
@@ -146,4 +172,18 @@ export function npcShotDamage(roll: number): number {
 /** Would an NPC rather send a missile than a laser bolt? */
 export function npcPrefersMissile(dist: number, roll: number): boolean {
   return dist > MISSILE_MIN_RANGE && dist < MISSILE_MAX_RANGE && roll < MISSILE_CHANCE;
+}
+
+/**
+ * Is this ship hurt enough to spend a missile it will otherwise die holding?
+ *
+ * No dice: a ship at this hull has under a second to live against a pulse
+ * laser, and a chance roll per opportunity is a chance of nothing happening at
+ * all. It launches at the first bearing it gets. `hull` is hp as a fraction of
+ * the hull it spawned with, `bearing` the angle from its nose to the target.
+ */
+export function npcMissileLastStand(hull: number, dist: number, bearing: number): boolean {
+  return hull <= MISSILE_LAST_STAND_HULL
+    && dist > MISSILE_LAST_STAND_MIN_RANGE && dist < MISSILE_MAX_RANGE
+    && bearing < MISSILE_LAST_STAND_GATE;
 }

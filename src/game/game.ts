@@ -51,7 +51,7 @@ import {
 } from './ordnance.ts';
 import {
   hitCone, LASER_RANGE, AIM_ASSIST,
-  npcHitChance, npcShotDamage, npcPrefersMissile, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE,
+  npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE,
 } from './gunnery.ts';
 import {
   stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
@@ -1845,11 +1845,12 @@ export class Game {
 
   private resolveNpcFire(npc: NpcShip, event: FireEvent): void {
     if (event.at === 'player') {
-      const dist = npc.object.position.distanceTo(this.player.position);
-      if (npc.missiles > 0 && npcPrefersMissile(dist, random())) {
+      // The SHIP chose the weapon (npc.ts chooseWeapon); we only apply it.
+      if (event.weapon === 'missile') {
         this.enemyLaunchMissile(npc);
         return;
       }
+      const dist = npc.object.position.distanceTo(this.player.position);
       sfx.enemyLaser();
       const hit = random() < npcHitChance(dist);
       // visible bolt: to us on a hit, wide of us on a miss

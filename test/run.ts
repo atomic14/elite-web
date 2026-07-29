@@ -66,6 +66,9 @@ import {
 import { planPopulation, policeFor } from '../src/game/population.ts';
 import {
   laserForView, canFire, chargeShot, assistAt, hitCone, canisterCone, LASERS, AIM_ASSIST,
+  npcPrefersMissile, npcMissileLastStand,
+  MISSILE_MIN_RANGE, MISSILE_MAX_RANGE, MISSILE_CHANCE,
+  MISSILE_LAST_STAND_HULL, MISSILE_LAST_STAND_GATE, MISSILE_LAST_STAND_MIN_RANGE,
 } from '../src/game/gunnery.ts';
 import {
   freshSystems, applyDamage, regenerate, durability, updateCabinTemp, scoopFuel,
@@ -1517,6 +1520,79 @@ console.log('\nNPC flight');
     check('a trader minds its own business rather than attacking',
       trader.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [trader], 160) === null);
   }
+
+  // --- a pirate about to die spends its missiles ---------------------------
+  //
+  // They used to go down with them still on the rail, and the reason is
+  // structural: the launch was decided in game.ts off the back of a FireEvent,
+  // so a missile could only leave at the moment its owner was lined up inside
+  // the gun's 0.25 rad gate with the reload finished. A pirate that is nearly
+  // dead is rarely either. Measured, not assumed — see the trial below.
+  //
+  // Seed 5 picks the Cobra Mk III out of SPECS.pirate, the only stock pirate
+  // hull that carries a missile.
+  {
+    /** Fly a pirate at a stationary player and report what left the rail. */
+    const fly = (frames: number, hull: number, dist = 900, seedBase = 4100, seeds = 8) => {
+      let missiles = 0, launchedAtAll = 0;
+      for (let s = 0; s < seeds; s++) {
+        seedWorld(seedBase + s);
+        const npc = new NpcShip('pirate', at(0, 0, dist), 5);
+        npc.threatTier = 1;
+        npc.hp = npc.maxHp * hull;
+        let any = false;
+        for (let i = 0; i < frames; i++) {
+          const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+          if (ev && ev.at === 'player' && ev.weapon === 'missile' && npc.missiles > 0) {
+            npc.missiles -= 1;   // the Game spends the round — see enemyLaunchMissile
+            missiles += 1;
+            any = true;
+          }
+        }
+        if (any) launchedAtAll += 1;
+      }
+      return { missiles, launchedAtAll, seeds };
+    };
+
+    seedWorld(20_260_727);
+    check('a stock pirate hull carries a missile to launch',
+      new NpcShip('pirate', at(0, 0, 900), 5).missiles === 1);
+
+    const hurt = fly(300, 0.35);
+    check(`a pirate on its last legs gets the missile away (${hurt.launchedAtAll}/${hurt.seeds})`,
+      hurt.launchedAtAll === hurt.seeds);
+    const whole = fly(300, 1, 400);
+    check('...where an undamaged one at the same knife range keeps it',
+      whole.missiles === 0);
+    check('...and it spends the round rather than firing the rail twice',
+      hurt.missiles === hurt.launchedAtAll);
+
+    // The headline: under sustained fire, does it die holding the missile?
+    // 0.667 damage/second is the player's pulse laser (CLAUDE.md's figure).
+    // Before this change the answer was 0 of 20 — the opportunistic launch
+    // needs 1200+ units of separation, and the fight is not fought there.
+    {
+      let died = 0, armedToTheEnd = 0;
+      for (let s = 0; s < 20; s++) {
+        seedWorld(7000 + s);
+        const npc = new NpcShip('pirate', at(0, 0, 1400), 5);
+        npc.threatTier = 1;
+        const player = makePlayer(at(0, 0, 0));
+        for (let i = 0; i < 60 * 20 && npc.alive; i++) {
+          const ev = npc.update(1 / 60, player, 0, station, [npc], 160);
+          if (ev && ev.at === 'player' && ev.weapon === 'missile' && npc.missiles > 0) {
+            npc.missiles -= 1;
+          }
+          npc.takeDamage(0.667 / 60, at(0, 0, 0), true);
+        }
+        if (!npc.alive) died += 1;
+        if (!npc.alive && npc.missiles > 0) armedToTheEnd += 1;
+      }
+      check(`the trial killed all 20 pirates (${died})`, died === 20);
+      check(`most die having launched, not holding (${20 - armedToTheEnd}/20 launched)`,
+        armedToTheEnd < 10);
+    }
+  }
 }
 
 // --- anything that drives behaviour is state ------------------------------
@@ -1785,6 +1861,38 @@ console.log('\ngunnery');
       hitCone(18, 2000) < hitCone(18, 500));
     check('cargo gets a flat tolerance and no assist',
       canisterCone(500) > 0 && canisterCone(3000) < canisterCone(500));
+  }
+  {
+    // ...and the NPC's choice of weapon, which is gunnery.ts's too. The
+    // opportunistic launch: a comfortable band, and dice.
+    const mid = (MISSILE_MIN_RANGE + MISSILE_MAX_RANGE) / 2;
+    check('an NPC swaps a bolt for a missile at a comfortable range',
+      npcPrefersMissile(mid, MISSILE_CHANCE - 0.01));
+    check('...only sometimes', !npcPrefersMissile(mid, MISSILE_CHANCE + 0.01));
+    check('...and never at knife range or across the system',
+      !npcPrefersMissile(MISSILE_MIN_RANGE - 1, 0) && !npcPrefersMissile(MISSILE_MAX_RANGE + 1, 0));
+
+    // The last stand: a pirate that is about to die should not take its
+    // missiles down with it.
+    const dying = MISSILE_LAST_STAND_HULL - 0.01;
+    check('a healthy ship saves its missile for a better moment',
+      !npcMissileLastStand(1, 800, 0));
+    check('...and a ship this close to death spends it',
+      npcMissileLastStand(dying, 800, 0));
+    check('...exactly at the threshold, not just below it',
+      npcMissileLastStand(MISSILE_LAST_STAND_HULL, 800, 0)
+      && !npcMissileLastStand(MISSILE_LAST_STAND_HULL + 0.01, 800, 0));
+    check('it launches where it would never bother with one otherwise',
+      npcMissileLastStand(dying, MISSILE_MIN_RANGE - 100, 0)
+      && !npcPrefersMissile(MISSILE_MIN_RANGE - 100, 0));
+    check('...on a bearing rather than a firing line, because the seeker aims',
+      npcMissileLastStand(dying, 800, MISSILE_LAST_STAND_GATE - 0.01));
+    check('...but not at something behind it',
+      !npcMissileLastStand(dying, 800, MISSILE_LAST_STAND_GATE + 0.01));
+    check('...nor point blank, where the player could not answer it',
+      !npcMissileLastStand(dying, MISSILE_LAST_STAND_MIN_RANGE - 1, 0));
+    check('...nor from further out than the seeker is worth',
+      !npcMissileLastStand(dying, MISSILE_MAX_RANGE + 1, 0));
   }
 }
 

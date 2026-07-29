@@ -84,64 +84,94 @@ Read the [README](../README.md) first for what the game *is*.
 
 ## The 30-second map
 
+**This is an index, not an explanation.** One line per file: the question it
+answers. If you need more than that, read the file — every one opens with a
+header comment saying what it owns and what it deliberately does not. A file
+that needs a paragraph here to make sense is a file with the wrong name, and
+the fix belongs there rather than in this document.
+
 ```
-index.html / viewer.html      two Vite pages: the game, and the AI combat viewer
+play.html / index.html / viewer.html   the game, the landing page, the AI viewer
 src/
-  main.ts                     boot: new Game(canvas)
+  main.ts                   boot: new Game(canvas)
+  player.ts                 the player's flight model
+
   game/
-    game.ts                   THE ORCHESTRATOR: owns the entities and the frame,
-                              wires the parts below together, resolves consequences
-    npc.ts                    NPC ships: scripted behaviours + trained-brain flight,
-                              explosions, tracers
-    commander.ts              persistent player state, equipment catalogue, saves
-    contracts.ts              work on offer + market pressure (no game.ts import,
-                              so the headless campaign runs the real rules)
-    docking.ts                the slot approach, shared by traders and the
-                              player's docking computer
-    -- the world step, pure and unit-tested: --
-    systems.ts                energy, shields, laser heat, cabin temperature,
-                              and the damage model (imported by survivability.ts)
-    collisions.ts             who is overlapping whom, and how to separate them
-    gunnery.ts                BOTH guns: which mount the player fires, heat and
-                              cooldown, the aim assist — and the NPC's gun, its
-                              hit rolls, damage, and when it reaches for a missile
-    shot.ts                   what the shot hit: ray first, then the graze cone
-    encounters.ts             what turns up and when: traders, pirate waves, drones
-    population.ts             how busy a system is when you arrive
-    npc-targeting.ts          who hunts whom among the NPCs
-    combat-computer.ts        the defence brain flying the player's ship
-    -- state and its persistence: --
-    rng.ts                    THE seeded generator; Math.random is banned and
-                              the ban is enforced by npm test
-    snapshot.ts               the world as plain JSON — save anywhere, replay
-    screens/                  one file per overlay, behind the Screen contract
-  engine/render-stack.ts      the ONLY file that needs a GPU
-  galaxy/galaxy.ts            the 1984 procedural universe + market model
-  galaxy/goatsoup.ts          the original's recursive planet-description grammar
-  galaxy/living.ts            level-1 sim: convoys, prices, danger and your
-                              notoriety across all 256 systems
-  world/                      per-system scenery: shader sun/planet, stations,
-                              starfield, space dust
-  ships/geometry.ts           every hull as vertex/edge/face tables; wireframe builder
-  player.ts                   the player's flight model
-  engine/input.ts             keyboard state (held/pressed/counts)
-  hud/                        cockpit console (scanner, gauges) + tunnel effect
-  ui/screens.ts               full-page DOM screens (market, charts, equip, status)
-  sim/                        render-free combat simulator + neural policies
-    core.ts                   own vec/quat math, ship physics, laser model
-    policy.ts                 tiny MLP: observation -> discrete controls
-    scenario.ts               Episode: pirates vs trader, shared by trainer & viewer
-    brains/*.json             trained weights, committed
-  viewer/main.ts              three.js viewer for sim episodes
-test/
-  run.ts                      invariant + sim unit tests (npm test)
-  campaign.ts                 headless balance playtest (npm run campaign)
-  playtest.js                 autonomous in-browser play agent (console)
-train/
-  evolve.ts                   neuroevolution trainer (Node, no deps)
-  evaluate.ts                 held-out tournament — the validation gate
-  logs/                       committed fitness curves for the documented runs
-docs/                         you are here
+    game.ts                 THE ORCHESTRATOR: the frame, the step order, input
+                            routing, and every consequence the modules report
+    state.ts                GameState: everything the step may change, in one
+                            object. freshState() builds it with no browser
+    session.ts              SessionState: the flight flags and timers
+    snapshot.ts             that state as plain JSON — save anywhere, replay
+    rng.ts                  THE seeded generator. Math.random is banned in
+                            world code and npm test enforces it
+
+    world.ts                the sky: the ships, the cargo, the effects, the scenery
+    spawning.ts             putting a population plan into the sky
+    population.ts           how busy a system is when you arrive
+    encounters.ts           what turns up later: traders, pirate waves, drones
+    npc.ts                  NPC ships: scripted behaviour + trained-brain flight
+    npc-targeting.ts        who hunts whom among the NPCs
+    ship-specs.ts           the roster: which hull flies which role, and its stats
+    brains.ts               the five trained policies, and who flies which
+
+    combat.ts               what happens when something is shot: bounties, kills,
+                            wrecks, loot
+    gunnery.ts              BOTH guns: the player's mounts, heat and aim assist,
+                            and the NPC's hit rolls, damage and missile choice
+    shot.ts                 what a shot passed through: ray first, then graze cone
+    ordnance.ts             missiles in flight, the E.C.M., the energy bomb
+    systems.ts              energy, shields, laser heat, cabin temp, damage model
+    collisions.ts           who is overlapping whom, and how to separate them
+    combat-computer.ts      the defence brain flying the PLAYER's ship
+
+    law.ts                  contraband, fines, and how far your standing falls
+    contracts.ts            work on offer, market pressure, and pirate economics
+    missions.ts             the Navy Constrictor arc (NOT the bulletin board)
+    commander.ts            who you are between sessions: stats, prices, saves
+    cargo.ts                canisters and capsules adrift, and scooping them
+    jettison.ts             dumping cargo, and whether it buys off the gang
+    trumbles.ts             they breed, they eat the hold, heat drives them out
+
+    hyperspace.ts           the jump: cost, refusal, mis-jump
+    docking.ts              the slot approach, for traders and your computer
+    effects.ts              explosions and tracers — seen, never simulated
+    screens/                one file per overlay, behind the Screen contract
+
+  galaxy/galaxy.ts          the 1984 procedural universe + market model
+  galaxy/navigation.ts      chart distances and jump costs — the 1984 metric
+  galaxy/living.ts          256 systems trading while you are elsewhere
+  galaxy/goatsoup.ts        the original's planet-description grammar
+
+  audio.ts                  every sound, behind one guarded AudioContext
+  manual.ts                 the in-game manual's text and key tables
+
+  hud/hud.ts                the cockpit console: a dumb painter
+  hud/hud-model.ts          where a blip or marker GOES (the maths)
+  hud/hud-binding.ts        reading the world onto the dashboard (the wiring)
+  hud/tunnel.ts             the hyperspace tunnel
+  ui/screens.ts             full-page DOM screens: market, charts, equip, status
+  ui/screen-host.ts         the screen stack, and click-to-keystroke routing
+
+  engine/render-stack.ts    the ONLY file that needs a GPU
+  engine/input.ts           keyboard state (held/pressed/counts)
+  engine/keymap.ts          flight bindings, both layouts
+  ships/geometry.ts         every hull as vertex/edge/face tables
+  world/                    per-system scenery: shader sun and planet, station
+
+  ai-training/              render-free combat simulator + neural policies
+    core.ts                 own vec/quat maths, ship physics, both weapon models
+    policy.ts               tiny MLP: observation -> discrete controls
+    scenario.ts             Episode: pirates vs trader, shared by trainer & viewer
+    brains/*.json           trained weights, committed
+  viewer/main.ts            three.js viewer for sim episodes
+
+test/run.ts                 invariant + unit tests (npm test)
+test/campaign.ts            headless balance playtest (npm run campaign)
+test/playtest.js            autonomous in-browser play agent (console)
+train/evolve.ts             neuroevolution trainer
+train/evaluate.ts           held-out tournament — the validation gate
+docs/                       you are here
 ```
 
 ## The five ideas that explain most of the code
