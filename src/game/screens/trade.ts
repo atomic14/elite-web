@@ -14,13 +14,13 @@
 import {
   saveCommander, formatCredits, cargoCapacity, cargoTonnes, MAX_FUEL, MAX_MISSILES,
   type CommanderData,
-} from './commander';
-import { renderMarket, renderEquip, equipRows } from '../ui/screens';
-import { applyMarketPressure } from './contracts';
-import { COMMODITIES, generateMarket, type MarketEntry, type StarSystem } from '../galaxy/galaxy';
-import type { Input } from '../engine/input';
-import type { Screen, ScreenOutcome } from '../ui/screen-host';
-import { sfx } from '../audio';
+} from '../commander';
+import { renderMarket, renderEquip, equipRows } from '../../ui/screens';
+import { applyMarketPressure } from '../contracts';
+import { COMMODITIES, generateMarket, type MarketEntry, type StarSystem } from '../../galaxy/galaxy';
+import type { Input } from '../../engine/input';
+import type { Screen, ScreenOutcome } from '../../ui/screen-host';
+import { sfx } from '../../audio';
 
 /** The slice of the Game these screens are allowed to see. */
 export interface TradeContext {

@@ -203,8 +203,10 @@ discipline as `NpcShip` returning a `FireEvent`.
   people adding two screens collide on one line rather than on a switch.
 - **Migration is incremental**: an id with no registered screen still occupies
   the stack, and `update()` returns false so `game.ts` handles it the old way.
-  Migrated so far: market, equip, saves, naming. Still legacy: chart, local,
-  status, data, contracts, briefing.
+  Screens live in `src/game/screens/`, one file each. Migrated: market, equip,
+  saves, naming, status, data, briefing, contracts. Still legacy: chart, local
+  — and the `repaintLegacy` callback on the host exists only for them, so
+  delete it with the last one.
 - **NO PARAMETER PROPERTIES** in a screen or the host — `npm test` runs under
   `--experimental-strip-types`, which rejects `constructor(private readonly x)`.
   Vite compiles it fine, so this only fails in the test run. Assign fields

@@ -29,10 +29,14 @@ import { planDocking, makeDockPlan } from './docking';
 import {
   SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
   type SavesContext,
-} from './saves-screen';
+} from './screens/saves';
 import {
   MarketScreen, EquipScreen, buyEquipment, makeLocalMarket, type TradeContext,
-} from './trade-screen';
+} from './screens/trade';
+import { StatusScreen, type StatusContext } from './screens/status';
+import { DataScreen, type DataContext } from './screens/data';
+import { BriefingScreen } from './screens/briefing';
+import { ContractsScreen, type ContractsContext } from './screens/contracts';
 import { ScreenHost } from '../ui/screen-host';
 import {
   daysForJump, nearestSystemTo, witchspaceChance, WITCHSPACE_ESCAPE_COST,
@@ -132,10 +136,9 @@ import {
   type CommanderData, type LaserType, type Contract,
 } from './commander';
 import {
-  hideScreen, renderDockedMenu, renderNewGameConfirm, renderStatus, renderChart, drawChart,
+  hideScreen, renderDockedMenu, renderNewGameConfirm, renderChart, drawChart,
   renderLocalChart, drawLocalChart, renderMarketEstimate,
-  renderGameOver, renderSystemData, renderContracts, describeContract, nearestSystem,
-  renderBriefing, BRIEFING_PAGES,
+  renderGameOver, renderContracts, describeContract, nearestSystem,
   distanceTenths, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE, type ChartState,
 } from '../ui/screens';
 
@@ -228,7 +231,10 @@ export class Game {
    * for what Escape returns to — it replaced both `mode`'s overlay values and
    * the one-deep `dataReturn` hack that existed for the system-data screen.
    */
-  readonly screens = new ScreenHost(() => this.showBaseScreen());
+  readonly screens = new ScreenHost(
+    () => this.showBaseScreen(),
+    (id) => this.repaintLegacyScreen(id),
+  );
 
   /**
    * What is on screen: the top overlay, or the base state when there is none.
@@ -268,8 +274,17 @@ export class Game {
   private pendingNewGame = false;
   /** cursor position for arrow-key menu navigation (see handleMenuCursor) */
   /** page of the new pilot's briefing */
-  private briefPage = 0;
   private readonly market_ = new MarketScreen(() => this.tradeContext());
+  private readonly contracts_ = new ContractsScreen(() => ({
+    commander: this.commander,
+    system: this.system,
+    systems: this.systems,
+    offers: this.contractOffers,
+    accept: (index) => { this.contracts_.selected = index; this.acceptContract(); },
+  } satisfies ContractsContext));
+
+  /** Which system the data screen is reading about. */
+  private dataSubject: StarSystem | null = null;
   /** the reception the current system laid on — surfaced for the HUD/tests */
   lastThreat: PirateThreat | null = null;
   /** cargo value dumped this encounter, tenths of a credit — resets on arrival */
@@ -283,12 +298,17 @@ export class Game {
   beaconTimer = -1;
   private strandedHintTimer = 2;
   contractOffers: Contract[] = [];
-  contractSelected = 0;
+  /**
+   * Selected contract row. A property because it lives on ContractsScreen now,
+   * and test/playtest.js assigns it before calling acceptContract().
+   */
+  /** @internal — driven by test/playtest.js */
+  get contractSelected(): number { return this.contracts_.selected; }
+  set contractSelected(v: number) { this.contracts_.selected = v; }
   private chartFind: string | null = null;
   private paused = false;
   private chartEstimate = false;
   /** where ESC returns to from the DATA ON screen */
-  private dataReturn: 'docked' | 'chart' | 'local' = 'docked';
   private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
   ccEngaged = false;
@@ -395,6 +415,19 @@ export class Game {
       new EquipScreen(() => this.tradeContext()),
       new SavesScreen(() => this.savesContext()),
       new NamingScreen(() => this.savesContext()),
+      new StatusScreen(() => ({
+        commander: this.commander,
+        systems: this.systems,
+        targetIndex: this.chart.targetIndex,
+      } satisfies StatusContext)),
+      new DataScreen(() => ({
+        subject: this.dataSubject ?? this.system,
+        here: this.system,
+        galaxy: this.commander.galaxy,
+        headline: (index) => this.living.headline(index),
+      } satisfies DataContext)),
+      new BriefingScreen(),
+      this.contracts_,
     ]) this.screens.register(screen);
 
     let last = performance.now();
@@ -2281,8 +2314,6 @@ export class Game {
           this.screens.open('market');
         } else if (i.pressed('KeyC')) {
           this.screens.open('contracts');
-          this.contractSelected = 0;
-          renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
         } else if (i.pressed('KeyE')) {
           this.screens.open('equip');
         // Q, not a shifted N. ⇧N shared a key with the local chart, and
@@ -2294,11 +2325,7 @@ export class Game {
           this.pendingNewGame = true;
           renderNewGameConfirm(this.system, this.commander);
         }
-        else if (i.pressed('KeyH')) {
-          this.screens.open('briefing');
-          this.briefPage = 0;
-          renderBriefing(this.briefPage);
-        }
+        else if (i.pressed('KeyH')) this.screens.open('briefing');
         else if (i.pressed('KeyS')) this.openSaves();
         else if (i.pressed('KeyN')) this.openLocalChart('docked');
         else if (i.pressed('KeyG')) this.openChart('docked');
@@ -2316,24 +2343,6 @@ export class Game {
         }
         break;
 
-      case 'briefing': {
-        // Left/right rather than up/down: these are pages, and the menu cursor
-        // owns up/down. Clamped, not wrapped — wrapping from the last page back
-        // to the first reads as "you missed something".
-        const last = BRIEFING_PAGES - 1;
-        if (i.pressed('ArrowRight') || i.pressed('Enter')) {
-          this.briefPage = Math.min(last, this.briefPage + 1);
-          renderBriefing(this.briefPage);
-        } else if (i.pressed('ArrowLeft')) {
-          this.briefPage = Math.max(0, this.briefPage - 1);
-          renderBriefing(this.briefPage);
-        } else if (i.pressed('Escape') || i.pressed('KeyH')) {
-          this.baseMode = 'docked';
-          renderDockedMenu(this.system, this.commander, this.missionText());
-        }
-        break;
-      }
-
       case 'market':
         break;
 
@@ -2345,24 +2354,6 @@ export class Game {
 
       case 'naming':
         break;
-
-      case 'contracts': {
-        let redraw = false;
-        if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
-          this.contractSelected = Math.max(0, this.contractSelected - 1);
-          redraw = true;
-        }
-        if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
-          this.contractSelected = Math.min(this.contractOffers.length - 1, this.contractSelected + 1);
-          redraw = true;
-        }
-        if (i.pressed('KeyA') || i.pressed('Enter')) { this.acceptContract(); redraw = true; }
-        if (i.pressed('Escape')) { this.closeOverlay(); break; }
-        if (redraw) {
-          renderContracts(this.system, this.systems, this.commander, this.contractOffers, this.contractSelected);
-        }
-        break;
-      }
 
       case 'chart':
       case 'local':
@@ -2405,21 +2396,6 @@ export class Game {
           }
         }
         if (i.pressed('Escape')) this.closeOverlay();
-        break;
-
-      case 'status':
-        if (i.pressed('Escape')) this.closeOverlay();
-        break;
-
-      case 'data':
-        if (i.pressed('Escape') || i.pressed('KeyD')) {
-          if (this.dataReturn === 'chart') this.openChart(this.baseMode as 'docked' | 'flight');
-          else if (this.dataReturn === 'local') this.openLocalChart(this.baseMode as 'docked' | 'flight');
-          else {
-            this.baseMode = 'docked';
-            renderDockedMenu(this.system, this.commander, this.missionText());
-          }
-        }
         break;
 
       case 'flight':
@@ -2600,18 +2576,30 @@ export class Game {
   }
 
   /** @internal — driven by test/playtest.js */
-  openSystemData(sys: StarSystem, from: 'docked' | 'chart' | 'local'): void {
-    this.dataReturn = from;
+  /**
+   * `from` is no longer read: the stack remembers where you came from, because
+   * data is pushed ON TOP of the chart rather than replacing it. Kept in the
+   * signature for test/playtest.js.
+   */
+  openSystemData(sys: StarSystem, from?: 'docked' | 'chart' | 'local'): void {
+    void from;
+    this.dataSubject = sys;
     this.screens.open('data');
-    // the living galaxy's latest word on this system, when it has one
-    renderSystemData(sys, this.system, this.living.headline(sys.index), this.commander.galaxy);
   }
 
   private openStatus(from: 'docked' | 'flight'): void {
     this.input.releaseMouseFlight();
-    this.screens.open('status');
     this.baseMode = from;
-    renderStatus(this.systems, this.commander, this.chart.targetIndex, LEGAL_NAMES[this.commander.legalStatus]);
+    this.screens.open('status');
+  }
+
+  /**
+   * Repaint a screen that has not migrated to the Screen contract, after
+   * something on top of it closed. Goes away with the last legacy screen.
+   */
+  private repaintLegacyScreen(id: string): void {
+    if (id === 'chart') renderChart(this.systems, this.commander, this.chart);
+    else if (id === 'local') renderLocalChart(this.systems, this.commander, this.chart);
   }
 
   /** Nothing on the stack: show the docked menu, or clear back to flight. */
