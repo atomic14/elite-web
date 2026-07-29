@@ -295,6 +295,21 @@ export interface NpcState {
    * If the step reads it, it is state.
    */
   brainControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null;
+  /**
+   * Derived at spawn FROM THE RNG, so they cannot be re-derived on restore:
+   * by then the stream is somewhere else entirely. Chris's rule — a game
+   * constant may live outside the state, a value worked out at runtime may
+   * not.
+   */
+  docksHere: boolean;
+  tumbleAxis: THREE.Vector3;
+  /**
+   * Whether this ship carries E.C.M., rolled against its spec's chance at
+   * spawn. Chris's example of the rule, almost exactly: a disposition decided
+   * by a shake of the dice on warp-in changes what the ship does for the rest
+   * of its life, so it is state, not a constant.
+   */
+  hasEcm: boolean;
   hp: number;
   alive: boolean;
   provoked: boolean;
@@ -486,7 +501,6 @@ export class NpcShip {
   /** True when it was specifically the player who attacked us. */
   readonly armed: boolean;
   /** Homing missiles this ship can still launch at the player. */
-  readonly hasEcm: boolean;
   /** Mission flag: destroying this advances the Constrictor hunt. */
 
   /** Pack spread so groups attack from different bearings. */
@@ -506,7 +520,7 @@ export class NpcShip {
   private stationDockZ = DOCK_Z;
   private readonly dockPlan: DockPlan = makeDockPlan();
   /** decided at spawn: does this one have business at the station? */
-  readonly docksHere = random() < 0.5;
+
   /**
    * Tier-2 gang member: flies the coordinated pack policy and doesn't scare
    * off. Set by the Game from pirateThreat() when the player looks worth
@@ -519,7 +533,7 @@ export class NpcShip {
   private readonly turnRate: number;
   /** @internal exposed so a snapshot can resume mid-reload */
   /** @internal snapshot */
-  private readonly tumbleAxis = randomDirection(new THREE.Vector3());
+
 
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpMat = new THREE.Matrix4();
@@ -544,6 +558,11 @@ export class NpcShip {
 
   /** the seed its hull and stats were generated from — kept so a snapshot can rebuild it */
   readonly variantSeed: number;
+
+  get docksHere(): boolean { return this.state.docksHere; }
+  get hasEcm(): boolean { return this.state.hasEcm; }
+  private set hasEcm(v: boolean) { this.state.hasEcm = v; }
+  private get tumbleAxis(): THREE.Vector3 { return this.state.tumbleAxis; }
 
   /**
    * All mutable state, in one object — see NpcState.
@@ -624,6 +643,9 @@ export class NpcShip {
       fleeFrom: new THREE.Vector3(),
       traderPhase: 'trading',
       brainControl: null,
+      docksHere: random() < 0.5,
+      hasEcm: false,   // set from the spec once it is known, below
+      tumbleAxis: randomDirection(new THREE.Vector3()),
       hp: 0, alive: true, provoked: false, provokedByPlayer: false, missiles: 0,
       isMissionTarget: false, fleeing: false, inert: false, tradeTimer: 0,
       wantsDespawn: false, docked: false, docking: false, organised: false,

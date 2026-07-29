@@ -82,6 +82,14 @@ export function restoreState(state: Record<string, unknown>, saved: Record<strin
   }
 }
 
+export interface MissileSnapshot {
+  pos: [number, number, number];
+  quat: [number, number, number, number];
+  /** index into `npcs`, or -1 for a hostile missile homing on the player */
+  targetIndex: number;
+  life: number;
+}
+
 export interface CanisterSnapshot {
   pos: [number, number, number];
   velocity: [number, number, number];
@@ -116,6 +124,33 @@ export interface WorldSnapshot {
   rng: { seed: number; state: number };
   /** hyperspace target, so the chart still points where you were going */
   chartTarget: number | null;
+  /**
+   * Missiles in flight — a save taken mid-launch keeps them coming.
+   *
+   * KNOWN GAP: with a missile in the air, a restored world does not replay its
+   * original bit-for-bit, and two restores do not agree with each other
+   * either. Everything else does. The missile path draws from the stream a
+   * variable number of times somewhere (ECM rolls are the suspect) and has not
+   * been tracked down. The consequence is a plausible but different
+   * continuation, not corruption — and it only applies for the couple of
+   * seconds a missile is alive. Worth fixing; not worth blocking on.
+   */
+  missiles: MissileSnapshot[];
+  /**
+   * The market and the work on offer.
+   *
+   * Not cosmetic and not optional: both are rolled fresh when a station is
+   * entered, so a save that dropped them would let you reload to reroll
+   * prices and contracts until you liked them. Persisting them is what makes
+   * "save anywhere" a convenience rather than an exploit.
+   */
+  market: unknown[];
+  hermitMarket: unknown[];
+  contractOffers: unknown[];
+  /** index into `npcs` of the missile-locked ship, or -1 */
+  targetLock: number;
+  /** where the chart cursor was left */
+  chartCursor: [number, number];
   /**
    * The station's orientation.
    *

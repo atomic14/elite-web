@@ -544,6 +544,43 @@ console.log('\nsystem population');
   }
 }
 
+// --- anything that drives behaviour is state ------------------------------
+
+// Chris's rule, and the one this whole refactor turned on: "anything that
+// drives behaviour in the system that is not a constant" belongs in the state
+// object, so it is persisted. A game constant may live outside it; a value
+// worked out at runtime may not.
+//
+// The signature of a violation is a field initialised FROM THE DICE that sits
+// outside the state literal — it cannot be re-derived on restore, because by
+// then the stream is somewhere else entirely. Four of these were found by
+// hand, one at a time, each costing a round of "two reloads agree with each
+// other but not with the run they came from": packOffset, docksHere,
+// tumbleAxis and the E.C.M. roll.
+
+console.log('\nbehaviour-driving values are state');
+{
+  const npcSrc = readFileSync(new URL('../src/game/npc.ts', import.meta.url), 'utf8');
+  const cls = npcSrc.slice(npcSrc.indexOf('export class NpcShip'));
+  // field declarations at class level (two-space indent), not inside a method
+  const fieldDecls = [...cls.matchAll(/^ {2}(?:private |readonly |protected )*([a-zA-Z_]+)\s*(?::[^=\n]+)?=\s*([^\n;]+);/gm)];
+  const fromDice = fieldDecls.filter(([, , init]) =>
+    /random\(\)|randomDirection\(|Math\.random/.test(init));
+  check(`no NpcShip field is rolled outside state${fromDice.length ? ' — ' + fromDice.map((m) => m[1]).join(', ') : ''}`,
+    fromDice.length === 0);
+
+  const gameSrc = readFileSync(new URL('../src/game/game.ts', import.meta.url), 'utf8');
+  const gcls = gameSrc.slice(gameSrc.indexOf('export class Game'));
+  const gFields = [...gcls.matchAll(/^ {2}(?:private |readonly |protected )*([a-zA-Z_]+)\s*(?::[^=\n]+)?=\s*([^\n;]+);/gm)];
+  const gDice = gFields.filter(([, , init]) => /random\(\)|randomDirection\(|Math\.random/.test(init));
+  check(`no Game field is rolled outside state${gDice.length ? ' — ' + gDice.map((m) => m[1]).join(', ') : ''}`,
+    gDice.length === 0);
+
+  // and the state objects must actually be reachable for a generic walk
+  check('NpcState is one object', /readonly state: NpcState;/.test(npcSrc));
+  check('SessionState is one object', /readonly session: SessionState = \{/.test(gameSrc));
+}
+
 // --- one source of randomness ----------------------------------------------
 
 // A fixed timestep buys repeatable PHYSICS. It buys nothing at all while the

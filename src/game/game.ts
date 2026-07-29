@@ -948,7 +948,18 @@ export class Game {
       session: serialiseState(this.session as unknown as Record<string, unknown>),
       rng: rngState(),
       chartTarget: this.chart.targetIndex,
+      chartCursor: [this.chart.cursorX, this.chart.cursorY],
       stationQuat: q4(this.world.station.quaternion),
+      missiles: this.missiles.map((m) => ({
+        pos: v3(m.object.position),
+        quat: q4(m.object.quaternion),
+        targetIndex: m.target ? this.npcs.indexOf(m.target) : -1,
+        life: m.life,
+      })),
+      market: structuredClone(this.market),
+      hermitMarket: structuredClone(this.hermitMarket),
+      contractOffers: structuredClone(this.contractOffers),
+      targetLock: this.targetLock ? this.npcs.indexOf(this.targetLock) : -1,
     };
   }
 
@@ -1003,6 +1014,19 @@ export class Game {
 
     this.encounterTimers = { ...snap.encounterTimers };
     this.chart.targetIndex = snap.chartTarget;
+    [this.chart.cursorX, this.chart.cursorY] = snap.chartCursor;
+    this.market = structuredClone(snap.market) as MarketEntry[];
+    this.hermitMarket = structuredClone(snap.hermitMarket) as MarketEntry[];
+    this.contractOffers = structuredClone(snap.contractOffers) as Contract[];
+    this.targetLock = snap.targetLock >= 0 ? (this.npcs[snap.targetLock] ?? null) : null;
+    for (const m of this.missiles) this.scene.remove(m.object);
+    this.missiles = snap.missiles.map((m) => {
+      const object = buildShip(MISSILE, 0xffd0b0);
+      object.position.set(...m.pos);
+      object.quaternion.set(...m.quat);
+      this.scene.add(object);
+      return { object, target: m.targetIndex >= 0 ? (this.npcs[m.targetIndex] ?? null) : null, life: m.life };
+    });
     this.world.station.quaternion.set(...snap.stationQuat);
     this.world.station.updateMatrixWorld(true);
     this.baseMode = snap.mode;
