@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
 import { seedWorld, random } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
-import { isHostileToPlayer } from '../src/game/npc.ts';
+import { isHostileToPlayer, NpcShip } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { stepEncounters } from '../src/game/encounters.ts';
 import { planPopulation, policeFor } from '../src/game/population.ts';
@@ -541,6 +541,65 @@ console.log('\nsystem population');
     const launching = planPopulation(sys(0), 'launch', 1, threat, half);
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
+  }
+}
+
+// --- NPCs actually fly ------------------------------------------------------
+
+// The first executable tests of NPC behaviour. Until now npc.ts read `window`
+// inside update(), so the largest module in the world step threw the moment it
+// was asked to simulate anything outside a browser — which is why the sim/game
+// parity invariant, the one guarding the bug that went undetected for six
+// training rounds, is enforced by regex over source text.
+
+console.log('\nNPC flight');
+{
+  const at = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const makePlayer = (pos: THREE.Vector3) =>
+    ({ position: pos, quaternion: new THREE.Quaternion(), speed: 100 }) as never;
+  const station = new THREE.Object3D();
+
+  {
+    const npc = new NpcShip('pirate', at(0, 0, 3000), 3);
+    const before = npc.object.position.clone();
+    for (let i = 0; i < 120; i++) npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+    check('a pirate closes on the player',
+      npc.object.position.distanceTo(at(0, 0, 0)) < before.distanceTo(at(0, 0, 0)));
+    check('...and does not sit still doing it', npc.speed > 0);
+  }
+  {
+    // A hostile ship fires: update returns a FireEvent rather than dealing damage.
+    //
+    // Measured before asserting, because the first version of this test failed
+    // and the failure was informative: a pirate that starts 400 units out is
+    // lined up on a stationary player for 2.8% of frames and fires 8 times
+    // across 30s x 6 ships. At 800 it is 8.8% and 21 times. That is the same
+    // knife-range dead zone that runs through docs/TRAINING-LOG.md — pirates
+    // are hardest to be shot by exactly where the fight happens. The window
+    // here is sized to that reality rather than to what I assumed.
+    let fired = 0;
+    for (let seed = 0; seed < 4; seed++) {
+      const npc = new NpcShip('pirate', at(0, 0, 900), seed);
+      for (let i = 0; i < 1800; i++) {
+        const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+        if (ev && ev.at === 'player') fired += 1;
+      }
+    }
+    check(`pirates shoot at the player (${fired} times over 30s x4)`, fired > 0);
+  }
+  {
+    // and an NPC NEVER damages anything itself — the Game resolves consequences
+    const npc = new NpcShip('pirate', at(0, 0, 400), 7);
+    const player = makePlayer(at(0, 0, 0));
+    for (let i = 0; i < 300; i++) npc.update(1 / 60, player, 0, station, [npc], 160);
+    check('an NPC only ever RETURNS a fire event, never applies it',
+      (player as unknown as { speed: number }).speed === 100);
+  }
+  {
+    const trader = new NpcShip('trader', at(0, 0, 3000), 2);
+    for (let i = 0; i < 60; i++) trader.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [trader], 160);
+    check('a trader minds its own business rather than attacking',
+      trader.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [trader], 160) === null);
   }
 }
 

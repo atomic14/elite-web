@@ -97,9 +97,17 @@ const LEGACY_BRAIN: Brain | null = (() => {
   }
 })();
 
+// `globalThis`, not `window`, throughout these flag readers. They are called
+// from inside NpcShip.update — the hot path of the world step — so reaching for
+// `window` made the largest world-step module throw the moment it was asked to
+// simulate anything under node. It is why the sim/game combat-parity invariant,
+// the one guarding the bug that went undetected for six training rounds, is
+// enforced by REGEX over source text instead of by calling the function.
+// globalThis reads undefined under node and is identical in a browser.
+
 /** Which pirates, if any, fly the pre-generation brain. See LEGACY_BRAIN. */
 function legacyBrainFor(tier: number): boolean {
-  const flag = (window as unknown as Record<string, unknown>).__legacyPirates;
+  const flag = (globalThis as unknown as Record<string, unknown>).__legacyPirates;
   if (!flag || !LEGACY_BRAIN) return false;
   return flag === 'pro' ? tier >= 1 : true;
 }
@@ -135,7 +143,7 @@ const PACK_BRAIN: Brain | null = (() => {
 })();
 
 function brainsEnabled(): boolean {
-  return !(window as unknown as Record<string, unknown>).__scriptedPirates;
+  return !(globalThis as unknown as Record<string, unknown>).__scriptedPirates;
 }
 
 /**
@@ -237,12 +245,12 @@ const NPC_COOLDOWN_LO = 0.9;
 const NPC_COOLDOWN_SPREAD = 0.8;
 
 function packBrainEnabled(): boolean {
-  return !!(window as unknown as Record<string, unknown>).__packBrain;
+  return !!(globalThis as unknown as Record<string, unknown>).__packBrain;
 }
 
 /** Which pirates, if any, fly the generation-2 brain. See SHARP_BRAIN. */
 function sharpBrainFor(tier: number): boolean {
-  const flag = (window as unknown as Record<string, unknown>).__sharpPirates;
+  const flag = (globalThis as unknown as Record<string, unknown>).__sharpPirates;
   if (!flag || !SHARP_BRAIN) return false;
   return flag === 'pro' ? tier >= 1 : true;
 }
@@ -258,7 +266,7 @@ function sharpBrainFor(tier: number): boolean {
  * isHostileToPlayer(). three.js maths is fine headless; this was the blocker.
  */
 export function installPolicyKit(): void {
-  (window as unknown as Record<string, unknown>).__policyKit = {
+  (globalThis as unknown as Record<string, unknown>).__policyKit = {
     act, observe, observePack, makeScratch,
     pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
   };

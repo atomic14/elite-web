@@ -104,7 +104,7 @@ import {
  * a development tool, and nobody should reach it by accident.
  */
 function cheatMode(): boolean {
-  return !!(window as unknown as Record<string, unknown>).__cheat;
+  return !!(globalThis as unknown as Record<string, unknown>).__cheat;
 }
 
 
@@ -539,7 +539,7 @@ export class Game {
 
     // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
     // docs/JAMESON-TRIALS.md) drives the whole game through this
-    (window as unknown as Record<string, unknown>).__game = this;
+    (globalThis as unknown as Record<string, unknown>).__game = this;
     installPolicyKit();
 
     // Screens register themselves with the host and are addressed by id from
