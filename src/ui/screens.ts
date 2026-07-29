@@ -6,7 +6,7 @@ import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
   type CommanderData, type Contract, type SlotSummary,
   rating, cargoTonnes, formatCredits, cargoCapacity,
-  MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
+  MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/commander.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
@@ -180,11 +180,18 @@ export function renderNewGameConfirm(sys: StarSystem, c: CommanderData): void {
   `);
 }
 
+/**
+ * @param fuel what the station charges for fuel, or null where none is sold —
+ *   a rock hermit will trade cargo with you but cannot fill your tank, and a
+ *   price for something unbuyable is worse than no price at all. The caller
+ *   decides which it is; this only paints it.
+ */
 export function renderMarket(
   sys: StarSystem,
   market: MarketEntry[],
   c: CommanderData,
   selected: number,
+  fuel: FuelQuote | null = null,
 ): void {
   const rows = market
     .map((m, i) => `
@@ -202,6 +209,10 @@ export function renderMarket(
       <tr><th>PRODUCT</th><th class="num">PRICE (Cr)</th><th class="num">FOR SALE</th><th class="num">IN HOLD</th></tr>
       ${rows}
     </table>
+    ${fuel ? `<div class="keyline">
+      FUEL ${formatCredits(fuel.perLightYear)}/LY &middot; ${fuel.full ? 'TANK FULL'
+        : `TANK ${(c.fuel / 10).toFixed(1)}/${(MAX_FUEL / 10).toFixed(1)} LY &middot; ${formatCredits(fuel.cost)} TO FILL AT EQUIP SHIP`}
+    </div>` : ''}
     <div class="buttons">
       <button data-key="KeyB">BUY 1</button>
       <button data-key="VirtBuyMax">BUY MAX</button>
@@ -231,12 +242,12 @@ export interface EquipRow {
  *   catalogue can be fitted anywhere. See `window.__cheat` in game.ts.
  */
 export function equipRows(sys: StarSystem, c: CommanderData, cheat = false): EquipRow[] {
-  const needed = fuelNeeded(c);
+  const fuel = fuelQuote(c);
   const rows: EquipRow[] = [{
     id: 'fuel',
-    label: `Fuel (${(needed / 10).toFixed(1)} LY needed)`,
-    price: refuelCost(c),
-    status: needed <= 0 ? 'OWNED' : '',
+    label: `Fuel (${(fuel.needed / 10).toFixed(1)} LY needed)`,
+    price: fuel.cost,
+    status: fuel.full ? 'OWNED' : '',
   }];
   for (const item of EQUIPMENT_CATALOGUE) {
     const owned = equipmentOwned(item.id, c);

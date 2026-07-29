@@ -12,7 +12,8 @@
 // about game state. It returns an OUTCOME and the Game applies it.
 
 import {
-  saveCommander, formatCredits, cargoCapacity, cargoTonnes, MAX_FUEL, MAX_MISSILES,
+  saveCommander, formatCredits, cargoCapacity, cargoTonnes, fuelQuote,
+  MAX_FUEL, MAX_MISSILES,
   type CommanderData,
 } from '../commander.ts';
 import { renderMarket, renderEquip, equipRows } from '../../ui/screens.ts';
@@ -78,9 +79,15 @@ export class MarketScreen implements Screen {
 
   render(): void {
     const ctx = this.ctx();
+    // The fuel price belongs on the price list: it is the one thing a trader
+    // costs a run against that the market screen could not tell them, and the
+    // answer lived a screen away in the outfitters. A hermit gets no quote —
+    // the tank is filled by buyEquipment(), which is only reachable from the
+    // station menu, so quoting a price there would be an offer we cannot honour.
     renderMarket(
       ctx.atHermit ? { ...ctx.system, name: 'Rock Hermit' } : ctx.system,
-      ctx.market, ctx.commander, this.selected);
+      ctx.market, ctx.commander, this.selected,
+      ctx.atHermit ? null : fuelQuote(ctx.commander));
   }
 
   select(row: number): void {

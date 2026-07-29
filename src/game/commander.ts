@@ -31,6 +31,40 @@ export function fuelNeeded(c: { fuel: number }): number {
 export function refuelCost(c: { fuel: number }): number {
   return Math.round(fuelNeeded(c) * FUEL_PRICE);
 }
+
+/** Everything a screen has to say about buying fuel. Money in tenths of a
+ *  credit, fuel in tenths of a LY, as everywhere else. */
+export interface FuelQuote {
+  /** the shelf price: one light year, in tenths of a credit */
+  perLightYear: number;
+  /** tenths of a LY the tank is short */
+  needed: number;
+  /** tenths of a credit to fill it */
+  cost: number;
+  /** nothing to sell you */
+  full: boolean;
+}
+
+/**
+ * The refuelling quote, for any screen that wants to show it.
+ *
+ * Exists because the price is now quoted in two places — the outfitters and the
+ * market — and the per-LIGHT-YEAR figure a shopper reads is a unit conversion
+ * of `FUEL_PRICE` (which is per tenth of a LY). That conversion is a pricing
+ * rule, so it lives here rather than being spelled `* 10` in the renderer: this
+ * is the same file whose comment above records what happened the last time a
+ * fuel sum was written in the render layer.
+ */
+export function fuelQuote(c: { fuel: number }): FuelQuote {
+  const needed = fuelNeeded(c);
+  return {
+    perLightYear: Math.round(FUEL_PRICE * 10),
+    needed,
+    cost: refuelCost(c),
+    full: needed <= 0,
+  };
+}
+
 /** The original's own commander, and still the default here. */
 export const DEFAULT_NAME = 'JAMESON';
 export const MAX_MISSILES = 4;

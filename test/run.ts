@@ -20,9 +20,9 @@ import {
 import { World } from '../src/game/world.ts';
 import { freshState } from '../src/game/state.ts';
 import {
-  newCommander, MAX_FUEL, FUEL_PRICE, fuelNeeded, refuelCost,
+  newCommander, MAX_FUEL, FUEL_PRICE, fuelNeeded, refuelCost, fuelQuote,
 } from '../src/game/commander.ts';
-import { equipRows } from '../src/ui/screens.ts';
+import { equipRows, renderMarket } from '../src/ui/screens.ts';
 import { cargoTonnes } from '../src/game/commander.ts';
 import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';
 import { compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
@@ -1011,6 +1011,62 @@ console.log('\nrefuelling');
   c.fuel = MAX_FUEL;
   check('...and reads OWNED at a full tank',
     equipRows(generateGalaxy(1)[7], c).find((r) => r.id === 'fuel')!.status === 'OWNED');
+
+  // --- the quote the shops read ---------------------------------------------
+  //
+  // A shopper reads a price PER LIGHT YEAR; FUEL_PRICE is per tenth of one.
+  // That conversion is the sum this file exists to stop being written twice.
+  {
+    const empty = newCommander();
+    empty.fuel = 0;
+    const q = fuelQuote(empty);
+    check('the quote agrees with the rule it quotes',
+      q.cost === refuelCost(empty) && q.needed === fuelNeeded(empty));
+    // one LY short of full: what it costs to fill IS the per-LY price
+    const shortOne = { fuel: MAX_FUEL - 10 } as never;
+    check('a light year quoted costs a light year bought',
+      q.perLightYear === refuelCost(shortOne));
+    check('a full tank has nothing to quote',
+      fuelQuote({ fuel: MAX_FUEL } as never).full && fuelQuote({ fuel: MAX_FUEL } as never).cost === 0);
+    check('...and a dry one is not full', !q.full);
+  }
+
+  // --- and it reaches the market screen --------------------------------------
+  //
+  // The point of the feature: you could not see what fuel cost without leaving
+  // the market for the outfitters. Rendered for real against a stub document,
+  // because "the string is in the HTML" is the only thing that answers it.
+  {
+    const prev = (globalThis as unknown as { document: unknown }).document;
+    let html = '';
+    const cls = { add: () => {}, remove: () => {}, toggle: () => {} };
+    (globalThis as unknown as { document: unknown }).document = {
+      querySelectorAll: () => [],
+      getElementById: () => ({ set innerHTML(v: string) { html = v; }, classList: cls }),
+      body: { classList: cls },
+    };
+    try {
+      const c = newCommander();
+      c.fuel = 20; // 2.0 LY in the tank, 5.0 LY short
+      const market = generateMarket(g1[7], 0);
+      renderMarket(g1[7], market, c, 0, fuelQuote(c));
+      check('the market screen prints the price of a light year',
+        html.includes('FUEL 0.4 Cr/LY'));
+      check('...and what filling up would cost', html.includes('2.0 Cr TO FILL'));
+      check('...and how much is in the tank', html.includes('TANK 2.0/7.0 LY'));
+
+      c.fuel = MAX_FUEL;
+      renderMarket(g1[7], market, c, 0, fuelQuote(c));
+      check('a full tank is told so rather than sold to',
+        html.includes('TANK FULL') && !html.includes('TO FILL'));
+
+      // a rock hermit trades cargo but cannot fill a tank: no quote at all
+      renderMarket(g1[7], market, c, 0, null);
+      check('a hermit quotes no fuel price it cannot honour', !html.includes('FUEL 0.4'));
+    } finally {
+      (globalThis as unknown as { document: unknown }).document = prev;
+    }
+  }
 
   // nobody may re-derive it. Deliberately fuel-specific: a bare /\* 0\.4/
   // also matches the commodity byte-to-credits scale, which is a different
