@@ -11,6 +11,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
+import { stepEncounters } from '../src/game/encounters.ts';
 import {
   freshSystems, applyDamage, regenerate, durability, updateCabinTemp, scoopFuel,
 } from '../src/game/systems.ts';
@@ -501,6 +502,69 @@ console.log('\nchart metric has one owner');
   const nav = read('../src/galaxy/navigation.ts');
   check('navigation.ts imports nothing but the system type',
     (nav.match(/^import /gm) ?? []).length === 1 && /import type \{ StarSystem \}/.test(nav));
+}
+
+// --- what turns up, and when ------------------------------------------------
+
+// Traders arriving, pirate waves, Thargon drones. These rules decide how
+// dangerous every system in the galaxy feels and had no test, because they ran
+// as timers inline in updateFlight. game/encounters.ts now.
+
+console.log('\nencounters');
+{
+  const conds = (over: Record<string, unknown> = {}) => ({
+    witchspace: false, productivity: 10_000, government: 7,
+    traderCount: 0, activeThargons: 0, hasThargoidMother: false,
+    playerFarFromStation: true, ...over,
+  }) as Parameters<typeof stepEncounters>[2];
+  /** run until something is produced, or give up */
+  const until = (t: Parameters<typeof stepEncounters>[0], c: Parameters<typeof stepEncounters>[2],
+                 want: string, secs = 2000) => {
+    for (let i = 0; i < secs * 10; i++) {
+      for (const o of stepEncounters(t, 0.1, c, () => 0.5)) if (o.kind === want) return o;
+    }
+    return null;
+  };
+
+  check('traders arrive to keep the lanes alive',
+    until({ trader: 1, pirateWave: 1e9, thargon: 1e9 }, conds(), 'trader') !== null);
+  check('...but not once the system is already busy',
+    until({ trader: 1, pirateWave: 1e9, thargon: 1e9 }, conds({ traderCount: 4 }), 'trader', 400) === null);
+  check('nothing arrives in witch-space',
+    until({ trader: 1, pirateWave: 1, thargon: 1e9 }, conds({ witchspace: true }), 'trader', 400) === null);
+
+  {
+    const anarchy = until({ trader: 1e9, pirateWave: 1, thargon: 1e9 },
+      conds({ government: 0 }), 'pirateWave');
+    check('anarchies send pirates two at a time',
+      anarchy !== null && (anarchy as { count: number }).count === 2);
+    const rough = until({ trader: 1e9, pirateWave: 1, thargon: 1e9 },
+      conds({ government: 3 }), 'pirateWave');
+    check('a merely lawless system sends one',
+      rough !== null && (rough as { count: number }).count === 1);
+    check('a corporate state sends none',
+      until({ trader: 1e9, pirateWave: 1, thargon: 1e9 }, conds({ government: 7 }), 'pirateWave', 600) === null);
+    check('and nobody ambushes you on the station doorstep',
+      until({ trader: 1e9, pirateWave: 1, thargon: 1e9 },
+        conds({ government: 0, playerFarFromStation: false }), 'pirateWave', 600) === null);
+  }
+  {
+    check('a mothership deploys drones',
+      until({ trader: 1e9, pirateWave: 1e9, thargon: 1 }, conds({ hasThargoidMother: true }), 'thargon') !== null);
+    check('...up to a limit',
+      until({ trader: 1e9, pirateWave: 1e9, thargon: 1 },
+        conds({ hasThargoidMother: true, activeThargons: 4 }), 'thargon', 200) === null);
+    check('...and not at all without one',
+      until({ trader: 1e9, pirateWave: 1e9, thargon: 1 }, conds(), 'thargon', 200) === null);
+  }
+  {
+    // a productive system discounts the gap between arrivals
+    const busy = { trader: 0, pirateWave: 1e9, thargon: 1e9 };
+    stepEncounters(busy, 0.1, conds({ productivity: 60_000 }), () => 0);
+    const quiet = { trader: 0, pirateWave: 1e9, thargon: 1e9 };
+    stepEncounters(quiet, 0.1, conds({ productivity: 0 }), () => 0);
+    check('busy economies run busier lanes', busy.trader < quiet.trader);
+  }
 }
 
 // --- who hunts whom ---------------------------------------------------------

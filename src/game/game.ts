@@ -32,6 +32,9 @@ import { planDocking, makeDockPlan } from './docking.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import {
+  stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
+} from './encounters.ts';
+import {
   applyDamage, regenerate, updateCabinTemp, scoopFuel, freshSystems, type ShipSystems,
 } from './systems.ts';
 import {
@@ -260,10 +263,9 @@ export class Game {
   private view = 0; // 0 front, 1 rear, 2 left, 3 right
 
   canisters: Canister[] = [];
-  private thargonTimer = 0;
   private npcTargetTimer = 0;
-  private traderSpawnTimer = 30;
-  private pirateWaveTimer = 60;
+  /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
+  private encounterTimers: EncounterTimers = freshTimers();
   private energyLowTimer = 0;
   private policeScanned = false;
   /** the station only scrambles its defence fleet once per visit */
@@ -590,7 +592,7 @@ export class Game {
       this.spawnNpc('thargoid',
         new THREE.Vector3().randomDirection().multiplyScalar(3500 + Math.random() * 2500), i);
     }
-    this.thargonTimer = 4;
+    this.encounterTimers.thargon = 4;
     sfx.hyperspace();
     this.tunnel.start(1.1);
     this.hud.showMessage('WITCH-SPACE — THARGOID AMBUSH', 6);
@@ -1083,7 +1085,7 @@ export class Game {
     this.lookAlong(this.tmp.copy(this.player.position).negate());
     this.player.speed = 250;
     this.policeScanned = false;
-    this.traderSpawnTimer = 20 + Math.random() * 40;
+    this.encounterTimers = freshTimers();
     this.populateSystem('arrival');
     sfx.hyperspace();
     this.tunnel.start(1.1);
@@ -1928,45 +1930,32 @@ export class Game {
 
     npcsVsStation(this.npcs, this.world.station, this.world.stationDockZ + 40, this.scratch);
 
-    // occasional new trader arriving from deep space keeps the lanes alive —
-    // busier at productive systems (the living-galaxy Level-1 hook)
-    if (!this.witchspace) {
-      this.traderSpawnTimer -= dt;
-      if (this.traderSpawnTimer <= 0) {
-        const busyness = Math.min(50, this.system.productivity / 1200); // 0..50s discount
-        this.traderSpawnTimer = 100 - busyness + Math.random() * 60;
-        if (this.npcs.filter((n) => n.role === 'trader').length < 4) this.spawnArrivingTrader();
-      }
-
-      // piracy pressure scales with lawlessness: anarchies breed pirate waves
-      this.pirateWaveTimer -= dt;
-      if (this.pirateWaveTimer <= 0) {
-        const gov = this.system.government;
-        this.pirateWaveTimer = 60 + gov * 40 + Math.random() * 90;
-        const farFromStation =
-          this.player.position.distanceTo(this.world.station.position) > 7000;
-        if (gov <= 3 && farFromStation) {
-          const n = gov <= 1 ? 2 : 1;
-          for (let i = 0; i < n; i++) {
-            this.spawnNpc('pirate',
-              this.player.position.clone().add(
-                new THREE.Vector3().randomDirection().multiplyScalar(9000 + Math.random() * 4000)),
-              i + Math.floor(Math.random() * 4));
-          }
-          this.hud.showMessage('PIRATE SIGNATURES DETECTED', 4);
+    // What turns up, and when: rules in encounters.ts, spawning here.
+    for (const order of stepEncounters(this.encounterTimers, dt, {
+      witchspace: this.witchspace,
+      productivity: this.system.productivity,
+      government: this.system.government,
+      traderCount: this.npcs.filter((n) => n.role === 'trader').length,
+      activeThargons: this.npcs.filter((n) => n.alive && n.role === 'thargon' && !n.inert).length,
+      hasThargoidMother: this.npcs.some((n) => n.alive && n.role === 'thargoid'),
+      playerFarFromStation:
+        this.player.position.distanceTo(this.world.station.position) > AMBUSH_STANDOFF,
+    })) {
+      if (order.kind === 'trader') {
+        this.spawnArrivingTrader();
+      } else if (order.kind === 'pirateWave') {
+        for (let i = 0; i < order.count; i++) {
+          this.spawnNpc('pirate',
+            this.player.position.clone().add(new THREE.Vector3().randomDirection()
+              .multiplyScalar(9000 + Math.random() * 4000)),
+            i + Math.floor(Math.random() * 4));
         }
-      }
-    }
-
-    // Thargoid motherships deploy Thargon drones
-    if (this.npcs.some((n) => n.alive && n.role === 'thargoid')) {
-      this.thargonTimer -= dt;
-      const thargons = this.npcs.filter((n) => n.alive && n.role === 'thargon' && !n.inert).length;
-      if (this.thargonTimer <= 0 && thargons < 4) {
-        this.thargonTimer = 5;
+        this.hud.showMessage('PIRATE SIGNATURES DETECTED', 4);
+      } else {
         const mother = this.npcs.find((n) => n.alive && n.role === 'thargoid')!;
         this.spawnNpc('thargon',
-          mother.object.position.clone().add(new THREE.Vector3().randomDirection().multiplyScalar(150)),
+          mother.object.position.clone().add(
+            new THREE.Vector3().randomDirection().multiplyScalar(150)),
           Math.floor(Math.random() * 8));
       }
     }
