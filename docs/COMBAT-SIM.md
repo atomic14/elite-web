@@ -200,7 +200,7 @@ one thing that is also a player feature.
    docking computer in flight, `M` is the market docked and launch-missile in
    flight. The tables are per-mode.
 
-   **Invariant 6 applies**: a key lives in four places that must change
+   **The four-homes invariant applies** (CLAUDE.md's key-bindings rule — it was invariant 6 and is 9 since that file was rewritten; cite it by name, not number): a key lives in four places that must change
    together — `src/engine/keymap.ts`, the binding table in
    `src/game/controls.ts`, the `?` help panel in `play.html`, and the README
    table. An audit found 13 existing disagreements, including `B` for the

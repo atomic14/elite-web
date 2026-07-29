@@ -69,6 +69,9 @@ import { clearWorld, loadCommander } from './storage.ts';
 import { type WorldSnapshot } from './snapshot.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
 import { Station, slotNormal, type StationHost, type StationEvent } from './station.ts';
+import { CombatSim, type ExerciseFit, type SimHost } from './combat-sim.ts';
+import { installSimLog, type CombatSimReport } from './combat-sim-report.ts';
+import type { ExerciseSpec } from './combat-sim-scenarios.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer } from './combat-computer.ts';
 import { Autopilot, type AutopilotEvent } from './autopilot.ts';
@@ -361,6 +364,63 @@ export class Game {
    * applied.
    */
   private readonly station = new Station(this.state, this.ordnance, this.stationHost());
+
+  /**
+   * The combat training simulator — see combat-sim.ts.
+   *
+   * Owned the way `station`, `ordnance` and `persistence` are, and deliberately
+   * NOT a field on `GameState`: a state field is obliged to appear in the save
+   * (a test enforces it), and an exercise must not survive a reload — close the
+   * tab mid-exercise and you wake up at the station with the career intact.
+   *
+   * An exercise is not a screen. It is ordinary flight with a different
+   * `StepHost` behind it, and `updateFlight` picks which step to run.
+   */
+  private readonly combatSim = new CombatSim(
+    this.state, this.ordnance, this.combat, this.persistence, this.simHost(),
+    installSimLog());
+
+  /**
+   * What an exercise may ask of the Game. The rebuild and the mode machine are
+   * not here: `Persistence` already owns both, and the exercise holds it.
+   */
+  private simHost(): SimHost {
+    return {
+      enterFlight: () => {
+        this.screens.exit();
+        this.baseMode = 'flight';
+        hideScreen();
+      },
+      message: (text, seconds) => this.hud.showMessage(text, seconds),
+      flashDamage: () => this.hud.flashDamage(),
+      aimBeams: (at) => this.aimBeams(at),
+      // Nothing yet: the exercise says its own summary through `message`, and
+      // the screen that reads the full records is stage 6. They are also on
+      // `window.__simLog` and returned from `endExercise()`.
+      finished: () => {},
+    };
+  }
+
+  /**
+   * Start a training exercise. The screen that picks one is stage 6; this is the
+   * whole of what it needs from the Game.
+   *
+   * @internal — driven by the console harnesses until the picker exists
+   */
+  startExercise(spec: ExerciseSpec, fit?: ExerciseFit): boolean {
+    if (this.baseMode === 'dead') return false;
+    return this.combatSim.begin(spec, fit);
+  }
+
+  /**
+   * End one early, from anywhere. Returns the records it produced.
+   *
+   * @internal — driven by the console harnesses until the picker exists
+   */
+  endExercise(): readonly CombatSimReport[] | null { return this.combatSim.quit(); }
+
+  /** Is an exercise running? The career's own rules are suspended while it is. */
+  get exercising(): boolean { return this.combatSim.active; }
 
   /**
    * What the world step may ask of the Game — the consequences that reach
@@ -813,6 +873,11 @@ export class Game {
 
   private die(reason: string): void {
     if (this.mode === 'dead' || this.mode === 'docked') return;
+    // A death in the simulator ends the SIMULATION. The exercise's own StepHost
+    // already redirects this, so no path reaches here with one running — but the
+    // next line deletes the player's saved world, and that is data loss rather
+    // than a leak, so it is worth being unreachable twice over.
+    if (this.combatSim.active) { this.combatSim.quit(); return; }
     // The mid-flight world must not outlive the ship. Without this a reload
     // resumed the snapshot taken seconds BEFORE the death, cargo and all —
     // death was optional if you refreshed.
@@ -894,6 +959,14 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   startHyperspace(): void {
+    // The simulator is a room at the station, not a place you can leave: the
+    // exercise's StepHost refuses `completeHyperspace` anyway, so without this
+    // the countdown would run and then silently do nothing.
+    if (this.combatSim.active) {
+      this.hud.showMessage('HYPERSPACE IS OFFLINE IN THE SIMULATOR', 3);
+      sfx.beep(220);
+      return;
+    }
     const check = checkJump(this.commander, this.systems, this.chart.targetIndex,
       this.witchspace, this.hyperCountdown >= 0);
     if (!check.ok) {
@@ -1008,6 +1081,10 @@ export class Game {
 
   /** Destruction credited to the player. @internal — driven by test/playtest.js */
   destroyNpc(npc: NpcShip): void {
+    // The ENERGY BOMB reaches this from runCommand rather than through the step,
+    // so it is the one kill an exercise cannot see through its own StepHost. An
+    // exercise credits its clone and its record instead (see combat-sim.ts).
+    if (this.combatSim.active) { this.combatSim.destroyNpc(npc); return; }
     this.applyCombat(this.combat.destroy(this.commander, npc));
   }
 
@@ -1141,6 +1218,15 @@ export class Game {
 
   /** One-shot jump to the next galaxy; lands at the nearest system to our coords. */
   private galacticJump(): void {
+    // Not refused for safety — the exercise clone owns the drive it would burn,
+    // and the entry snapshot puts the galaxy back — but because `arriveInSystem`
+    // reseeds the world and rebuilds the scene, which would end the fight in a
+    // system the report never mentions.
+    if (this.combatSim.active) {
+      this.hud.showMessage('HYPERSPACE IS OFFLINE IN THE SIMULATOR', 3);
+      sfx.beep(220);
+      return;
+    }
     if (!this.commander.equipment.galacticDrive) {
       this.hud.showMessage('NO GALACTIC HYPERDRIVE FITTED', 3);
       sfx.beep(220);
@@ -1218,7 +1304,19 @@ export class Game {
    */
   private updateFlight(dt: number, elapsed: number): void {
     const demand = this.pilotDemand(dt);
-    this.applyStep(this.worldStep.step(dt, elapsed, { demand, handsOn: this.handsOn() }));
+    const pilot = { demand, handsOn: this.handsOn() };
+
+    // WHICH step. An exercise is ordinary flight with a different StepHost
+    // behind it (combat-sim.ts), and its teardown is DEFERRED — `settle()` puts
+    // the career back HERE, after the step has returned, because restoring from
+    // inside `stepNpcs` would rebuild the scene while the step was still
+    // iterating over it.
+    if (this.combatSim.active) {
+      this.applyStep(this.combatSim.tick(dt, elapsed, pilot));
+      this.combatSim.settle();
+    } else {
+      this.applyStep(this.worldStep.step(dt, elapsed, pilot));
+    }
 
     // The dust is seen, never simulated — so it is updated out here, from
     // wherever the step left the ship. It needs our actual velocity to streak:
