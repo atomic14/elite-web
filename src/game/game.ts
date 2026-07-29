@@ -1658,7 +1658,23 @@ export class Game {
     this.input.endFrame();
   }
 
+  /**
+   * One frame of flight, in five phases. Each is a method so the loop reads as
+   * an order of operations rather than a wall — and the order matters: ships
+   * move before they are separated, are separated before they are billed, and
+   * the player's systems recharge after everything that could have damaged
+   * them.
+   */
   private updateFlight(dt: number, elapsed: number): void {
+    this.flyPlayer(dt, elapsed);
+    this.stepNpcs(dt);
+    this.stepProjectilesAndEffects(dt);
+    if (this.stepShipSystems(dt)) return;   // died in the attempt
+    this.checkHazards();
+  }
+
+  /** The player's own motion: manual, autopilot, or torus. */
+  private flyPlayer(dt: number, elapsed: number): void {
     this.player.update(dt, this.input);
     if (this.ccEngaged) this.combatComputerStep(dt);
     if (this.dcEngaged) this.dockingComputerStep(dt);
@@ -1683,6 +1699,10 @@ export class Game {
         .multiplyScalar(this.player.speed * (this.torusEngaged && !this.massLocked() ? 8 : 1)),
     );
 
+  }
+
+  /** Everyone else: decisions, despawns, collisions, and who else turns up. */
+  private stepNpcs(dt: number): void {
     // periodic NPC-vs-NPC targeting: pirates prey on traders, the law hunts pirates
     this.npcTargetTimer -= dt;
     if (this.npcTargetTimer <= 0) {
@@ -1768,6 +1788,10 @@ export class Game {
       }
     }
 
+  }
+
+  /** Cargo, missiles, and the things that are only ever seen. */
+  private stepProjectilesAndEffects(dt: number): void {
     this.updateCanisters(dt);
     this.updateEncounters();
 
@@ -1785,6 +1809,13 @@ export class Game {
       return false;
     });
 
+  }
+
+  /**
+   * The commander's own ship: guns, recharge, heat, and the warnings that go
+   * with them. @returns true if the frame ended in death.
+   */
+  private stepShipSystems(dt: number): boolean {
     // laser + systems
     if (this.input.held(...keymap().fire) || this.input.mouseFire) this.fireLaser();
     regenerate(this.sys, dt, { energyUnit: this.commander.equipment.energyUnit });
@@ -1792,7 +1823,7 @@ export class Game {
     const sunDist = this.player.position.distanceTo(this.world.sun.group.position);
     if (updateCabinTemp(this.sys, dt, sunDist)) {
       this.die('CABIN TEMPERATURE CRITICAL');
-      return;
+      return true;
     }
     const scooped = scoopFuel(
       dt, sunDist, this.commander.equipment.scoops, this.commander.fuel, MAX_FUEL);
@@ -1852,11 +1883,16 @@ export class Game {
       if (this.hyperCountdown <= 0) {
         this.hyperCountdown = -1;
         this.completeHyperspace();
-        return;
+        return true;
       }
     }
 
-    // collisions
+    return this.mode !== 'flight';
+  }
+
+  /** Ground, sun and station — the ways a leg ends without a countdown. */
+  private checkHazards(): void {
+    const sunDist = this.player.position.distanceTo(this.world.sun.group.position);
     const altitude =
       this.player.position.distanceTo(this.world.planet.mesh.position) - this.world.planetRadius;
     if (altitude < 80) {
