@@ -11,13 +11,22 @@ index.html / viewer.html      two Vite pages: the game, and the AI combat viewer
 src/
   main.ts                     boot: new Game(canvas)
   game/
-    game.ts                   THE ORCHESTRATOR: modes, input routing, combat
-                              resolution, docking, hyperspace, missions, HUD feed
+    game.ts                   THE ORCHESTRATOR: owns the entities and the frame,
+                              wires the parts below together, resolves consequences
     npc.ts                    NPC ships: scripted behaviours + trained-brain flight,
                               explosions, tracers
     commander.ts              persistent player state, equipment catalogue, saves
+    contracts.ts              work on offer + market pressure (no game.ts import,
+                              so the headless campaign runs the real rules)
     docking.ts                the slot approach, shared by traders and the
                               player's docking computer
+    -- the world step, pure and unit-tested: --
+    systems.ts                energy, shields, laser heat, cabin temperature,
+                              and the damage model (imported by survivability.ts)
+    collisions.ts             who is overlapping whom, and how to separate them
+    encounters.ts             what turns up and when: traders, pirate waves, drones
+    npc-targeting.ts          who hunts whom among the NPCs
+    screens/                  one file per overlay, behind the Screen contract
   galaxy/galaxy.ts            the 1984 procedural universe + market model
   galaxy/goatsoup.ts          the original's recursive planet-description grammar
   galaxy/living.ts            level-1 sim: convoys, prices, danger and your
@@ -76,17 +85,37 @@ polygon offset).
 One scale rule: 1 unit ≈ 1 original Elite unit. The station is 320 across;
 planets are ~4,500-6,500 radius; the sun sits ~320,000 out.
 
-### 3. One orchestrator, many dumb parts
+### 3. One orchestrator, many dumb parts — and one rule, one home
 
-`game/game.ts` is deliberately the only "smart" file. It owns the mode
-machine (`docked | flight | market | chart | local | equip | status | dead`),
-routes input per mode, steps the world, and resolves everything the NPCs
-*ask* to do (an NPC never damages anything itself — `NpcShip.update` returns
-a `FireEvent` and the Game rolls the dice, draws the tracer, applies damage,
-handles bounties/legal consequences). Screens (`ui/screens.ts`) are pure
-render functions over DOM; the HUD (`hud/hud.ts`) is a dumb painter fed one
-state object per frame. If you're looking for "where does X actually
-happen", the answer is almost always game.ts.
+`game/game.ts` owns the entities and the frame. It does **not** own the rules.
+
+The pattern everywhere is: **a module decides, the orchestrator applies.** An
+NPC never damages anything itself — `NpcShip.update` returns a `FireEvent` and
+the Game rolls the dice, draws the tracer, applies damage and handles the legal
+consequences. `collisions.ts` separates overlapping ships and *reports the
+pairs*; the Game bills them, because the price is not symmetric (your shields
+absorb a ram, and two NPCs colliding must not credit you with a kill).
+`encounters.ts` says a pirate wave is due; the Game spawns it. A `Screen`
+returns `'back'`; the host pops the stack.
+
+That split is what makes the rules testable without a browser, and it is the
+answer to the recurring bug in this codebase: **one rule with two homes, kept
+in step by hope.** That single failure mode produced NPCs firing 5.4x faster in
+training than in the game (undetected for six training rounds), four separate
+implementations of the chart distance metric, and the player's damage model
+living in a *comment* in `train/survivability.ts` — the harness every balance
+figure in this project is quoted from. Prefer deleting a duplicate to writing a
+test that two copies still agree.
+
+Screens (`ui/screens.ts`) are pure render functions over DOM, routed by
+`ui/screen-host.ts`; the HUD (`hud/hud.ts`) is a dumb painter fed one state
+object per frame, computed by `hud/hud-model.ts`.
+
+**Still mixed up in game.ts**, and worth knowing before you go looking: the
+flight loop, laser fire, spawning, docking, hyperspace and missions. The
+direction of travel is that the world step becomes runnable without a
+renderer — three.js maths works fine under node, so what blocks it is only
+that `Game`'s constructor builds a renderer and DOM listeners.
 
 Two intentional oddities inside it:
 
