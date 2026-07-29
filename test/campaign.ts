@@ -26,6 +26,7 @@ import {
 } from '../src/game/commander.ts';
 import { makeRng } from '../src/ai-training/core.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
+import { isContraband } from '../src/game/law.ts';
 
 const COMMANDERS = Number(process.argv[2] ?? 40);
 const LEGS = Number(process.argv[3] ?? 60);
@@ -43,7 +44,6 @@ const STRATEGY = (process.argv[4] ?? 'trader') as Strategy | 'both' | 'all';
  *             to be robbed. The strategy the pirate economics actually reward.
  */
 type Strategy = 'trader' | 'hunter' | 'privateer';
-const ILLEGAL = [3, 6, 10];
 const GRADIENTS = COMMODITIES.map((c) => c.gradient);
 
 interface CareerResult {
@@ -151,7 +151,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       c.credits += revenue;
       if (sold > 0) {
         // same rule as game.ts sellCargo: word gets around
-        const contraband = i === 3 || i === 6 || i === 10;
+        const contraband = isContraband(i);
         living.addNotoriety(c.systemIndex,
           Math.min(0.5, revenue / 40_000 + (contraband ? sold * 0.04 : 0)));
       }
@@ -457,7 +457,7 @@ function pickDestination(
     if (s.index === c.systemIndex || d === 0 || d > c.fuel) continue;
     let score = 0;
     for (let i = 0; i < COMMODITIES.length; i++) {
-      if (ILLEGAL.includes(i) || COMMODITIES[i].unit !== 't') continue;
+      if (isContraband(i) || COMMODITIES[i].unit !== 't') continue;
       const expect = expectedPrice(s, i);
       score = Math.max(score, expect - market[i].price);
     }
@@ -480,7 +480,7 @@ function buyBestCargo(
   let best = -1;
   let bestScore = 0.5;
   for (let i = 0; i < COMMODITIES.length; i++) {
-    if (ILLEGAL.includes(i) || COMMODITIES[i].unit !== 't' || market[i].quantity <= 0) continue;
+    if (isContraband(i) || COMMODITIES[i].unit !== 't' || market[i].quantity <= 0) continue;
     const margin = expectedPrice(dest, i) - market[i].price;
     const cost = Math.round(market[i].price * 10);
     if (cost <= 0) continue;

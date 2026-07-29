@@ -3,11 +3,12 @@
 // The simplest screen in the game, and a good one to read first if you are
 // about to write another: it is the whole Screen contract and nothing else.
 
-import { LEGAL_NAMES, type CommanderData } from '../commander.ts';
+import type { CommanderData } from '../commander.ts';
 import { renderStatus } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import type { StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
+import { LEGAL_NAMES } from '../law.ts';
 
 export interface StatusContext {
   readonly commander: CommanderData;

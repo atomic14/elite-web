@@ -20,6 +20,11 @@ import {
 import { World } from '../src/game/world.ts';
 import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';
 import {
+  CONTRABAND, isContraband, contrabandTonnes, carryingContraband,
+  fineFor, offenceFor, LEGAL_NAMES,
+  CLEAN, OFFENDER, FUGITIVE, OFFENDER_FINE, FUGITIVE_FINE,
+} from '../src/game/law.ts';
+import {
   WITCHSPACE_ESCAPE_COST, witchspaceChance, distanceTenths,
 } from '../src/galaxy/navigation.ts';
 import type { CommanderData } from '../src/game/commander.ts';
@@ -574,6 +579,59 @@ console.log('\nsystem population');
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
   }
+}
+
+// --- the law ----------------------------------------------------------------
+
+console.log('\nthe law');
+{
+  check('slaves, narcotics and firearms are the illegal three',
+    CONTRABAND.length === 3 && [3, 6, 10].every(isContraband));
+  check('...and nothing else is', [0, 1, 2, 4, 5, 7, 8, 9].every((i) => !isContraband(i)));
+
+  {
+    const hold = new Array(17).fill(0);
+    check('a clean hold passes a scan', !carryingContraband(hold));
+    hold[6] = 2;
+    check('two tonnes of narcotics does not',
+      carryingContraband(hold) && contrabandTonnes(hold) === 2);
+    hold[3] = 1;
+    check('...and it counts every kind', contrabandTonnes(hold) === 3);
+  }
+
+  // THE point of law.ts: one definition where there were four. If these ever
+  // disagree, someone has re-inlined [3, 6, 10] somewhere.
+  {
+    const hold = new Array(17).fill(0);
+    CONTRABAND.forEach((i) => { hold[i] = 1; });
+    const mark = markOf(
+      { cargo: hold, kills: 0, equipment: { laser: 'pulse', largeBay: false } }, 0);
+    check('contracts.ts counts the same set as law.ts',
+      mark.contraband === CONTRABAND.length);
+  }
+
+  {
+    check('a clean commander pays nothing', fineFor(CLEAN, 100_000) === 0);
+    check('an offender pays 25 Cr', fineFor(OFFENDER, 100_000) === OFFENDER_FINE);
+    check('a fugitive pays 75 Cr', fineFor(FUGITIVE, 100_000) === FUGITIVE_FINE);
+    check('...but never more than you have', fineFor(FUGITIVE, 100) === 100);
+    check('...and a broke fugitive pays nothing rather than going negative',
+      fineFor(FUGITIVE, 0) === 0);
+  }
+
+  {
+    check("shooting a pirate is nobody's business", offenceFor('pirate', false) === CLEAN);
+    check('...destroying one, likewise', offenceFor('pirate', true) === CLEAN);
+    check('...and thargoids and rocks too',
+      offenceFor('thargoid', true) === CLEAN && offenceFor('asteroid', true) === CLEAN);
+    for (const role of ['police', 'trader', 'hunter']) {
+      check(`shooting a ${role} is an offence`, offenceFor(role, false) === OFFENDER);
+      check(`...destroying a ${role} makes you a fugitive`,
+        offenceFor(role, true) === FUGITIVE);
+    }
+  }
+  check('every legal status has a name',
+    LEGAL_NAMES.length === 3 && LEGAL_NAMES.every((n) => n.length > 0));
 }
 
 // --- which brain flies which ship -------------------------------------------

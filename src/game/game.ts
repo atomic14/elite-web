@@ -147,9 +147,13 @@ function cheatMode(): boolean {
 
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL,
-  cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, killValue,
+  cargoCapacity, cargoTonnes, killValue,
   type CommanderData, type Contract,
 } from './commander.ts';
+import {
+  LEGAL_NAMES, carryingContraband, fineFor, offenceFor,
+  CLEAN, OFFENDER, FUGITIVE, SCAN_RANGE, DEFENCE_RANGE,
+} from './law.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver, describeContract, type ChartState,
@@ -795,10 +799,10 @@ export class Game {
     this.ccEngaged = false;
     this.missileArmed = false;
     this.input.releaseMouseFlight();
-    if (this.commander.legalStatus > 0) {
-      const fine = Math.min(this.commander.credits, this.commander.legalStatus >= 2 ? 750 : 250);
+    const fine = fineFor(this.commander.legalStatus, this.commander.credits);
+    if (fine > 0 || this.commander.legalStatus > CLEAN) {
       this.commander.credits -= fine;
-      this.commander.legalStatus = 0;
+      this.commander.legalStatus = CLEAN;
       this.hud.showMessage(`OFFENCE FINE PAID: ${formatCredits(fine)}`, 5);
     }
     this.policeScanned = false;
@@ -1237,6 +1241,7 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   raiseLegal(level: number): void {
+    if (level <= CLEAN) return;   // shooting a pirate is nobody's business
     if (this.commander.legalStatus < level) {
       this.commander.legalStatus = level;
       this.hud.showMessage(`LEGAL STATUS: ${LEGAL_NAMES[level].toUpperCase()}`, 3);
@@ -1252,7 +1257,7 @@ export class Game {
   private callStationDefence(): void {
     if (this.witchspace || this.defenceLaunched) return;
     const station = this.world.station;
-    if (this.player.position.distanceTo(station.position) > 9000) return;
+    if (this.player.position.distanceTo(station.position) > DEFENCE_RANGE) return;
     this.defenceLaunched = true;
     const slotN = this.tmp.set(0, 0, -1).applyQuaternion(station.quaternion);
     const count = 1 + randomInt(2);
@@ -1301,7 +1306,7 @@ export class Game {
       if (hitCanister.kind === 'capsule') {
         // there is someone in that thing
         this.hud.showMessage('ESCAPE CAPSULE DESTROYED', 3);
-        this.raiseLegal(2);
+        this.raiseLegal(FUGITIVE);
       } else {
         this.hud.showMessage('CARGO DESTROYED', 2);
       }
@@ -1317,14 +1322,14 @@ export class Game {
       // make, and fugitive means every police ship in the galaxy hunts you
       // forever. The Vipers are the real punishment — and shooting *them*
       // escalates you to fugitive the normal way. raiseLegal launches them.
-      this.raiseLegal(1);
+      this.raiseLegal(OFFENDER);
       return;
     }
     if (best) {
       sfx.hit();
       // impact flash at the target so hits read clearly
       this.world.effects.explosion(best.object.position.clone(), 0xd8ffcc, { count: 8, speed: 70, duration: 0.35 });
-      if (best.role === 'police' || best.role === 'trader' || best.role === 'hunter') this.raiseLegal(1);
+      this.raiseLegal(offenceFor(best.role, false));
       if (best.takeDamage(laser.damage, this.player.position, true)) this.destroyNpc(best);
     }
   }
@@ -1346,7 +1351,7 @@ export class Game {
         }
       }
     }
-    if (npc.role === 'police' || npc.role === 'trader' || npc.role === 'hunter') this.raiseLegal(2);
+    this.raiseLegal(offenceFor(npc.role, true));
     if (npc.bounty > 0) {
       this.commander.credits += npc.bounty;
       this.hud.showMessage(`BOUNTY: ${formatCredits(npc.bounty)}`, 3);
@@ -1903,11 +1908,10 @@ export class Game {
 
     // police scan for illegal cargo
     if (!this.policeScanned && !this.witchspace) {
-      const carryingContraband = ILLEGAL_GOODS.some((i) => this.commander.cargo[i] > 0);
-      if (carryingContraband) {
+      if (carryingContraband(this.commander.cargo)) {
         const policeNear = this.world.npcs.some((n) =>
           n.alive && n.role === 'police' &&
-          n.object.position.distanceTo(this.player.position) < 2600);
+          n.object.position.distanceTo(this.player.position) < SCAN_RANGE);
         if (policeNear) {
           this.policeScanned = true;
           this.raiseLegal(1);

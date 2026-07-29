@@ -12,14 +12,15 @@ Everything else is a consequence, and each consequence is testable:
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
 | the renderer never writes state | you can delete it and still simulate | partly |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 287 tests, no browser | done |
+| every rule is unit-testable headless | 308 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
 kept in step by hope**. It produced NPCs firing 5.4x too fast in training, four
 copies of the chart metric, the player's damage model living in a comment, a
-market that rerolled on reload, and a galaxy that quietly diverged from itself
-because its save rounded to three decimal places.
+market that rerolled on reload, a galaxy that quietly diverged from itself
+because its save rounded to three decimal places, and the contraband set
+written out FIVE times as the bare literals `[3, 6, 10]`.
 
 **The rule for what a module may know (Chris's framing — single
 responsibility, and things should not need to know about each other):** a

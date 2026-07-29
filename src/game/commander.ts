@@ -53,11 +53,6 @@ export function defaultEquipment(): Equipment {
   };
 }
 
-/** 0 = Clean, 1 = Offender, 2 = Fugitive. */
-export const LEGAL_NAMES = ['Clean', 'Offender', 'Fugitive'];
-
-/** Commodity indices the Galactic Government defines as illegal. */
-export const ILLEGAL_GOODS = [3, 6, 10]; // slaves, narcotics, firearms
 
 /**
  * A job from a station's bulletin board. The original made you earn the

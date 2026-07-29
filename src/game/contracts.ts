@@ -14,6 +14,7 @@ import { COMMODITIES, type StarSystem, type MarketEntry } from '../galaxy/galaxy
 import { random } from './rng.ts';
 import { distanceTenths } from '../galaxy/navigation.ts';
 import type { Contract } from './commander.ts';
+import { isContraband } from './law.ts';
 
 /** Chart distance in tenths of a light-year (the original's metric). */
 // Was a second copy of the chart metric. It now comes from the one owner, and
@@ -126,7 +127,6 @@ const FAME_FULL = 2560;
 /** Share of receptions that are challengers, at full fame. */
 const CHALLENGE_RATE = 0.35;
 /** Slaves, Narcotics, Firearms — worth more to a pirate, and mark you as a smuggler. */
-const CONTRABAND = new Set([3, 6, 10]);
 /**
  * Cargo value (tenths of a credit) at which the prize term saturates — 1,600 Cr.
  * Tuned against the campaign sim: this makes gangs ~5% of receptions (2 per
@@ -168,7 +168,7 @@ export function markOf(
     if (!q) continue;
     // basePrice is the 1984 byte encoding; ×0.4 gives credits, ×4 gives tenths
     cargoValue += q * COMMODITIES[i].basePrice * 4;
-    if (CONTRABAND.has(i)) contraband += q;
+    if (isContraband(i)) contraband += q;
   }
   return {
     cargoValue,

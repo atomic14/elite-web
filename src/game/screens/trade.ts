@@ -22,6 +22,7 @@ import { COMMODITIES, generateMarket, type MarketEntry, type StarSystem } from '
 import type { Input } from '../../engine/input.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import { sfx } from '../../audio.ts';
+import { isContraband } from '../law.ts';
 
 /** The slice of the Game these screens are allowed to see. */
 export interface TradeContext {
@@ -154,7 +155,7 @@ export class MarketScreen implements Screen {
       // Word gets around. A big payday — or any quantity of contraband — makes
       // you worth watching for, here and in the systems within a jump. This is
       // why smuggling raises the temperature of your *next* arrival.
-      const contraband = idx === 3 || idx === 6 || idx === 10;
+      const contraband = isContraband(idx);
       const notice = revenue / 40_000 + (contraband ? sold * 0.04 : 0);
       ctx.addNotoriety(Math.min(0.5, notice));
     } else {
