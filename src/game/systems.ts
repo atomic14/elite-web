@@ -15,6 +15,8 @@
 //
 // No three.js: a hit needs to know only whether it came from in front.
 
+import { random } from './rng.ts';
+
 /** Everything about the ship that a fight changes. */
 export interface ShipSystems {
   /** 0..MAX_ENERGY — the last thing between you and an escape pod */
@@ -88,7 +90,7 @@ export function applyDamage(
   sys: ShipSystems,
   amount: number,
   fromFront: boolean,
-  roll: () => number = Math.random,
+  roll: () => number = random,
 ): DamageResult {
   let remaining = amount;
   if (fromFront) {

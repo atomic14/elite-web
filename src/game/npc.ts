@@ -10,6 +10,7 @@ import {
   type Brain, type BrainFile, type ObservableShip,
 } from '../sim/policy.ts';
 import { TURN } from '../sim/core.ts';
+import { random, randomDirection } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
 import pirateBrainFile from '../sim/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../sim/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
@@ -454,7 +455,7 @@ export class NpcShip {
 
   /** Trader lifecycle. */
   traderPhase: TraderPhase = 'trading';
-  tradeTimer = 20 + Math.random() * 40;
+  tradeTimer = 20 + random() * 40;
   /** Set true when this ship has flown off / docked and should be removed. */
   wantsDespawn = false;
   /** this trader put in at the station rather than jumping out */
@@ -465,7 +466,7 @@ export class NpcShip {
   private stationDockZ = DOCK_Z;
   private readonly dockPlan: DockPlan = makeDockPlan();
   /** decided at spawn: does this one have business at the station? */
-  readonly docksHere = Math.random() < 0.5;
+  readonly docksHere = random() < 0.5;
   /**
    * Tier-2 gang member: flies the coordinated pack policy and doesn't scare
    * off. Set by the Game from pirateThreat() when the player looks worth
@@ -481,10 +482,10 @@ export class NpcShip {
   speed: number;
   private readonly maxSpeed: number;
   private readonly turnRate: number;
-  private fireCooldown = 2 + Math.random() * 2;
+  private fireCooldown = 2 + random() * 2;
   private readonly waypoint = new THREE.Vector3();
   private waypointTimer = 0;
-  private readonly tumbleAxis = new THREE.Vector3().randomDirection();
+  private readonly tumbleAxis = randomDirection(new THREE.Vector3());
 
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpMat = new THREE.Matrix4();
@@ -552,10 +553,10 @@ export class NpcShip {
       this.turnRate = spec.turnRate;
       this.speed = spec.maxSpeed * 0.5;
       this.missiles = spec.missiles ?? 0;
-      this.hasEcm = Math.random() < (spec.ecmChance ?? 0);
+      this.hasEcm = random() < (spec.ecmChance ?? 0);
       this.armed = spec.armed ?? false;
     }
-    this.packOffset.randomDirection().multiplyScalar(250 + Math.random() * 500);
+    randomDirection(this.packOffset).multiplyScalar(250 + random() * 500);
     this.object.position.copy(position);
     this.object.quaternion.random();
   }
@@ -676,10 +677,10 @@ export class NpcShip {
     // amble between waypoints near home
     this.waypointTimer -= dt;
     if (this.waypointTimer <= 0) {
-      this.waypointTimer = 12 + Math.random() * 15;
+      this.waypointTimer = 12 + random() * 15;
       this.waypoint
         .copy(station.position)
-        .add(new THREE.Vector3().randomDirection().multiplyScalar(800 + Math.random() * 2500));
+        .add(randomDirection(new THREE.Vector3()).multiplyScalar(800 + random() * 2500));
     }
     this.steerToward(this.waypoint, dt);
     const arrived = this.object.position.distanceTo(this.waypoint) < 200;
@@ -704,7 +705,7 @@ export class NpcShip {
         this.tradeTimer -= dt;
         this.waypointTimer -= dt;
         if (this.waypointTimer <= 0) {
-          this.waypointTimer = 10 + Math.random() * 12;
+          this.waypointTimer = 10 + random() * 12;
           // Work the lane between station and planet. The planet sits at the
           // world origin, so scaling `home` walks that line — but the station
           // orbits at 2.4 planet radii (world/system-scene.ts), which puts the
@@ -714,8 +715,8 @@ export class NpcShip {
           // random offset below happens to point straight down.
           this.waypoint
             .copy(station.position)
-            .multiplyScalar(0.62 + Math.random() * 0.38)
-            .add(new THREE.Vector3().randomDirection().multiplyScalar(600 + Math.random() * 1200));
+            .multiplyScalar(0.62 + random() * 0.38)
+            .add(randomDirection(new THREE.Vector3()).multiplyScalar(600 + random() * 1200));
         }
         this.steerToward(this.waypoint, dt);
         this.speed = approach(this.speed, this.maxSpeed * 0.35, 60 * dt);
@@ -727,7 +728,7 @@ export class NpcShip {
             this.traderPhase = 'departing';
             this.waypoint
               .copy(station.position)
-              .add(new THREE.Vector3().randomDirection().multiplyScalar(30000));
+              .add(randomDirection(new THREE.Vector3()).multiplyScalar(30000));
           }
         }
         break;
@@ -867,7 +868,7 @@ export class NpcShip {
     // which makes it a number that can be tuned instead of an emergent one.
     if (fireAt && this.fireCooldown <= 0 && dist < NPC_LASER_RANGE
         && this.facing(targetPos) < 0.25) {
-      this.fireCooldown = NPC_COOLDOWN_LO + Math.random() * NPC_COOLDOWN_SPREAD;
+      this.fireCooldown = NPC_COOLDOWN_LO + random() * NPC_COOLDOWN_SPREAD;
       return fireAt === 'player' ? { at: 'player' } : { at: fireAt };
     }
     return null;
@@ -897,7 +898,7 @@ export class NpcShip {
     this.advance(dt);
     this.fireCooldown -= dt;
     if (this.fireCooldown <= 0 && dist < NPC_LASER_RANGE && this.facing(targetPos) < 0.22) {
-      this.fireCooldown = (this.role === 'thargoid' ? 1.0 : 1.4) + Math.random() * 1.8;
+      this.fireCooldown = (this.role === 'thargoid' ? 1.0 : 1.4) + random() * 1.8;
       return isPlayer ? { at: 'player' } : { at: npcTarget! };
     }
     return null;
@@ -985,10 +986,10 @@ export class Explosion {
     this.duration = opts.duration ?? 1.6;
     const positions = new Float32Array(count * 6);
     for (let i = 0; i < count; i++) {
-      const dir = new THREE.Vector3().randomDirection();
-      const seg = new THREE.Vector3().randomDirection().multiplyScalar(4 + Math.random() * 8);
+      const dir = randomDirection(new THREE.Vector3());
+      const seg = randomDirection(new THREE.Vector3()).multiplyScalar(4 + random() * 8);
       positions.set([-seg.x, -seg.y, -seg.z, seg.x, seg.y, seg.z], i * 6);
-      this.velocities.push(dir.multiplyScalar(speed * (0.3 + Math.random())));
+      this.velocities.push(dir.multiplyScalar(speed * (0.3 + random())));
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));

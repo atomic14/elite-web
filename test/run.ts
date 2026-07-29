@@ -10,6 +10,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
+import { seedWorld, random } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
@@ -543,6 +544,47 @@ console.log('\nsystem population');
   }
 }
 
+// --- one source of randomness ----------------------------------------------
+
+// A fixed timestep buys repeatable PHYSICS. It buys nothing at all while the
+// world reaches for Math.random(), which is why both had to land together: an
+// unrepeatable run cannot be replayed, regression tested, or trained against.
+//
+// game/rng.ts is the world's only source of chance. This check is what stops
+// the next Math.random() from quietly punching a hole in it.
+
+console.log('\nseeded world');
+{
+  const WORLD = [
+    'game/game.ts', 'game/npc.ts', 'game/collisions.ts', 'game/systems.ts',
+    'game/encounters.ts', 'game/population.ts', 'game/npc-targeting.ts',
+    'game/gunnery.ts', 'game/shot.ts', 'game/contracts.ts', 'game/combat-computer.ts',
+  ];
+  const offenders: string[] = [];
+  for (const f of WORLD) {
+    const src = readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
+    // `Math.random` WITHOUT parens too: a default parameter of
+    // `rng: () => number = Math.random` is an unseeded stream hiding behind an
+    // injectable-looking signature, and the parenthesised check missed five.
+    if (/Math\.random\b/.test(src.replace(/^\s*(\/\/|\*).*$/gm, ''))) offenders.push(f);
+    if (/\.randomDirection\(\)/.test(src)) offenders.push(`${f} (THREE randomDirection)`);
+  }
+  check(`world code uses the seeded rng only${offenders.length ? ' — found in ' + offenders.join(', ') : ''}`,
+    offenders.length === 0);
+
+  // and the rng itself must actually be deterministic
+  seedWorld(1234);
+  const a = [random(), random(), random()];
+  seedWorld(1234);
+  const b = [random(), random(), random()];
+  check('the same seed gives the same stream', JSON.stringify(a) === JSON.stringify(b));
+  seedWorld(5678);
+  const c = [random(), random(), random()];
+  check('a different seed gives a different one', JSON.stringify(a) !== JSON.stringify(c));
+  check('...and it is a real distribution, not a constant',
+    new Set(a).size === 3 && a.every((n) => n >= 0 && n < 1));
+}
+
 // --- what the shot hit ------------------------------------------------------
 
 // I nearly left this in game.ts on the grounds that a raycast cannot be tested
@@ -942,8 +984,9 @@ console.log('\nsim/game combat parity');
   // MEAN must be the same or every trained policy was fitted to a different
   // weapon than the one it flies.
   const simLaser = num(core, /damage:\s*([\d.]+),[\s\S]{0,80}?cooldown/);
-  const lo = num(game, /applyPlayerDamage\(([\d.]+) \+ Math\.random\(\)/);
-  const spread = num(game, /applyPlayerDamage\([\d.]+ \+ Math\.random\(\) \* ([\d.]+)/);
+  // `random()` not `Math.random()` — world randomness is seeded, see game/rng.ts
+  const lo = num(game, /applyPlayerDamage\(([\d.]+) \+ random\(\)/);
+  const spread = num(game, /applyPlayerDamage\([\d.]+ \+ random\(\) \* ([\d.]+)/);
   check(`laser damage: sim ${simLaser} == game mean ${lo! + spread! / 2}`,
     simLaser !== null && Math.abs(simLaser - (lo! + spread! / 2)) < 1e-9);
 
@@ -978,7 +1021,7 @@ console.log('\nsim/game combat parity');
 
   const gunDmg = num(core, /NPC_GUN = \{[\s\S]{0,400}?damageLo:\s*([\d.]+)/);
   check(`NPC laser damage: sim ${gunDmg} appears in game.ts`,
-    gunDmg !== null && game.includes(`applyPlayerDamage(${gunDmg} + Math.random()`));
+    gunDmg !== null && game.includes(`applyPlayerDamage(${gunDmg} + random()`));
 
   // Ram damage moved out of game.ts into collisions.ts as a named constant,
   // which is an improvement on a bare 0.45 appearing three times — and this

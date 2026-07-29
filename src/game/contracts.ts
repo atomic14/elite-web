@@ -11,6 +11,7 @@
 // .ts extension: this module is run directly by Node (--experimental-strip-types)
 // for the campaign simulator, and COMMODITIES is a value import, not a type.
 import { COMMODITIES, type StarSystem, type MarketEntry } from '../galaxy/galaxy.ts';
+import { random } from './rng.ts';
 import { distanceTenths } from '../galaxy/navigation.ts';
 import type { Contract } from './commander.ts';
 
@@ -28,7 +29,7 @@ export function generateContractOffers(
   sys: StarSystem,
   systems: StarSystem[],
   day: number,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): Contract[] {
   const reachable = systems.filter((s) => {
     const d = distanceTenths(sys, s);
@@ -102,7 +103,7 @@ export function applyMarketPressure(
 }
 
 /** How many pirates a system throws at an anonymous ship (no mark supplied). */
-export function pirateCount(sys: StarSystem, danger: number, rng: () => number = Math.random): number {
+export function pirateCount(sys: StarSystem, danger: number, rng: () => number = random): number {
   return Math.max(0, Math.round((7 - sys.government) / 2 + danger * 3 + rng() * 2 - 1));
 }
 
@@ -219,7 +220,7 @@ export function pirateThreat(
   sys: StarSystem,
   danger: number,
   mark: Mark,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): PirateThreat {
   const place = (7 - sys.government) / 2 + danger * 3;
 

@@ -180,6 +180,31 @@ vite.config.ts; add new pages there or they won't build.
   destructive tests and restore after; saves happen on dock/equip-purchase
   only.
 
+## Determinism: the world steps, and it repeats
+
+Two rules, and they only work together:
+
+- **Fixed timestep.** The world advances in `FIXED_DT` (1/60) slices via an
+  accumulator, never in variable frame deltas. `Game.step(dt, elapsed)` reads
+  no clock and draws nothing; `Game.draw(dt)` changes nothing. `update()` is
+  both, kept for the console harnesses.
+- **One seeded PRNG.** `game/rng.ts` is the world's only source of chance,
+  reseeded per arrival from galaxy/system/day. **`Math.random` is banned in
+  world code and `npm test` enforces it** — including bare references, because
+  `rng: () => number = Math.random` is an unseeded stream hiding behind an
+  injectable-looking signature, and that is exactly how five of them survived
+  the first sweep. `THREE.Vector3.randomDirection()` is banned for the same
+  reason: it reaches for `Math.random` internally.
+
+Verified end to end: arriving in the same system on the same day and flying
+600 steps produces byte-identical NPC counts, roles and positions, three times
+running. That property is what a replay, a regression test and a training run
+all need.
+
+Pure rule modules (`encounters.ts`, `population.ts`, `systems.ts`,
+`contracts.ts`) take an **injectable** rng defaulting to the seeded one, so
+their tests can drive them directly.
+
 ## Headless: what it takes to run game code under node
 
 The goal is for the **real world step** to be what training runs against,

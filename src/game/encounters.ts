@@ -10,6 +10,8 @@
 // reach the scene, so the rules are testable — and these particular rules had
 // none, despite deciding how dangerous every system in the galaxy feels.
 
+import { random } from './rng.ts';
+
 /** Countdowns, owned by the caller so they survive across frames. */
 export interface EncounterTimers {
   trader: number;
@@ -46,8 +48,8 @@ export const ANARCHY_GOVERNMENT = 1;
 /** A commander closer than this to the station is not worth ambushing. */
 export const AMBUSH_STANDOFF = 7000;
 
-export function freshTimers(): EncounterTimers {
-  return { trader: 20 + Math.random() * 40, pirateWave: 60, thargon: 5 };
+export function freshTimers(rng: () => number = random): EncounterTimers {
+  return { trader: 20 + rng() * 40, pirateWave: 60, thargon: 5 };
 }
 
 /**
@@ -59,7 +61,7 @@ export function stepEncounters(
   timers: EncounterTimers,
   dt: number,
   c: SystemConditions,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): SpawnOrder[] {
   const orders: SpawnOrder[] = [];
 

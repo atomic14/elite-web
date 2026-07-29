@@ -25,6 +25,7 @@ import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
 import { planDocking, makeDockPlan } from './docking.ts';
+import { random, randomInt, randomDirection, seedWorld } from './rng.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
@@ -545,10 +546,10 @@ export class Game {
     this.world.sun.group.position.set(-1e8, 1e8, 0);
     this.player.position.set(0, 0, 0);
     this.player.speed = 200;
-    const n = 2 + (Math.random() < 0.3 ? 1 : 0);
+    const n = 2 + (random() < 0.3 ? 1 : 0);
     for (let i = 0; i < n; i++) {
       this.spawnNpc('thargoid',
-        new THREE.Vector3().randomDirection().multiplyScalar(3500 + Math.random() * 2500), i);
+        randomDirection(new THREE.Vector3()).multiplyScalar(3500 + random() * 2500), i);
     }
     this.encounterTimers.thargon = 4;
     sfx.hyperspace();
@@ -585,13 +586,13 @@ export class Game {
   private spawnCanisters(at: THREE.Vector3, count: number, commodities: number[]): void {
     for (let i = 0; i < count; i++) {
       const object = buildShip(CANISTER, 0x8ad0ff);
-      object.position.copy(at).add(new THREE.Vector3().randomDirection().multiplyScalar(20 + i * 15));
+      object.position.copy(at).add(randomDirection(new THREE.Vector3()).multiplyScalar(20 + i * 15));
       this.canisters.push({
         object,
         kind: 'cargo',
-        commodity: commodities[Math.floor(Math.random() * commodities.length)],
-        velocity: new THREE.Vector3().randomDirection().multiplyScalar(15 + Math.random() * 30),
-        spinAxis: new THREE.Vector3().randomDirection(),
+        commodity: commodities[Math.floor(random() * commodities.length)],
+        velocity: randomDirection(new THREE.Vector3()).multiplyScalar(15 + random() * 30),
+        spinAxis: randomDirection(new THREE.Vector3()),
       });
       this.scene.add(object);
     }
@@ -610,8 +611,8 @@ export class Game {
       object,
       kind: 'capsule',
       commodity: 3, // slaves
-      velocity: new THREE.Vector3().randomDirection().multiplyScalar(40 + Math.random() * 30),
-      spinAxis: new THREE.Vector3().randomDirection(),
+      velocity: randomDirection(new THREE.Vector3()).multiplyScalar(40 + random() * 30),
+      spinAxis: randomDirection(new THREE.Vector3()),
     });
     this.scene.add(object);
     this.hud.showMessage('ESCAPE CAPSULE LAUNCHED', 3);
@@ -620,8 +621,8 @@ export class Game {
   /** A fresh trader warps in at the system edge and heads for the station. */
   private spawnArrivingTrader(): void {
     const home = this.world.station.position;
-    const pos = home.clone().add(new THREE.Vector3().randomDirection().multiplyScalar(22000));
-    const trader = this.spawnNpc('trader', pos, Math.floor(Math.random() * 100));
+    const pos = home.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(22000));
+    const trader = this.spawnNpc('trader', pos, randomInt(100));
     trader.traderPhase = 'arriving';
     this.addExplosion(pos.clone(), 0x9adfff, { count: 10, speed: 120, duration: 0.7 }); // arrival flash
   }
@@ -634,7 +635,7 @@ export class Game {
     const sys = this.system;
     const home = this.world.station.position;
     const rnd = (range: number) =>
-      new THREE.Vector3().randomDirection().multiplyScalar(range * (0.5 + Math.random()));
+      randomDirection(new THREE.Vector3()).multiplyScalar(range * (0.5 + random()));
 
     // Pirates are businesses: lawlessness and the living galaxy set how many
     // are out here, but what you're visibly worth sets who they are and
@@ -669,7 +670,7 @@ export class Game {
       const route = toStation.normalize();
       for (let i = 0; i < pirates; i++) {
         // scattered along the whole witchpoint→station corridor
-        const along = routeLen * (0.1 + Math.random() * 0.75);
+        const along = routeLen * (0.1 + random() * 0.75);
         const pos = this.player.position
           .clone()
           .addScaledVector(route, along)
@@ -684,25 +685,25 @@ export class Game {
     }
 
     // a lone bounty hunter is sometimes working the system
-    if (Math.random() < (situation === 'arrival' ? 0.35 : 0.2)) {
+    if (random() < (situation === 'arrival' ? 0.35 : 0.2)) {
       this.spawnNpc('hunter', home.clone().add(rnd(6000)), sys.index);
     }
 
     // a rock hermit hides out among the asteroids (homage to Oolite):
     // a hollowed-out rock that trades ore and asks no questions
-    if (Math.random() < 0.3) {
+    if (random() < 0.3) {
       this.spawnNpc('hermit', home.clone().add(rnd(14000).addScaledVector(rnd(1), 2)), sys.index);
     }
 
     // very rarely, a generation ship crosses the system, still under way
     // after centuries, its hull shedding cargo
-    if (situation === 'arrival' && Math.random() < 0.08) {
+    if (situation === 'arrival' && random() < 0.08) {
       const pos = this.player.position.clone()
-        .add(new THREE.Vector3().randomDirection().multiplyScalar(14000 + Math.random() * 8000));
+        .add(randomDirection(new THREE.Vector3()).multiplyScalar(14000 + random() * 8000));
       const gen = this.spawnNpc('generation', pos, 0);
       gen.object.lookAt(home);
-      this.spawnCanisters(pos.clone().add(new THREE.Vector3().randomDirection().multiplyScalar(700)),
-        3 + Math.floor(Math.random() * 4), [0, 1, 4, 8, 9, 12]);
+      this.spawnCanisters(pos.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(700)),
+        3 + randomInt(4), [0, 1, 4, 8, 9, 12]);
       this.genShipSeen = false;
     }
 
@@ -710,7 +711,7 @@ export class Game {
     const m = this.commander.mission;
     if (situation === 'arrival' && m.stage === 1 && m.targetIndex === this.commander.systemIndex) {
       const pos = this.player.position.clone().add(
-        new THREE.Vector3().randomDirection().multiplyScalar(4000 + Math.random() * 4000));
+        randomDirection(new THREE.Vector3()).multiplyScalar(4000 + random() * 4000));
       const constrictor = this.spawnNpc('pirate', pos, 0, CONSTRICTOR_SPEC);
       constrictor.isMissionTarget = true;
       this.hud.showMessage('SCANNER: UNREGISTERED PROTOTYPE DETECTED', 5);
@@ -980,7 +981,7 @@ export class Game {
       return s.index !== this.commander.systemIndex && d >= minD && d <= maxD;
     });
     if (!candidates.length) return null;
-    return candidates[Math.floor(Math.random() * candidates.length)].index;
+    return candidates[Math.floor(random() * candidates.length)].index;
   }
 
   /** @internal — driven by test/playtest.js */
@@ -1012,7 +1013,7 @@ export class Game {
       this.commander.fuel -= Math.min(this.commander.fuel, WITCHSPACE_ESCAPE_COST);
     } else {
       this.commander.fuel -= distanceTenths(this.system, this.systems[t]);
-      if (Math.random() < witchspaceChance(this.commander.mission.stage)) {
+      if (random() < witchspaceChance(this.commander.mission.stage)) {
         this.enterWitchspace(); // target retained for the escape jump
         return;
       }
@@ -1028,6 +1029,11 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   arriveInSystem(): void {
+    // Seed the world from WHERE and WHEN you are, so a given save arriving in
+    // a given system on a given day meets the same reception twice. Without
+    // this the fixed timestep buys repeatable physics and nothing else.
+    seedWorld(this.commander.galaxy * 0x9e3779b1
+      ^ (this.commander.systemIndex << 8) ^ this.commander.day);
     this.witchspace = false; // any arrival leaves witch-space (incl. galactic jump)
     this.buildWorld();
     // Arrive at the witchpoint, well out — the classic long torus cruise in.
@@ -1035,7 +1041,7 @@ export class Game {
     // the planet never blocks the run.
     const stationDir = this.world.station.position.clone().normalize();
     const dir = stationDir
-      .add(new THREE.Vector3().randomDirection().multiplyScalar(0.5))
+      .add(randomDirection(new THREE.Vector3()).multiplyScalar(0.5))
       .normalize();
     this.player.position.copy(dir.multiplyScalar(this.world.planetRadius * WITCHPOINT_RADII));
     this.lookAlong(this.tmp.copy(this.player.position).negate());
@@ -1076,11 +1082,11 @@ export class Game {
     if (this.player.position.distanceTo(station.position) > 9000) return;
     this.defenceLaunched = true;
     const slotN = this.tmp.set(0, 0, -1).applyQuaternion(station.quaternion);
-    const count = 1 + Math.floor(Math.random() * 2);
+    const count = 1 + randomInt(2);
     for (let i = 0; i < count; i++) {
       const pos = station.position.clone()
         .addScaledVector(slotN, 500 + i * 120)
-        .add(new THREE.Vector3().randomDirection().multiplyScalar(80));
+        .add(randomDirection(new THREE.Vector3()).multiplyScalar(80));
       const viper = this.spawnNpc('police', pos, i);
       // launched specifically for you, so this one IS your business
       viper.provoked = true;
@@ -1174,7 +1180,7 @@ export class Game {
       this.hud.showMessage(`BOUNTY: ${formatCredits(npc.bounty)}`, 3);
     }
     if (npc.role === 'asteroid' && this.commander.equipment.miningLaser) {
-      this.spawnCanisters(npc.object.position, 1 + Math.floor(Math.random() * 3), [12, 12, 12, 13, 14]);
+      this.spawnCanisters(npc.object.position, 1 + randomInt(3), [12, 12, 12, 13, 14]);
     }
     if (npc.isMissionTarget && this.commander.mission.stage === 1) {
       this.commander.mission.stage = 2;
@@ -1194,12 +1200,12 @@ export class Game {
     // wily traders and many pirates punch out at the last moment
     if (npc.role === 'trader' || npc.role === 'pirate' || npc.role === 'hunter') {
       const chance = npc.role === 'trader' ? 0.45 : 0.2;
-      if (Math.random() < chance) this.spawnEscapeCapsule(npc.object.position.clone());
+      if (random() < chance) this.spawnEscapeCapsule(npc.object.position.clone());
     }
     if (npc.cargoDrop > 0) {
       this.spawnCanisters(
         npc.object.position,
-        Math.floor(Math.random() * (npc.cargoDrop + 1)),
+        Math.floor(random() * (npc.cargoDrop + 1)),
         [0, 1, 4, 8, 9, 11, 12], // food, textiles, liquor, machinery, alloys, furs, minerals
       );
     }
@@ -1293,7 +1299,7 @@ export class Game {
       const dir = this.tmp.copy(targetPos).sub(m.object.position);
       const dist = dir.length();
       // ECM-equipped targets can fry an incoming missile
-      if (m.target && m.target.hasEcm && dist < 2800 && Math.random() < dt * 0.45) {
+      if (m.target && m.target.hasEcm && dist < 2800 && random() < dt * 0.45) {
         this.removeMissile(m, true);
         this.ecmDetectedTimer = 2;
         this.hud.showMessage('TARGET E.C.M. — MISSILE DESTROYED', 3);
@@ -1420,7 +1426,7 @@ export class Game {
     const carried = c.cargo.map((qty, i) => ({ qty, i })).filter((x) => x.qty > 0);
     const appetite = Math.floor(c.trumbles / 8);
     if (appetite > 0 && carried.length) {
-      const pick = carried[Math.floor(Math.random() * carried.length)];
+      const pick = carried[Math.floor(random() * carried.length)];
       const eaten = Math.min(pick.qty, appetite);
       c.cargo[pick.i] -= eaten;
       this.hud.showMessage(
@@ -1447,13 +1453,13 @@ export class Game {
     if (e.dockingComputer) fittings.push({ name: 'DOCKING COMPUTER', clear: () => { e.dockingComputer = false; } });
     if (e.combatComputer) fittings.push({ name: 'COMBAT COMPUTER', clear: () => { e.combatComputer = false; } });
 
-    if (carried.length && (!fittings.length || Math.random() < 0.7)) {
-      const pick = carried[Math.floor(Math.random() * carried.length)];
+    if (carried.length && (!fittings.length || random() < 0.7)) {
+      const pick = carried[Math.floor(random() * carried.length)];
       this.commander.cargo[pick.i] -= 1;
       this.hud.showMessage(`CARGO LOST: 1${COMMODITIES[pick.i].unit} ${COMMODITIES[pick.i].name.toUpperCase()}`, 3);
       sfx.beep(300, 0.12);
     } else if (fittings.length) {
-      const pick = fittings[Math.floor(Math.random() * fittings.length)];
+      const pick = fittings[Math.floor(random() * fittings.length)];
       pick.clear();
       if (this.ccEngaged) this.ccEngaged = false;
       this.hud.showMessage(`${pick.name} DESTROYED`, 4);
@@ -1823,17 +1829,17 @@ export class Game {
       } else if (order.kind === 'pirateWave') {
         for (let i = 0; i < order.count; i++) {
           this.spawnNpc('pirate',
-            this.player.position.clone().add(new THREE.Vector3().randomDirection()
-              .multiplyScalar(9000 + Math.random() * 4000)),
-            i + Math.floor(Math.random() * 4));
+            this.player.position.clone().add(randomDirection(new THREE.Vector3())
+              .multiplyScalar(9000 + random() * 4000)),
+            i + randomInt(4));
         }
         this.hud.showMessage('PIRATE SIGNATURES DETECTED', 4);
       } else {
         const mother = this.npcs.find((n) => n.alive && n.role === 'thargoid')!;
         this.spawnNpc('thargon',
           mother.object.position.clone().add(
-            new THREE.Vector3().randomDirection().multiplyScalar(150)),
-          Math.floor(Math.random() * 8));
+            randomDirection(new THREE.Vector3()).multiplyScalar(150)),
+          randomInt(8));
       }
     }
 
@@ -1988,7 +1994,7 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   openHermitTrade(): void {
     this.hermitTrading = true;
-    this.hermitMarket = generateMarket(this.system, Math.floor(Math.random() * 256))
+    this.hermitMarket = generateMarket(this.system, randomInt(256))
       .map((m, i) => {
         // miners are flush with ore and pay over the odds for supplies
         if (i === 12 || i === 13 || i === 14 || i === 15) {
@@ -2010,28 +2016,28 @@ export class Game {
   private resolveNpcFire(npc: NpcShip, event: FireEvent): void {
     if (event.at === 'player') {
       const dist = npc.object.position.distanceTo(this.player.position);
-      if (npc.missiles > 0 && dist > 1200 && dist < 3200 && Math.random() < 0.3) {
+      if (npc.missiles > 0 && dist > 1200 && dist < 3200 && random() < 0.3) {
         this.enemyLaunchMissile(npc);
         return;
       }
       sfx.enemyLaser();
-      const hit = Math.random() < Math.min(0.85, Math.max(0.15, 0.9 - dist / 3500));
+      const hit = random() < Math.min(0.85, Math.max(0.15, 0.9 - dist / 3500));
       // visible bolt: to us on a hit, wide of us on a miss
       const to = hit
         ? this.player.position.clone()
         : this.player.position.clone().add(
-            new THREE.Vector3().randomDirection().multiplyScalar(80 + Math.random() * 140));
+            randomDirection(new THREE.Vector3()).multiplyScalar(80 + random() * 140));
       this.addTracer(
         npc.nosePosition(this.tmp).clone(), to,
         npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
-      if (hit) this.applyPlayerDamage(0.1 + Math.random() * 0.12, npc.object.position);
+      if (hit) this.applyPlayerDamage(0.1 + random() * 0.12, npc.object.position);
       return;
     }
     // NPC shooting NPC
     const target = event.at;
     this.addTracer(
       npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
-    if (Math.random() < 0.5) {
+    if (random() < 0.5) {
       if (target.takeDamage(0.11, npc.object.position)) {
         this.wreckNpc(target); // no player credit
       }

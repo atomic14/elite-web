@@ -9,6 +9,7 @@
 // by encounters.ts for the arrivals that happen while you fly.
 
 import type { StarSystem } from '../galaxy/galaxy.ts';
+import { random } from './rng.ts';
 import type { PirateThreat } from './contracts.ts';
 
 export interface PopulationPlan {
@@ -47,7 +48,7 @@ export function planPopulation(
   situation: 'launch' | 'arrival',
   arrivalCount: number,
   threat: PirateThreat | null,
-  rng: () => number = Math.random,
+  rng: () => number = random,
 ): PopulationPlan {
   return {
     traders: Math.max(MIN_TRADERS,
