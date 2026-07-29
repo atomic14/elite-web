@@ -228,7 +228,7 @@ const MIN_CRUISE_FRACTION = 0.43;
  * the player 90% of the time, but inside 2600 only 51% of it. Half the fight
  * was spent aiming from out of a range the pirate did not know it had.
  */
-const NPC_LASER_RANGE = 3500;
+export const NPC_LASER_RANGE = 3500;
 
 /**
  * Time between an NPC's shots. The sim gives every ship the player's pulse
@@ -241,8 +241,12 @@ const NPC_LASER_RANGE = 3500;
  * for about 5% of a fight. It is not waiting on the cooldown; it is waiting to
  * be aimed at you, and it is busy weaving.
  */
-const NPC_COOLDOWN_LO = 0.9;
-const NPC_COOLDOWN_SPREAD = 0.8;
+export const NPC_COOLDOWN_LO = 0.9;
+export const NPC_COOLDOWN_SPREAD = 0.8;
+/** How near the nose a target must be before an NPC pulls the trigger. */
+export const NPC_FIRE_GATE = 0.25;
+/** Thargoids reload faster than anything else in the galaxy. */
+export const THARGOID_FIRE_RATE = 0.7;
 
 function packBrainEnabled(): boolean {
   return !!(globalThis as unknown as Record<string, unknown>).__packBrain;
@@ -1030,7 +1034,7 @@ export class NpcShip {
     // is now exactly what NPC_COOLDOWN_LO/SPREAD and the 0.25 gate say it is,
     // which makes it a number that can be tuned instead of an emergent one.
     if (fireAt && this.fireCooldown <= 0 && dist < NPC_LASER_RANGE
-        && this.facing(targetPos) < 0.25) {
+        && this.facing(targetPos) < NPC_FIRE_GATE) {
       this.fireCooldown = NPC_COOLDOWN_LO + random() * NPC_COOLDOWN_SPREAD;
       return fireAt === 'player' ? { at: 'player' } : { at: fireAt };
     }
@@ -1060,8 +1064,20 @@ export class NpcShip {
     this.speed = approach(this.speed, dist > 700 ? this.maxSpeed : this.maxSpeed * 0.45, 120 * dt);
     this.advance(dt);
     this.fireCooldown -= dt;
-    if (this.fireCooldown <= 0 && dist < NPC_LASER_RANGE && this.facing(targetPos) < 0.22) {
-      this.fireCooldown = (this.role === 'thargoid' ? 1.0 : 1.4) + random() * 1.8;
+    // The SAME gun brainFly uses. This was a second one: a 0.22 gate and a
+    // 1.4 + rand*1.8 cooldown (mean 2.30s against 1.30s), i.e. 77% slower
+    // through a tighter aperture — and this is the path every police ship,
+    // bounty hunter, thargoid and knife-range pirate actually fires on, so
+    // most of the hostiles in the game used numbers the trainer never saw.
+    // The parity test missed it because it reads the FIRST match in the file
+    // and brainFly happens to come first.
+    //
+    // Thargoids keep their edge as a multiplier on the shared cooldown rather
+    // than as a separate literal.
+    if (this.fireCooldown <= 0 && dist < NPC_LASER_RANGE
+        && this.facing(targetPos) < NPC_FIRE_GATE) {
+      this.fireCooldown = (NPC_COOLDOWN_LO + random() * NPC_COOLDOWN_SPREAD)
+        * (this.role === 'thargoid' ? THARGOID_FIRE_RATE : 1);
       return isPlayer ? { at: 'player' } : { at: npcTarget! };
     }
     return null;

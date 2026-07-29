@@ -174,6 +174,12 @@ export interface SessionState {
   beaconTimer: number;
   strandedHintTimer: number;
   paused: boolean;
+  /**
+   * 0 front, 1 rear, 2 left, 3 right. NOT a camera setting: laserForView()
+   * picks the weapon from it and viewDir() aims the shot, so reloading in
+   * rear view used to fire the FRONT laser at empty space ahead.
+   */
+  view: number;
   ccEngaged: boolean;
   beamTimer: number;
   dcEngaged: boolean;
@@ -282,6 +288,7 @@ export class Game {
     beaconTimer: -1,
     strandedHintTimer: 2,
     paused: false,
+    view: 0,
     ccEngaged: false,
     beamTimer: 0,
     dcEngaged: false,
@@ -319,6 +326,8 @@ export class Game {
   set beaconTimer(v: number) { this.session.beaconTimer = v; }
   get strandedHintTimer(): number { return this.session.strandedHintTimer; }
   set strandedHintTimer(v: number) { this.session.strandedHintTimer = v; }
+  private get view(): number { return this.session.view; }
+  private set view(v: number) { this.session.view = v; }
   get paused(): boolean { return this.session.paused; }
   set paused(v: boolean) { this.session.paused = v; }
   get ccEngaged(): boolean { return this.session.ccEngaged; }
@@ -351,7 +360,6 @@ export class Game {
   private tracers: Tracer[] = [];
 
   /** missile armed but not yet locked (the original's yellow pylon) */
-  private view = 0; // 0 front, 1 rear, 2 left, 3 right
 
   canisters: Canister[] = [];
   /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
@@ -882,7 +890,11 @@ export class Game {
     this.dcEngaged = false;
     sfx.stopDockingMusic();
     this.baseMode = 'docked';
-    this.baseMode = 'docked';
+    // Docking supersedes the mid-flight world. Leaving it behind meant a
+    // reload resumed the snapshot from BEFORE the dock: the cargo you had
+    // just sold was back in the hold, the equipment you bought was gone, and
+    // the next dock wrote that rolled-back commander over the good one.
+    if (!booting) clearWorld();
     this.clearNpcs();
     this.foreShield = 1;
     this.aftShield = 1;
@@ -1009,6 +1021,7 @@ export class Game {
       hermitMarket: structuredClone(this.hermitMarket),
       contractOffers: structuredClone(this.contractOffers),
       targetLock: this.targetLock ? this.npcs.indexOf(this.targetLock) : -1,
+      missileArmed: this.missileArmed,
     };
   }
 
@@ -1041,7 +1054,17 @@ export class Game {
 
     this.clearNpcs();
     for (const n of snap.npcs) {
-      const npc = this.spawnNpc(n.role as NpcRole, new THREE.Vector3(), n.seed);
+      // Rebuild it with the SPEC it was spawned with, not the default table.
+      // Without this a restored tier-2 Fer-de-Lance came back a Sidewinder —
+      // different hull, speed, turn rate, radius and a third of the bounty —
+      // and the Constrictor came back a 50-credit Sidewinder with the
+      // mission still pointing at it. Both inputs are already in the state we
+      // are about to apply, so no extra snapshot field is needed.
+      const tier = Number(n.state.threatTier ?? 0);
+      const spec = n.state.isMissionTarget ? CONSTRICTOR_SPEC
+        : n.role === 'pirate' ? pirateSpecForTier(tier, n.seed)
+          : undefined;
+      const npc = this.spawnNpc(n.role as NpcRole, new THREE.Vector3(), n.seed, spec);
       restoreState(npc.state as unknown as Record<string, unknown>, n.state);
     }
     // second pass: the hunting links, now that every ship exists
@@ -1069,6 +1092,7 @@ export class Game {
     this.contractOffers = structuredClone(snap.contractOffers) as Contract[];
     this.ordnance.clear();
     this.targetLock = snap.targetLock >= 0 ? (this.npcs[snap.targetLock] ?? null) : null;
+    this.missileArmed = snap.missileArmed;
     for (const m of snap.missiles) {
       this.ordnance.restore(
         new THREE.Vector3(...m.pos), new THREE.Quaternion(...m.quat),
@@ -1171,6 +1195,10 @@ export class Game {
 
   private die(reason: string): void {
     if (this.mode === 'dead' || this.mode === 'docked') return;
+    // The mid-flight world must not outlive the ship. Without this a reload
+    // resumed the snapshot taken seconds BEFORE the death, cargo and all —
+    // death was optional if you refreshed.
+    clearWorld();
     sfx.explosion();
     this.addExplosion(this.player.position.clone(), 0xff8866);
     if (this.commander.equipment.escapePod) {

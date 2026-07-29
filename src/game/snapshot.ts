@@ -139,6 +139,12 @@ export interface WorldSnapshot {
   contractOffers: unknown[];
   /** index into `npcs` of the missile-locked ship, or -1 */
   targetLock: number;
+  /**
+   * Whether a missile is armed. A live behaviour gate — updateLock() returns
+   * immediately when it is false — so a reload used to silently cool the
+   * pylon and the lock you were a second from getting never happened.
+   */
+  missileArmed: boolean;
   /** where the chart cursor was left */
   chartCursor: [number, number];
   /**

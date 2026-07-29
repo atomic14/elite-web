@@ -12,7 +12,10 @@ import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
 import { seedWorld, random } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
-import { isHostileToPlayer, NpcShip } from '../src/game/npc.ts';
+import {
+  isHostileToPlayer, NpcShip,
+  NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_LASER_RANGE,
+} from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { stepEncounters } from '../src/game/encounters.ts';
 import { planPopulation, policeFor } from '../src/game/population.ts';
@@ -1107,19 +1110,29 @@ console.log('\nsim/game combat parity');
   //
   // These now assert EQUALITY, not a ratio. The whole point of the change is
   // that the two numbers are one number.
-  const npcLo = num(npc, /const NPC_COOLDOWN_LO = ([\d.]+);/);
-  const npcSpread = num(npc, /const NPC_COOLDOWN_SPREAD = ([\d.]+);/);
+  // IMPORTED VALUES, not regexes over source text.
+  //
+  // These were four `num(npc, /.../)` captures taking the FIRST match in the
+  // file. Two consequences, both real: replacing a literal with a named
+  // constant broke the check for no behavioural reason, and — worse — the
+  // firing-gate check silently measured brainFly's 0.25 while attack()'s
+  // drifted 0.22 sat forty lines below, unseen, on the path every police
+  // ship, bounty hunter and thargoid actually fires from.
+  //
+  // npc.ts imports under node now, so there is no reason to read it as a
+  // string.
   const gunLo = num(core, /NPC_GUN = \{[\s\S]{0,400}?cooldownLo:\s*([\d.]+)/);
   const gunSpread = num(core, /NPC_GUN = \{[\s\S]{0,400}?cooldownSpread:\s*([\d.]+)/);
-  check(`NPC fire rate: sim ${gunLo}+${gunSpread} == game ${npcLo}+${npcSpread}`,
-    gunLo === npcLo && gunSpread === npcSpread);
+  const LASER_RANGE_SIM = num(core, /NPC_GUN = \{[\s\S]{0,400}?range:\s*([\d.]+)/);
+  check(`NPC fire rate: sim ${gunLo}+${gunSpread} == game ${NPC_COOLDOWN_LO}+${NPC_COOLDOWN_SPREAD}`,
+    gunLo === NPC_COOLDOWN_LO && gunSpread === NPC_COOLDOWN_SPREAD);
 
-  // The firing gate, which was the bigger of the two mismatches: the sim's
-  // cone at 2000 range is ~0.027 rad against the game's 0.25.
   const gunGate = num(core, /NPC_GUN = \{[\s\S]{0,400}?gate:\s*([\d.]+)/);
-  const npcGate = num(npc, /this\.facing\(targetPos\) < ([\d.]+)/);
-  check(`NPC firing gate: sim ${gunGate} rad == game ${npcGate} rad`,
-    gunGate !== null && gunGate === npcGate);
+  check(`NPC firing gate: sim ${gunGate} rad == game ${NPC_FIRE_GATE} rad`,
+    gunGate === NPC_FIRE_GATE);
+
+  check(`NPC laser range: sim ${LASER_RANGE_SIM} == game ${NPC_LASER_RANGE}`,
+    LASER_RANGE_SIM === NPC_LASER_RANGE);
 
   // And the hit roll, which lives in game.ts resolveNpcFire.
   const gunCap = num(core, /NPC_GUN = \{[\s\S]{0,400}?hitCap:\s*([\d.]+)/);
@@ -1134,6 +1147,20 @@ console.log('\nsim/game combat parity');
   // Ram damage moved out of game.ts into collisions.ts as a named constant,
   // which is an improvement on a bare 0.45 appearing three times — and this
   // check noticed the moment it moved, which is the check working.
+  // The sim's model of the PLAYER must match the player. Its own comment says
+  // it mirrors player.ts, and every field did except accel: 120 against the
+  // real 220, so every pirate brain was fitted against a commander who took
+  // nearly twice as long to reach speed as the one they actually hunt.
+  const playerSrc = read('../src/player.ts');
+  const realAccel = num(playerSrc, /const ACCEL = ([\d.]+);/);
+  const simAccel = num(core, /playerCobra:[\s\S]{0,200}?accel:\s*([\d.]+)/);
+  check(`player accel: game ${realAccel} == sim playerCobra ${simAccel}`,
+    realAccel !== null && realAccel === simAccel);
+  const realMaxSpeed = num(playerSrc, /const MAX_SPEED = ([\d.]+);/);
+  const simMaxSpeed = num(core, /playerCobra:[\s\S]{0,200}?maxSpeed:\s*([\d.]+)/);
+  check(`player top speed: game ${realMaxSpeed} == sim playerCobra ${simMaxSpeed}`,
+    realMaxSpeed !== null && realMaxSpeed === simMaxSpeed);
+
   const simCollision = num(core, /COLLISION = \{[\s\S]{0,400}?damage:\s*([\d.]+)/);
   const collisions = read('../src/game/collisions.ts');
   const gameCollision = num(collisions, /export const RAM_DAMAGE = ([\d.]+);/);

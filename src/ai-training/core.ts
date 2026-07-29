@@ -116,6 +116,10 @@ export const CLASSES: Record<string, ShipClass> = {
    * The player, as a target. Mirrors player.ts: MAX_SPEED 400, MAX_PITCH 1.45
    * and MAX_ROLL 2.5, which at TURN.pitch 1.4 works out as turnRate 1.036.
    *
+   * accel 220, matching player.ts ACCEL. It said 120 — the comment claimed to
+   * mirror player.ts and every other field did, so the pool trained against a
+   * commander who took nearly twice as long to reach speed as the real one.
+   *
    * It exists because every pirate brain was trained against traderCobra, a
    * ship 1.8x slower and less than half as agile as the commander it actually
    * hunts. A pursuit curve fitted to a freighter overshoots a player on every
@@ -123,7 +127,7 @@ export const CLASSES: Record<string, ShipClass> = {
    * measured in the game, a Sidewinder is lined up on the player for 5% of a
    * fight. Keep in step with player.ts (invariant 2).
    */
-  playerCobra: { name: 'Cobra Mk III (player)', hp: 1.0, maxSpeed: 400, turnRate: 1.036, radius: 34, accel: 120 },
+  playerCobra: { name: 'Cobra Mk III (player)', hp: 1.0, maxSpeed: 400, turnRate: 1.036, radius: 34, accel: 220 },
   /**
    * How a human actually flies in a dogfight, from Chris's recorded envelope:
    * median speed 66, pitch held at 1.36 of a possible 1.45. He turns almost on
