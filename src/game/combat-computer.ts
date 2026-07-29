@@ -161,8 +161,8 @@ export class CombatComputer {
  * for this autopilot — can use it instead of writing 4.0/5.0 out again.
  */
 export function ccRamp(cur: number, target: number, active: boolean, dt: number): number {
-  const rate = active ? 4.0 : 5.0;
-  const next = cur + (target - cur) * Math.min(1, rate * dt);
+  const rate = active ? 4.1396 : 5.2207;   // see approach() in player.ts
+  const next = cur + (target - cur) * (1 - Math.exp(-rate * dt));
   return Math.abs(next) < 0.001 && !active ? 0 : next;
 }
 

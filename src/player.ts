@@ -61,7 +61,7 @@ const ACCEL = 220;
  */
 const MAX_ROLL = 2.5;
 const MAX_PITCH = 1.45;
-const RATE_RAMP = 4.0;
+const RATE_RAMP = 4.1396;
 /**
  * How fast the turn rate bleeds off when you let go. Was 5.0, which made a
  * light tap far bigger than it should be: most of the movement came AFTER
@@ -71,7 +71,7 @@ const RATE_RAMP = 4.0;
  * you stop. Peak rates are untouched, so sustained turns are as quick as
  * before; only the tail is tightened.
  */
-const RATE_DECAY = 12.0;
+const RATE_DECAY = 13.3886;
 
 /**
  * The player's flight envelope, in one place a harness can read.
@@ -99,11 +99,33 @@ export const PLAYER_FLIGHT = {
  * PLAYER_FLIGHT: a harness that copies the caps but not the ramp is still
  * flying a different ship.
  */
+/**
+ * The frame-rate-independent approach toward a target rate.
+ *
+ * Was `min(1, rate * dt)`, a linear-in-dt approximation of exponential decay.
+ * Two half-steps did not equal one whole step, so the SAME constant produced
+ * different handling at different step rates — and it did, silently: the
+ * training sim steps at 1/15 and the game at 1/60, so a released turn key
+ * settled 0.80 per step in training against 0.59 over the same elapsed time in
+ * the game. Same number in both files, different flight. That is the project's
+ * one-rule-two-homes bug wearing a disguise, because the two homes agreed.
+ *
+ * `1 - exp(-rate * dt)` is the exact form: the rate is now a time constant in
+ * reciprocal seconds and means the same thing at any dt.
+ *
+ * The constants were recalibrated (4.0 -> 4.1396, 12.0 -> 13.3886, 5.0 ->
+ * 5.2207) so that behaviour at 1/60 is BIT-IDENTICAL to before. This is a
+ * correctness fix, not a feel change; nothing about flying at 60Hz moved.
+ */
+function approach(current: number, target: number, rate: number, dt: number): number {
+  return current + (target - current) * (1 - Math.exp(-rate * dt));
+}
+
 export function rampFlightRate(
   current: number, target: number, active: boolean, dt: number,
 ): number {
   const rate = active ? RATE_RAMP : RATE_DECAY;
-  const next = current + (target - current) * Math.min(1, rate * dt);
+  const next = approach(current, target, rate, dt);
   return Math.abs(next) < 0.001 && !active ? 0 : next;
 }
 

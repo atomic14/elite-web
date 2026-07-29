@@ -93,8 +93,8 @@ export function randDir(rng: () => number): V3 {
  * the NPC side, which had been the one that matched. It is per-class now, so
  * neither half can be wrong without the other being visibly wrong too.
  */
-export const PLAYER_RATE_DECAY = 12.0;
-export const NPC_RATE_DECAY = 5.0;
+export const PLAYER_RATE_DECAY = 13.3886;
+export const NPC_RATE_DECAY = 5.2207;
 
 export interface ShipClass {
   name: string;
@@ -303,7 +303,7 @@ export interface Control {
   fire: boolean;
 }
 
-const RATE_RAMP = 4.0;
+const RATE_RAMP = 4.1396;
 /**
  * MUST equal RATE_DECAY in player.ts — invariant 2, and `npm test` asserts it.
  *
@@ -318,7 +318,7 @@ function ramp(
   current: number, target: number, active: boolean, dt: number, decay: number,
 ): number {
   const rate = active ? RATE_RAMP : decay;
-  const next = current + (target - current) * Math.min(1, rate * dt);
+  const next = current + (target - current) * (1 - Math.exp(-rate * dt));
   return Math.abs(next) < 0.001 && !active ? 0 : next;
 }
 

@@ -94,6 +94,12 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 - **Jettisoning cargo (Y) buys off pirates.** Not in the original, which had
   no such out. They came for the goods; dumping a proportional share makes
   them break off — turning an unwinnable fight into a decision.
+- **Turn-rate ramp is `1 - exp(-rate·dt)`, not `min(1, rate·dt)`.** The
+  original's frame rate is not something we can know from here, and it does not
+  matter: every rate in this game is per SECOND, not per frame, so the top turn
+  rate is the same at any refresh. Only the ramp toward it was frame-rate
+  dependent, and now it is not. Constants recalibrated so 60Hz is bit-identical
+  to what shipped.
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
   The rate is `FUEL_PRICE` in `src/game/commander.ts` — change it there.
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands

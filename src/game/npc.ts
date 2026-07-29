@@ -35,8 +35,8 @@ export const BRAIN_ACCEL = 120;
  * brains were fitted in — invariant 2, and the parity block in test/run.ts
  * compares them.
  */
-export const BRAIN_RATE_RAMP = 4.0;
-export const BRAIN_RATE_DECAY = 5.0;
+export const BRAIN_RATE_RAMP = 4.1396;
+export const BRAIN_RATE_DECAY = 5.2207;
 
 /**
  * How far an NPC can shoot. Matches the player's LASER_RANGE in game.ts and
@@ -683,7 +683,7 @@ export class NpcShip {
     const maxRoll = this.turnRate * TURN.roll;
     const rampTo = (cur: number, target: number, active: boolean): number => {
       const rate = active ? BRAIN_RATE_RAMP : BRAIN_RATE_DECAY;
-      const next = cur + (target - cur) * Math.min(1, rate * dt);
+      const next = cur + (target - cur) * (1 - Math.exp(-rate * dt));
       return Math.abs(next) < 0.001 && !active ? 0 : next;
     };
     this.brainPitchRate = rampTo(this.brainPitchRate, c.pitch * maxPitch, c.pitch !== 0);

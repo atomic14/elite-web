@@ -1672,6 +1672,44 @@ console.log('\npurity');
     && store.includes("'elite-web-slot'"));
 }
 
+// --- the turn ramp is frame-rate independent ---------------------------------
+//
+// It was `min(1, rate * dt)`, a linear-in-dt approximation of exponential
+// decay, so two half-steps did not equal one whole step. The same constant
+// therefore produced different handling at different step rates — and it did:
+// the training sim steps at 1/15 and the game at 1/60, so a released turn key
+// settled 0.80 per step in training against 0.59 over the same elapsed time in
+// the game. Same number in both files, different flight.
+
+console.log('\nturn ramp');
+{
+  const after = (dt: number, secs: number) => {
+    let v = 0;
+    for (let i = 0; i < Math.round(secs / dt); i++) v = rampFlightRate(v, 2.5, true, dt);
+    return v;
+  };
+  const at60 = after(1 / 60, 1);
+  check('one second of ramp is the same at 60Hz and 15Hz',
+    Math.abs(at60 - after(1 / 15, 1)) < 1e-9);
+  check('...and at 144Hz', Math.abs(at60 - after(1 / 144, 1)) < 1e-9);
+  check('...and at 30Hz', Math.abs(at60 - after(1 / 30, 1)) < 1e-9);
+
+  // and it must still reproduce the shipped 60Hz feel, which is why the
+  // constants were recalibrated rather than left at 4.0/12.0
+  const oldForm = (cur: number, tgt: number, dt: number, r: number) =>
+    cur + (tgt - cur) * Math.min(1, r * dt);
+  let a = 0, b = 0;
+  for (let i = 0; i < 120; i++) {
+    a = rampFlightRate(a, 2.5, true, 1 / 60);
+    b = oldForm(b, 2.5, 1 / 60, 4.0);
+  }
+  check(`60Hz behaviour is unchanged (${a.toFixed(6)} vs ${b.toFixed(6)})`,
+    Math.abs(a - b) < 1e-6);
+
+  check('a released rate still snaps to exactly zero',
+    rampFlightRate(0.0005, 0, false, 1 / 60) === 0);
+}
+
 // --- the fuel price has one home ---------------------------------------------
 //
 // It had four: a bare `* 0.4` inside equipRows in the RENDER layer, plus
