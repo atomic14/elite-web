@@ -27,11 +27,11 @@ import {
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip, Explosion, Tracer, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
-import { act, observe, makeScratch, type ObservableShip } from '../sim/policy.ts';
 import { planDocking, makeDockPlan } from './docking.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
+import { CombatComputer, CC_MAX_SPEED, CC_ACCEL } from './combat-computer.ts';
 import {
   laserForView, canFire, chargeShot, hitCone, canisterCone, LASER_RANGE, AIM_ASSIST,
 } from './gunnery.ts';
@@ -311,20 +311,7 @@ export class Game {
   private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
   ccEngaged = false;
-  private ccPitch = 0;
-  private ccRoll = 0;
-  private ccTimer = 0;
-  private ccControl: { pitch: number; roll: number; throttle: number; fire: boolean } | null = null;
-  private static readonly ccObs = new Float32Array(18);
-  private static readonly ccScratch = makeScratch();
-  private static readonly ccMe = {
-    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 0,
-    cls: { maxSpeed: 220, turnRate: 0.5 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
-  };
-  private static readonly ccTarget = {
-    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 280,
-    cls: { maxSpeed: 300, turnRate: 1.1 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
-  };
+  private readonly combatComputer = new CombatComputer();
 
   /**
    * Energy, shields, laser heat and cabin temperature. The model lives in
@@ -1673,59 +1660,31 @@ export class Game {
    * The jameson-defend policy flies the player's ship (at the trader-Cobra
    * dynamics it trained in). Manual flight input disengages instantly.
    */
+  /**
+   * One frame of the combat computer. The policy decides how to fly; the Game
+   * applies it and pulls the trigger, because firing has consequences an
+   * autopilot has no business deciding.
+   */
   private combatComputerStep(dt: number): void {
-    if (this.input.held(...manualFlightKeys()) ||
-        Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15) {
+    const manual = this.input.held(...manualFlightKeys())
+      || Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15;
+    const step = this.combatComputer.step(
+      dt, this.player, this.sys, this.npcs, this.commander.legalStatus, manual, DEFEND_BRAIN);
+    if (step.kind === 'disengage') {
       this.ccEngaged = false;
-      this.hud.showMessage('MANUAL OVERRIDE', 2);
+      this.hud.showMessage(step.reason, step.reason === 'MANUAL OVERRIDE' ? 2 : 3);
       return;
     }
-    let threat: NpcShip | null = null;
-    let bestD = 6500;
-    for (const npc of this.npcs) {
-      if (!isHostileToPlayer(npc, this.commander.legalStatus)) continue;
-      const d = npc.object.position.distanceTo(this.player.position);
-      if (d < bestD) { bestD = d; threat = npc; }
+    const d = step.demand;
+    if (d.throttle > 0) this.player.speed = Math.min(CC_MAX_SPEED, this.player.speed + CC_ACCEL * dt);
+    if (d.throttle < 0) this.player.speed = Math.max(0, this.player.speed - CC_ACCEL * dt);
+    if (d.rollRate !== 0) {
+      this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_Z_CC, d.rollRate * dt));
     }
-    if (!threat || !DEFEND_BRAIN) {
-      this.ccEngaged = false;
-      this.hud.showMessage('AREA CLEAR — COMBAT COMPUTER OFF', 3);
-      return;
+    if (d.pitchRate !== 0) {
+      this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_X_CC, d.pitchRate * dt));
     }
-
-    this.ccTimer -= dt;
-    if (!this.ccControl || this.ccTimer <= 0) {
-      this.ccTimer = 0.1;
-      const me = Game.ccMe;
-      const tv = Game.ccTarget;
-      const p = this.player.position, q = this.player.quaternion;
-      me.pos.x = p.x; me.pos.y = p.y; me.pos.z = p.z;
-      me.quat.x = q.x; me.quat.y = q.y; me.quat.z = q.z; me.quat.w = q.w;
-      me.speed = this.player.speed;
-      me.laserTemp = this.laserTemp;
-      me.laserCooldown = this.laserCooldown;
-      me.pitchRate = this.ccPitch;
-      me.rollRate = this.ccRoll;
-      const tp = threat.object.position, tq = threat.object.quaternion;
-      tv.pos.x = tp.x; tv.pos.y = tp.y; tv.pos.z = tp.z;
-      tv.quat.x = tq.x; tv.quat.y = tq.y; tv.quat.z = tq.z; tv.quat.w = tq.w;
-      this.ccControl = act(DEFEND_BRAIN,
-        observe(me as ObservableShip, tv as ObservableShip, Game.ccObs), Game.ccScratch);
-    }
-    const c = this.ccControl;
-    const maxPitch = 0.5 * 1.4, maxRoll = 0.5 * 2.4; // trader-Cobra caps (training match)
-    const ramp = (cur: number, tgt: number, active: boolean): number => {
-      const r = active ? 4.0 : 5.0;
-      const nx = cur + (tgt - cur) * Math.min(1, r * dt);
-      return Math.abs(nx) < 0.001 && !active ? 0 : nx;
-    };
-    this.ccPitch = ramp(this.ccPitch, c.pitch * maxPitch, c.pitch !== 0);
-    this.ccRoll = ramp(this.ccRoll, c.roll * maxRoll, c.roll !== 0);
-    if (c.throttle > 0) this.player.speed = Math.min(220, this.player.speed + 100 * dt);
-    if (c.throttle < 0) this.player.speed = Math.max(0, this.player.speed - 100 * dt);
-    if (this.ccRoll !== 0) this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_Z_CC, this.ccRoll * dt));
-    if (this.ccPitch !== 0) this.player.quaternion.multiply(this.tmpQ.setFromAxisAngle(AXIS_X_CC, this.ccPitch * dt));
-    if (c.fire) this.fireLaser();
+    if (d.fire) this.fireLaser();
   }
 
   /**
