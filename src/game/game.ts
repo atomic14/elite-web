@@ -1,9 +1,16 @@
 // The orchestrator. Game owns the mode state machine (docked | flight |
 // market | chart | local | equip | status | dead), routes input per mode,
-// steps the world and every NPC, and resolves all consequences: NPCs *ask*
-// to fire (FireEvent) and this file rolls the dice, draws tracers, applies
-// damage, pays bounties and escalates legal status. Screens (ui/screens.ts)
-// and the HUD (hud/hud.ts) are pure renderers fed from here.
+// runs the fixed-timestep frame, and resolves every consequence the modules
+// around it report: combat.ts says a ship was destroyed and this file pays the
+// bounty, escalates legal status and launches the Vipers. Screens
+// (ui/screens.ts) and the HUD (hud/hud.ts) are pure renderers fed from here.
+//
+// The world's own motion is NOT here. `world-step.ts` owns the five phases of
+// flight and steps them with no HUD, no keyboard and no renderer; this file
+// hands it a FlightDemand and applies the events it returns. What that leaves
+// behind is orchestration: the frame, the mode machine, input routing, and the
+// consequences listed in `stepHost()`.
+//
 // `window.__game` exposes the instance for the autopilot test harness
 // (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
 import * as THREE from 'three';
@@ -22,47 +29,40 @@ import { Hud } from '../hud/hud.ts';
 import { buildHudFrame, hostilesNear } from '../hud/hud-binding.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
-import { NpcShip, type FireEvent } from './npc.ts';
+import { NpcShip } from './npc.ts';
 import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
 import {
   CONSTRICTOR_SPEC, pirateSpecForTier, type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
-import { planDocking, dockingOutcome, type DockPlan } from './docking.ts';
+import { type DockPlan } from './docking.ts';
 import { type Canister } from './cargo.ts';
-import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';
+import { spawnPopulation } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
 import { Combat, BEAM_FLASH, type CombatEvent } from './combat.ts';
 import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.ts';
-import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import {
   stepMissionAtDock, constrictorLurksHere, missionHeadline,
 } from './missions.ts';
-import { World, TRADER_ARRIVAL_RANGE } from './world.ts';
+import { World } from './world.ts';
+import {
+  WorldStep, viewDirection, massLocked, VIEW_QUATS,
+  type StepEvent, type StepHost,
+} from './world-step.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
 import { saveWorld, readWorld, clearWorld, loadCommander, saveCommander } from './storage.ts';
 import {
   SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState,
   type WorldSnapshot,
 } from './snapshot.ts';
-import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
-import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer } from './combat-computer.ts';
 import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
   type Missile, type OrdnanceReply,
 } from './ordnance.ts';
-import {
-  hitCone, LASER_RANGE, AIM_ASSIST,
-  npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE,
-} from './gunnery.ts';
-import {
-  stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
-} from './encounters.ts';
-import {
-  regenerate, updateCabinTemp, scoopFuel, breachLoss,
-  type ShipSystems,
-} from './systems.ts';
+import { hitCone, LASER_RANGE, AIM_ASSIST } from './gunnery.ts';
+import { freshTimers, type EncounterTimers } from './encounters.ts';
+import { breachLoss, type ShipSystems } from './systems.ts';
 import {
   SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
   type SavesContext,
@@ -115,17 +115,17 @@ function cheatMode(): boolean {
 
 
 import {
-  formatCredits, MAX_FUEL, cargoCapacity, cargoTonnes,
+  formatCredits, cargoCapacity, cargoTonnes,
   type CommanderData, type Contract,
 } from './commander.ts';
 import {
-  LEGAL_NAMES, carryingContraband, fineFor, CLEAN, SCAN_RANGE, DEFENCE_RANGE,
+  LEGAL_NAMES, fineFor, CLEAN, DEFENCE_RANGE,
 } from './law.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver, describeContract, type ChartState,
 } from '../ui/screens.ts';
-import { freshState, AUTOSAVE_INTERVAL, type GameState } from './state.ts';
+import { freshState, type GameState } from './state.ts';
 import type { SessionState } from './session.ts';
 
 
@@ -161,13 +161,8 @@ const MAX_STEPS_PER_FRAME = 5;
  */
 const WITCHPOINT_RADII = 16;
 
-const SUN_KILL_DIST = 21_000;   // instant death
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
-
-// view quaternions: front, rear, left, right (yaw about ship Y)
-const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
-  new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a));
 
 // Fields the autonomous playtest agent (test/playtest.js) reads or drives
 // are public rather than private; they are otherwise internal.
@@ -347,6 +342,40 @@ export class Game {
    * Resolving hits: shots, wrecks, bounties — see combat.ts. */
   private readonly combat = new Combat(this.world);
 
+  /**
+   * The world advancing by one slice — see world-step.ts.
+   *
+   * It owns the five phases of flight and knows nothing about a HUD, a
+   * keyboard or a renderer: it takes a demand, moves everything, and reports
+   * what it did. `stepHost()` below is the whole of what it may ask of us.
+   */
+  private readonly worldStep = new WorldStep(this.state, this.ordnance, this.stepHost());
+
+  /**
+   * What the world step may ask of the Game — the consequences that reach
+   * outside the sky, and nothing else it can get at.
+   *
+   * An object literal rather than `implements StepHost` on purpose: the
+   * methods behind it stay private, so this list IS the surface, and adding to
+   * it is a decision rather than an accident.
+   */
+  private stepHost(): StepHost {
+    return {
+      inFlight: () => this.mode === 'flight',
+      applyPlayerDamage: (amount, from) => this.applyPlayerDamage(amount, from),
+      destroyNpc: (npc) => this.destroyNpc(npc),
+      wreckNpc: (npc) => this.wreckNpc(npc),
+      fireLaser: () => this.fireLaser(),
+      raiseLegal: (level) => this.raiseLegal(level),
+      die: (reason) => this.die(reason),
+      dock: () => this.enterDocked(),
+      completeHyperspace: () => this.completeHyperspace(),
+      completeRescue: () => this.completeRescue(),
+      openHermitTrade: () => this.openHermitTrade(),
+      autoSave: () => this.autoSave(),
+    };
+  }
+
   /** Missiles in flight. Owned by `ordnance`; exposed for the HUD and saves. */
   get missiles(): Missile[] { return this.ordnance.missiles; }
   /** Cargo adrift. Owned by `cargo`; exposed for the HUD and the snapshot. */
@@ -356,27 +385,6 @@ export class Game {
   get missileArmed(): boolean { return this.ordnance.armed; }
   set missileArmed(v: boolean) { this.ordnance.armed = v; }
 
-  /** Apply what the ordnance did. It reports; the consequences are ours. */
-  private applyOrdnance(dt: number): void {
-    for (const e of this.ordnance.step(dt, this.player.position)) {
-      if (e.kind === 'killed') {
-        e.npc.takeDamage(99, undefined, true);
-        this.destroyNpc(e.npc);
-      } else if (e.kind === 'hitPlayer') {
-        this.world.effects.explosion(e.at, 0xff8866);
-        sfx.explosion();
-        this.applyPlayerDamage(e.damage, e.at);
-      } else if (e.kind === 'ecmDefeated') {
-        this.world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
-        this.ecmDetectedTimer = 2;
-        this.hud.showMessage('TARGET E.C.M. — MISSILE DESTROYED', 3);
-        sfx.ecm();
-      } else {
-        this.world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
-      }
-    }
-  }
-
   /** Ordnance reports what it did; saying it is ours. */
   private say(reply: OrdnanceReply | null): void {
     if (!reply) return;
@@ -385,10 +393,6 @@ export class Game {
   }
 
   private armMissile(): void { this.say(this.ordnance.arm(this.commander)); }
-
-  private updateMissileLock(): void {
-    this.say(this.ordnance.updateLock(this.player.position, this.viewDir(this.tmp)));
-  }
 
   private launchMissile(): void {
     this.say(this.ordnance.launch(this.commander, this.player.position));
@@ -417,11 +421,6 @@ export class Game {
     }
   }
 
-  private enemyLaunchMissile(npc: NpcShip): void {
-    npc.missiles -= 1;
-    this.say(this.ordnance.launchHostile(npc.nosePosition(this.tmp).clone()));
-  }
-
   /**
    * Energy, shields, laser heat and cabin temperature. The model lives in
    * systems.ts; the accessors below keep `g.energy` working for the console
@@ -447,17 +446,13 @@ export class Game {
   private readonly dust = new SpaceDust();
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
-  /** scratch for collisions.ts, so a per-frame call allocates nothing */
-  private readonly scratch = { a: new THREE.Vector3(), b: new THREE.Vector3() };
-  /** reused for player gunnery — see LASER_GRAZE */
   /** the shot's ray and scratch vectors, reused every trigger pull */
   private readonly combatScratch = {
     a: new THREE.Vector3(), b: new THREE.Vector3(),
     q: new THREE.Quaternion(), ray: new THREE.Raycaster(),
   };
-  /** docking computer flying the ship in — see dockingComputerStep */
+  /** docking computer flying the ship in — see world-step.ts */
   private get dockPlan(): DockPlan { return this.state.dockPlan; }
-  private readonly tmpQ = new THREE.Quaternion();
   /** scratch for the per-frame dashboard read, so it allocates nothing */
   private readonly hudScratch = {
     a: new THREE.Vector3(), b: new THREE.Vector3(),
@@ -1176,12 +1171,17 @@ export class Game {
 
   // --- combat --------------------------------------------------------------
 
-  /** Direction the current view faces, in world space. */
+  /** Direction the current view faces, in world space. The maths is the step's. */
   private viewDir(out: THREE.Vector3): THREE.Vector3 {
-    return out.set(0, 0, -1)
-      .applyQuaternion(VIEW_QUATS[this.view])
-      .applyQuaternion(this.player.quaternion);
+    return viewDirection(this.player.quaternion, this.view, out);
   }
+
+  /**
+   * Anything close enough to hold the torus drive down.
+   *
+   * @internal — driven by test/playtest.js and train/jameson-autopilot.js
+   */
+  massLocked(): boolean { return massLocked(this.state); }
 
   /** @internal — driven by test/playtest.js */
   raiseLegal(level: number): void {
@@ -1261,17 +1261,6 @@ export class Game {
     }
   }
 
-  /** Trumbles breed and eat; heat drives them out. Rules in trumbles.ts. */
-  private updateTrumbles(dt: number): void {
-    const r = stepTrumbles(this.commander, dt, this.cabinTemp, this.trumbleTimer);
-    this.trumbleTimer = r.timer;
-    for (const e of r.events) {
-      const secs = e.kind === 'purged' ? 5 : e.kind === 'fleeing' ? 1.5 : e.kind === 'ate' ? 4 : 2;
-      this.hud.showMessage(trumbleMessage(e), secs);
-      if (e.kind === 'ate') sfx.beep(500, 0.1);
-    }
-  }
-
   /** A hull hit destroys a tonne of cargo, or knocks out a fitting. */
   private damageSomething(): void {
     const lost = breachLoss(this.commander, random);
@@ -1291,29 +1280,6 @@ export class Game {
   }
 
   // --- docking -------------------------------------------------------------
-
-  /**
-   * Are we down, bounced, or clear? The geometry is docking.ts's; what it
-   * costs is ours.
-   */
-  private checkStation(): void {
-    const station = this.world.station;
-    const outcome = dockingOutcome(
-      this.player.position, this.player.quaternion, station, this.world.stationDockZ,
-      { v: this.tmp, q: this.tmpQ, r: this.tmp2 });
-    if (outcome === 'clear') return;
-    if (outcome === 'docked') {
-      this.enterDocked();
-      return;
-    }
-    // hit the hull, or fluffed the slot
-    const away = this.tmp2.copy(this.player.position).sub(station.position).normalize();
-    this.player.position.copy(station.position).addScaledVector(away, 420);
-    this.player.speed = 0;
-    this.applyPlayerDamage(0.9, station.position);
-    this.hud.showMessage(
-      outcome === 'slotMiss' ? 'DOCKING FAILURE — MATCH SLOT ROTATION' : 'COLLISION', 3);
-  }
 
   private dockingComputer(): void {
     if (!this.commander.equipment.dockingComputer) {
@@ -1340,29 +1306,6 @@ export class Game {
     } else {
       sfx.stopDockingMusic();
     }
-  }
-
-  /**
-   * One frame of the docking computer. Steers and throttles only — the actual
-   * docking is still decided by checkStation()'s slot and roll test, exactly
-   * as it is when you fly in by hand. The autopilot has to genuinely thread
-   * the letterbox; it gets no dispensation.
-   */
-  private dockingComputerStep(dt: number): void {
-    if (this.input.held(...manualFlightKeys()) ||
-        Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15) {
-      this.dcEngaged = false;
-      sfx.stopDockingMusic();
-      this.hud.showMessage('MANUAL OVERRIDE', 2);
-      return;
-    }
-    const station = this.world.station;
-    const plan = planDocking(
-      this.player.position, station, this.world.stationDockZ, this.player.maxSpeed, this.dockPlan);
-    this.tmpM.lookAt(ZERO, plan.heading, plan.up);
-    this.tmpQ.setFromRotationMatrix(this.tmpM);
-    this.player.quaternion.rotateTowards(this.tmpQ, 1.2 * dt);
-    this.player.speed += (plan.speed - this.player.speed) * Math.min(1, dt * 1.5);
   }
 
   /** @internal — driven by test/playtest.js */
@@ -1400,8 +1343,7 @@ export class Game {
    *          itself on top of manual flight.
    */
   private combatComputerDemand(dt: number): FlightDemand | null {
-    const manual = this.input.held(...manualFlightKeys())
-      || Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15;
+    const manual = this.handsOn();
     const step = this.combatComputer.step(
       dt, this.player, this.sys, this.world.npcs, this.commander.legalStatus, manual, DEFEND_BRAIN);
     if (step.kind === 'disengage') {
@@ -1523,18 +1465,48 @@ export class Game {
   }
 
   /**
-   * One frame of flight, in five phases. Each is a method so the loop reads as
-   * an order of operations rather than a wall — and the order matters: ships
-   * move before they are separated, are separated before they are billed, and
-   * the player's systems recharge after everything that could have damaged
-   * them.
+   * One frame of flight: produce a demand, advance the world, apply what it
+   * reports.
+   *
+   * The five phases live in world-step.ts now — they step under node with no
+   * HUD, no keyboard and no renderer, which is the whole point. What is left
+   * here is the two things the world genuinely cannot do for itself: read the
+   * hands at the controls, and say things out loud.
    */
   private updateFlight(dt: number, elapsed: number): void {
-    const demand = this.flyPlayer(dt, elapsed);
-    this.stepNpcs(dt);
-    this.stepProjectilesAndEffects(dt);
-    if (this.stepShipSystems(dt, demand)) return;   // died in the attempt
-    this.checkHazards();
+    const demand = this.pilotDemand(dt);
+    this.applyStep(this.worldStep.step(dt, elapsed, { demand, handsOn: this.handsOn() }));
+
+    // The dust is seen, never simulated — so it is updated out here, from
+    // wherever the step left the ship. It needs our actual velocity to streak:
+    // the torus drive multiplies our travel by 8, and that is what smears the
+    // stars.
+    this.dust.update(
+      this.player.position,
+      this.player.getForward(this.tmp)
+        .multiplyScalar(this.player.speed * (this.torusEngaged && !this.massLocked() ? 8 : 1)),
+    );
+  }
+
+  /**
+   * The step decides; the Game says it. Same shape as applyCombat, and for
+   * the same reason: a phase that called the HUD could not run in a trainer.
+   */
+  private applyStep(events: readonly StepEvent[]): void {
+    for (const e of events) {
+      switch (e.kind) {
+        case 'message': this.hud.showMessage(e.text, e.seconds); break;
+      }
+    }
+  }
+
+  /**
+   * Is the human touching the controls? Both autopilots let go when they are —
+   * the combat computer hands the ship back, the docking computer breaks off.
+   */
+  private handsOn(): boolean {
+    return this.input.held(...manualFlightKeys())
+      || Math.abs(this.input.mouseX) > 0.15 || Math.abs(this.input.mouseY) > 0.15;
   }
 
   /**
@@ -1555,288 +1527,6 @@ export class Game {
     return auto ? { ...auto, fire: auto.fire || hands.fire } : hands;
   }
 
-  /**
-   * The player's own motion: one demand, applied. The docking computer still
-   * steers on top (it asks for a HEADING, not a rate — the one pilot left
-   * outside the seam) and the torus adds its own translation.
-   *
-   * @returns the demand, so the trigger is pulled once, where laser heat and
-   *          the rest of the ship's systems live.
-   */
-  private flyPlayer(dt: number, elapsed: number): FlightDemand {
-    const demand = this.pilotDemand(dt);
-    this.player.update(dt, demand);
-    if (this.dcEngaged) this.dockingComputerStep(dt);
-
-    // torus drive
-    if (this.torusEngaged) {
-      if (this.massLocked()) {
-        this.torusEngaged = false;
-        this.hud.showMessage('MASS LOCK — TORUS DISENGAGED', 3);
-        sfx.beep(300);
-      } else {
-        this.player.position.addScaledVector(this.player.getForward(this.tmp), this.player.speed * 7 * dt);
-      }
-    }
-
-    this.world.update(dt, elapsed);
-    // hand the dust our actual velocity so it can streak — the torus drive
-    // multiplies our travel by 8, and that is what makes the stars smear
-    this.dust.update(
-      this.player.position,
-      this.player.getForward(this.tmp)
-        .multiplyScalar(this.player.speed * (this.torusEngaged && !this.massLocked() ? 8 : 1)),
-    );
-
-    return demand;
-  }
-
-  /** Everyone else: decisions, despawns, collisions, and who else turns up. */
-  private stepNpcs(dt: number): void {
-    // periodic NPC-vs-NPC targeting: pirates prey on traders, the law hunts pirates
-    this.npcTargetTimer -= dt;
-    if (this.npcTargetTimer <= 0) {
-      this.npcTargetTimer = 2;
-      assignNpcTargets(this.world.npcs, this.player.position, this.commander.legalStatus);
-    }
-
-    // Snapshot: despawns and destructions below rebuild this.world.npcs, and the
-    // fleet handed to update() should be consistent for every ship in the
-    // frame rather than shrinking underneath the loop.
-    for (const npc of [...this.world.npcs]) {
-      const event = npc.update(dt, this.player, this.commander.legalStatus,
-        this.world.station, this.world.npcs, this.world.stationDockZ);
-      if (event) this.resolveNpcFire(npc, event);
-
-      if (npc.wantsDespawn) {
-        // A ship that JUMPED OUT gets the witch-flash. A ship that DOCKED gets
-        // nothing: it flew into the slot, which is not an event that emits
-        // particles. It used to get a smaller, paler burst from the same
-        // explosion system, and from outside that is indistinguishable from
-        // watching it blow up — reported as exactly that, by someone watching
-        // a trader line up perfectly and then apparently detonate.
-        if (!npc.docked) {
-          this.world.effects.explosion(npc.object.position.clone(), 0x9adfff,
-            { count: 10, speed: 120, duration: 0.7 });
-        }
-        this.world.despawn(npc);
-        continue;
-      }
-
-    }
-
-    // Ships are solid. The geometry lives in collisions.ts; what it costs is
-    // decided here, because the price is not symmetric — the player's shields
-    // absorb a ram, two NPCs bumping must not credit the player with anything,
-    // and bouncing off the station is free.
-    for (const npc of playerVsNpcs(
-      this.player.position, (k) => { this.player.speed *= k; }, this.world.npcs, this.scratch)) {
-      this.applyPlayerDamage(RAM_DAMAGE, npc.object.position);
-      this.hud.showMessage('COLLISION', 2);
-      if (npc.takeDamage(RAM_DAMAGE, this.player.position, true)) this.destroyNpc(npc);
-    }
-
-    const wrecked: NpcShip[] = [];
-    for (const [a, b] of npcVsNpcs(this.world.npcs, this.scratch)) {
-      const aPos = a.object.position.clone();
-      if (a.takeDamage(RAM_DAMAGE, b.object.position, false)) wrecked.push(a);
-      if (b.takeDamage(RAM_DAMAGE, aPos, false)) wrecked.push(b);
-    }
-    // wreckNpc, NOT destroyNpc — see npcVsNpcs
-    for (const n of wrecked) this.wreckNpc(n);
-
-    npcsVsStation(this.world.npcs, this.world.station, this.world.stationDockZ + 40, this.scratch);
-
-    // What turns up, and when: rules in encounters.ts, spawning here.
-    for (const order of stepEncounters(this.encounterTimers, dt, {
-      witchspace: this.witchspace,
-      productivity: this.system.productivity,
-      government: this.system.government,
-      traderCount: this.world.npcs.filter((n) => n.role === 'trader').length,
-      activeThargons: this.world.npcs.filter((n) => n.alive && n.role === 'thargon' && !n.inert).length,
-      hasThargoidMother: this.world.npcs.some((n) => n.alive && n.role === 'thargoid'),
-      playerFarFromStation:
-        this.player.position.distanceTo(this.world.station.position) > AMBUSH_STANDOFF,
-    })) {
-      if (order.kind === 'trader') {
-        spawnArrivingTrader(this.world, TRADER_ARRIVAL_RANGE);
-      } else if (order.kind === 'pirateWave') {
-        for (let i = 0; i < order.count; i++) {
-          this.world.spawn('pirate',
-            this.player.position.clone().add(randomDirection(new THREE.Vector3())
-              .multiplyScalar(9000 + random() * 4000)),
-            i + randomInt(4));
-        }
-        this.hud.showMessage('PIRATE SIGNATURES DETECTED', 4);
-      } else {
-        const mother = this.world.npcs.find((n) => n.alive && n.role === 'thargoid')!;
-        this.world.spawn('thargon',
-          mother.object.position.clone().add(
-            randomDirection(new THREE.Vector3()).multiplyScalar(150)),
-          randomInt(8));
-      }
-    }
-
-  }
-
-  /** Cargo, missiles, and the things that are only ever seen. */
-  private stepProjectilesAndEffects(dt: number): void {
-    // The field drifts them and says what we reached; what it is worth is
-    // ours to decide, because it touches the hold, legal status and damage.
-    for (const { canister: c } of this.world.cargo.update(dt, this.player.position)) {
-      if (!this.commander.equipment.scoops) {
-        this.applyPlayerDamage(0.06, c.object.position);
-        this.hud.showMessage('CANISTER DESTROYED ON HULL', 2);
-      } else if (cargoTonnes(this.commander) >= cargoCapacity(this.commander)) {
-        this.hud.showMessage(
-          c.kind === 'capsule' ? 'HOLD FULL — CAPSULE LOST' : 'HOLD FULL — CANISTER LOST', 3);
-      } else if (c.kind === 'capsule') {
-        // A person, not stock. See CommanderData.survivors — this was
-        // `cargo[3] += 1` and commodity 3 is Slaves, so rescuing someone made
-        // you a smuggler and the next police scan made you an Offender.
-        this.commander.survivors += 1;
-        this.hud.showMessage('SURVIVOR ABOARD', 4);
-        sfx.beep(600, 0.12);
-      } else {
-        this.commander.cargo[c.commodity] += 1;
-        this.hud.showMessage(`SCOOPED 1t ${COMMODITIES[c.commodity].name.toUpperCase()}`, 3);
-        sfx.beep(950, 0.08);
-      }
-    }
-    this.updateEncounters();
-
-    this.applyOrdnance(dt);
-    this.world.effects.update(dt);
-
-  }
-
-  /**
-   * The commander's own ship: guns, recharge, heat, and the warnings that go
-   * with them. @returns true if the frame ended in death.
-   */
-  private stepShipSystems(dt: number, demand: FlightDemand): boolean {
-    // laser + systems. The trigger came in with the rest of the demand — from
-    // the hands, the combat computer, or both — and is pulled HERE because
-    // this is where the gun's heat and energy live.
-    if (demand.fire) this.fireLaser();
-    regenerate(this.sys, dt, { energyUnit: this.commander.equipment.energyUnit });
-
-    const sunDist = this.player.position.distanceTo(this.world.sunPos);
-    if (updateCabinTemp(this.sys, dt, sunDist)) {
-      this.die('CABIN TEMPERATURE CRITICAL');
-      return true;
-    }
-    const scooped = scoopFuel(
-      dt, sunDist, this.commander.equipment.scoops, this.commander.fuel, MAX_FUEL);
-    if (scooped > 0) {
-      this.commander.fuel += scooped;
-      this.hud.showMessage('FUEL SCOOPING', 0.4);
-    }
-
-    this.autoSaveTimer -= dt;
-    if (this.autoSaveTimer <= 0) {
-      this.autoSaveTimer = AUTOSAVE_INTERVAL;
-      this.autoSave();
-    }
-
-    if (this.ecmDetectedTimer > 0) this.ecmDetectedTimer -= dt;
-    this.updateTrumbles(dt);
-
-    if (this.beaconTimer > 0) {
-      this.beaconTimer -= dt;
-      if (this.beaconTimer <= 0) this.completeRescue();
-    } else if (this.witchspace && this.commander.fuel < 10 && this.beaconTimer < 0) {
-      this.strandedHintTimer -= dt;
-      if (this.strandedHintTimer <= 0) {
-        this.strandedHintTimer = 8;
-        this.hud.showMessage('NO FUEL TO JUMP — PRESS B FOR THE DISTRESS BEACON', 5);
-      }
-    }
-
-    // flashing low-energy warning
-    if (this.energy < 1) {
-      this.energyLowTimer -= dt;
-      if (this.energyLowTimer <= 0) {
-        this.energyLowTimer = 1.2;
-        this.hud.showMessage('ENERGY LOW', 0.6);
-        sfx.beep(320, 0.1);
-      }
-    }
-
-    // police scan for illegal cargo
-    if (!this.policeScanned && !this.witchspace) {
-      if (carryingContraband(this.commander.cargo)) {
-        const policeNear = this.world.npcs.some((n) =>
-          n.alive && n.role === 'police' &&
-          n.object.position.distanceTo(this.player.position) < SCAN_RANGE);
-        if (policeNear) {
-          this.policeScanned = true;
-          this.raiseLegal(1);
-          this.hud.showMessage('POLICE SCAN: CONTRABAND DETECTED', 4);
-        }
-      }
-    }
-
-    // hyperspace countdown
-    if (this.hyperCountdown >= 0) {
-      const prev = Math.ceil(this.hyperCountdown);
-      this.hyperCountdown -= dt;
-      const now = Math.ceil(this.hyperCountdown);
-      if (now !== prev && now > 0) {
-        this.hud.showMessage(`HYPERSPACE IN ${now}`, 1.2);
-        sfx.beep(700 + (5 - now) * 100, 0.07);
-      }
-      if (this.hyperCountdown <= 0) {
-        this.hyperCountdown = -1;
-        this.completeHyperspace();
-        return true;
-      }
-    }
-
-    return this.mode !== 'flight';
-  }
-
-  /** Ground, sun and station — the ways a leg ends without a countdown. */
-  private checkHazards(): void {
-    const sunDist = this.player.position.distanceTo(this.world.sunPos);
-    const altitude =
-      this.player.position.distanceTo(this.world.planetPos) - this.world.planetRadius;
-    if (altitude < 80) {
-      this.die('CRASHED INTO THE PLANET');
-      return;
-    }
-    if (sunDist < SUN_KILL_DIST) {
-      this.die('FLEW INTO THE SUN');
-      return;
-    }
-    this.checkStation();
-
-    if (this.targetLock && !this.targetLock.alive) this.targetLock = null;
-    this.updateMissileLock();
-  }
-
-  /** Rock hermits offer trade; generation ships offer only awe. */
-  private updateEncounters(): void {
-    for (const npc of this.world.npcs) {
-      if (!npc.alive) continue;
-      const dist = npc.object.position.distanceTo(this.player.position);
-      if (npc.role === 'hermit') {
-        // must leave and come back before trading again, or you'd be stuck
-        // in a docking loop while parked alongside
-        if (dist > 900) this.hermitCooldown = false;
-        if (dist < 900 && !this.hermitCooldown) {
-          this.hud.showMessage('ROCK HERMIT — SLOW TO 20 AND CLOSE TO TRADE', 2);
-        }
-        if (dist < 320 && this.player.speed < 40 && this.mode === 'flight' && !this.hermitCooldown) {
-          this.openHermitTrade();
-        }
-      } else if (npc.role === 'generation' && dist < 6000 && !this.genShipSeen) {
-        this.genShipSeen = true;
-        this.hud.showMessage('DERELICT GENERATION SHIP — NO LIFE SIGNS', 6);
-        sfx.beep(140, 0.5);
-      }
-    }
-  }
 
   /**
    * Hermits deal in ore and ask no questions — the one place to sell
@@ -1864,49 +1554,6 @@ export class Game {
   }
 
 
-  private resolveNpcFire(npc: NpcShip, event: FireEvent): void {
-    if (event.at === 'player') {
-      // The SHIP chose the weapon (npc.ts chooseWeapon); we only apply it.
-      if (event.weapon === 'missile') {
-        this.enemyLaunchMissile(npc);
-        return;
-      }
-      const dist = npc.object.position.distanceTo(this.player.position);
-      sfx.enemyLaser();
-      const hit = random() < npcHitChance(dist);
-      // visible bolt: to us on a hit, wide of us on a miss
-      const to = hit
-        ? this.player.position.clone()
-        : this.player.position.clone().add(
-            randomDirection(new THREE.Vector3()).multiplyScalar(80 + random() * 140));
-      this.world.effects.tracer(
-        npc.nosePosition(this.tmp).clone(), to,
-        npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
-      if (hit) this.applyPlayerDamage(npcShotDamage(random()), npc.object.position);
-      return;
-    }
-    // NPC shooting NPC
-    const target = event.at;
-    this.world.effects.tracer(
-      npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
-    if (random() < NPC_VS_NPC_HIT) {
-      if (target.takeDamage(NPC_VS_NPC_DAMAGE, npc.object.position)) {
-        this.wreckNpc(target); // no player credit
-      }
-    }
-  }
-
-
-  /** @internal — driven by test/playtest.js */
-  massLocked(): boolean {
-    if (this.player.position.distanceTo(this.world.station.position) < 5000) return true;
-    if (this.player.position.distanceTo(this.world.planetPos) - this.world.planetRadius < 4000) return true;
-    for (const npc of this.world.npcs) {
-      if (npc.alive && npc.role !== 'asteroid' &&
-          npc.object.position.distanceTo(this.player.position) < 4500) return true;
-    }
-    return false;
-  }
 
   // --- input ---------------------------------------------------------------
 

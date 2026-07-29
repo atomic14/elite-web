@@ -12,6 +12,7 @@ Everything else is a consequence, and each consequence is testable:
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
 | the renderer never writes state | you can delete it and still simulate | done for the HUD; `step()` still touches the DOM in four places |
 | the world builds without a browser | training against the real step | **done** — `World.build()` runs under node |
+| ...and STEPS without one | the trainer can use the real engine | **done** — `world-step.ts`, stepped headless by `npm test` |
 | one rule, one home | the bug class that ate this codebase | mostly |
 | every rule is unit-testable headless | 390 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
@@ -59,10 +60,17 @@ an NPC's does not.
 
 ### Known gaps against it
 
-- `game.ts` is 2355 lines, down from 3244. It is the orchestrator, and what
-  is left is mostly orchestration: the fixed-timestep loop, the step order,
-  input routing and the docked/flight mode machine. The rules have moved to
-  the ~30 files around it.
+- `game.ts` is 1871 lines, down from 3244. It is the orchestrator, and what
+  is left is mostly orchestration: the fixed-timestep loop, input routing, the
+  docked/flight mode machine, and the consequences the modules report. The
+  rules have moved to the ~30 files around it — and the **world step itself**
+  is now `world-step.ts`: the five phases of flight, with the fourteen
+  `hud.showMessage` calls inside them turned into returned `StepEvent`s. It
+  runs under node with no Hud, no Input and no renderer (`npm test` flies 600
+  steps of it and asserts the run replays byte-identically), which is what the
+  trainer needs. What it cannot own it asks for through `StepHost` — eleven
+  verbs and one question, all of them consequences that reach outside the sky
+  (a bounty, a legal status, a save, a screen, the end of the run).
 - `npc.ts` is 786 lines and holds behaviour and brain flight. The explosions,
   the ship roster and the brain selection have moved to `effects.ts`,
   `ship-specs.ts` and `brains.ts`.
@@ -105,8 +113,10 @@ src/
                             and has never heard of a keyboard
 
   game/
-    game.ts                 THE ORCHESTRATOR: the frame, the step order, input
-                            routing, and every consequence the modules report
+    game.ts                 THE ORCHESTRATOR: the frame, input routing, the
+                            mode machine, and every consequence modules report
+    world-step.ts           one slice of the world, with nothing on screen:
+                            the five phases of flight, reporting StepEvents
     state.ts                GameState: everything the step may change, in one
                             object. freshState() builds it with no browser
     session.ts              SessionState: the flight flags and timers
@@ -241,11 +251,11 @@ Screens (`ui/screens.ts`) are pure render functions over DOM, routed by
 `ui/screen-host.ts`; the HUD (`hud/hud.ts`) is a dumb painter fed one state
 object per frame, computed by `hud/hud-model.ts`.
 
-**Still mixed up in game.ts**, and worth knowing before you go looking: the
-flight loop, laser fire, spawning, docking, hyperspace and missions. The
-direction of travel is that the world step becomes runnable without a
-renderer — three.js maths works fine under node, so what blocks it is only
-that `Game`'s constructor builds a renderer and DOM listeners.
+**Still mixed up in game.ts**, and worth knowing before you go looking: laser
+fire, spawning, the docking and hyperspace *transitions*, and missions. The
+flight loop itself has moved to `world-step.ts` and runs headless; what is left
+blocking a fully browser-free `Game` is its constructor, which builds a
+renderer and DOM listeners, and the command keys `step()` still reads directly.
 
 Two intentional oddities inside it:
 

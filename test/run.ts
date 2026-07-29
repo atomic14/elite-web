@@ -18,6 +18,9 @@ import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
 } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
+import {
+  WorldStep, massLocked, type StepEvent, type StepHost,
+} from '../src/game/world-step.ts';
 import { freshState } from '../src/game/state.ts';
 import { newCommander, MAX_FUEL } from '../src/game/commander.ts';
 import {
@@ -727,6 +730,169 @@ console.log('\nheadless world');
     world.planetPos.length() > 1e7);
 }
 
+// --- and the world STEPS without a browser -----------------------------------
+//
+// The sequel to the block above, and the drop-dead requirement for training
+// against the real engine: the five phases of flight used to be private
+// methods of game.ts that called `this.hud.showMessage` fourteen times, so the
+// simulation could not advance without a HUD, a keyboard and a WebGL context.
+//
+// They are world-step.ts now. Everything below constructs the pieces by hand —
+// a World, a freshState, an Ordnance and a twelve-method StepHost stub — and
+// flies them under node. None of this was expressible before the extraction.
+
+console.log('\nheadless world step');
+{
+  /** Everything a step needs, plus a log of what it asked the host to do. */
+  const arrival = (seed: number) => {
+    seedWorld(seed);
+    const state = freshState(newCommander());
+    state.world.build(state.systems[state.commander.systemIndex]);
+    const combat = new Combat(state.world);
+    const ordnance = new Ordnance(state.world);
+    const scratch = {
+      a: new THREE.Vector3(), b: new THREE.Vector3(),
+      q: new THREE.Quaternion(), ray: new THREE.Raycaster(),
+    };
+    const log = {
+      deaths: [] as string[], saves: 0, docks: 0, shots: 0, damage: 0, hermits: 0,
+    };
+    // The host is the ONLY thing standing behind the step, and it is a stub:
+    // no Hud, no screens, no localStorage, no renderer.
+    const host: StepHost = {
+      inFlight: () => log.deaths.length === 0 && log.docks === 0,
+      applyPlayerDamage: (amount, from) => {
+        log.damage += amount;
+        combat.hitPlayer(state.sys, amount, from,
+          state.player.position, state.player.quaternion, scratch);
+      },
+      destroyNpc: (npc) => { combat.destroy(state.commander, npc); },
+      wreckNpc: (npc) => { combat.wreck(npc); },
+      fireLaser: () => { log.shots += 1; },
+      raiseLegal: () => {},
+      die: (reason) => { log.deaths.push(reason); },
+      dock: () => { log.docks += 1; },
+      completeHyperspace: () => {},
+      completeRescue: () => {},
+      openHermitTrade: () => { log.hermits += 1; },
+      autoSave: () => { log.saves += 1; },
+    };
+
+    // out at the witchpoint with the planet ahead, which is where an arrival
+    // starts — and well clear of the sun, the station and the ground
+    state.player.position.copy(state.world.station.position).normalize()
+      .multiplyScalar(state.world.planetRadius * 16);
+    state.player.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(
+      state.player.position, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)));
+    state.player.speed = 200;
+    for (let i = 0; i < 3; i++) {
+      state.world.spawn('pirate',
+        state.player.position.clone().add(new THREE.Vector3(320 * (i - 1), 140, -1500)), i);
+    }
+    state.world.spawn('trader',
+      state.player.position.clone().add(new THREE.Vector3(-900, -200, -2600)), 7);
+    return { state, ordnance, log, step: new WorldStep(state, ordnance, host) };
+  };
+
+  const fly = (r: ReturnType<typeof arrival>, steps: number) => {
+    const events: StepEvent[] = [];
+    for (let i = 0; i < steps; i++) {
+      events.push(...r.step.step(1 / 60, i / 60,
+        { demand: { rollRate: 0.3, pitchRate: 0.15, throttle: 1, fire: true }, handsOn: false }));
+    }
+    return events;
+  };
+
+  /** What the run LOOKED like, to the byte — the determinism fixture. */
+  const trace = (r: ReturnType<typeof arrival>) => JSON.stringify({
+    npcs: r.state.world.npcs.map((n) => [
+      n.role, n.hp,
+      n.object.position.toArray().map((v) => v.toFixed(6)),
+      n.object.quaternion.toArray().map((v) => v.toFixed(6)),
+    ]),
+    player: [
+      r.state.player.position.toArray().map((v) => v.toFixed(6)),
+      r.state.player.quaternion.toArray().map((v) => v.toFixed(6)),
+      r.state.player.speed,
+    ],
+    sys: r.state.sys,
+    session: r.state.session,
+  });
+
+  {
+    const run = arrival(20_260_729);
+    run.state.session.autoSaveTimer = 0.5;   // 600 steps is 10s; the timer is 20
+    const before = run.state.player.position.clone();
+    const flew = run.state.world.npcs.map((n) => n.object.position.clone());
+    const events = fly(run, 600);
+
+    check('600 steps of the real world run with no Hud, no Input and no renderer',
+      run.state.player.position.distanceTo(before) > 100);
+    check('...with ships still flying in it', run.state.world.npcs.length >= 3);
+    check('...that have actually moved',
+      run.state.world.npcs.some((n, i) => flew[i] && n.object.position.distanceTo(flew[i]) > 10));
+    check('...the trigger reached the gun through the host', run.log.shots === 600);
+    check('...the autosave asked the host rather than localStorage', run.log.saves >= 1);
+    check('...and nothing it reported is anything but an event',
+      events.every((e) => e.kind === 'message' && typeof e.text === 'string'));
+  }
+
+  // the fourteen hud.showMessage calls: the step REPORTS them now
+  {
+    const run = arrival(4242);
+    run.state.session.torusEngaged = true;
+    run.state.player.position.copy(run.state.world.station.position)
+      .add(new THREE.Vector3(0, 0, 3000));   // inside the 5000-unit mass lock
+    const events = fly(run, 1);
+    check('a mass lock returns a message instead of calling a HUD',
+      events.some((e) => e.kind === 'message' && e.text.startsWith('MASS LOCK')));
+    check('...and the torus really disengaged', !run.state.session.torusEngaged);
+  }
+  {
+    const run = arrival(4243);
+    run.state.player.position.copy(run.state.world.planetPos);   // straight down
+    fly(run, 1);
+    check('flying into the ground ends the run through the host',
+      run.log.deaths[0] === 'CRASHED INTO THE PLANET');
+  }
+  {
+    const run = arrival(4244);
+    run.state.player.position.copy(run.state.world.sunPos);
+    fly(run, 1);
+    check('...and so does flying into the sun', run.log.deaths[0] === 'FLEW INTO THE SUN');
+  }
+
+  // --- determinism: same seed, same inputs, same run -------------------------
+  //
+  // The step draws from ONE seeded stream (game/rng.ts) — NPC decisions, hit
+  // rolls, misses, wrecks, encounter timers. Extracting it must not move a
+  // single draw across a branch, and this is what says so.
+  {
+    const a = arrival(7_777_777);
+    fly(a, 600);
+    const first = trace(a);
+    const b = arrival(7_777_777);
+    fly(b, 600);
+    check('the same seed and the same inputs give a byte-identical run',
+      trace(b) === first);
+    check('...and the fixture is not vacuously empty',
+      a.state.world.npcs.length > 0 && first.length > 500);
+    const c = arrival(8_888_888);
+    fly(c, 600);
+    check('...while a different seed does not', trace(c) !== first);
+  }
+
+  // massLocked() is the flight keys' rule and the torus drive's, and it is one
+  // function over the state now rather than a method on the Game.
+  {
+    const run = arrival(4245);
+    run.state.player.position.copy(run.state.world.station.position);
+    check('mass lock is a free function over the state', massLocked(run.state));
+    run.state.player.position.set(1e7, 1e7, 1e7);
+    check('...and out in the deep it is clear', !massLocked(run.state));
+  }
+}
+
 // --- resolving a hit ---------------------------------------------------------
 //
 // The bounty, the kill credit, the contract tick and the legal offence used to
@@ -1370,6 +1536,9 @@ console.log('\npurity');
     'commander.ts', 'shop.ts', 'contracts.ts', 'law.ts', 'jettison.ts',
     'systems.ts', 'trumbles.ts', 'hyperspace.ts', 'missions.ts', 'population.ts',
     'encounters.ts', 'gunnery.ts', 'docking.ts', 'state.ts', 'session.ts',
+    // the whole world step, as of the extraction out of game.ts — this is the
+    // line that says the simulation can advance without a browser
+    'world-step.ts',
   ];
   for (const f of PURE) {
     const src = readFileSync(new URL(`../src/game/${f}`, import.meta.url), 'utf8')

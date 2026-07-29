@@ -276,9 +276,19 @@ and no WebGL (measured, not assumed). Four things were, and three are fixed:
   `npm test` builds and steps a whole world headlessly. Giving `Game` an
   optional render stack would not have been sufficient on its own.
 
-  `step()` is also not yet renderer-free: it reaches for `document` for the
+  `Game.step()` is still not renderer-free: it reaches for `document` for the
   help panel, the bomb flash, the menu cursor in `screen-host.ts`, and the
-  docked-menu repaints.
+  docked-menu repaints. **The WORLD step is** — `src/game/world-step.ts` holds
+  the five phases of flight (`flyPlayer`, `stepNpcs`,
+  `stepProjectilesAndEffects`, `stepShipSystems`, `checkHazards`) and is in the
+  purity block. It takes a `FlightDemand` and returns `StepEvent`s instead of
+  calling the HUD; the consequences it cannot own — a bounty, a legal status, a
+  save, a screen, the end of the run — it asks for through `StepHost`, which
+  `game.ts` implements in one object literal (`stepHost()`). `npm test` builds
+  the pieces by hand and flies 600 steps under node with no Hud at all, and
+  asserts the run is byte-identical from the same seed. **Don't put a
+  `hud`/`document`/`Input` reference back into that file** — the trainer is the
+  whole point of it.
 
 Pieces of the world step that are already out, pure and unit-tested:
 `game/collisions.ts` (who is overlapping whom), `game/systems.ts` (energy,
