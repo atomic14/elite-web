@@ -32,6 +32,9 @@ import { planDocking, makeDockPlan } from './docking.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import {
+  laserForView, canFire, chargeShot, hitCone, canisterCone, LASER_RANGE, AIM_ASSIST,
+} from './gunnery.ts';
+import {
   stepEncounters, freshTimers, AMBUSH_STANDOFF, type EncounterTimers,
 } from './encounters.ts';
 import {
@@ -97,7 +100,6 @@ function cheatMode(): boolean {
   return !!(window as unknown as Record<string, unknown>).__cheat;
 }
 
-const LASER_GRAZE = 0.9;
 
 /**
  * Grazing radius for drifting cargo, in world units. Canisters are ~12 units
@@ -106,7 +108,6 @@ const LASER_GRAZE = 0.9;
  * is a deliberate act — so they get a flat, generous tolerance instead of the
  * silhouette-proportional one ships get.
  */
-const CANISTER_GRAZE = 20;
 
 /**
  * Aim assist: an angular allowance ON TOP of the target's silhouette, so a
@@ -122,18 +123,9 @@ const CANISTER_GRAZE = 20;
  * The reticle is drawn to this exact angle (see #crosshair), which is the
  * point: the circle is not decoration, it is the envelope.
  */
-const AIM_ASSIST = 0.035;
 /** Depth in camera space at which the cockpit beams converge. */
 const BEAM_Z = 2.6;
-const ASSIST_FADE_START = 900;
-const ASSIST_FADE_END = 2400;
 
-/** The assist allowance at a given range, in radians. */
-function assistAt(dist: number): number {
-  if (dist <= ASSIST_FADE_START) return AIM_ASSIST;
-  if (dist >= ASSIST_FADE_END) return 0;
-  return AIM_ASSIST * (1 - (dist - ASSIST_FADE_START) / (ASSIST_FADE_END - ASSIST_FADE_START));
-}
 
 /**
  * Where the sight sits, as a fraction of canvas height. The cockpit console
@@ -145,7 +137,7 @@ const SIGHT_Y = 0.42;
 import {
   loadCommander, saveCommander, formatCredits, MAX_FUEL,
   cargoCapacity, cargoTonnes, LEGAL_NAMES, ILLEGAL_GOODS, TRUMBLE_PURGE_TEMP, killValue,
-  type CommanderData, type LaserType, type Contract,
+  type CommanderData, type Contract,
 } from './commander.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
@@ -155,12 +147,6 @@ import {
 
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
 
-const LASER_RANGE = 3500;
-const LASERS: Record<LaserType, { damage: number; cooldown: number; heat: number }> = {
-  pulse: { damage: 0.16, cooldown: 0.24, heat: 0.055 },
-  beam: { damage: 0.13, cooldown: 0.09, heat: 0.035 },
-  military: { damage: 0.25, cooldown: 0.09, heat: 0.03 },
-};
 const MISSILE_SPEED = 700;
 // Sun proximity tuning (ordered: heat starts < scooping < temp maxes < death).
 // The sun itself orbits ~320k out (world/system-scene.ts).
@@ -1136,23 +1122,9 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   fireLaser(): void {
-    // front mount carries the fitted laser; rear/left/right are pulse
-    // lasers if purchased. Simplification vs the original: all mounts share
-    // one cooldown/heat.
-    let laser = LASERS[this.commander.equipment.laser];
-    if (this.view === 1) {
-      if (!this.commander.equipment.rearLaser) return;
-      laser = LASERS.pulse;
-    } else if (this.view === 2) {
-      if (!this.commander.equipment.leftLaser) return;
-      laser = LASERS.pulse;
-    } else if (this.view === 3) {
-      if (!this.commander.equipment.rightLaser) return;
-      laser = LASERS.pulse;
-    }
-    if (this.laserCooldown > 0 || this.laserTemp >= 0.98) return;
-    this.laserCooldown = laser.cooldown;
-    this.laserTemp = Math.min(1, this.laserTemp + laser.heat);
+    const laser = laserForView(this.commander.equipment, this.view);
+    if (!laser || !canFire(this.sys)) return;
+    chargeShot(this.sys, laser);
     this.beamTimer = 0.12;
     sfx.laser();
 
@@ -1221,7 +1193,7 @@ export class Game {
         const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
         const dist = to.length();
         if (dist > bestDist) continue;
-        const cone = Math.max(0.012, Math.atan((npc.radius * LASER_GRAZE) / dist)) + assistAt(dist);
+        const cone = hitCone(npc.radius, dist);
         if (forward.angleTo(to.normalize()) < cone) {
           best = npc;
           bestDist = dist;
@@ -1231,7 +1203,7 @@ export class Game {
         const to = this.tmp2.copy(c.object.position).sub(this.player.position);
         const dist = to.length();
         if (dist > bestDist) continue;
-        const cone = Math.max(0.012, Math.atan(CANISTER_GRAZE / dist));
+        const cone = canisterCone(dist);
         if (forward.angleTo(to.normalize()) < cone) {
           best = null;
           hitCanister = c;
@@ -2458,7 +2430,7 @@ export class Game {
         const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
         const dist = to.length();
         if (dist > LASER_RANGE) continue;
-        const cone = Math.max(0.012, Math.atan((npc.radius * LASER_GRAZE) / dist)) + assistAt(dist);
+        const cone = hitCone(npc.radius, dist);
         if (forward.angleTo(to.normalize()) < cone) { on = true; break; }
       }
     }

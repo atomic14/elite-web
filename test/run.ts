@@ -13,6 +13,9 @@ import { isHostileToPlayer } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { stepEncounters } from '../src/game/encounters.ts';
 import {
+  laserForView, canFire, chargeShot, assistAt, hitCone, canisterCone, LASERS, AIM_ASSIST,
+} from '../src/game/gunnery.ts';
+import {
   freshSystems, applyDamage, regenerate, durability, updateCabinTemp, scoopFuel,
 } from '../src/game/systems.ts';
 import {
@@ -502,6 +505,59 @@ console.log('\nchart metric has one owner');
   const nav = read('../src/galaxy/navigation.ts');
   check('navigation.ts imports nothing but the system type',
     (nav.match(/^import /gm) ?? []).length === 1 && /import type \{ StarSystem \}/.test(nav));
+}
+
+// --- the player's guns ------------------------------------------------------
+
+// systems.ts owns the heat and the cooldown; gunnery.ts decides what pulling
+// the trigger means. Finding what the shot hit stays in game.ts — that is a
+// raycast against the scene graph, and there is no honest way to test it
+// without the hulls.
+
+console.log('\ngunnery');
+{
+  const equip = (over: Record<string, unknown> = {}) => ({
+    laser: 'pulse', rearLaser: false, leftLaser: false, rightLaser: false, ...over,
+  }) as Parameters<typeof laserForView>[0];
+
+  check('the front mount carries whatever is fitted',
+    laserForView(equip({ laser: 'military' }), 0)?.damage === LASERS.military.damage);
+  check('an empty rear mount does not fire', laserForView(equip(), 1) === null);
+  check('a purchased rear mount fires a PULSE laser, whatever is up front',
+    laserForView(equip({ laser: 'military', rearLaser: true }), 1)?.damage === LASERS.pulse.damage);
+  check('left and right mounts behave the same way',
+    laserForView(equip({ leftLaser: true }), 2) !== null
+    && laserForView(equip({ rightLaser: true }), 3) !== null
+    && laserForView(equip({ leftLaser: true }), 3) === null);
+
+  {
+    const sys = freshSystems();
+    check('a cool, ready laser fires', canFire(sys));
+    chargeShot(sys, LASERS.pulse);
+    check('...and then has to cool down', !canFire(sys));
+    sys.laserCooldown = 0;
+    check('...and fires again once it has', canFire(sys));
+    sys.laserTemp = 0.99;
+    check('an overheated laser cuts out', !canFire(sys));
+  }
+  {
+    // all mounts share one heat budget — a documented simplification
+    const sys = freshSystems();
+    for (let i = 0; i < 30; i++) { sys.laserCooldown = 0; if (canFire(sys)) chargeShot(sys, LASERS.pulse); }
+    check('held fire eventually overheats the gun', !canFire(sys));
+  }
+  {
+    check('the assist is full at knife range', assistAt(0) === AIM_ASSIST);
+    check('...tapers with distance',
+      assistAt(1500) > 0 && assistAt(1500) < AIM_ASSIST);
+    check('...and is gone by the fade-out range', assistAt(3000) === 0);
+    check('a bigger ship is easier to hit at the same range',
+      hitCone(34, 1000) > hitCone(18, 1000));
+    check('the same ship is harder to hit further away',
+      hitCone(18, 2000) < hitCone(18, 500));
+    check('cargo gets a flat tolerance and no assist',
+      canisterCone(500) > 0 && canisterCone(3000) < canisterCone(500));
+  }
 }
 
 // --- what turns up, and when ------------------------------------------------
