@@ -13,7 +13,7 @@ import { LivingGalaxy } from '../galaxy/living.ts';
 import { generateContractOffers, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts.ts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
-import { buildShip, MISSILE, CANISTER } from '../ships/geometry.ts';
+import { buildShip, CANISTER } from '../ships/geometry.ts';
 import { PlayerShip } from '../player.ts';
 import { Input } from '../engine/input.ts';
 import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
@@ -36,6 +36,7 @@ import { assignNpcTargets } from './npc-targeting.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer, CC_MAX_SPEED, CC_ACCEL } from './combat-computer.ts';
 import { traceShot } from './shot.ts';
+import { Ordnance, ECM_ENERGY_COST, type Missile } from './ordnance.ts';
 import {
   laserForView, canFire, chargeShot, hitCone, LASER_RANGE, AIM_ASSIST,
 } from './gunnery.ts';
@@ -156,7 +157,6 @@ import {
  * speed from the run it came from.
  */
 export interface SessionState {
-  missileArmed: boolean;
   hyperCountdown: number;
   torusEngaged: boolean;
   witchspace: boolean;
@@ -201,7 +201,6 @@ const MAX_FRAME_TIME = 0.25;
 /** ...and the most steps one frame may run, so a stall cannot spiral. */
 const MAX_STEPS_PER_FRAME = 5;
 
-const MISSILE_SPEED = 700;
 // Sun proximity tuning (ordered: heat starts < scooping < temp maxes < death).
 // The sun itself orbits ~320k out (world/system-scene.ts).
 /**
@@ -230,13 +229,6 @@ const AXIS_Z_CC = new THREE.Vector3(0, 0, 1);
 const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
   new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a));
 
-interface Missile {
-  object: THREE.Object3D;
-  /** null → hostile missile homing on the player. */
-  target: NpcShip | null;
-  life: number;
-}
-
 interface Canister {
   object: THREE.Object3D;
   /** commodity index for cargo; ignored for capsules */
@@ -261,7 +253,6 @@ export class Game {
   world!: SystemScene;
   npcs: NpcShip[] = [];
   private explosions: Explosion[] = [];
-  private missiles: Missile[] = [];
 
   readonly player: PlayerShip;
   readonly input = new Input();
@@ -274,7 +265,6 @@ export class Game {
    */
   /** the flight session, in one place — see SessionState */
   readonly session: SessionState = {
-    missileArmed: false,
     hyperCountdown: -1,
     torusEngaged: false,
     witchspace: false,
@@ -297,8 +287,6 @@ export class Game {
     dcEngaged: false,
   };
 
-  get missileArmed(): boolean { return this.session.missileArmed; }
-  set missileArmed(v: boolean) { this.session.missileArmed = v; }
   get hyperCountdown(): number { return this.session.hyperCountdown; }
   set hyperCountdown(v: number) { this.session.hyperCountdown = v; }
   get torusEngaged(): boolean { return this.session.torusEngaged; }
@@ -362,7 +350,6 @@ export class Game {
 
   private tracers: Tracer[] = [];
 
-  targetLock: NpcShip | null = null;
   /** missile armed but not yet locked (the original's yellow pylon) */
   private view = 0; // 0 front, 1 rear, 2 left, 3 right
 
@@ -416,6 +403,70 @@ export class Game {
   private ecmDetectedTimer = 0; // console 'E' dwell
   // combat computer: the jameson-defend policy flying the player's ship
   private readonly combatComputer = new CombatComputer();
+  /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
+  private readonly ordnance = new Ordnance(() => ({
+    commander: this.commander,
+    npcs: this.npcs,
+    playerPos: this.player.position,
+    viewDir: (out) => this.viewDir(out),
+    message: (text, seconds) => this.hud.showMessage(text, seconds),
+    add: (o) => this.scene.add(o),
+    remove: (o) => this.scene.remove(o),
+  }));
+
+  /** Missiles in flight. Owned by `ordnance`; exposed for the HUD and saves. */
+  get missiles(): Missile[] { return this.ordnance.missiles; }
+  get targetLock(): NpcShip | null { return this.ordnance.targetLock; }
+  set targetLock(v: NpcShip | null) { this.ordnance.targetLock = v; }
+  get missileArmed(): boolean { return this.ordnance.armed; }
+  set missileArmed(v: boolean) { this.ordnance.armed = v; }
+
+  /** Apply what the ordnance did. It reports; the consequences are ours. */
+  private applyOrdnance(dt: number): void {
+    for (const e of this.ordnance.step(dt)) {
+      if (e.kind === 'killed') {
+        e.npc.takeDamage(99, undefined, true);
+        this.destroyNpc(e.npc);
+      } else if (e.kind === 'hitPlayer') {
+        this.addExplosion(e.at, 0xff8866);
+        sfx.explosion();
+        this.applyPlayerDamage(e.damage, e.at);
+      } else if (e.kind === 'ecmDefeated') {
+        this.addExplosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
+        this.ecmDetectedTimer = 2;
+        this.hud.showMessage('TARGET E.C.M. — MISSILE DESTROYED', 3);
+        sfx.ecm();
+      } else {
+        this.addExplosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
+      }
+    }
+  }
+
+  private armMissile(): void { this.ordnance.arm(); }
+  private updateMissileLock(): void { this.ordnance.updateLock(); }
+  private launchMissile(): void { this.ordnance.launch(); }
+
+  private triggerEcm(): void {
+    if (this.ordnance.triggerEcm(this.energy)) this.energy -= ECM_ENERGY_COST;
+  }
+
+  private detonateEnergyBomb(): void {
+    const flash = document.getElementById('bomb-flash');
+    if (flash) {
+      flash.classList.add('boom');
+      void flash.offsetWidth;
+      flash.classList.remove('boom');
+    }
+    for (const npc of this.ordnance.detonateEnergyBomb()) {
+      npc.takeDamage(99, this.player.position, true);
+      this.destroyNpc(npc);
+    }
+  }
+
+  private enemyLaunchMissile(npc: NpcShip): void {
+    npc.missiles -= 1;
+    this.ordnance.launchHostile(npc.nosePosition(this.tmp).clone());
+  }
 
   /**
    * Energy, shields, laser heat and cabin temperature. The model lives in
@@ -660,10 +711,8 @@ export class Game {
 
   private clearNpcs(): void {
     for (const n of this.npcs) this.scene.remove(n.object);
-    for (const m of this.missiles) this.scene.remove(m.object);
     this.npcs = [];
-    this.missiles = [];
-    this.targetLock = null;
+    this.ordnance.clear();
   }
 
   /** @internal — driven by test/playtest.js */
@@ -1018,15 +1067,13 @@ export class Game {
     this.market = structuredClone(snap.market) as MarketEntry[];
     this.hermitMarket = structuredClone(snap.hermitMarket) as MarketEntry[];
     this.contractOffers = structuredClone(snap.contractOffers) as Contract[];
+    this.ordnance.clear();
     this.targetLock = snap.targetLock >= 0 ? (this.npcs[snap.targetLock] ?? null) : null;
-    for (const m of this.missiles) this.scene.remove(m.object);
-    this.missiles = snap.missiles.map((m) => {
-      const object = buildShip(MISSILE, 0xffd0b0);
-      object.position.set(...m.pos);
-      object.quaternion.set(...m.quat);
-      this.scene.add(object);
-      return { object, target: m.targetIndex >= 0 ? (this.npcs[m.targetIndex] ?? null) : null, life: m.life };
-    });
+    for (const m of snap.missiles) {
+      this.ordnance.restore(
+        new THREE.Vector3(...m.pos), new THREE.Quaternion(...m.quat),
+        m.targetIndex >= 0 ? (this.npcs[m.targetIndex] ?? null) : null, m.life);
+    }
     this.world.station.quaternion.set(...snap.stationQuat);
     this.world.station.updateMatrixWorld(true);
     this.baseMode = snap.mode;
@@ -1511,163 +1558,13 @@ export class Game {
     this.scene.add(e.object);
   }
 
-  /** T arms a missile; it locks itself when a target enters the sights. */
-  private armMissile(): void {
-    if (this.commander.missiles <= 0) {
-      this.hud.showMessage('NO MISSILES', 2);
-      sfx.beep(180);
-      return;
-    }
-    if (this.targetLock) {
-      this.hud.showMessage('ALREADY LOCKED — U TO UNARM', 2);
-      return;
-    }
-    this.missileArmed = !this.missileArmed;
-    this.hud.showMessage(this.missileArmed ? 'MISSILE ARMED' : 'MISSILE UNARMED', 2);
-    sfx.beep(this.missileArmed ? 700 : 400, 0.08);
-  }
 
-  /** While armed, lock onto whatever enters the crosshairs. */
-  private updateMissileLock(): void {
-    if (!this.missileArmed || this.targetLock) return;
-    const forward = this.viewDir(this.tmp);
-    let best: NpcShip | null = null;
-    let bestAngle = 0.09; // the crosshair region, tighter than the old snap
-    for (const npc of this.npcs) {
-      if (!npc.alive || npc.role === 'asteroid') continue;
-      const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
-      if (to.length() > 5500) continue;
-      const angle = forward.angleTo(to.normalize());
-      if (angle < bestAngle) {
-        bestAngle = angle;
-        best = npc;
-      }
-    }
-    if (best) {
-      this.targetLock = best;
-      this.missileArmed = false;
-      this.hud.showMessage('MISSILE LOCKED', 2);
-      sfx.beep(1200, 0.12);
-    }
-  }
 
-  private launchMissile(): void {
-    if (this.commander.missiles <= 0) {
-      sfx.beep(180);
-      return;
-    }
-    if (!this.targetLock || !this.targetLock.alive) {
-      this.hud.showMessage('NO TARGET LOCK', 2);
-      sfx.beep(220);
-      return;
-    }
-    this.commander.missiles -= 1;
-    const obj = buildShip(MISSILE, 0xffd0a0);
-    obj.position.copy(this.player.position).addScaledVector(this.player.getForward(this.tmp), 30);
-    obj.quaternion.copy(this.player.quaternion);
-    this.scene.add(obj);
-    this.missiles.push({ object: obj, target: this.targetLock, life: 25 });
-    this.targetLock = null;
-    sfx.missile();
-  }
 
-  private updateMissiles(dt: number): void {
-    for (const m of [...this.missiles]) {
-      m.life -= dt;
-      const dead = (m.target !== null && !m.target.alive) || m.life <= 0;
-      if (dead) {
-        this.removeMissile(m, true);
-        continue;
-      }
-      const targetPos = m.target ? m.target.object.position : this.player.position;
-      const dir = this.tmp.copy(targetPos).sub(m.object.position);
-      const dist = dir.length();
-      // ECM-equipped targets can fry an incoming missile
-      if (m.target && m.target.hasEcm && dist < 2800 && random() < dt * 0.45) {
-        this.removeMissile(m, true);
-        this.ecmDetectedTimer = 2;
-        this.hud.showMessage('TARGET E.C.M. — MISSILE DESTROYED', 3);
-        sfx.ecm();
-        continue;
-      }
-      this.tmpM.lookAt(ZERO, dir, UP);
-      this.tmpQ.setFromRotationMatrix(this.tmpM);
-      m.object.quaternion.rotateTowards(this.tmpQ, 2.5 * dt);
-      this.tmp.set(0, 0, -1).applyQuaternion(m.object.quaternion);
-      m.object.position.addScaledVector(this.tmp, MISSILE_SPEED * dt);
-      if (dist < 50) {
-        const target = m.target;
-        this.removeMissile(m, false);
-        if (target) {
-          target.takeDamage(99, undefined, true);
-          this.destroyNpc(target);
-        } else {
-          this.addExplosion(m.object.position.clone(), 0xff8866);
-          sfx.explosion();
-          this.applyPlayerDamage(1.3, m.object.position);
-        }
-      }
-    }
-  }
 
-  private removeMissile(m: Missile, withExplosion: boolean): void {
-    if (withExplosion) this.addExplosion(m.object.position.clone(), 0xffb444, { count: 12, duration: 0.8 });
-    this.scene.remove(m.object);
-    this.missiles = this.missiles.filter((x) => x !== m);
-  }
 
-  /** ECM: fries every missile currently in flight, at an energy cost. */
-  private triggerEcm(): void {
-    if (!this.commander.equipment.ecm) {
-      this.hud.showMessage('NO E.C.M. FITTED', 2);
-      sfx.beep(220);
-      return;
-    }
-    if (this.energy < 1) {
-      sfx.beep(180);
-      return;
-    }
-    this.energy -= 1;
-    for (const m of [...this.missiles]) this.removeMissile(m, true);
-    this.ecmDetectedTimer = 2;
-    this.hud.showMessage('E.C.M. ACTIVATED', 2);
-    sfx.ecm();
-  }
 
-  /** The Medusa Pandora: everything smaller than a station dies. */
-  private detonateEnergyBomb(): void {
-    if (!this.commander.equipment.energyBomb) {
-      this.hud.showMessage('NO ENERGY BOMB FITTED', 3);
-      sfx.beep(220);
-      return;
-    }
-    this.commander.equipment.energyBomb = false;
-    sfx.bomb();
-    const flash = document.getElementById('bomb-flash')!;
-    flash.classList.add('boom');
-    void flash.offsetWidth;
-    flash.classList.remove('boom');
-    for (const npc of [...this.npcs]) {
-      if (!npc.alive || npc.role === 'thargoid') continue; // thargoids shrug it off
-      if (npc.object.position.distanceTo(this.player.position) > 8000) continue;
-      npc.takeDamage(99, this.player.position);
-      this.destroyNpc(npc);
-    }
-    for (const m of [...this.missiles]) this.removeMissile(m, true);
-    this.hud.showMessage('ENERGY BOMB DETONATED', 4);
-  }
 
-  private enemyLaunchMissile(npc: NpcShip): void {
-    npc.missiles -= 1;
-    const obj = buildShip(MISSILE, 0xff9a8a);
-    npc.nosePosition(this.tmp);
-    obj.position.copy(this.tmp);
-    obj.quaternion.copy(npc.object.quaternion);
-    this.scene.add(obj);
-    this.missiles.push({ object: obj, target: null, life: 30 });
-    this.hud.showMessage('INCOMING MISSILE', 3);
-    sfx.missile();
-  }
 
   /** @internal — driven by test/playtest.js */
   applyPlayerDamage(amount: number, from: THREE.Vector3): void {
@@ -2134,7 +2031,7 @@ export class Game {
     this.updateCanisters(dt);
     this.updateEncounters();
 
-    this.updateMissiles(dt);
+    this.applyOrdnance(dt);
     this.explosions = this.explosions.filter((e) => {
       if (e.update(dt)) return true;
       this.scene.remove(e.object);
