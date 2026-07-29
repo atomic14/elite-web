@@ -986,6 +986,34 @@ console.log('\nsurvivors');
     cargoTonnes(old as never) === 0);
 }
 
+// --- the pure modules stay pure ----------------------------------------------
+//
+// The storage mechanism used to live in commander.ts, which made a module of
+// plain data browser-only by association — and it bit: freshState() called
+// loadCommander() and the state factory threw under node. storage.ts is the
+// only file allowed to know localStorage exists.
+
+console.log('\npurity');
+{
+  const PURE = [
+    'commander.ts', 'shop.ts', 'contracts.ts', 'law.ts', 'jettison.ts',
+    'systems.ts', 'trumbles.ts', 'hyperspace.ts', 'missions.ts', 'population.ts',
+    'encounters.ts', 'gunnery.ts', 'docking.ts', 'state.ts', 'session.ts',
+  ];
+  for (const f of PURE) {
+    const src = readFileSync(new URL(`../src/game/${f}`, import.meta.url), 'utf8')
+      .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+    check(`${f} does not reach for the browser`,
+      !/\b(localStorage|sessionStorage|document|window)\b/.test(src));
+  }
+  const store = readFileSync(new URL('../src/game/storage.ts', import.meta.url), 'utf8');
+  check('storage.ts is where localStorage lives', /localStorage/.test(store));
+  // the keys are load-bearing: renaming one orphans every existing save
+  check('...and the save keys are unchanged',
+    store.includes("'elite-web-commander'") && store.includes("'elite-web-world'")
+    && store.includes("'elite-web-slot'"));
+}
+
 // --- the fuel price has one home ---------------------------------------------
 //
 // It had four: a bare `* 0.4` inside equipRows in the RENDER layer, plus

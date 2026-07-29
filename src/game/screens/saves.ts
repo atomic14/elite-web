@@ -13,11 +13,10 @@
 // game state. It returns an OUTCOME and the Game applies it, so the mode
 // machine stays in one place instead of being poked at from two.
 
+import { formatCredits, DEFAULT_NAME, type CommanderData } from '../commander.ts';
 import {
-  saveCommander, deleteSlot, currentSlot, setCurrentSlot, readSlot,
-  formatCredits, SAVE_SLOTS, DEFAULT_NAME,
-  type CommanderData,
-} from '../commander.ts';
+  saveCommander, deleteSlot, currentSlot, setCurrentSlot, readSlot, SAVE_SLOTS,
+} from '../storage.ts';
 import { renderSaves, renderNaming } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import type { StarSystem } from '../../galaxy/galaxy.ts';

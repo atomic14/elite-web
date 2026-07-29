@@ -36,7 +36,7 @@ import {
 } from './missions.ts';
 import { World, TRADER_ARRIVAL_RANGE } from './world.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
-import { saveWorld, readWorld, clearWorld } from './commander.ts';
+import { saveWorld, readWorld, clearWorld, loadCommander, saveCommander } from './storage.ts';
 import {
   SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState,
   type WorldSnapshot,
@@ -112,8 +112,7 @@ function cheatMode(): boolean {
 
 
 import {
-  loadCommander, saveCommander, formatCredits, MAX_FUEL,
-  cargoCapacity, cargoTonnes,
+  formatCredits, MAX_FUEL, cargoCapacity, cargoTonnes,
   type CommanderData, type Contract,
 } from './commander.ts';
 import {

@@ -4,13 +4,14 @@ import {
 import { planetDescription } from '../galaxy/goatsoup.ts';
 import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
-  type CommanderData, type Contract, type SlotSummary,
+  type CommanderData, type Contract,
   rating, cargoTonnes, formatCredits, cargoCapacity,
   MAX_FUEL,
 } from '../game/commander.ts';
 import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';
+import type { SlotSummary } from '../game/storage.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.
