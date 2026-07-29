@@ -12,7 +12,7 @@ Everything else is a consequence, and each consequence is testable:
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
 | the renderer never writes state | you can delete it and still simulate | partly |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 275 tests, no browser | done |
+| every rule is unit-testable headless | 287 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
@@ -53,8 +53,9 @@ an NPC's does not.
 - `game.ts` is 2458 lines. It is the orchestrator, but it still implements
   docking, the law, and the death/respawn path. Hyperspace, missions,
   missiles, trumbles, spawning and the ten screens have moved out.
-- `npc.ts` is 1223 lines and holds behaviour, brain flight, explosions and
-  tracers — the next `game.ts`.
+- `npc.ts` is 786 lines and holds behaviour and brain flight. The explosions,
+  the ship roster and the brain selection have moved to `effects.ts`,
+  `ship-specs.ts` and `brains.ts`.
 - State is in `NpcState` and `Game.session`, but ALSO in `PlayerShip`,
   `Game.sys`, `chart`, `market`, the entity arrays, and the station's
   quaternion. The snapshot gathers them by hand.

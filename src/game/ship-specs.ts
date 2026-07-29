@@ -1,0 +1,117 @@
+// The ship roster: which hulls fly which role, and how tough each one is.
+//
+// Pure data tables, in the spirit of the 1984 originals. They were 100 lines
+// wedged into the middle of npc.ts between the hostility rules and the NpcShip
+// class, which meant "what hp does a Krait have" was a question you answered
+// by scrolling. Now it is a question you answer by opening the file called
+// ship-specs.ts.
+//
+// Nothing here decides anything: population.ts chooses how many, contracts.ts
+// chooses the threat tier, spawning.ts puts them in the sky.
+
+import {
+  type ShipDef, COBRA_MK3, PYTHON, ANACONDA, ADDER, WORM, BOA, SHUTTLE,
+  TRANSPORTER, SIDEWINDER, KRAIT, MAMBA, GECKO, MORAY, VIPER, FER_DE_LANCE,
+  ASP, THARGOID, THARGON, GENERATION_SHIP, CONSTRICTOR,
+} from '../ships/geometry.ts';
+
+/** What a ship is FOR. The roster is keyed on it, so it lives here. */
+export type NpcRole =
+  'trader' | 'pirate' | 'police' | 'hunter' | 'thargoid' | 'thargon' | 'asteroid' |
+  'hermit' | 'generation';
+
+export interface NpcSpec {
+  def: ShipDef | null; // null → asteroid
+  color: number;
+  hp: number;
+  maxSpeed: number;
+  turnRate: number;
+  bounty: number; // tenths of a credit
+  radius: number;
+  missiles?: number;
+  ecmChance?: number;
+  cargoDrop?: number; // max canisters dropped on destruction
+  armed?: boolean; // fights back (with the Jameson defence brain) when attacked
+}
+
+export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
+  trader: [
+    { def: COBRA_MK3, color: 0xffffff, hp: 1.0, maxSpeed: 220, turnRate: 0.5, bounty: 0, radius: 34, ecmChance: 0.4, cargoDrop: 3, armed: true },
+    { def: PYTHON, color: 0xd9e8ff, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 0, radius: 40, ecmChance: 0.5, cargoDrop: 5, armed: true },
+    { def: ANACONDA, color: 0xcfe0d8, hp: 2.6, maxSpeed: 120, turnRate: 0.25, bounty: 0, radius: 55, ecmChance: 0.7, cargoDrop: 6, armed: true },
+    { def: ADDER, color: 0xffe28a, hp: 0.5, maxSpeed: 260, turnRate: 0.8, bounty: 0, radius: 18, cargoDrop: 1 },
+    { def: WORM, color: 0xbfd8bf, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 0, radius: 14, cargoDrop: 1 },
+    { def: BOA, color: 0xd8d8c0, hp: 2.2, maxSpeed: 140, turnRate: 0.3, bounty: 0, radius: 44, ecmChance: 0.6, cargoDrop: 5, armed: true },
+    { def: SHUTTLE, color: 0xc8e8c8, hp: 0.45, maxSpeed: 180, turnRate: 0.7, bounty: 0, radius: 14, cargoDrop: 1 },
+    { def: TRANSPORTER, color: 0xc0d0e0, hp: 0.6, maxSpeed: 160, turnRate: 0.5, bounty: 0, radius: 20, cargoDrop: 2 },
+  ],
+  pirate: [
+    { def: SIDEWINDER, color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
+    { def: KRAIT, color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
+    { def: MAMBA, color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
+    { def: GECKO, color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
+    { def: MORAY, color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
+    { def: COBRA_MK3, color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
+  ],
+  police: [
+    { def: VIPER, color: 0x9ad9ff, hp: 0.9, maxSpeed: 320, turnRate: 1.3, bounty: 0, radius: 20, ecmChance: 1 },
+  ],
+  hunter: [
+    { def: FER_DE_LANCE, color: 0xd8c8ff, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 0, radius: 26, ecmChance: 0.6 },
+    { def: ASP, color: 0xc8d8ff, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 0, radius: 22, ecmChance: 0.4 },
+  ],
+  thargoid: [
+    { def: THARGOID, color: 0x7cff9a, hp: 2.6, maxSpeed: 300, turnRate: 0.7, bounty: 500, radius: 60, ecmChance: 1 },
+  ],
+  thargon: [
+    { def: THARGON, color: 0x9cffb0, hp: 0.2, maxSpeed: 350, turnRate: 1.8, bounty: 50, radius: 12 },
+  ],
+  // a hollowed asteroid trading post — inert, but you can dock with it
+  hermit: [
+    { def: null, color: 0x9a9a8a, hp: 4, maxSpeed: 0, turnRate: 0, bounty: 0, radius: 120 },
+  ],
+  // derelict colony vessel: vast, slow, defenceless
+  generation: [
+    { def: GENERATION_SHIP, color: 0xbfc8d8, hp: 8, maxSpeed: 25, turnRate: 0.05, bounty: 0, radius: 340, cargoDrop: 8 },
+  ],
+};
+
+/**
+ * Pirate hulls by threat tier (see pirateThreat() in contracts.ts). Tier is
+ * decided by how attractive a target the player looks — a poor Cobra full of
+ * food draws opportunists in Sidewinders; a fat, notorious one draws a gang in
+ * Fer-de-Lances. Passed to spawnNpc as a specOverride, so these stay ordinary
+ * pirates for every other purpose (bounty, legality, police response).
+ */
+const PIRATE_TIERS: NpcSpec[][] = [
+  // 0 — opportunists: cheap, fast, easily discouraged
+  [
+    { def: SIDEWINDER, color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
+    { def: GECKO, color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
+    { def: WORM, color: 0xffbb80, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40, radius: 14 },
+  ],
+  // 1 — professionals: the existing pirate mix
+  [
+    { def: KRAIT, color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
+    { def: MAMBA, color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
+    { def: MORAY, color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
+    { def: COBRA_MK3, color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
+  ],
+  // 2 — an organised gang: they brought the good ships, and missiles
+  [
+    { def: FER_DE_LANCE, color: 0xff7a4c, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, radius: 26, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
+    { def: ASP, color: 0xff8f5c, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 150, radius: 22, missiles: 1, ecmChance: 0.3, cargoDrop: 1 },
+    { def: PYTHON, color: 0xffa878, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, radius: 40, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
+  ],
+];
+
+/** Pick a hull for a pirate of the given threat tier. */
+export function pirateSpecForTier(tier: number, variantSeed: number): NpcSpec {
+  const tiers = PIRATE_TIERS[Math.max(0, Math.min(PIRATE_TIERS.length - 1, tier))];
+  return tiers[Math.abs(variantSeed) % tiers.length];
+}
+
+export const CONSTRICTOR_SPEC: NpcSpec = {
+  def: CONSTRICTOR, color: 0xffd24d, hp: 3.2, maxSpeed: 370, turnRate: 1.2,
+  bounty: 2500, radius: 24, missiles: 2, ecmChance: 1,
+};

@@ -12,7 +12,8 @@
 import * as THREE from 'three';
 import type { World } from './world.ts';
 import type { PopulationPlan } from './population.ts';
-import { pirateSpecForTier, CONSTRICTOR_SPEC, type NpcShip } from './npc.ts';
+import type { NpcShip } from './npc.ts';
+import { pirateSpecForTier, CONSTRICTOR_SPEC } from './ship-specs.ts';
 import { memberTier } from './contracts.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';

@@ -18,6 +18,7 @@ import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
 } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
+import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';
 import {
   WITCHSPACE_ESCAPE_COST, witchspaceChance, distanceTenths,
 } from '../src/galaxy/navigation.ts';
@@ -36,6 +37,11 @@ import {
   NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_LASER_RANGE,
 } from '../src/game/npc.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
+import { SPECS } from '../src/game/ship-specs.ts';
+import { COBRA_MK3, SIDEWINDER } from '../src/ships/geometry.ts';
+
+/** Named hulls the sim/game parity check compares, by the name it uses. */
+const SHIP_DEFS = { COBRA_MK3, SIDEWINDER };
 import { stepEncounters } from '../src/game/encounters.ts';
 import {
   stepMissionAtDock, constrictorDestroyed, constrictorLurksHere, missionHeadline,
@@ -568,6 +574,66 @@ console.log('\nsystem population');
     check('LAUNCHING from a station is safe — nobody organised for you',
       launching.pirates === 0 && launching.threat === null);
   }
+}
+
+// --- which brain flies which ship -------------------------------------------
+//
+// Invariant 8 in CLAUDE.md is a paragraph of prose about who flies what. It
+// used to be spread over three parts of npc.ts; now it is one function, so it
+// can be asserted instead of described.
+
+console.log('\nbrain selection');
+{
+  const flags = globalThis as unknown as Record<string, unknown>;
+  const clear = () => {
+    delete flags.__scriptedPirates; delete flags.__packBrain;
+    delete flags.__sharpPirates; delete flags.__legacyPirates;
+  };
+
+  clear();
+  {
+    const solo = pirateBrainFor(0, false);
+    check('an opportunist flies the solo brain', !!solo && !solo.pack);
+    const gang = pirateBrainFor(2, true);
+    check('an organised gang flies the pack policy', !!gang && gang.pack);
+    check('...and they are different brains', solo!.brain !== gang!.brain);
+    check('a tier-2 pirate flying ALONE still flies solo',
+      pirateBrainFor(2, false)?.pack === false);
+  }
+  {
+    // the guard is the range at which the brain hands back to the scripted
+    // break-off; the generation brains do not ram, so theirs is tighter
+    const now = pirateBrainFor(1, false)!;
+    check('the current brain gets the tight guard', now.guard === 150);
+    check('...and is told a floored target speed, not a fake 300',
+      now.targetSpeed(0) === 150 && now.targetSpeed(400) === 400);
+  }
+  {
+    flags.__scriptedPirates = true;
+    check('__scriptedPirates turns every brain off',
+      pirateBrainFor(0, false) === null && pirateBrainFor(2, true) === null
+      && defenceBrain() === null);
+    clear();
+  }
+  {
+    flags.__packBrain = true;
+    check('__packBrain forces the pack policy onto everyone',
+      pirateBrainFor(0, false)?.pack === true);
+    clear();
+  }
+  {
+    const base = pirateBrainFor(0, false)!.brain;
+    flags.__sharpPirates = 'pro';
+    check("__sharpPirates='pro' leaves opportunists alone",
+      pirateBrainFor(0, false)!.brain === base);
+    check('...and re-arms professionals',
+      pirateBrainFor(1, false)!.brain !== base);
+    flags.__sharpPirates = true;
+    check('__sharpPirates=true re-arms everyone',
+      pirateBrainFor(0, false)!.brain !== base);
+    clear();
+  }
+  check('the defence brain is fitted', defenceBrain() !== null);
 }
 
 // --- ordnance ---------------------------------------------------------------
@@ -1418,7 +1484,6 @@ console.log('\nsim/game combat parity');
 {
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
   const core = read('../src/ai-training/core.ts');
-  const npc = read('../src/game/npc.ts');
 
   const num = (src: string, re: RegExp): number | null => {
     const m = src.match(re);
@@ -1533,12 +1598,13 @@ console.log('\nsim/game combat parity');
     const simHp = Number(simRow.match(/hp:\s*([\d.]+)/)?.[1]);
     const simSpeed = Number(simRow.match(/maxSpeed:\s*([\d.]+)/)?.[1]);
     const simTurn = Number(simRow.match(/turnRate:\s*([\d.]+)/)?.[1]);
-    // the game's table is grouped by role, so search within that group
-    const group = npc.match(new RegExp(`${role}:\\s*\\[([\\s\\S]*?)\\n  \\]`))?.[1] ?? '';
-    const row = group.split('\n').find((l) => l.includes(`def: ${gameDef},`)) ?? '';
-    const hp = Number(row.match(/hp:\s*([\d.]+)/)?.[1]);
-    const speed = Number(row.match(/maxSpeed:\s*([\d.]+)/)?.[1]);
-    const turn = Number(row.match(/turnRate:\s*([\d.]+)/)?.[1]);
+    // The game's side is an IMPORTED VALUE, not scraped source. The regex
+    // version broke every time these tables moved or a literal became a named
+    // constant, and a parity check that silently reads NaN is worse than none.
+    const spec = SPECS[role].find((x) => x.def === SHIP_DEFS[gameDef]);
+    const hp = spec?.hp;
+    const speed = spec?.maxSpeed;
+    const turn = spec?.turnRate;
     check(`${simKey}: hp ${simHp}/${hp}, speed ${simSpeed}/${speed}, turn ${simTurn}/${turn} match`,
       simHp === hp && simSpeed === speed && simTurn === turn);
   }

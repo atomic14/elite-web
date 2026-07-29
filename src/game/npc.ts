@@ -1,215 +1,18 @@
 import * as THREE from 'three';
+import { buildShip, buildAsteroid } from '../ships/geometry.ts';
 import {
-  buildShip, buildAsteroid, type ShipDef,
-  COBRA_MK3, SIDEWINDER, VIPER, ADDER, KRAIT, MAMBA, ASP, FER_DE_LANCE,
-  PYTHON, ANACONDA, WORM, THARGOID, THARGON, CONSTRICTOR,
-  GECKO, MORAY, BOA, SHUTTLE, TRANSPORTER, GENERATION_SHIP,
-} from '../ships/geometry.ts';
+  SPECS, type NpcSpec, type NpcRole,
+} from './ship-specs.ts';
 import {
-  observe, observePack, act, makeScratch, brainFromFile,
-  type Brain, type BrainFile, type ObservableShip,
+  observe, observePack, act, makeScratch,
+  type Brain, type ObservableShip,
 } from '../ai-training/policy.ts';
+import { pirateBrainFor, defenceBrain } from './brains.ts';
 import { TURN } from '../ai-training/core.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
-import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
-import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
-import sharpBrainFile from '../ai-training/brains/pirate-attack-g2.json' with { type: 'json' };
-import legacyBrainFile from '../ai-training/brains/pirate-attack-r2.json' with { type: 'json' };
-import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
 
-// The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
-//
-// Generation 3, and the first one aimed at how the game FEELS rather than at
-// how lethal it is.
-//
-// Generation 1 and 2 won every measurement and lost the only one that counts:
-// Chris played them and asked for the old brain back. The cause is structural
-// and it was his own observation — stopping lets you pivot and hold a firing
-// line, because you stop translating past the target. It is true, the sim
-// models it faithfully, so evolution finds it, and a well-optimised pirate is
-// a turret that hangs in space and snipes.
-//
-// So g3 is trained where that move does not exist: pirate hulls carry a
-// `minSpeed` (ai-training/core.ts) and cannot throttle below about 43% of top speed,
-// and the fitness pays for time spent ON THE TARGET'S SIX rather than for
-// damage by any route. Measured against a target that stops to fight:
-//
-//   brain  speed  lined up  on your six  range  shots/engagement
-//   r2      235      38%         2%       822        0.6
-//   g2      133      96%         1%      1135        7.3   <- the turret
-//   g3      220      27%        10%       543        4.5
-//
-// It flies at r2's speed, closes 280 units nearer, works onto your six five
-// times as often and shoots seven times as much, while a gang of three still
-// only kills a shielded commander 1% of the time. r2's 0.6 shots is also the
-// answer to "they point right at me and never fire": it is aligned 38% of the
-// time but was trained when firing needed a 0.027 rad cone, so it learned
-// never to trust a loose line.
-//
-// Pirates fly with it at a 10 Hz decision rate; set `window.__scriptedPirates
-// = true` to compare against the old scripted AI.
-const PIRATE_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(pirateBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
 
-/**
- * Generation 2: trained against the gun a pirate actually carries, and against
- * a target that stops to knife-fight. Kept on a flag rather than shipped.
- *
- *   window.__sharpPirates = true     every pirate flies it
- *   window.__sharpPirates = 'pro'    only professionals and gangs (tier >= 1)
- *
- * It wins on every measurement and lost the only one that counts. Flown, it
- * hangs in space and pivots to shoot rather than making attack runs — the
- * behaviour is *correct*, which is the problem, because stopping really is
- * the optimal way to hold a firing line. Two pirates kill a fully shielded
- * commander 89-98% of the time.
- *
- * 'pro' is the configuration worth playtesting: opportunists stay fun, and
- * the ships that are supposed to frighten you are the ones that can.
- */
-const SHARP_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(sharpBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-/**
- * The pre-generation brain, for an instant A/B in a live session.
- *
- *   window.__legacyPirates = true    every pirate flies r2
- *
- * It gets the wide ram guard and the old constant target speed, so this is
- * the game exactly as it played before any of this work.
- */
-const LEGACY_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(legacyBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-// `globalThis`, not `window`, throughout these flag readers. They are called
-// from inside NpcShip.update — the hot path of the world step — so reaching for
-// `window` made the largest world-step module throw the moment it was asked to
-// simulate anything under node. It is why the sim/game combat-parity invariant,
-// the one guarding the bug that went undetected for six training rounds, is
-// enforced by REGEX over source text instead of by calling the function.
-// globalThis reads undefined under node and is identical in a browser.
-
-/** Which pirates, if any, fly the pre-generation brain. See LEGACY_BRAIN. */
-function legacyBrainFor(tier: number): boolean {
-  const flag = (globalThis as unknown as Record<string, unknown>).__legacyPirates;
-  if (!flag || !LEGACY_BRAIN) return false;
-  return flag === 'pro' ? tier >= 1 : true;
-}
-
-export const DEFEND_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(defendBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-/**
- * The pack-trained brain: 18 inputs (solo 14 + the nearest packmate's bearing
- * and distance). This is round 4's `pirate-pack-r4-selectonly`, the first pack
- * policy to take 100% of held-out episodes against all three test traders
- * (docs/TRAINING-LOG.md, run 7).
- *
- * It is **still not the default**, but no longer because it's worse — it beats
- * the shipped solo trio outright, including 100% vs 41% against a trader that
- * shoots back. It kills a player-like target in 1.5-2.9s where the shipped
- * trio takes 10.8-11.7s, and whether Elite's pirates should be 4-7x more
- * lethal is a game-design decision, not a tournament one.
- *
- * Set `window.__packBrain = true` to fly it and judge for yourself.
- */
-const PACK_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(packBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-function brainsEnabled(): boolean {
-  return !(globalThis as unknown as Record<string, unknown>).__scriptedPirates;
-}
-
-/**
- * Range at which trained pilots hand back to the scripted break-off.
- *
- * The sim the policies were trained in has NO collision model — `radius` in
- * ai-training/core.ts is used only for the laser cone. Flying straight through the
- * target is therefore free in training, so the optimal learned behaviour is to
- * close to zero range and sit there shooting. In the game, where ships are
- * solid, that reads as deliberate ramming: the pirate slides past you and
- * kamikazes.
- *
- * They are not being rewarded for it — a collision deals 0.45 to both, which a
- * shielded player absorbs and a 0.55 hp Sidewinder very nearly dies to. It was
- * simply never taught to be a bad idea.
- *
- * Matches attack()'s existing 220-unit break-off, which brain-flown ships
- * previously never reached because brainFly returns before attack() is called.
- * The real fix is a collision model in ai-training/core.ts plus a retrain — this is
- * the guard rail until then (docs/TRAINING-LOG.md).
- */
-const RAM_GUARD = 220;
-
-/**
- * Knife-range guard for a brain that does not ram.
- *
- * RAM_GUARD hands control to attack(), which steers away and returns no fire
- * event, so a pirate inside 220 units has its guns switched off. That was the
- * right trade when the brains kamikazed.
- *
- * It is the wrong trade against a human. Chris's recorded flying: median
- * engagement range 260 units, 10th percentile 214, median speed 66 with the
- * pitch held at 1.36 of a possible 1.45. He turns on the spot at knife range
- * while pirates come past at 290-310, so every pass crosses the dead zone and
- * three tier-1 ships managed ZERO shots in 33 seconds.
- *
- * The generation-1 brains do not need the guard: they destroy themselves in
- * 1-9% of engagements, against 36-73% for the brain they replace. So they get
- * the tight guard — it shrinks to the point where a collision is actually
- * imminent, and the ship keeps its guns until then.
- *
- * This matters more than it looks. Fixing the gun would have achieved nothing
- * if pirates still went silent inside 220 units, because 220 units is where
- * Chris fights.
- *
- * 150, and the number is arithmetic rather than taste. It was 90 for one
- * wave and both of Chris's arena fights had ships fly into him. A pirate
- * re-decides at 10 Hz, so a head-on closure — 300 for the pirate against the
- * player's 400 — covers 70 units between decisions, and the two hulls are 68
- * units of radius before they touch. A 90-unit guard leaves 22 units of
- * margin: less than one decision tick, so breaking off is not something the
- * ship is physically able to do. 150 gives it a tick to turn, and still
- * clears the range Chris actually fights at (median 260, 10th percentile
- * 214), which is the dead zone the wide guard created.
- *
- * The sim cannot catch this: it has no ram guard, so its 1-9% collision rate
- * says nothing about what the guard should be.
- */
-const RAM_GUARD_NO_RAM = 150;
-
-/**
- * Floor under the target speed handed to the brains. See the call site in
- * update() — below roughly 150 the attack policies stop throttling forward,
- * and a commander who slows to fight gets pirates that hang in space.
- */
-const TARGET_SPEED_FLOOR = 150;
 
 /**
  * Hostiles cannot throttle below this fraction of their top speed. Mirrors
@@ -247,35 +50,6 @@ export const NPC_COOLDOWN_SPREAD = 0.8;
 export const NPC_FIRE_GATE = 0.25;
 /** Thargoids reload faster than anything else in the galaxy. */
 export const THARGOID_FIRE_RATE = 0.7;
-
-function packBrainEnabled(): boolean {
-  return !!(globalThis as unknown as Record<string, unknown>).__packBrain;
-}
-
-/** Which pirates, if any, fly the generation-2 brain. See SHARP_BRAIN. */
-function sharpBrainFor(tier: number): boolean {
-  const flag = (globalThis as unknown as Record<string, unknown>).__sharpPirates;
-  if (!flag || !SHARP_BRAIN) return false;
-  return flag === 'pro' ? tier >= 1 : true;
-}
-
-/**
- * Test-harness access to the trained policies (used by the autopilot
- * commanders in docs/JAMESON-TRIALS.md to fly the *player's* ship).
- *
- * A FUNCTION, called by the Game, rather than an assignment at module scope.
- * As a bare statement it ran on import, so `import('./npc.ts')` under node
- * threw on `window` — which is why the police-hostility checks in test/run.ts
- * had to assert against source text with a regex instead of calling
- * isHostileToPlayer(). three.js maths is fine headless; this was the blocker.
- */
-export function installPolicyKit(): void {
-  (globalThis as unknown as Record<string, unknown>).__policyKit = {
-    act, observe, observePack, makeScratch,
-    pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
-  };
-}
-
 
 /**
  * Everything about a ship that can CHANGE.
@@ -356,10 +130,6 @@ export interface NpcState {
 // Everything steers by rotating toward a heading at a capped rate and
 // thrusting along its nose, same as the player.
 
-export type NpcRole =
-  'trader' | 'pirate' | 'police' | 'hunter' | 'thargoid' | 'thargon' | 'asteroid' |
-  'hermit' | 'generation';
-
 const ZERO = new THREE.Vector3();
 /** scratch for the docking gate, module-level to keep update() allocation-free */
 /** station half-width; both hulls use 160 (world/system-scene.ts) */
@@ -402,102 +172,6 @@ export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
     (npc.role === 'hunter' && (legalStatus >= 1 || npc.provokedByPlayer))
   );
 }
-
-export interface NpcSpec {
-  def: ShipDef | null; // null → asteroid
-  color: number;
-  hp: number;
-  maxSpeed: number;
-  turnRate: number;
-  bounty: number; // tenths of a credit
-  radius: number;
-  missiles?: number;
-  ecmChance?: number;
-  cargoDrop?: number; // max canisters dropped on destruction
-  armed?: boolean; // fights back (with the Jameson defence brain) when attacked
-}
-
-const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
-  trader: [
-    { def: COBRA_MK3, color: 0xffffff, hp: 1.0, maxSpeed: 220, turnRate: 0.5, bounty: 0, radius: 34, ecmChance: 0.4, cargoDrop: 3, armed: true },
-    { def: PYTHON, color: 0xd9e8ff, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 0, radius: 40, ecmChance: 0.5, cargoDrop: 5, armed: true },
-    { def: ANACONDA, color: 0xcfe0d8, hp: 2.6, maxSpeed: 120, turnRate: 0.25, bounty: 0, radius: 55, ecmChance: 0.7, cargoDrop: 6, armed: true },
-    { def: ADDER, color: 0xffe28a, hp: 0.5, maxSpeed: 260, turnRate: 0.8, bounty: 0, radius: 18, cargoDrop: 1 },
-    { def: WORM, color: 0xbfd8bf, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 0, radius: 14, cargoDrop: 1 },
-    { def: BOA, color: 0xd8d8c0, hp: 2.2, maxSpeed: 140, turnRate: 0.3, bounty: 0, radius: 44, ecmChance: 0.6, cargoDrop: 5, armed: true },
-    { def: SHUTTLE, color: 0xc8e8c8, hp: 0.45, maxSpeed: 180, turnRate: 0.7, bounty: 0, radius: 14, cargoDrop: 1 },
-    { def: TRANSPORTER, color: 0xc0d0e0, hp: 0.6, maxSpeed: 160, turnRate: 0.5, bounty: 0, radius: 20, cargoDrop: 2 },
-  ],
-  pirate: [
-    { def: SIDEWINDER, color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
-    { def: KRAIT, color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
-    { def: MAMBA, color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
-    { def: GECKO, color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
-    { def: MORAY, color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
-    { def: COBRA_MK3, color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
-  ],
-  police: [
-    { def: VIPER, color: 0x9ad9ff, hp: 0.9, maxSpeed: 320, turnRate: 1.3, bounty: 0, radius: 20, ecmChance: 1 },
-  ],
-  hunter: [
-    { def: FER_DE_LANCE, color: 0xd8c8ff, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 0, radius: 26, ecmChance: 0.6 },
-    { def: ASP, color: 0xc8d8ff, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 0, radius: 22, ecmChance: 0.4 },
-  ],
-  thargoid: [
-    { def: THARGOID, color: 0x7cff9a, hp: 2.6, maxSpeed: 300, turnRate: 0.7, bounty: 500, radius: 60, ecmChance: 1 },
-  ],
-  thargon: [
-    { def: THARGON, color: 0x9cffb0, hp: 0.2, maxSpeed: 350, turnRate: 1.8, bounty: 50, radius: 12 },
-  ],
-  // a hollowed asteroid trading post — inert, but you can dock with it
-  hermit: [
-    { def: null, color: 0x9a9a8a, hp: 4, maxSpeed: 0, turnRate: 0, bounty: 0, radius: 120 },
-  ],
-  // derelict colony vessel: vast, slow, defenceless
-  generation: [
-    { def: GENERATION_SHIP, color: 0xbfc8d8, hp: 8, maxSpeed: 25, turnRate: 0.05, bounty: 0, radius: 340, cargoDrop: 8 },
-  ],
-};
-
-/**
- * Pirate hulls by threat tier (see pirateThreat() in contracts.ts). Tier is
- * decided by how attractive a target the player looks — a poor Cobra full of
- * food draws opportunists in Sidewinders; a fat, notorious one draws a gang in
- * Fer-de-Lances. Passed to spawnNpc as a specOverride, so these stay ordinary
- * pirates for every other purpose (bounty, legality, police response).
- */
-const PIRATE_TIERS: NpcSpec[][] = [
-  // 0 — opportunists: cheap, fast, easily discouraged
-  [
-    { def: SIDEWINDER, color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
-    { def: GECKO, color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
-    { def: WORM, color: 0xffbb80, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40, radius: 14 },
-  ],
-  // 1 — professionals: the existing pirate mix
-  [
-    { def: KRAIT, color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
-    { def: MAMBA, color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
-    { def: MORAY, color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
-    { def: COBRA_MK3, color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
-  ],
-  // 2 — an organised gang: they brought the good ships, and missiles
-  [
-    { def: FER_DE_LANCE, color: 0xff7a4c, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, radius: 26, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
-    { def: ASP, color: 0xff8f5c, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 150, radius: 22, missiles: 1, ecmChance: 0.3, cargoDrop: 1 },
-    { def: PYTHON, color: 0xffa878, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, radius: 40, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
-  ],
-];
-
-/** Pick a hull for a pirate of the given threat tier. */
-export function pirateSpecForTier(tier: number, variantSeed: number): NpcSpec {
-  const tiers = PIRATE_TIERS[Math.max(0, Math.min(PIRATE_TIERS.length - 1, tier))];
-  return tiers[Math.abs(variantSeed) % tiers.length];
-}
-
-export const CONSTRICTOR_SPEC: NpcSpec = {
-  def: CONSTRICTOR, color: 0xffd24d, hp: 3.2, maxSpeed: 370, turnRate: 1.2,
-  bounty: 2500, radius: 24, missiles: 2, ecmChance: 1,
-};
 
 export type TraderPhase = 'arriving' | 'trading' | 'departing' | 'docking';
 
@@ -765,44 +439,15 @@ export class NpcShip {
     const aggressiveToPlayer = isHostileToPlayer(this, playerLegal) && distPlayer < 9000;
 
     if (aggressiveToPlayer) {
-      const sharp = sharpBrainFor(this.threatTier);
-      const legacy = legacyBrainFor(this.threatTier);
-      // r2 kamikazes and needs the wide guard; the generation brains do not,
-      // and keep their guns down to knife range. See RAM_GUARD_NO_RAM.
-      const guard = legacy ? RAM_GUARD : RAM_GUARD_NO_RAM;
-      if (this.role === 'pirate' && PIRATE_BRAIN && brainsEnabled()
-          && distPlayer >= guard) {
-        // organised gangs fly the pack policy; opportunists fly solo
-        const pack = PACK_BRAIN && (this.organised || packBrainEnabled());
-        const solo = legacy ? LEGACY_BRAIN! : sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
-        // The player's speed, with a FLOOR under it.
-        //
-        // This was hardcoded to 300 for years because observe() feeds
-        // `target.speed/400` to the network and the brains had only seen a
-        // freighter near 220. Generation 1 was trained across 90, 220 and 400
-        // speed hulls plus two runners, so passing the real speed looked safe.
-        // It was not: Chris flies at a median of 66 and stops dead to turn,
-        // and pirates went inert — "they now sit still spinning", then "they
-        // just sit there". Measured in the sim, the attacker throttles forward
-        // on 19% of frames against a stationary target and 84% against one at
-        // 220.
-        //
-        // Adding a stationary knife-fighter to the training pool (g2) moved
-        // that from 19% to 43%, which is better and still not flying. The
-        // input is the problem, not the fit: a bare speed scalar carries no
-        // direction, tells a pirate almost nothing it cannot see from the
-        // geometry, and the policy has latched onto it anyway.
-        //
-        // So: real speed where the brain is competent, floored where it is
-        // not. The floor is a lie, but a bounded one that preserves the
-        // variation that actually matters — a target running at 400 still
-        // reads differently from one turning at 200. Deleting the input
-        // entirely is the honest fix and costs a retrain of every brain.
-        return this.brainFly(pack ? PACK_BRAIN : solo, dt,
+      // Which brain, and the two numbers that come with it — see brains.ts.
+      const choice = this.role === 'pirate'
+        ? pirateBrainFor(this.threatTier, this.organised) : null;
+      if (choice && distPlayer >= choice.guard) {
+        return this.brainFly(choice.brain, dt,
           player.position, player.quaternion,
-          legacy ? 300 : Math.max(TARGET_SPEED_FLOOR, player.speed),
+          choice.targetSpeed(player.speed),
           distPlayer, 'player',
-          pack ? fleet : null);
+          choice.pack ? fleet : null);
       }
       // Inside knife range the scripted break-off takes over — see RAM_GUARD.
       return this.attack(dt, player.position, distPlayer, true);
@@ -816,15 +461,16 @@ export class NpcShip {
 
     if (this.fleeing) {
       // armed traders turn and fight with the trained Jameson defence brain
-      if (this.armed && DEFEND_BRAIN && brainsEnabled()) {
+      const defence = this.armed ? defenceBrain() : null;
+      if (defence) {
         if (this.provokedByPlayer && distPlayer < 6000) {
-          return this.brainFly(DEFEND_BRAIN, dt,
+          return this.brainFly(defence, dt,
             player.position, player.quaternion, 300, distPlayer, 'player');
         }
         const attacker = this.nearestAttacker();
         if (attacker) {
           const d = attacker.object.position.distanceTo(this.object.position);
-          return this.brainFly(DEFEND_BRAIN, dt,
+          return this.brainFly(defence, dt,
             attacker.object.position, attacker.object.quaternion, 260, d, attacker);
         }
       }
@@ -1137,111 +783,4 @@ export class NpcShip {
 function approach(current: number, target: number, step: number): number {
   if (current < target) return Math.min(target, current + step);
   return Math.max(target, current - step);
-}
-
-// --- Explosions ------------------------------------------------------------
-// Classic line-debris burst: a handful of short segments flying apart.
-
-export interface ExplosionOpts {
-  count?: number;
-  speed?: number;
-  duration?: number;
-}
-
-export class Explosion {
-  readonly object: THREE.LineSegments;
-  private readonly velocities: THREE.Vector3[] = [];
-  private life = 0;
-  private readonly duration: number;
-  private readonly material: THREE.LineBasicMaterial;
-
-  constructor(
-    center: THREE.Vector3,
-    color: THREE.ColorRepresentation = 0xffe9a8,
-    opts: ExplosionOpts = {},
-  ) {
-    const count = opts.count ?? 26;
-    const speed = opts.speed ?? 220;
-    this.duration = opts.duration ?? 1.6;
-    const positions = new Float32Array(count * 6);
-    for (let i = 0; i < count; i++) {
-      const dir = randomDirection(new THREE.Vector3());
-      const seg = randomDirection(new THREE.Vector3()).multiplyScalar(4 + random() * 8);
-      positions.set([-seg.x, -seg.y, -seg.z, seg.x, seg.y, seg.z], i * 6);
-      this.velocities.push(dir.multiplyScalar(speed * (0.3 + random())));
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    this.material = new THREE.LineBasicMaterial({ color, transparent: true });
-    this.object = new THREE.LineSegments(geo, this.material);
-    this.object.position.copy(center);
-    this.object.frustumCulled = false;
-  }
-
-  /** @returns false when burnt out. */
-  update(dt: number): boolean {
-    this.life += dt;
-    const pos = this.object.geometry.getAttribute('position') as THREE.BufferAttribute;
-    const arr = pos.array as Float32Array;
-    for (let i = 0; i < this.velocities.length; i++) {
-      const v = this.velocities[i];
-      for (const off of [0, 3]) {
-        arr[i * 6 + off] += v.x * dt;
-        arr[i * 6 + off + 1] += v.y * dt;
-        arr[i * 6 + off + 2] += v.z * dt;
-      }
-    }
-    pos.needsUpdate = true;
-    this.material.opacity = Math.max(0, 1 - this.life / this.duration);
-    return this.life < this.duration;
-  }
-
-  dispose(): void {
-    this.object.geometry.dispose();
-    this.material.dispose();
-  }
-}
-
-// --- Laser tracers ---------------------------------------------------------
-// A brief bright bolt between two points so fire is actually visible.
-
-export class Tracer {
-  readonly object: THREE.Line;
-  private life = 0;
-  private readonly duration: number;
-  private readonly material: THREE.LineBasicMaterial;
-
-  constructor(
-    from: THREE.Vector3,
-    to: THREE.Vector3,
-    color: THREE.ColorRepresentation,
-    duration = 0.18,
-  ) {
-    this.duration = duration;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute([from.x, from.y, from.z, to.x, to.y, to.z], 3),
-    );
-    this.material = new THREE.LineBasicMaterial({
-      color,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.object = new THREE.Line(geo, this.material);
-    this.object.frustumCulled = false;
-  }
-
-  /** @returns false when expired. */
-  update(dt: number): boolean {
-    this.life += dt;
-    this.material.opacity = Math.max(0, 1 - this.life / this.duration);
-    return this.life < this.duration;
-  }
-
-  dispose(): void {
-    this.object.geometry.dispose();
-    this.material.dispose();
-  }
 }

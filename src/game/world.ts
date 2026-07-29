@@ -14,7 +14,8 @@
 // may pay a bounty or move your legal status.
 
 import * as THREE from 'three';
-import { NpcShip, type NpcRole, type NpcSpec } from './npc.ts';
+import { NpcShip } from './npc.ts';
+import type { NpcRole, NpcSpec } from './ship-specs.ts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
 import { CargoField } from './cargo.ts';
 import { Effects } from './effects.ts';

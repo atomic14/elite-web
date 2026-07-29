@@ -21,7 +21,11 @@ import {
 } from '../hud/hud-model.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
-import { NpcShip, CONSTRICTOR_SPEC, type NpcSpec, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
+import { NpcShip, isHostileToPlayer, type FireEvent } from './npc.ts';
+import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
+import {
+  CONSTRICTOR_SPEC, pirateSpecForTier, type NpcSpec, type NpcRole,
+} from './ship-specs.ts';
 import { planDocking, makeDockPlan, dockingOutcome } from './docking.ts';
 import { type Canister } from './cargo.ts';
 import { spawnPopulation, spawnArrivingTrader } from './spawning.ts';

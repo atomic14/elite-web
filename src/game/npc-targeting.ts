@@ -9,7 +9,8 @@
 // nothing but positions and roles. It ran inline in updateFlight on a 2-second
 // timer, which is also why it never had a test.
 
-import type { NpcShip, NpcRole } from './npc.ts';
+import type { NpcShip } from './npc.ts';
+import type { NpcRole } from './ship-specs.ts';
 import type * as THREE from 'three';
 
 /** How far a pirate will look for a trader to rob. */
