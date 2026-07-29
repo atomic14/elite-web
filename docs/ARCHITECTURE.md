@@ -10,9 +10,9 @@ Everything else is a consequence, and each consequence is testable:
 | --- | --- | --- |
 | the snapshot IS the state | save anywhere, replay, test fixtures | mostly — see the gaps below |
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
-| the renderer never writes state | you can delete it and still simulate | partly |
+| the renderer never writes state | you can delete it and still simulate | done for the HUD (hud-binding.ts) |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 308 tests, no browser | done |
+| every rule is unit-testable headless | 317 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,

@@ -15,13 +15,11 @@ import { createStarfield, SpaceDust } from '../world/starfield.ts';
 import { PlayerShip } from '../player.ts';
 import { Input } from '../engine/input.ts';
 import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
-import { Hud, SCANNER_RANGE, type HudState } from '../hud/hud.ts';
-import {
-  scannerContacts, shipIdUnderView, nearestHostile, projectMarker, dockingAid, screenTargets,
-} from '../hud/hud-model.ts';
+import { Hud } from '../hud/hud.ts';
+import { buildHudFrame, hostilesNear } from '../hud/hud-binding.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
-import { NpcShip, isHostileToPlayer, type FireEvent } from './npc.ts';
+import { NpcShip, type FireEvent } from './npc.ts';
 import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
 import {
   CONSTRICTOR_SPEC, pirateSpecForTier, type NpcSpec, type NpcRole,
@@ -523,7 +521,6 @@ export class Game {
   private readonly dust = new SpaceDust();
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
-  private readonly tmp3 = new THREE.Vector3();
   /** scratch for collisions.ts, so a per-frame call allocates nothing */
   private readonly scratch = { a: new THREE.Vector3(), b: new THREE.Vector3() };
   /** reused for player gunnery — see LASER_GRAZE */
@@ -531,6 +528,11 @@ export class Game {
   /** docking computer flying the ship in — see dockingComputerStep */
   private readonly dockPlan = makeDockPlan();
   private readonly tmpQ = new THREE.Quaternion();
+  /** scratch for the per-frame dashboard read, so it allocates nothing */
+  private readonly hudScratch = {
+    a: new THREE.Vector3(), b: new THREE.Vector3(),
+    c: new THREE.Vector3(), q: new THREE.Quaternion(),
+  };
   private readonly tmpM = new THREE.Matrix4();
 
   constructor(canvas: HTMLCanvasElement) {
@@ -1544,7 +1546,7 @@ export class Game {
       this.hud.showMessage('COMBAT COMPUTER OFF', 2);
       return;
     }
-    if (!this.hostilesNear()) {
+    if (!hostilesNear(this.world.npcs, this.player.position, this.commander.legalStatus)) {
       this.hud.showMessage('NO HOSTILES — COMBAT COMPUTER IDLE', 3);
       sfx.beep(220);
       return;
@@ -2050,12 +2052,6 @@ export class Game {
     return false;
   }
 
-  private hostilesNear(): boolean {
-    return this.world.npcs.some((npc) =>
-      isHostileToPlayer(npc, this.commander.legalStatus) &&
-      npc.object.position.distanceTo(this.player.position) < 9000);
-  }
-
   // --- input ---------------------------------------------------------------
 
   private handleInput(dt: number): void {
@@ -2366,101 +2362,31 @@ if (i.pressed('Enter')) this.respawn();
 
   private renderHud(dt: number): void {
     this.updateSight();
-    const contacts = scannerContacts(
-      this.world.station.position, this.world.npcs, this.missiles, this.canisters,
-      this.commander.legalStatus);
+    const frame = buildHudFrame({
+      commander: this.commander,
+      sys: this.sys,
+      world: this.world,
+      camera: this.render.camera,
+      playerPos: this.player.position,
+      playerQuat: this.player.quaternion,
+      playerForward: this.player.getForward(this.tmp),
+      viewDir: this.viewDir(this.tmp2),
+      speedFrac: this.player.speed / this.player.maxSpeed,
+      rollFrac: this.player.rollRate / 2.0,
+      pitchFrac: this.player.pitchRate / 1.1,
+      view: this.view,
+      missiles: this.missiles,
+      canisters: this.canisters,
+      targetLock: this.targetLock,
+      missileArmed: this.missileArmed,
+      inFlight: this.mode === 'flight',
+      witchspace: this.witchspace,
+      assist: this.ccEngaged,
+      ecmDetected: this.ecmDetectedTimer > 0,
+    }, this.hudScratch);
 
-    const altitude =
-      this.player.position.distanceTo(this.world.planetPos) - this.world.planetRadius;
-    const condition = this.mode !== 'flight' ? 'GREEN' : this.hostilesNear() ? 'RED' : 'YELLOW';
-    // in witch-space the compass tracks the nearest Thargoid instead
-    const thargoidTarget = this.witchspace
-      ? this.world.npcs.find((n) => n.alive && !n.inert && (n.role === 'thargoid' || n.role === 'thargon'))
-          ?.object.position
-      : undefined;
-    const sunDistNow = this.player.position.distanceTo(this.world.sunPos);
-    const compassTarget = thargoidTarget ??
-      (sunDistNow < 130000 && !this.witchspace
-        ? this.world.sunPos // sun-skimming: navigate the heat by compass
-        : this.player.position.distanceTo(this.world.station.position) < this.world.planetRadius * 3
-          ? this.world.station.position
-          : this.world.planetPos);
-
-    const shipId = this.mode === 'flight'
-      ? shipIdUnderView(this.world.npcs, this.player.position, this.viewDir(this.tmp), this.tmp2)
-      : '';
-    const e = this.commander.equipment;
-    const hasLaser =
-      this.view === 0 ||
-      (this.view === 1 && e.rearLaser) ||
-      (this.view === 2 && e.leftLaser) ||
-      (this.view === 3 && e.rightLaser);
-
-    let dockAid: HudState['dockAid'] = null;
-    let slotMarker: HudState['slotMarker'] = null;
-    if (this.mode === 'flight' && !this.witchspace) {
-      ({ dockAid, slotMarker } = dockingAid(
-        this.world.station, this.world.stationDockZ,
-        this.player.position, this.player.quaternion, this.player.getForward(this.tmp),
-        this.render.camera, { a: this.tmp2, b: this.tmp3, q: this.tmpQ }));
-    }
-
-    // Nearest hostile, for the off-screen threat arrow.
-    let threatMarker: HudState['threatMarker'] = null;
-    if (this.mode === 'flight' && !this.witchspace) {
-      const found = nearestHostile(this.world.npcs, this.player.position, this.commander.legalStatus);
-      if (found) {
-        threatMarker = {
-          ...projectMarker(found.npc.object.position, this.player.position,
-            this.player.getForward(this.tmp), this.render.camera, this.tmp3),
-          count: found.count,
-        };
-      }
-    }
-
-    const viewQuat = this.tmpQ.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
-    const targets = this.mode === 'flight'
-      ? screenTargets(
-        this.world.npcs, this.player.position,
-        this.tmp.set(0, 0, -1).applyQuaternion(viewQuat), this.render.camera,
-        this.commander.legalStatus, this.targetLock, this.tmp2)
-      : [];
-    this.hud.drawTargets(targets);
-
-    this.hud.render(
-      dt,
-      {
-        speedFrac: this.player.speed / this.player.maxSpeed,
-        rollFrac: this.player.rollRate / 2.0,
-        pitchFrac: this.player.pitchRate / 1.1,
-        foreShield: this.foreShield,
-        aftShield: this.aftShield,
-        energy: this.energy,
-        fuelFrac: this.commander.fuel / MAX_FUEL,
-        laserTemp: this.laserTemp,
-        altitudeFrac: altitude / (this.world.planetRadius * 2),
-        cabinTemp: this.cabinTemp,
-        missiles: this.commander.missiles,
-        locked: this.targetLock !== null,
-        condition,
-        credits: this.commander.credits,
-        view: this.view,
-        hasLaser,
-        shipId,
-        dockAid,
-        slotMarker,
-        threatMarker,
-        assist: this.ccEngaged,
-        armed: this.missileArmed,
-        stationInRange:
-          this.mode === 'flight' && !this.witchspace &&
-          this.player.position.distanceTo(this.world.station.position) < SCANNER_RANGE,
-        ecmDetected: this.ecmDetectedTimer > 0,
-      },
-      this.player.position,
-      this.player.quaternion,
-      contacts,
-      compassTarget,
-    );
+    this.hud.drawTargets(frame.targets);
+    this.hud.render(dt, frame.state, this.player.position, this.player.quaternion,
+      frame.contacts, frame.compassTarget);
   }
 }
