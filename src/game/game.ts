@@ -13,7 +13,6 @@ import { LivingGalaxy } from '../galaxy/living.ts';
 import { generateContractOffers, pirateThreat, markOf, memberTier, type PirateThreat } from './contracts.ts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
-import { buildShip, CANISTER } from '../ships/geometry.ts';
 import { PlayerShip } from '../player.ts';
 import { Input } from '../engine/input.ts';
 import { keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
@@ -26,11 +25,12 @@ import { sfx } from '../audio.ts';
 import { NpcShip, CONSTRICTOR_SPEC, isHostileToPlayer, pirateSpecForTier, installPolicyKit, DEFEND_BRAIN, type NpcRole, type FireEvent } from './npc.ts';
 import { planDocking, makeDockPlan } from './docking.ts';
 import { Effects } from './effects.ts';
+import { CargoField, type Canister } from './cargo.ts';
 import { random, randomInt, randomDirection, seedWorld, rngState, restoreRng } from './rng.ts';
 import { saveWorld, readWorld, clearWorld } from './commander.ts';
 import {
   SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState,
-  type WorldSnapshot, type CanisterSnapshot,
+  type WorldSnapshot,
 } from './snapshot.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation, RAM_DAMAGE } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
@@ -236,15 +236,6 @@ const AXIS_Z_CC = new THREE.Vector3(0, 0, 1);
 const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
   new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a));
 
-interface Canister {
-  object: THREE.Object3D;
-  /** commodity index for cargo; ignored for capsules */
-  commodity: number;
-  kind: 'cargo' | 'capsule';
-  velocity: THREE.Vector3;
-  spinAxis: THREE.Vector3;
-}
-
 // Fields the autonomous playtest agent (test/playtest.js) reads or drives
 // are public rather than private; they are otherwise internal.
 export class Game {
@@ -253,6 +244,8 @@ export class Game {
   private readonly scene = new THREE.Scene();
   /** explosions and tracers — purely visual, see effects.ts */
   private readonly effects = new Effects(this.scene);
+  /** canisters and capsules adrift — see cargo.ts */
+  private readonly cargo = new CargoField(this.scene);
 
 
   systems: StarSystem[];
@@ -362,7 +355,6 @@ export class Game {
 
   /** missile armed but not yet locked (the original's yellow pylon) */
 
-  canisters: Canister[] = [];
   /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
   private encounterTimers: EncounterTimers = freshTimers();
   /** counts down to the next mid-flight world save — see autoSave() */
@@ -425,6 +417,8 @@ export class Game {
 
   /** Missiles in flight. Owned by `ordnance`; exposed for the HUD and saves. */
   get missiles(): Missile[] { return this.ordnance.missiles; }
+  /** Cargo adrift. Owned by `cargo`; exposed for the HUD and the snapshot. */
+  get canisters(): Canister[] { return this.cargo.items; }
   get targetLock(): NpcShip | null { return this.ordnance.targetLock; }
   set targetLock(v: NpcShip | null) { this.ordnance.targetLock = v; }
   get missileArmed(): boolean { return this.ordnance.armed; }
@@ -679,7 +673,7 @@ export class Game {
     }
     this.clearNpcs();
     this.effects.clear();
-    this.clearCanisters();
+    this.cargo.clear();
     this.world = buildSystemScene(this.system);
     this.scene.add(this.world.root);
     this.hud.setSystem(this.system);
@@ -728,45 +722,8 @@ export class Game {
     return npc;
   }
 
-  private clearCanisters(): void {
-    for (const c of this.canisters) this.scene.remove(c.object);
-    this.canisters = [];
-  }
 
-  private spawnCanisters(at: THREE.Vector3, count: number, commodities: number[]): void {
-    for (let i = 0; i < count; i++) {
-      const object = buildShip(CANISTER, 0x8ad0ff);
-      object.position.copy(at).add(randomDirection(new THREE.Vector3()).multiplyScalar(20 + i * 15));
-      this.canisters.push({
-        object,
-        kind: 'cargo',
-        commodity: commodities[Math.floor(random() * commodities.length)],
-        velocity: randomDirection(new THREE.Vector3()).multiplyScalar(15 + random() * 30),
-        spinAxis: randomDirection(new THREE.Vector3()),
-      });
-      this.scene.add(object);
-    }
-  }
 
-  /**
-   * "Most wily traders, and many pirates, have this device fitted" — a
-   * destroyed ship may eject its crew, leaving cargo and equipment behind.
-   * Scoop the capsule and the occupant becomes, regrettably, cargo.
-   */
-  private spawnEscapeCapsule(at: THREE.Vector3): void {
-    const object = buildShip(CANISTER, 0xffd24d);
-    object.scale.setScalar(0.8);
-    object.position.copy(at);
-    this.canisters.push({
-      object,
-      kind: 'capsule',
-      commodity: 3, // slaves
-      velocity: randomDirection(new THREE.Vector3()).multiplyScalar(40 + random() * 30),
-      spinAxis: randomDirection(new THREE.Vector3()),
-    });
-    this.scene.add(object);
-    this.hud.showMessage('ESCAPE CAPSULE LAUNCHED', 3);
-  }
 
   /** A fresh trader warps in at the system edge and heads for the station. */
   private spawnArrivingTrader(): void {
@@ -852,7 +809,7 @@ export class Game {
         .add(randomDirection(new THREE.Vector3()).multiplyScalar(14000 + random() * 8000));
       const gen = this.spawnNpc('generation', pos, 0);
       gen.object.lookAt(home);
-      this.spawnCanisters(pos.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(700)),
+      this.cargo.spawn(pos.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(700)),
         3 + randomInt(4), [0, 1, 4, 8, 9, 12]);
       this.genShipSeen = false;
     }
@@ -904,7 +861,7 @@ export class Game {
     this.cabinTemp = 0;
     this.witchspace = false;
     this.beaconTimer = -1;
-    this.clearCanisters();
+    this.cargo.clear();
     this.checkMissionAtDock();
     this.hermitTrading = false;
     this.market = this.localMarket();
@@ -1066,9 +1023,11 @@ export class Game {
       }
     });
 
-    this.clearCanisters();
+    this.cargo.clear();
     for (const c of snap.canisters) {
-      this.restoreCanister(c);
+      this.cargo.restore(
+        new THREE.Vector3(...c.pos), new THREE.Vector3(...c.velocity),
+        new THREE.Vector3(...c.spinAxis), c.kind, c.commodity);
     }
 
     this.encounterTimers = { ...snap.encounterTimers };
@@ -1137,19 +1096,6 @@ export class Game {
     }
   }
 
-  private restoreCanister(c: CanisterSnapshot): void {
-    const object = buildShip(CANISTER, c.kind === 'capsule' ? 0xffd24d : 0x8ad0ff);
-    if (c.kind === 'capsule') object.scale.setScalar(0.8);
-    object.position.set(...c.pos);
-    this.canisters.push({
-      object,
-      kind: c.kind,
-      commodity: c.commodity,
-      velocity: new THREE.Vector3(...c.velocity),
-      spinAxis: new THREE.Vector3(...c.spinAxis),
-    });
-    this.scene.add(object);
-  }
 
   /** @internal — driven by test/playtest.js */
   launch(): void {
@@ -1470,8 +1416,7 @@ export class Game {
       sfx.hit();
       this.effects.explosion(hitCanister.object.position.clone(), 0x8ad0ff,
         { count: 10, speed: 55, duration: 0.4 });
-      this.scene.remove(hitCanister.object);
-      this.canisters = this.canisters.filter((x) => x !== hitCanister);
+      this.cargo.destroy(hitCanister);
       if (hitCanister.kind === 'capsule') {
         // there is someone in that thing
         this.hud.showMessage('ESCAPE CAPSULE DESTROYED', 3);
@@ -1526,7 +1471,7 @@ export class Game {
       this.hud.showMessage(`BOUNTY: ${formatCredits(npc.bounty)}`, 3);
     }
     if (npc.role === 'asteroid' && this.commander.equipment.miningLaser) {
-      this.spawnCanisters(npc.object.position, 1 + randomInt(3), [12, 12, 12, 13, 14]);
+      this.cargo.spawn(npc.object.position, 1 + randomInt(3), [12, 12, 12, 13, 14]);
     }
     if (npc.isMissionTarget && this.commander.mission.stage === 1) {
       this.commander.mission.stage = 2;
@@ -1546,10 +1491,10 @@ export class Game {
     // wily traders and many pirates punch out at the last moment
     if (npc.role === 'trader' || npc.role === 'pirate' || npc.role === 'hunter') {
       const chance = npc.role === 'trader' ? 0.45 : 0.2;
-      if (random() < chance) this.spawnEscapeCapsule(npc.object.position.clone());
+      if (random() < chance) this.cargo.spawnCapsule(npc.object.position.clone());
     }
     if (npc.cargoDrop > 0) {
-      this.spawnCanisters(
+      this.cargo.spawn(
         npc.object.position,
         Math.floor(random() * (npc.cargoDrop + 1)),
         [0, 1, 4, 8, 9, 11, 12], // food, textiles, liquor, machinery, alloys, furs, minerals
@@ -2034,7 +1979,25 @@ export class Game {
 
   /** Cargo, missiles, and the things that are only ever seen. */
   private stepProjectilesAndEffects(dt: number): void {
-    this.updateCanisters(dt);
+    // The field drifts them and says what we reached; what it is worth is
+    // ours to decide, because it touches the hold, legal status and damage.
+    for (const { canister: c } of this.cargo.update(dt, this.player.position)) {
+      if (!this.commander.equipment.scoops) {
+        this.applyPlayerDamage(0.06, c.object.position);
+        this.hud.showMessage('CANISTER DESTROYED ON HULL', 2);
+      } else if (cargoTonnes(this.commander) >= cargoCapacity(this.commander)) {
+        this.hud.showMessage(
+          c.kind === 'capsule' ? 'HOLD FULL — CAPSULE LOST' : 'HOLD FULL — CANISTER LOST', 3);
+      } else if (c.kind === 'capsule') {
+        this.commander.cargo[3] += 1; // the occupant, now inventory
+        this.hud.showMessage('CAPSULE ABOARD — SURVIVOR LOGGED AS CARGO', 4);
+        sfx.beep(600, 0.12);
+      } else {
+        this.commander.cargo[c.commodity] += 1;
+        this.hud.showMessage(`SCOOPED 1t ${COMMODITIES[c.commodity].name.toUpperCase()}`, 3);
+        sfx.beep(950, 0.08);
+      }
+    }
     this.updateEncounters();
 
     this.applyOrdnance(dt);
@@ -2226,32 +2189,6 @@ export class Game {
     }
   }
 
-  private updateCanisters(dt: number): void {
-    for (const c of [...this.canisters]) {
-      c.object.position.addScaledVector(c.velocity, dt);
-      c.object.rotateOnAxis(c.spinAxis, dt * 0.8);
-      const dist = c.object.position.distanceTo(this.player.position);
-      if (dist > 45) continue;
-      this.scene.remove(c.object);
-      this.canisters = this.canisters.filter((x) => x !== c);
-      if (this.commander.equipment.scoops) {
-        if (cargoTonnes(this.commander) >= cargoCapacity(this.commander)) {
-          this.hud.showMessage(c.kind === 'capsule' ? 'HOLD FULL — CAPSULE LOST' : 'HOLD FULL — CANISTER LOST', 3);
-        } else if (c.kind === 'capsule') {
-          this.commander.cargo[3] += 1; // the occupant, now inventory
-          this.hud.showMessage('CAPSULE ABOARD — SURVIVOR LOGGED AS CARGO', 4);
-          sfx.beep(600, 0.12);
-        } else {
-          this.commander.cargo[c.commodity] += 1;
-          this.hud.showMessage(`SCOOPED 1t ${COMMODITIES[c.commodity].name.toUpperCase()}`, 3);
-          sfx.beep(950, 0.08);
-        }
-      } else {
-        this.applyPlayerDamage(0.06, c.object.position);
-        this.hud.showMessage('CANISTER DESTROYED ON HULL', 2);
-      }
-    }
-  }
 
   /** @internal — driven by test/playtest.js */
   massLocked(): boolean {
@@ -2483,7 +2420,7 @@ if (i.pressed('Enter')) this.respawn();
       if (best < 0) break;
       this.commander.cargo[best] -= 1;
       this.jettisonedValue += bestValue * 4; // tenths of a credit, as markOf values it
-      this.spawnCanisters(this.player.position.clone(), 1, [best]);
+      this.cargo.spawn(this.player.position.clone(), 1, [best]);
       lastName = COMMODITIES[best].name.toUpperCase();
       dumped += 1;
     }
