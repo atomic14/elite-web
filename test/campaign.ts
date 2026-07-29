@@ -18,7 +18,8 @@
 import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '../src/galaxy/galaxy.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import {
-  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat, markOf, memberTier,
+  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat,
+  markOf, memberTier, MAX_CONTRACTS,
 } from '../src/game/contracts.ts';
 import {
   newCommander, cargoCapacity, cargoTonnes, rating, killValue, MAX_FUEL,
@@ -27,6 +28,7 @@ import {
 import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
 } from '../src/game/shop.ts';
+import { pirateSpecForTier } from '../src/game/ship-specs.ts';
 import { makeRng } from '../src/ai-training/core.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
 import { isContraband } from '../src/game/law.ts';
@@ -237,7 +239,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       return da - db;
     });
     for (const k of sorted) {
-      if (c.contracts.length >= 2) break;
+      if (c.contracts.length >= MAX_CONTRACTS) break;
       // a hunter takes bounty work and leaves the freight to traders
       if (strategy === 'hunter' && k.kind !== 'bounty') continue;
       // a privateer takes anything: freight pays, and it doubles as bait
@@ -284,10 +286,12 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       if (outcome === 'escaped') continue;
       if (outcome === 'dead') {
         deaths += 1;
-        // reload the last station save: the original's rule
+        // Dying costs you the cargo and the work in hand. It does NOT cost
+        // credits: `Game.die()` has no such line, and this file used to take
+        // 40% of them "the original's rule". Inventing a tax the game does
+        // not levy makes every wealth curve here a different game's.
         c.cargo = c.cargo.map(() => 0);
         c.contracts = [];
-        c.credits = Math.round(c.credits * 0.6);
         c.fuel = MAX_FUEL;
         break;
       }
@@ -303,7 +307,11 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       if (outcome === 'killed-them') {
         c.kills += 1;
         c.combatScore += killValue(mt);
-        c.credits += (50 + Math.floor(rng() * 60)) * (mt >= 2 ? 4 : mt === 1 ? 2 : 1);
+        // The bounty the GAME pays, from the hull that actually spawns.
+        // This was `(50 + rng()*60) * (tier2 ? 4 : tier1 ? 2 : 1)` — an
+        // invented range paying 1.6x to 2.2x the real tables, as direct income
+        // inside the harness that certifies the economy.
+        c.credits += pirateSpecForTier(mt, leg + c.kills).bounty;
         for (const k of c.contracts) {
           if (k.kind === 'bounty' && k.destination === c.systemIndex) k.progress += 1;
         }

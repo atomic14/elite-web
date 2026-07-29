@@ -10,7 +10,9 @@ import * as THREE from 'three';
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
-import { generateContractOffers, pirateThreat, markOf, type PirateThreat } from './contracts.ts';
+import {
+  generateContractOffers, pirateThreat, markOf, MAX_CONTRACTS, type PirateThreat,
+} from './contracts.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
 import { PlayerShip } from '../player.ts';
 import { Input } from '../engine/input.ts';
@@ -1038,7 +1040,7 @@ export class Game {
   acceptContract(): void {
     const k = this.contractOffers[this.contractSelected];
     if (!k) return;
-    if (this.commander.contracts.length >= 3) {
+    if (this.commander.contracts.length >= MAX_CONTRACTS) {
       this.hud.showMessage('YOU ARE CARRYING ENOUGH WORK ALREADY', 3);
       sfx.beep(220);
       return;

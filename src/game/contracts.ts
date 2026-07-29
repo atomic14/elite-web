@@ -148,6 +148,15 @@ export interface Mark {
 }
 
 /** Read a commander the way a pirate's scanner would. */
+/**
+ * The most work you may hold at once.
+ *
+ * Lived as a bare `>= 3` in game.ts and a bare `>= 2` in test/campaign.ts —
+ * so the balance harness was playing a game with a smaller bulletin board than
+ * the one that ships.
+ */
+export const MAX_CONTRACTS = 3;
+
 export function markOf(
   c: {
     cargo: number[];
