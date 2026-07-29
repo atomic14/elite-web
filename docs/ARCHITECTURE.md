@@ -128,7 +128,8 @@ src/
     law.ts                  contraband, fines, and how far your standing falls
     contracts.ts            work on offer, market pressure, and pirate economics
     missions.ts             the Navy Constrictor arc (NOT the bulletin board)
-    commander.ts            who you are between sessions: stats, prices, saves
+    commander.ts            who you are: stats, cargo, rank, and the save slots
+    shop.ts                 what things cost and what you may fit
     cargo.ts                canisters and capsules adrift, and scooping them
     jettison.ts             dumping cargo, and whether it buys off the gang
     trumbles.ts             they breed, they eat the hold, heat drives them out

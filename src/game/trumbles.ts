@@ -8,9 +8,18 @@
 // Pure over the commander plus the cabin temperature. It returns what
 // happened; the Game says it out loud.
 
-import { TRUMBLE_PURGE_TEMP, type CommanderData } from './commander.ts';
+import type { CommanderData } from './commander.ts';
 import { COMMODITIES } from '../galaxy/galaxy.ts';
 import { random } from './rng.ts';
+
+/**
+ * Cabin heat that drives them out.
+ *
+ * Lived in commander.ts, which is about what persists between sessions — a
+ * temperature threshold read once a frame by this file is neither persistent
+ * nor the commander's. It is the only number in the rule that is not here.
+ */
+export const TRUMBLE_PURGE_TEMP = 0.55;
 
 /** Seconds between broods. */
 export const BREED_INTERVAL = 20;

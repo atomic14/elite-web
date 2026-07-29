@@ -19,9 +19,10 @@ import {
 } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
 import { freshState } from '../src/game/state.ts';
+import { newCommander, MAX_FUEL } from '../src/game/commander.ts';
 import {
-  newCommander, MAX_FUEL, FUEL_PRICE, fuelNeeded, refuelCost, fuelQuote,
-} from '../src/game/commander.ts';
+  FUEL_PRICE, fuelNeeded, refuelCost, fuelQuote,
+} from '../src/game/shop.ts';
 import { equipRows, renderMarket } from '../src/ui/screens.ts';
 import { cargoTonnes } from '../src/game/commander.ts';
 import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';

@@ -21,10 +21,12 @@ import {
   generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat, markOf, memberTier,
 } from '../src/game/contracts.ts';
 import {
-  newCommander, cargoCapacity, cargoTonnes, rating, killValue, EQUIPMENT_CATALOGUE,
-  equipmentOwned, MAX_FUEL, fuelNeeded, refuelCost,
+  newCommander, cargoCapacity, cargoTonnes, rating, killValue, MAX_FUEL,
   type CommanderData, type Contract,
 } from '../src/game/commander.ts';
+import {
+  EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
+} from '../src/game/shop.ts';
 import { makeRng } from '../src/ai-training/core.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
 import { isContraband } from '../src/game/law.ts';

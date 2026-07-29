@@ -6,8 +6,11 @@ import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
   type CommanderData, type Contract, type SlotSummary,
   rating, cargoTonnes, formatCredits, cargoCapacity,
-  MAX_FUEL, EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
+  MAX_FUEL,
 } from '../game/commander.ts';
+import {
+  EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
+} from '../game/shop.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.

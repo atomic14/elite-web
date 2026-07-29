@@ -12,10 +12,11 @@
 // about game state. It returns an OUTCOME and the Game applies it.
 
 import {
-  saveCommander, formatCredits, cargoCapacity, cargoTonnes, fuelQuote,
+  saveCommander, formatCredits, cargoCapacity, cargoTonnes,
   MAX_FUEL, MAX_MISSILES,
   type CommanderData,
 } from '../commander.ts';
+import { fuelQuote } from '../shop.ts';
 import { renderMarket, renderEquip, equipRows } from '../../ui/screens.ts';
 import { applyMarketPressure } from '../contracts.ts';
 import { randomInt } from '../rng.ts';
