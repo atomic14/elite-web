@@ -13,6 +13,8 @@ import {
 } from '../game/shop.ts';
 import type { SlotSummary } from '../game/storage.ts';
 import { describeContract } from '../game/contracts.ts';
+import type { CombatSimReport } from '../game/combat-sim-report.ts';
+import type { SimSetupRow } from '../game/screens/combat-sim-setup.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.
@@ -56,6 +58,7 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       <div data-key="KeyG"><b>G</b> GALACTIC CHART</div>
       <div data-key="KeyD"><b>D</b> DATA ON SYSTEM</div>
       <div data-key="KeyI"><b>I</b> COMMANDER STATUS</div>
+      <div data-key="KeyT"><b>T</b> COMBAT TRAINING</div>
       <div data-key="KeyH"><b>H</b> NEW PILOT'S BRIEFING</div>
     </div>
     <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; S COMMANDER FILE &middot; X EXPORT &middot; Z IMPORT &middot; Q NEW COMMANDER</div>
@@ -851,6 +854,155 @@ export function renderContracts(
     <div class="keyline">
       DAY ${c.day} &middot; CASH ${formatCredits(c.credits)} &middot;
       HOLD ${cargoTonnes(c)}/${cargoCapacity(c)}t &nbsp;&mdash;&nbsp; CLICK A JOB &middot; A ACCEPT &middot; ESC EXIT
+    </div>
+  `);
+}
+
+// --- the combat training simulator -----------------------------------------
+
+/**
+ * The setup panel: a list of rows, and which one the cursor is on.
+ *
+ * A row list rather than a named field per control, because the panel's shape
+ * depends on what has been picked — a custom opposition grows seven rows per
+ * group — and a renderer that knew that would be holding half the screen's
+ * logic. It paints a list; `screens/combat-sim-setup.ts` decides what is in it.
+ */
+export function renderCombatSimSetup(
+  rows: readonly SimSetupRow[],
+  selected: number,
+  notes: readonly string[],
+  hasReport: boolean,
+): void {
+  const body = rows.map((r, i) => `
+      <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}"
+        ${r.dim ? 'style="opacity:0.45"' : ''}>
+        <td>${r.label}</td><td class="num">${r.value}</td>
+      </tr>`).join('');
+  show(`
+    <h2>COMBAT TRAINING SIMULATOR</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center">
+      NOTHING THAT HAPPENS IN HERE LEAVES IT &mdash;
+      NO KILLS, NO RATING, NO CREDITS, NO LEGAL STATUS, NO SAVE
+    </div>
+    <table>${body}</table>
+    ${notes.map((t) => `<div class="keyline" style="color:var(--hud-amber)">${t}</div>`).join('')}
+    <div class="buttons">
+      <button data-key="Enter">ENTER &mdash; LAUNCH</button>
+      ${hasReport ? '<button data-key="KeyL">L &mdash; LAST REPORT</button>' : ''}
+      <button data-key="Escape">ESC &mdash; DONE</button>
+    </div>
+    <div class="keyline">
+      CLICK A ROW &middot; &uarr;&darr; SELECT &middot; &larr;&rarr; CHANGE &middot;
+      R RANDOM SEED &middot; A ADD OPPONENT &middot; X REMOVE &middot; ESC DONE
+    </div>
+  `);
+}
+
+/** `1.23` / `-` — every statistic in a report is allowed to be unmeasured. */
+const num = (x: number | null | undefined, dp = 0): string =>
+  (x === null || x === undefined ? '-' : x.toFixed(dp));
+const pct = (x: number | null | undefined): string =>
+  (x === null || x === undefined ? '-' : `${(x * 100).toFixed(0)}%`);
+
+/** `laser 41.0 (12) · ram 8.0 (1)` — what hurt, and how often. */
+function bySource(
+  tallies: Partial<Record<string, { damage: number; count: number }>>,
+): string {
+  const parts = Object.entries(tallies)
+    .flatMap(([k, t]) => (t ? [`${k} ${t.damage.toFixed(1)} (${t.count})`] : []));
+  return parts.length ? parts.join(' &middot; ') : '-';
+}
+
+/**
+ * The record from one exercise, as the pilot reads it.
+ *
+ * The JSON is the deliverable (docs/COMBAT-SIM.md) and this is the human half
+ * of the same numbers — so it shows what a pilot can act on, and the export
+ * keys carry the rest.
+ */
+export function renderCombatSimReport(
+  r: CombatSimReport, index: number, total: number,
+): void {
+  const opponents = r.opponents.map((o) => `
+      <tr>
+        <td>${o.hull.toUpperCase()}</td>
+        <td>${o.brain}</td>
+        <td class="num">${o.tier ?? '-'}</td>
+        <td class="num">${o.livedSeconds.toFixed(1)}s</td>
+        <td>${o.destroyed ? (o.killedByYou ? 'YOU KILLED IT' : 'LOST') : 'SURVIVED'}</td>
+        <td class="num">${o.hits}/${o.shots}</td>
+        <td class="num">${o.damageToYou.toFixed(1)}</td>
+        <td class="num">${num(o.closestRange)}</td>
+      </tr>`).join('');
+  const stat = (label: string, you: string, them: string): string =>
+    `<tr><td>${label}</td><td class="num">${you}</td><td class="num">${them}</td></tr>`;
+  const e = r.envelope;
+  show(`
+    <h2>SIMULATION REPORT &mdash; ${r.outcome.toUpperCase()}</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center">
+      ${r.scenario.toUpperCase()} &middot; ${r.mode.toUpperCase()}
+      ${r.wave === undefined ? '' : `&middot; WAVE ${r.wave}`}
+      &middot; ${r.seconds.toFixed(1)}s &middot; SEED ${r.seed}<br/>
+      YOUR SHIP: ${r.player.laser.toUpperCase()} LASER${r.player.rearLaser ? ' + REAR' : ''}
+      &middot; ${r.player.missiles} MISSILES
+      ${r.player.ecm ? '&middot; E.C.M.' : ''}
+      ${r.player.energyUnit ? '&middot; ENERGY UNIT' : ''}
+      ${r.player.energyBomb ? '&middot; ENERGY BOMB' : ''}
+    </div>
+    <div class="chartrow">
+      <table>
+        <tr><th>&nbsp;</th><th class="num">YOU</th><th class="num">THEM</th></tr>
+        ${stat('SHOTS', String(r.you.shots), String(r.them.shots))}
+        ${stat('HITS', String(r.you.hits), String(r.them.hits))}
+        ${stat('ACCURACY', pct(r.you.accuracy), pct(r.them.accuracy))}
+        ${stat('DAMAGE DEALT', r.you.damageDealt.toFixed(1), r.them.damageToYou.toFixed(1))}
+        ${stat('LINED UP', pct(r.linedUpShare.you), pct(r.linedUpShare.them))}
+        ${stat('IN RANGE', pct(r.inRangeShare.you), pct(r.inRangeShare.them))}
+        ${stat('MEAN AIM ERROR', `${num(r.meanAimErrorDeg.you, 1)}&deg;`,
+          `${num(r.meanAimErrorDeg.them, 1)}&deg;`)}
+        ${stat('ON THE OTHER\'S SIX', `${r.onSixSeconds.you.toFixed(1)}s`,
+          `${r.onSixSeconds.them.toFixed(1)}s`)}
+      </table>
+      <table>
+        <tr><th colspan="2">THE FIGHT</th></tr>
+        <tr><td>KILLS</td><td class="num">${r.kills.yours} of ${r.opponents.length}</td></tr>
+        <tr><td>FIRST / LAST KILL</td>
+          <td class="num">${num(r.kills.firstAt, 1)}s / ${num(r.kills.lastAt, 1)}s</td></tr>
+        <tr><td>ENGAGED</td><td class="num">${r.engagedSeconds.toFixed(1)}s</td></tr>
+        <tr><td>RANGE (MEDIAN / CLOSEST)</td>
+          <td class="num">${num(r.range.median)} / ${num(r.range.closest)}</td></tr>
+        <tr><td>SHIELDS LOW (FORE / AFT)</td>
+          <td class="num">${num(r.lowWater.foreShield, 1)} / ${num(r.lowWater.aftShield, 1)}</td></tr>
+        <tr><td>ENERGY LOW</td><td class="num">${num(r.lowWater.energy, 1)}</td></tr>
+        <tr><td>YOUR SPEED (MED / P90)</td>
+          <td class="num">${num(e.speed?.median)} / ${num(e.speed?.p90)}</td></tr>
+        <tr><td>YOUR PITCH / ROLL (P90)</td>
+          <td class="num">${num(e.pitchRate?.p90, 2)} / ${num(e.rollRate?.p90, 2)}</td></tr>
+        <tr><td>DAMAGE TO YOU, BY SOURCE</td>
+          <td class="num">${bySource(r.them.damageBySource)}</td></tr>
+        <tr><td>DAMAGE BY YOU, BY SOURCE</td>
+          <td class="num">${bySource(r.you.damageBySource)}</td></tr>
+      </table>
+    </div>
+    <table>
+      <tr><th>HULL</th><th>BRAIN</th><th class="num">TIER</th><th class="num">LIVED</th>
+        <th>FATE</th><th class="num">HITS/SHOTS</th><th class="num">DAMAGE</th>
+        <th class="num">CLOSEST</th></tr>
+      ${opponents}
+    </table>
+    ${r.warnings.map((w) => `<div class="keyline" style="color:var(--hud-amber)">${w}</div>`).join('')}
+    <div class="buttons">
+      <button data-key="KeyC">C &mdash; COPY JSON</button>
+      <button data-key="KeyX">X &mdash; EXPORT FILE</button>
+      <button data-key="Escape">ESC &mdash; BACK</button>
+    </div>
+    <div class="keyline">
+      RECORD ${index + 1} OF ${total}${total > 1 ? ' &middot; &larr;&rarr; ANOTHER' : ''}
+      &middot; C COPY &middot; X EXPORT (&#8679;X ALL ${total})
+      &middot; ALSO ON window.__simLog &middot; ESC BACK
     </div>
   `);
 }

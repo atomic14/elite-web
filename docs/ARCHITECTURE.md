@@ -201,6 +201,12 @@ src/
     combat-computer.ts      the defence brain flying the PLAYER's ship
     autopilot.ts            is something else flying, and what does it want?
 
+    combat-sim.ts           the training exercise: a real fight that costs
+                            nothing — the commander swap, the entry snapshot,
+                            its own StepHost
+    combat-sim-scenarios.ts who it sends at you, and when it stops sending
+    combat-sim-report.ts    what happened, counted — and the JSON that exports
+
     law.ts                  contraband, fines, and how far your standing falls
     contracts.ts            work on offer, taking it, being paid for it,
                             market pressure, and pirate economics
@@ -246,7 +252,9 @@ src/
     brains/*.json           trained weights, committed
   viewer/main.ts            three.js viewer for episodes
 
+test/harness.ts             check(), the counters and the shared fixtures
 test/run.ts                 invariant + unit tests (npm test)
+test/combat-sim.test.ts     the training simulator's screen, keys and draft
 test/campaign.ts            headless balance playtest (npm run campaign)
 test/playtest.js            autonomous in-browser play agent (console)
 train/evolve.ts             neuroevolution trainer

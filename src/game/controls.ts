@@ -11,7 +11,9 @@
 //
 // So this is the same move for the discrete half. This file DECIDES what was
 // asked for and reports `Command`s; game.ts's `runCommand` applies them. The
-// tables below are the half of CLAUDE.md invariant 6 that used to be code.
+// tables below are the half of CLAUDE.md's KEY-BINDINGS INVARIANT that used to
+// be code — the other three homes are `engine/keymap.ts`, the `?` help panel in
+// play.html, and the README table, and a key that changes here changes there.
 //
 // It reads an INPUT, not a browser: `CommandInput` is the two methods a
 // binding needs, `engine/input.ts` satisfies it structurally, and a replay or
@@ -47,6 +49,7 @@ export type Command =
   | 'openBriefing'
   | 'openSaves'
   | 'openSystemData'
+  | 'openCombatSim'
   | 'exportSave'
   | 'importSave'
   | 'toggleLayout'
@@ -74,6 +77,8 @@ export type Command =
   | 'distressBeacon'
   | 'jettison1'
   | 'jettison5'
+  // --- the training simulator ---------------------------------------------
+  | 'endExercise'
   // --- after the end ------------------------------------------------------
   | 'respawn'
   // --- whatever is on screen ----------------------------------------------
@@ -88,7 +93,7 @@ export type Command =
  * replaced. The Game decides which mode it is in; the screen stack owns the
  * rest, so an open overlay never reaches this file at all.
  */
-export type ControlMode = 'docked' | 'confirmNewGame' | 'flight' | 'dead';
+export type ControlMode = 'docked' | 'confirmNewGame' | 'flight' | 'simulator' | 'dead';
 
 /**
  * The slice of `engine/input.ts` a binding needs.
@@ -126,9 +131,66 @@ export const GLOBAL_BINDINGS: readonly Binding[] = [
 ];
 
 /**
- * The binding table. This IS the key map for commands — see CLAUDE.md
- * invariant 6 for the three other places bindings live, all of which must
- * change with it.
+ * The cockpit's own table, named so the simulator can be stated as a
+ * SUBTRACTION from it rather than as a second copy of it.
+ *
+ * A hand-written second list of flight keys would be exactly the failure this
+ * project is organised against: adding a key to the cockpit and forgetting the
+ * arena, or the reverse, and nothing to notice either.
+ */
+const FLIGHT_BINDINGS: readonly Binding[] = [
+  { key: 'Digit1', independent: true, command: 'view0' },
+  { key: 'Digit2', independent: true, command: 'view1' },
+  { key: 'Digit3', independent: true, command: 'view2' },
+  { key: 'Digit4', independent: true, command: 'view3' },
+  { key: 'KeyG', command: 'openChart' },
+  { key: 'KeyN', command: 'openLocalChart' },
+  { key: 'KeyI', command: 'openStatus' },
+  { key: 'KeyT', command: 'armMissile' },
+  { key: 'KeyM', command: 'launchMissile' },
+  { key: 'KeyU', command: 'disarmMissile' },
+  { key: 'KeyE', command: 'fireEcm' },
+  { key: 'KeyK', command: 'toggleCombatComputer' },
+  { key: 'KeyV', command: 'toggleMouseFlight' },
+  { key: 'Tab', command: 'detonateEnergyBomb' },
+  { key: 'KeyC', command: 'toggleDockingComputer' },
+  { key: 'KeyH', shift: true, command: 'galacticJump' },
+  { key: 'KeyH', command: 'startHyperspace' },
+  { key: 'KeyB', command: 'distressBeacon' },
+  { key: 'KeyY', shift: true, command: 'jettison5' },
+  { key: 'KeyY', command: 'jettison1' },
+  { key: 'KeyJ', command: 'toggleTorus' },
+];
+
+/**
+ * What a training exercise takes off you, and why each one.
+ *
+ * An arena you can leave is not an arena. Every command here would either end
+ * the fight somewhere the report never mentions or spend something the exercise
+ * has no business spending:
+ *
+ *  - `startHyperspace` / `galacticJump` — the exercise's `StepHost` refuses the
+ *    arrival anyway, so the countdown would run and silently do nothing; the
+ *    galactic drive additionally rebuilds the scene mid-fight.
+ *  - `distressBeacon` — GalCop tows you out of the fight, for your cargo.
+ *  - `jettison1` / `jettison5` — dumping cargo buys off a gang, and the clone's
+ *    hold is deliberately EMPTY, so the key can only ever mislead.
+ *  - `toggleDockingComputer` — it flies you at a station 77,000 units away and
+ *    docking is the one transition that writes the save.
+ *
+ * Everything else the cockpit has is kept: the four views, the whole missile
+ * cycle, the E.C.M., the energy bomb, the combat computer, mouse flight and the
+ * torus drive. An exercise is meant to be the real ship.
+ */
+export const NOT_IN_THE_SIMULATOR: readonly Command[] = [
+  'startHyperspace', 'galacticJump', 'distressBeacon', 'jettison1', 'jettison5',
+  'toggleDockingComputer',
+];
+
+/**
+ * The binding table. This IS the key map for commands — see CLAUDE.md's
+ * key-bindings invariant for the three other places bindings live, all of which
+ * must change with it.
  */
 export const BINDINGS: Record<ControlMode, readonly Binding[]> = {
   /** The station menu: trade, outfit, take work, and leave. */
@@ -152,6 +214,11 @@ export const BINDINGS: Record<ControlMode, readonly Binding[]> = {
     // it while docked — the only KeyD handlers were on the charts and the save
     // screen. Reports the system you are standing on.
     { key: 'KeyD', command: 'openSystemData' },
+    // T for TRAINING. Free on this menu, and it arms a missile in FLIGHT —
+    // which is the established per-mode convention, not a clash: C is contracts
+    // docked and the docking computer in flight, M is the market docked and
+    // launch-missile in flight. The tables are per mode.
+    { key: 'KeyT', command: 'openCombatSim' },
     { key: 'KeyX', command: 'exportSave' },
     { key: 'KeyZ', command: 'importSave' },
     { key: 'KeyB', command: 'toggleLayout' },
@@ -166,28 +233,20 @@ export const BINDINGS: Record<ControlMode, readonly Binding[]> = {
   ],
 
   /** The cockpit: views, weapons, the ship's computers, and the charts. */
-  flight: [
-    { key: 'Digit1', independent: true, command: 'view0' },
-    { key: 'Digit2', independent: true, command: 'view1' },
-    { key: 'Digit3', independent: true, command: 'view2' },
-    { key: 'Digit4', independent: true, command: 'view3' },
-    { key: 'KeyG', command: 'openChart' },
-    { key: 'KeyN', command: 'openLocalChart' },
-    { key: 'KeyI', command: 'openStatus' },
-    { key: 'KeyT', command: 'armMissile' },
-    { key: 'KeyM', command: 'launchMissile' },
-    { key: 'KeyU', command: 'disarmMissile' },
-    { key: 'KeyE', command: 'fireEcm' },
-    { key: 'KeyK', command: 'toggleCombatComputer' },
-    { key: 'KeyV', command: 'toggleMouseFlight' },
-    { key: 'Tab', command: 'detonateEnergyBomb' },
-    { key: 'KeyC', command: 'toggleDockingComputer' },
-    { key: 'KeyH', shift: true, command: 'galacticJump' },
-    { key: 'KeyH', command: 'startHyperspace' },
-    { key: 'KeyB', command: 'distressBeacon' },
-    { key: 'KeyY', shift: true, command: 'jettison5' },
-    { key: 'KeyY', command: 'jettison1' },
-    { key: 'KeyJ', command: 'toggleTorus' },
+  flight: FLIGHT_BINDINGS,
+
+  /**
+   * The cockpit inside a training exercise: the same ship, minus every way out
+   * of the arena, plus the two keys that end the exercise.
+   *
+   * Escape AND Q, deliberately. Escape is what every overlay in the game closes
+   * with, so it is the key a hand reaches for; Q is the one that still works
+   * when a keyboard's Escape is doing something the browser claimed.
+   */
+  simulator: [
+    ...FLIGHT_BINDINGS.filter((b) => !NOT_IN_THE_SIMULATOR.includes(b.command)),
+    { key: 'Escape', command: 'endExercise' },
+    { key: 'KeyQ', command: 'endExercise' },
   ],
 
   /** The only key that matters after you have been destroyed. */

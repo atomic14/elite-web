@@ -149,12 +149,35 @@ because browsers claim the function keys.
 
 ### Docked
 
-L launch · M market · E equip ship · N local chart · G galactic chart ·
-C contracts · D data on system · I status · **H new pilot's briefing** ·
-B switch keyboard layout · S commander file (4 save slots · rename) ·
-X export save · Z import save · **Q start a new commander** (confirms first)
+| Key | Action |
+| --- | --- |
+| L | launch |
+| M / C / E | market · contracts · equip ship |
+| N / G / D / I | local chart · galactic chart · data on system · status |
+| **T** | **combat training simulator** — practise a fight; nothing in it reaches your career |
+| H | new pilot's briefing |
+| B | switch keyboard layout |
+| S | commander file (4 save slots · rename) |
+| X / Z | export · import save |
+| Q | start a new commander (confirms first) |
 
 ↑↓ and ENTER work on the menu as well as the letter keys.
+
+### Combat training simulator
+
+Free, at every station, on **T**. Pick a mode (one scored fight · endless
+sparring against one hull · escalating waves), a scenario, a threat tier, an
+optional seed, and optionally build the opposition yourself — hull, count,
+tier, brain and fit, per group — plus a fit-out override for your own ship.
+ENTER launches; **ESC** or **Q** ends the exercise.
+
+It is the real game: real flight model, real trained brains, real guns. But
+**nothing that happens in it leaves it** — no kills, no combat rating, no
+credits, no legal status, no save write, and death ends the exercise rather
+than the career. Afterwards you get a report (accuracy both ways, damage by
+source, engagement ranges, time on each other's six, your own flight
+envelope) which exports as JSON to the clipboard or a file, and lands on
+`window.__simLog` for a console session or an agent to read.
 
 ### Market
 

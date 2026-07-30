@@ -65,10 +65,7 @@ import {
 import { seedWorld, random, rngState, restoreRng } from '../src/game/rng.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
-import {
-  commandsFor, globalCommands, BINDINGS,
-  type Command, type CommandInput, type ControlMode,
-} from '../src/game/controls.ts';
+import { globalCommands, BINDINGS, type ControlMode } from '../src/game/controls.ts';
 import {
   Autopilot, DOCK_COMPUTER_RANGE, type AutopilotEvent,
 } from '../src/game/autopilot.ts';
@@ -137,22 +134,12 @@ import { brainFromFile, randomBrain, type BrainFile } from '../src/ai-training/p
 import { makeRng } from '../src/game/rng.ts';
 import { TURN, ACCEL_FRACTION, shipAccel } from '../src/game/ship-specs.ts';
 
-let passed = 0;
-let failed = 0;
-
-function check(name: string, condition: boolean, detail = ''): void {
-  if (condition) {
-    passed += 1;
-    console.log(`  ok   ${name}`);
-  } else {
-    failed += 1;
-    console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`);
-  }
-}
-
-function eq(name: string, actual: unknown, expected: unknown): void {
-  check(name, actual === expected, `got ${JSON.stringify(actual)}, want ${JSON.stringify(expected)}`);
-}
+// `check`, the counters and the shared fixtures live in test/harness.ts, so a
+// second test file can import the SAME ones — see the header there for why the
+// split starts at the bottom. Adding a test file is one import line below plus
+// `import { check } from './harness.ts'` in the file itself.
+import { check, eq, cmds, eqc, keys, summarise } from './harness.ts';
+import './combat-sim.test.ts';
 
 // --- the canonical universe -------------------------------------------------
 
@@ -673,25 +660,8 @@ console.log('\nscreen host');
 
 console.log('\ncommand layer');
 {
-  /** A keyboard that has already been pressed. Taps are consumed, as Input's are. */
-  const keys = (down: string[], held: string[] = []): CommandInput => {
-    const taps = new Map<string, number>();
-    for (const k of down) taps.set(k, (taps.get(k) ?? 0) + 1);
-    return {
-      pressed: (code) => {
-        const n = taps.get(code) ?? 0;
-        if (n <= 0) return false;
-        taps.set(code, n - 1);
-        return true;
-      },
-      held: (...codes) => codes.some((c) => held.includes(c)),
-    };
-  };
-  const cmds = (mode: ControlMode, down: string[], held: string[] = []): Command[] =>
-    commandsFor(mode, keys(down, held));
-  /** eq() compares by identity; a command list has to be compared by value. */
-  const eqc = (name: string, actual: Command[], expected: Command[]): void =>
-    eq(name, actual.join('|'), expected.join('|'));
+  // `keys`, `cmds` and `eqc` are in test/harness.ts: the simulator's own binding
+  // tests need the same fake keyboard, and two of them would drift.
 
   // --- the bindings themselves, which are the point ---------------------------
   eqc('L launches', cmds('docked', ['KeyL']), ['launch']);
@@ -739,7 +709,12 @@ console.log('\ncommand layer');
     cmds('confirmNewGame', ['KeyL', 'KeyM', 'KeyE']), []);
 
   // --- the table is a key map, so it must not contain a collision ----------------
-  for (const mode of ['docked', 'confirmNewGame', 'flight', 'dead'] as const) {
+  //
+  // Over `Object.keys(BINDINGS)` rather than a written-out list: the list was
+  // written out, `simulator` was added, and a new mode was silently uncovered by
+  // both checks below. A test that needs maintaining to keep working is the
+  // failure it is guarding against.
+  for (const mode of Object.keys(BINDINGS) as ControlMode[]) {
     const seen = new Set<string>();
     const clash = BINDINGS[mode].filter((b) => {
       const id = `${b.key}:${b.shift ?? '?'}`;
@@ -5321,5 +5296,5 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
 // --- result -----------------------------------------------------------------
 
-console.log(`\n${passed} passed, ${failed} failed\n`);
-if (failed > 0) process.exit(1);
+// One total and one exit code for every imported test file — see test/harness.ts.
+summarise();

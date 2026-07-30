@@ -104,6 +104,25 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   The rate is `FUEL_PRICE` in `src/game/commander.ts` — change it there.
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands
   your ship to the trained defence policy for as long as you hold a fight.
+- A **combat training simulator** (`T` when docked, free, every station), which
+  the original had no equivalent of at all — it gave you no way to practise, and
+  a game whose opponents are *trained* wants one. Two reasons, and the second is
+  the load-bearing one: a player can learn what a Fer-de-Lance does differently
+  from a Sidewinder without paying for the lesson with a career, and the AI can
+  finally be judged against a human instead of only against other AI. CLAUDE.md
+  records the cost of that gap — generation 1 and 2 won every measurement this
+  project could produce and lost the only one that counted. Every exercise
+  exports a JSON record, and those records are the missing input.
+
+  The rule that makes it defensible is that **nothing which happens in it
+  leaves it**: no kills, no `combatScore`, no credits, no legal status, no cargo
+  or equipment lost, no save write, and death ends the exercise rather than the
+  career. It must not advance you toward E L I T E — that requires real kills.
+  Your own ship's FIT-OUT is selectable inside an exercise (lasers, shields,
+  E.C.M., missiles, energy unit and bomb) but the HULL is not: the player's hull
+  is four constants in `player.ts`, and `ai-training/scenario.ts` reads them as
+  the target every pirate brain was fitted against. Design in
+  `docs/COMBAT-SIM.md`.
 - **Contracts from day one.** The original gated missions behind a high
   combat rating; here a bulletin board gives every commander work from the
   first landing. Recognisable, but kinder.

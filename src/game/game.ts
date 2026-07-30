@@ -97,6 +97,7 @@ import { DataScreen, type DataContext } from './screens/data.ts';
 import { BriefingScreen } from './screens/briefing.ts';
 import { ContractsScreen, type ContractsContext } from './screens/contracts.ts';
 import { ChartScreen, type ChartContext } from './screens/chart.ts';
+import { CombatSimScreen, type CombatSimContext } from './screens/combat-sim.ts';
 import { ScreenHost } from '../ui/screen-host.ts';
 import { createRenderStack, BEAM_Z, type RenderStack } from '../engine/render-stack.ts';
 import { nearestSystemTo } from '../galaxy/navigation.ts';
@@ -394,18 +395,35 @@ export class Game {
       message: (text, seconds) => this.hud.showMessage(text, seconds),
       flashDamage: () => this.hud.flashDamage(),
       aimBeams: (at) => this.aimBeams(at),
-      // Nothing yet: the exercise says its own summary through `message`, and
-      // the screen that reads the full records is stage 6. They are also on
-      // `window.__simLog` and returned from `endExercise()`.
-      finished: () => {},
+      // The exercise has torn down and the career is back: hold the records and
+      // put the report on screen. Ordering is not incidental — teardown restores
+      // the mode first (`enterMode` clears the stack), so pushing the screen
+      // afterwards leaves it sitting on the station menu it was launched from.
+      finished: (reports) => {
+        this.simReports = reports;
+        if (reports.length === 0) return;
+        this.combatSim_.showReport();
+        this.screens.open('combat-sim');
+      },
     };
   }
 
+  /** The records the last exercise produced — what the report panel reads. */
+  private simReports: readonly CombatSimReport[] = [];
+
+  /** The picker and the report, behind one screen id. */
+  private readonly combatSim_ = new CombatSimScreen(() => ({
+    commander: this.commander,
+    reports: this.simReports,
+    begin: (spec, fit) => this.startExercise(spec, fit),
+    message: (text, seconds) => this.hud.showMessage(text, seconds),
+  } satisfies CombatSimContext));
+
   /**
-   * Start a training exercise. The screen that picks one is stage 6; this is the
-   * whole of what it needs from the Game.
+   * Start a training exercise.
    *
-   * @internal — driven by the console harnesses until the picker exists
+   * @internal — the picker calls it through `CombatSimContext.begin`, and the
+   * console harnesses call it directly.
    */
   startExercise(spec: ExerciseSpec, fit?: ExerciseFit): boolean {
     if (this.baseMode === 'dead') return false;
@@ -415,7 +433,8 @@ export class Game {
   /**
    * End one early, from anywhere. Returns the records it produced.
    *
-   * @internal — driven by the console harnesses until the picker exists
+   * Reached from the `simulator` binding table (Escape or Q) and from the
+   * console harnesses.
    */
   endExercise(): readonly CombatSimReport[] | null { return this.combatSim.quit(); }
 
@@ -588,6 +607,7 @@ export class Game {
       this.contracts_,
       new ChartScreen('chart', () => this.chartContext()),
       new ChartScreen('local', () => this.chartContext()),
+      this.combatSim_,
     ]) this.screens.register(screen);
 
     // Fixed timestep, decoupled from the frame rate.
@@ -1435,7 +1455,11 @@ export class Game {
    */
   private controlMode(): ControlMode | null {
     if (this.mode === 'docked') return this.pendingNewGame ? 'confirmNewGame' : 'docked';
-    if (this.mode === 'flight') return 'flight';
+    // An exercise is ordinary flight with a different StepHost, so it is the
+    // same mode to the world and a different TABLE to the keyboard: no
+    // hyperspace, no beacon, no jettison, no docking computer — and Escape or Q
+    // ends it (controls.ts, NOT_IN_THE_SIMULATOR).
+    if (this.mode === 'flight') return this.combatSim.active ? 'simulator' : 'flight';
     if (this.mode === 'dead') return 'dead';
     return null;
   }
@@ -1461,6 +1485,7 @@ export class Game {
       case 'openBriefing': this.screens.open('briefing'); break;
       case 'openSaves': this.openSaves(); break;
       case 'openSystemData': this.openSystemData(this.system, 'docked'); break;
+      case 'openCombatSim': this.screens.open('combat-sim'); break;
       case 'exportSave': this.exportSave(); break;
       case 'importSave': this.importSave(); break;
       case 'toggleLayout': this.switchLayout(); break;
@@ -1500,6 +1525,9 @@ export class Game {
       case 'distressBeacon': this.sendDistressBeacon(); break;
       case 'jettison1': this.jettisonCargo(1); break;
       case 'jettison5': this.jettisonCargo(5); break;
+
+      // --- the training simulator -------------------------------------------
+      case 'endExercise': this.endExercise(); break;
 
       // --- after the end ----------------------------------------------------
       case 'respawn': this.respawn(); break;
