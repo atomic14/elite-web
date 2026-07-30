@@ -168,3 +168,39 @@ console.log('\nstation defence');
       new Set(vipers.map((v: NpcShip) => v.object.position.toArray().join())).size === vipers.length);
   }
 }
+
+// --- who is hunting whom, across a reload -----------------------------------
+
+// The hunting links are the one part of a ship that is not in NpcState: they
+// are references, so they are saved as indices and rebuilt here. The bug this
+// guards is on record — a reloaded fleeing trader had no attackers, so
+// nearestAttacker() returned null and the prey stopped running.
+
+console.log('\nhunting links survive a reload');
+{
+  seedWorld(6_070_809);
+  const world = new World();
+  world.build(g1[7]);
+  world.clearNpcs();
+  const trader = world.spawn('trader', new THREE.Vector3(0, 0, 0), 11);
+  const pirate = world.spawn('pirate', new THREE.Vector3(500, 0, 0), 13);
+  const police = world.spawn('police', new THREE.Vector3(-500, 0, 0), 17);
+  pirate.npcTarget = trader;
+  trader.addAttacker(pirate);
+  police.npcTarget = pirate;   // the law registers nothing — see world.ts
+  trader.fleeing = true;
+
+  const saved = world.captureNpcs();
+  world.restoreNpcs(saved, () => undefined);
+  const [t2, p2, c2] = world.npcs;
+
+  check('the fleet comes back whole', world.npcs.length === 3
+    && t2.role === 'trader' && p2.role === 'pirate' && c2.role === 'police');
+  check('the pirate is still hunting the trader', p2.npcTarget === t2);
+  check('...and the trader still knows it — the reload that broke this once',
+    t2.hasAttacker(p2));
+  check('...and is still running', t2.fleeing);
+  check('the police still chase the pirate', c2.npcTarget === p2);
+  check('...but do NOT register as its attackers, as in a live run',
+    !p2.hasAttacker(c2));
+}

@@ -129,14 +129,12 @@ export class World {
       const prey = this.npcs[n.targetIndex];
       if (!hunter || !prey) return;
       hunter.npcTarget = prey;
-      // Only a pirate registers itself as an attacker — npc-targeting.ts does
-      // this for pirates and NOT for police or hunters, which set npcTarget
-      // alone. Pushing for everyone invented links the live run never had, and
-      // `attackers` drives nearestAttacker(), so a reloaded fleeing ship turned
-      // and duelled the police chasing it where before it just ran.
-      if (hunter.role === 'pirate' && !prey.attackers.includes(hunter)) {
-        prey.attackers.push(hunter);
-      }
+      // The same verb the live path calls, on the same terms: only a pirate
+      // registers, because npc-targeting.ts registers pirates and NOT police
+      // or hunters, which set npcTarget alone. Registering everyone invented
+      // links the live run never had, and a reloaded fleeing ship turned and
+      // duelled the police chasing it where before it just ran.
+      if (hunter.role === 'pirate') prey.addAttacker(hunter);
     });
   }
 

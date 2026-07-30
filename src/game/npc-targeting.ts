@@ -47,19 +47,15 @@ function nearest(
  * Ships keep a target while it is alive, so this only fills in the gaps. It
  * also prunes stale attacker links first: a trader tracks who is shooting at
  * it (that is what makes it flee and call for help), and those entries go
- * stale when the attacker dies or picks someone else.
+ * stale when the attacker dies or picks someone else. The list belongs to the
+ * ship — this asks for it to be pruned rather than splicing it from outside.
  */
 export function assignNpcTargets(
   npcs: readonly NpcShip[],
   playerPos: THREE.Vector3,
   playerLegalStatus: number,
 ): void {
-  for (const npc of npcs) {
-    if (!npc.attackers.length) continue;
-    const live = npc.attackers.filter((a) => a.alive && a.npcTarget === npc);
-    npc.attackers.length = 0;
-    npc.attackers.push(...live);
-  }
+  for (const npc of npcs) npc.pruneAttackers();
 
   for (const npc of npcs) {
     if (!npc.alive || (npc.npcTarget && npc.npcTarget.alive)) continue;
@@ -67,9 +63,7 @@ export function assignNpcTargets(
       // a pirate with the player in reach is already busy
       if (npc.object.position.distanceTo(playerPos) <= PLAYER_INTEREST_RANGE) continue;
       npc.npcTarget = nearest(npc, npcs, 'trader', PIRATE_HUNT_RANGE);
-      if (npc.npcTarget && !npc.npcTarget.attackers.includes(npc)) {
-        npc.npcTarget.attackers.push(npc);
-      }
+      npc.npcTarget?.addAttacker(npc);
     } else if (npc.role === 'police') {
       npc.npcTarget = nearest(npc, npcs, 'pirate', POLICE_HUNT_RANGE);
     } else if (npc.role === 'hunter' && playerLegalStatus === 0) {

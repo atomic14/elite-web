@@ -196,8 +196,13 @@ console.log('\nNPC targeting');
 {
   const at = (x: number) => ({ position: { distanceTo: (o: { x: number }) => Math.abs(x - o.x), x } });
   let id = 0;
+  // The fakes carry NpcShip's OWN attacker verbs, borrowed off the prototype:
+  // the list is private to npc.ts now, and a hand-rolled copy here would be
+  // testing the copy rather than the rule.
+  const { addAttacker, pruneAttackers, hasAttacker } = NpcShip.prototype;
   const ship = (role: string, x: number, over: Record<string, unknown> = {}) => ({
     id: id++, role, alive: true, npcTarget: null as unknown, attackers: [] as unknown[],
+    addAttacker, pruneAttackers, hasAttacker,
     object: at(x), ...over,
   }) as unknown as Parameters<typeof assignNpcTargets>[0][number];
   const playerAt = (x: number) => ({ distanceTo: (o: { x: number }) => Math.abs(x - o.x), x }) as unknown as Parameters<typeof assignNpcTargets>[1];
@@ -206,7 +211,7 @@ console.log('\nNPC targeting');
     const pirate = ship('pirate', 0), trader = ship('trader', 1000);
     assignNpcTargets([pirate, trader], playerAt(500_000), 0);
     check('a pirate with no player nearby goes after a trader', pirate.npcTarget === trader);
-    check('...and the trader knows who is after it', trader.attackers.includes(pirate));
+    check('...and the trader knows who is after it', trader.hasAttacker(pirate));
   }
   {
     const pirate = ship('pirate', 0), trader = ship('trader', 1000);
@@ -244,11 +249,26 @@ console.log('\nNPC targeting');
   {
     const trader = ship('trader', 0);
     const gone = ship('pirate', 100);
-    trader.attackers.push(gone);
+    trader.addAttacker(gone);
+    trader.addAttacker(gone);
+    const list = (trader as unknown as { attackers: unknown[] }).attackers;
+    check('registering the same attacker twice does not double it up',
+      list.length === 1);
     (gone as unknown as { alive: boolean }).alive = false;
     assignNpcTargets([trader, gone], playerAt(500_000), 0);
     check('dead attackers are pruned from the list they are on',
-      !trader.attackers.includes(gone));
+      !trader.hasAttacker(gone));
+  }
+  {
+    // The other half of the invariant: alive, but no longer pointed at us.
+    // The trader is out of hunting range so the pirate cannot simply re-acquire
+    // it in the same call, which would hide the prune.
+    const trader = ship('trader', 0);
+    const bored = ship('pirate', 50_000);
+    trader.addAttacker(bored);
+    assignNpcTargets([trader, bored], playerAt(500_000), 0);
+    check('...as are the ones that moved on while we were still on their list',
+      !trader.hasAttacker(bored));
   }
 }
 

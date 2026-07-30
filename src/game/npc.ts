@@ -212,8 +212,15 @@ export class NpcShip {
   /** Mission flag: destroying this advances the Constrictor hunt. */
 
   /** Pack spread so groups attack from different bearings. */
-  /** Pirates currently targeting this ship; maintained (and pruned) by the game loop. */
-  readonly attackers: NpcShip[] = [];
+  /**
+   * The pirates hunting this ship — the ships whose `npcTarget` is this one.
+   *
+   * Private, and the invariant belongs to the three verbs below. It used to be
+   * a public array that two other modules spliced by hand and a third repaired
+   * on restore, which is a rule with three homes and a mirror of `npcTarget`
+   * kept in step by hope.
+   */
+  private readonly attackers: NpcShip[] = [];
   /** NPC-vs-NPC target, assigned by the game (pirate→trader, police→pirate). */
   npcTarget: NpcShip | null = null;
   /** Where the last attack came from; traders flee this. */
@@ -622,8 +629,37 @@ export class NpcShip {
     }
   }
 
+  /**
+   * Note that `a` is hunting this ship. Idempotent, so a caller never has to
+   * ask whether the link is already there.
+   *
+   * Only PIRATES register: police and hunters set `npcTarget` and stop there.
+   * That asymmetry is deliberate — a fleeing trader reads this list to decide
+   * who to run from, and registering the law made a reloaded ship turn and
+   * duel the police chasing it where before it just ran (world.ts).
+   */
+  addAttacker(a: NpcShip): void {
+    if (!this.attackers.includes(a)) this.attackers.push(a);
+  }
+
+  /**
+   * Drop the links that have gone stale: the invariant is `alive` and still
+   * pointed at us. Order is preserved, because `nearestAttacker` takes the
+   * first one and that is the one this ship has been running from.
+   */
+  pruneAttackers(): void {
+    let n = 0;
+    for (const a of this.attackers) {
+      if (a.alive && a.npcTarget === this) this.attackers[n++] = a;
+    }
+    this.attackers.length = n;
+  }
+
+  /** Is `a` on our list? The read that replaces reaching into the array. */
+  hasAttacker(a: NpcShip): boolean { return this.attackers.includes(a); }
+
   private nearestAttacker(): NpcShip | null {
-    // whoever is hunting us (pirates with us as their target) — game assigns
+    // whoever is hunting us — see addAttacker; the game keeps the list current
     return this.attackers.find((a) => a.alive) ?? null;
   }
 
