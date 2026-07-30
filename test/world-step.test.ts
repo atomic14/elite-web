@@ -6,11 +6,11 @@
 // directly instead of by grepping its source.
 
 import * as THREE from 'three';
+import { viewDirection } from '../src/game/views.ts';
 import { Ordnance } from '../src/game/ordnance.ts';
 import { World } from '../src/game/world.ts';
 import {
   WorldStep,
-  viewDirection,
   massLocked,
   type StepEvent,
   type StepHost,

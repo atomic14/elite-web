@@ -44,6 +44,7 @@ import { regenerate, updateCabinTemp, scoopFuel } from './systems.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE } from './gunnery.ts';
 import type { DamageSource } from './combat.ts';
+import { viewDirection } from './views.ts';
 import { Ordnance, ordnanceMessage, type OrdnanceReply } from './ordnance.ts';
 import type { NpcShip, FireEvent } from './npc.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
@@ -66,23 +67,7 @@ export const FIXED_DT = 1 / 60;
 export const SUN_KILL_DIST = 21_000;
 
 /** view quaternions: front, rear, left, right (yaw about ship Y) */
-export const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
-  new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a));
-
 const ZERO = new THREE.Vector3();
-
-/**
- * Direction the given view faces, in world space.
- *
- * Not where the NOSE points, which is why a rear-view shot hits what is behind
- * you. Lives here because the step needs it (the missile lock) and the Game
- * needs it for the gun, the sight and the dashboard — one home.
- */
-export function viewDirection(
-  quaternion: THREE.Quaternion, view: number, out: THREE.Vector3,
-): THREE.Vector3 {
-  return out.set(0, 0, -1).applyQuaternion(VIEW_QUATS[view]).applyQuaternion(quaternion);
-}
 
 /**
  * Anything close enough to hold the torus drive down.

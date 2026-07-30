@@ -10,9 +10,11 @@
 // The metric itself is galaxy/navigation.ts; this is the transaction.
 
 import type { CommanderData } from './commander.ts';
-import type { StarSystem } from '../galaxy/galaxy.ts';
+import { generateGalaxy, type StarSystem } from '../galaxy/galaxy.ts';
+
 import {
   distanceTenths, daysForJump, witchspaceChance, WITCHSPACE_ESCAPE_COST,
+  nearestSystemTo,
 } from '../galaxy/navigation.ts';
 import { random } from './rng.ts';
 
@@ -94,4 +96,59 @@ export function resolveJump(
   commander.day += days;
   commander.systemIndex = target;
   return { misjump: false, days };
+}
+
+/** Refusals the galactic drive can give, as distinct from the ordinary jump's. */
+export type GalacticRefusal = 'noDrive' | 'inExercise';
+
+export interface GalacticJump {
+  /** the galaxy you arrive in, 1..8 */
+  galaxy: number;
+  /** systems of that galaxy, generated */
+  systems: StarSystem[];
+  /** where you come out: nearest system to the coordinates you left from */
+  systemIndex: number;
+}
+
+/**
+ * The one-shot jump to the next galaxy.
+ *
+ * This lived in `game.ts` while the ordinary jump lived here, which is the same
+ * concept with two homes — and the half in `game.ts` could not be tested,
+ * because building a `Game` needs a canvas. It is four rules and all four are
+ * the original's: the drive is consumed (it is one-shot), the galaxy wraps 8
+ * back to 1, the systems are regenerated rather than stored, and you arrive at
+ * whichever system in the NEW galaxy sits nearest the coordinates you left —
+ * so a galactic jump moves you sideways, not home.
+ *
+ * Mutates the commander's galaxy, drive and system; the caller regenerates the
+ * world and says the line, because those are its own.
+ */
+export function resolveGalacticJump(
+  commander: CommanderData, from: StarSystem,
+): GalacticJump {
+  commander.equipment.galacticDrive = false;
+  commander.galaxy = (commander.galaxy % 8) + 1;
+  const systems = generateGalaxy(commander.galaxy);
+  commander.systemIndex = nearestSystemTo(from, systems).index;
+  return { galaxy: commander.galaxy, systems, systemIndex: commander.systemIndex };
+}
+
+/** May the galactic drive fire? Pure — it answers, it does not start anything. */
+export function checkGalacticJump(
+  commander: CommanderData, inExercise: boolean,
+): { ok: true } | { ok: false; reason: GalacticRefusal } {
+  // Not refused for safety — the exercise clone owns the drive it would burn,
+  // and the entry snapshot puts the galaxy back — but because arriving reseeds
+  // the world and rebuilds the scene, which would end the fight in a system the
+  // report never mentions.
+  if (inExercise) return { ok: false, reason: 'inExercise' };
+  if (!commander.equipment.galacticDrive) return { ok: false, reason: 'noDrive' };
+  return { ok: true };
+}
+
+export function galacticRefusalMessage(reason: GalacticRefusal): string {
+  return reason === 'inExercise'
+    ? 'HYPERSPACE IS OFFLINE IN THE SIMULATOR'
+    : 'NO GALACTIC HYPERDRIVE FITTED';
 }

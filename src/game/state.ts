@@ -22,7 +22,7 @@ import type { PirateThreat } from './contracts.ts';
 import type { EncounterTimers } from './encounters.ts';
 import type { ShipSystems } from './systems.ts';
 import type { DockPlan } from './docking.ts';
-import type { ChartState } from '../ui/screens.ts';
+import type { ChartState } from './chart-state.ts';
 import type { SessionState } from './session.ts';
 import { World } from './world.ts';
 import { PlayerShip } from '../player.ts';

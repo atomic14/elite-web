@@ -47,14 +47,37 @@ let suspended = 0;
 /** Keys a suspended write or removal would have touched. */
 const refused: string[] = [];
 
+/**
+ * The store, or null when there is not one.
+ *
+ * Under node there is no `localStorage`, and every READ used to go straight at
+ * it. `withoutSaving` guarded the writes and not the reads, so a headless call
+ * to `saveCommander` threw inside `currentSlot()` — before it ever reached the
+ * write that was being suppressed. That is why the outfitter, the one code path
+ * that moves a player's money, had no tests: the first honest attempt to write
+ * one crashed in the save layer.
+ *
+ * Degrading to null rather than throwing is the same bargain `world/sun.ts`
+ * already makes with `document`: the file that knows about the platform is the
+ * file that copes with it being absent.
+ */
+function store(): Storage | null {
+  return typeof localStorage === 'undefined' ? null : localStorage;
+}
+
 function writeItem(key: string, value: string): void {
   if (suspended > 0) { refused.push(key); return; }
-  localStorage.setItem(key, value);
+  store()?.setItem(key, value);
 }
 
 function dropItem(key: string): void {
   if (suspended > 0) { refused.push(key); return; }
-  localStorage.removeItem(key);
+  store()?.removeItem(key);
+}
+
+/** A read. Null with no store, which every caller already handles. */
+function readItem(key: string): string | null {
+  return store()?.getItem(key) ?? null;
 }
 
 /**
@@ -93,7 +116,7 @@ const CURRENT_KEY = 'elite-web-slot';
 
 /** Which slot is being played. Defaults to 1. */
 export function currentSlot(): number {
-  const n = Number(localStorage.getItem(CURRENT_KEY));
+  const n = Number(readItem(CURRENT_KEY));
   return Number.isInteger(n) && n >= 1 && n <= SAVE_SLOTS ? n : 1;
 }
 
@@ -131,7 +154,7 @@ export interface SlotSummary {
 
 export function readSlot(slot: number): SlotSummary | null {
   try {
-    const raw = localStorage.getItem(slotKey(slot));
+    const raw = readItem(slotKey(slot));
     if (!raw) return null;
     const c = JSON.parse(raw) as Partial<CommanderData>;
     return {
@@ -161,8 +184,8 @@ export function deleteSlot(slot: number): void {
  */
 function migrateLegacySave(): void {
   try {
-    const legacy = localStorage.getItem(SAVE_KEY);
-    if (legacy && !localStorage.getItem(slotKey(1))) {
+    const legacy = readItem(SAVE_KEY);
+    if (legacy && !readItem(slotKey(1))) {
       writeItem(slotKey(1), legacy);
     }
     if (legacy) dropItem(SAVE_KEY);
@@ -181,7 +204,7 @@ export function saveWorld(json: string, slot = currentSlot()): void {
 
 /** The mid-flight world for `slot`, if one was left behind. */
 export function readWorld(slot = currentSlot()): string | null {
-  return localStorage.getItem(`${WORLD_KEY}:${slot}`);
+  return readItem(`${WORLD_KEY}:${slot}`);
 }
 
 /** Forget it — on death, or on a clean dock where the station save is enough. */
@@ -200,7 +223,7 @@ export function saveCommander(c: CommanderData, slot = currentSlot()): void {
 export function loadCommander(slot = currentSlot()): CommanderData {
   migrateLegacySave();
   try {
-    const raw = localStorage.getItem(slotKey(slot));
+    const raw = readItem(slotKey(slot));
     if (!raw) return newCommander();
     const stored = JSON.parse(raw) as Partial<CommanderData>;
     const parsed = { ...newCommander(), ...stored };

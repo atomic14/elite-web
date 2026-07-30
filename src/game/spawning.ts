@@ -22,6 +22,7 @@ import {
   pirateSpecForTier, CONSTRICTOR_SPEC, SPECS, type NpcRole, type NpcSpec,
 } from './ship-specs.ts';
 import { memberTier } from './contracts.ts';
+import { slotNormal } from './station.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 
@@ -365,4 +366,32 @@ export function spawnArrivingTrader(world: World, range: number): void {
   trader.traderPhase = 'arriving';
   // the witch-flash that says something just came out of hyperspace
   world.effects.explosion(pos.clone(), 0x9adfff, { count: 10, speed: 120, duration: 0.7 });
+}
+
+/**
+ * Vipers off the slot, launched because you shot at something you shouldn't.
+ *
+ * The rule the station enforces, and it was written inline in `game.ts` where
+ * it could not be tested: one or two of them, stacked along the slot normal so
+ * they do not arrive on top of each other, jittered so a second call does not
+ * look like the first, and PROVOKED — launched specifically for you, so unlike
+ * ordinary police they are already your business.
+ *
+ * Returns the ships so the caller can say the line and make the noise.
+ */
+export function launchStationDefence(world: World, tmp: THREE.Vector3): NpcShip[] {
+  const station = world.station;
+  const slotN = slotNormal(station, tmp);
+  const count = 1 + randomInt(2);
+  const out: NpcShip[] = [];
+  for (let i = 0; i < count; i++) {
+    const pos = station.position.clone()
+      .addScaledVector(slotN, 500 + i * 120)
+      .add(randomDirection(new THREE.Vector3()).multiplyScalar(80));
+    const viper = world.spawn('police', pos, i);
+    viper.provoked = true;
+    viper.provokedByPlayer = true;
+    out.push(viper);
+  }
+  return out;
 }

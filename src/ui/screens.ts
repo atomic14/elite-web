@@ -13,6 +13,7 @@ import {
 } from '../game/shop.ts';
 import type { SlotSummary } from '../game/storage.ts';
 import { describeContract } from '../game/contracts.ts';
+import type { ChartState } from '../game/chart-state.ts';
 import type { CombatSimReport } from '../game/combat-sim-report.ts';
 import type { SimSetupRow } from '../game/screens/combat-sim-setup.ts';
 
@@ -409,12 +410,6 @@ export function renderStatus(
 // charts are its heaviest user and every caller already reaches for it from
 // this module.
 export { distanceTenths };
-
-export interface ChartState {
-  cursorX: number;
-  cursorY: number;
-  targetIndex: number | null;
-}
 
 /**
  * Nearest system to a chart coordinate, within `radius` chart units

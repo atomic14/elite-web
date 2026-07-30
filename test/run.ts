@@ -28,6 +28,7 @@
 import './galaxy.test.ts';
 import './economy.test.ts';
 import './contracts.test.ts';
+import './trade.test.ts';
 import './world.test.ts';
 import './world-step.test.ts';
 import './state.test.ts';

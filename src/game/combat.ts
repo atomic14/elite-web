@@ -25,7 +25,7 @@ import type { World } from './world.ts';
 import type { NpcShip } from './npc.ts';
 import type { GameState } from './state.ts';
 import type { ShipSystems } from './systems.ts';
-import { viewDirection } from './world-step.ts';
+import { viewDirection } from './views.ts';
 import { type CommanderData, formatCredits, killValue } from './commander.ts';
 import { laserForView, canFire, chargeShot } from './gunnery.ts';
 import { traceShot } from './shot.ts';

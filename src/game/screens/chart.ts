@@ -15,10 +15,10 @@
 // chart itself, they swallow the keyboard while active, and Escape leaves the
 // sub-mode rather than the screen. Pushing them would make Escape ambiguous.
 
+import type { ChartState } from '../chart-state.ts';
 import {
   renderChart, drawChart, renderLocalChart, drawLocalChart, renderMarketEstimate,
   nearestSystem, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE,
-  type ChartState,
 } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome, ScreenId } from '../../ui/screen-host.ts';
 import type { CommanderData } from '../commander.ts';

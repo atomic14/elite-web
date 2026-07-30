@@ -28,6 +28,8 @@
 // `window.__game` exposes the instance for the autopilot test harness
 // (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
 import { publish } from './console.ts';
+import type { ChartState } from './chart-state.ts';
+import { viewDirection, VIEW_QUATS } from './views.ts';
 import * as THREE from 'three';
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
@@ -52,24 +54,27 @@ import {
   type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
 import { type Canister } from './cargo.ts';
-import { spawnPopulation } from './spawning.ts';
+import { spawnPopulation, launchStationDefence } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
 import {
   Combat, BEAM_FLASH, firePlayerLaser, damagePlayer,
   type CombatEvent, type DamageSource,
 } from './combat.ts';
-import { checkJump, resolveJump, refusalMessage, COUNTDOWN } from './hyperspace.ts';
+import {
+  checkJump, resolveJump, refusalMessage, COUNTDOWN,
+  checkGalacticJump, resolveGalacticJump, galacticRefusalMessage,
+} from './hyperspace.ts';
 import { constrictorLurksHere } from './missions.ts';
 import { World } from './world.ts';
 import {
-  WorldStep, viewDirection, massLocked, VIEW_QUATS, FIXED_DT,
+  WorldStep, massLocked, FIXED_DT,
   type StepEvent, type StepHost,
 } from './world-step.ts';
 import { random, randomInt, randomDirection, seedWorld } from './rng.ts';
 import { clearWorld, loadCommander } from './storage.ts';
 import { type WorldSnapshot } from './snapshot.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
-import { Station, slotNormal, type StationHost, type StationEvent } from './station.ts';
+import { Station, type StationHost, type StationEvent } from './station.ts';
 import { CombatSim, type ExerciseFit, type SimHost } from './combat-sim.ts';
 import { installSimLog, type CombatSimReport } from './combat-sim-report.ts';
 import type { ExerciseSpec } from './combat-sim-scenarios.ts';
@@ -101,7 +106,6 @@ import { ChartScreen, type ChartContext } from './screens/chart.ts';
 import { CombatSimScreen, type CombatSimContext } from './screens/combat-sim.ts';
 import { ScreenHost } from '../ui/screen-host.ts';
 import { createRenderStack, BEAM_Z, type RenderStack } from '../engine/render-stack.ts';
-import { nearestSystemTo } from '../galaxy/navigation.ts';
 
 import {
   formatCredits,
@@ -112,7 +116,7 @@ import {
 } from './law.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
-  renderGameOver, type ChartState,
+  renderGameOver,
 } from '../ui/screens.ts';
 import { freshState, type GameState } from './state.ts';
 import type { SessionState } from './session.ts';
@@ -1060,20 +1064,9 @@ export class Game {
    */
   private callStationDefence(): void {
     if (this.witchspace || this.defenceLaunched) return;
-    const station = this.world.station;
-    if (this.player.position.distanceTo(station.position) > DEFENCE_RANGE) return;
+    if (this.player.position.distanceTo(this.world.station.position) > DEFENCE_RANGE) return;
     this.defenceLaunched = true;
-    const slotN = slotNormal(station, this.tmp);
-    const count = 1 + randomInt(2);
-    for (let i = 0; i < count; i++) {
-      const pos = station.position.clone()
-        .addScaledVector(slotN, 500 + i * 120)
-        .add(randomDirection(new THREE.Vector3()).multiplyScalar(80));
-      const viper = this.world.spawn('police', pos, i);
-      // launched specifically for you, so this one IS your business
-      viper.provoked = true;
-      viper.provokedByPlayer = true;
-    }
+    launchStationDefence(this.world, this.tmp);
     this.hud.showMessage('STATION DEFENCE LAUNCHED', 4);
     sfx.beep(300, 0.18);
   }
@@ -1228,30 +1221,18 @@ export class Game {
 
   /** One-shot jump to the next galaxy; lands at the nearest system to our coords. */
   private galacticJump(): void {
-    // Not refused for safety — the exercise clone owns the drive it would burn,
-    // and the entry snapshot puts the galaxy back — but because `arriveInSystem`
-    // reseeds the world and rebuilds the scene, which would end the fight in a
-    // system the report never mentions.
-    if (this.combatSim.active) {
-      this.hud.showMessage('HYPERSPACE IS OFFLINE IN THE SIMULATOR', 3);
+    const may = checkGalacticJump(this.commander, this.combatSim.active);
+    if (!may.ok) {
+      this.hud.showMessage(galacticRefusalMessage(may.reason), 3);
       sfx.beep(220);
       return;
     }
-    if (!this.commander.equipment.galacticDrive) {
-      this.hud.showMessage('NO GALACTIC HYPERDRIVE FITTED', 3);
-      sfx.beep(220);
-      return;
-    }
-    const from = this.system;
-    this.commander.equipment.galacticDrive = false;
-    this.commander.galaxy = (this.commander.galaxy % 8) + 1;
-    this.systems = generateGalaxy(this.commander.galaxy);
-    // you arrive at whichever system in the new galaxy sits nearest the
-    // coordinates you left from
-    this.commander.systemIndex = nearestSystemTo(from, this.systems).index;
+    const jump = resolveGalacticJump(this.commander, this.system);
+    this.systems = jump.systems;
     this.chart.targetIndex = null;
     this.arriveInSystem();
-    this.hud.showMessage(`GALAXY ${this.commander.galaxy} — ${this.system.name.toUpperCase()}`, 5);
+    this.hud.showMessage(
+      `GALAXY ${jump.galaxy} — ${this.system.name.toUpperCase()}`, 5);
   }
 
   // --- per-frame -----------------------------------------------------------
