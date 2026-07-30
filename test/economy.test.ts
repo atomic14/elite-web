@@ -23,6 +23,7 @@ import {
   FUGITIVE_FINE,
 } from '../src/game/law.ts';
 import { generateGalaxy, generateMarket, COMMODITIES } from '../src/galaxy/galaxy.ts';
+import { hermitMarket } from '../src/game/contracts.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import { makeRng } from '../src/game/rng.ts';
@@ -44,6 +45,44 @@ check('industrial food dearer than agricultural',
   leestiMarket[0].price > laveMarket[0].price);
 check('quantities stay within a byte-masked range',
   laveMarket.every((m) => m.quantity >= 0 && m.quantity <= 63));
+
+// --- the hermit's tunnel ----------------------------------------------------
+//
+// The rule was seven bare commodity indices inside game.ts, where the campaign
+// could not reach it and no test could name what it priced. It matches on the
+// row's own name now, so these checks are also what catches a rename in
+// COMMODITIES silently turning the discount off.
+
+console.log('\nrock hermit prices');
+{
+  const base = generateMarket(g1[7], 0);
+  const hermit = hermitMarket(g1[7], 0);
+  const row = (name: string) => {
+    const i = base.findIndex((m) => m.name === name);
+    check(`${name} is a commodity the hermit rule can find`, i >= 0);
+    return i;
+  };
+  eq('the same 17 commodities as anywhere else', hermit.length, base.length);
+
+  for (const name of ['Minerals', 'Gold', 'Platinum', 'Gem-Stones']) {
+    const i = row(name);
+    check(`${name} is a quarter off at a hermit`,
+      hermit[i].price === +(base[i].price * 0.75).toFixed(1));
+    check(`...and they have 20 more of it`, hermit[i].quantity === base[i].quantity + 20);
+  }
+  for (const name of ['Food', 'Liquor/Wines', 'Machinery']) {
+    const i = row(name);
+    check(`${name} costs a third more out here`,
+      hermit[i].price === +(base[i].price * 1.3).toFixed(1));
+    check(`...and no more of it arrived`, hermit[i].quantity === base[i].quantity);
+  }
+  const touched = new Set([...'Minerals Gold Platinum Gem-Stones Food Machinery'.split(' '),
+    'Liquor/Wines']);
+  check('nothing else is repriced',
+    base.every((m, i) => touched.has(m.name)
+      || (hermit[i].price === m.price && hermit[i].quantity === m.quantity)));
+  check('a hermit sells ore below the station price', hermit[12].price < base[12].price);
+}
 
 // --- who's worth robbing ----------------------------------------------------
 

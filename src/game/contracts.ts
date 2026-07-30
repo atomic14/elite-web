@@ -1,4 +1,5 @@
-// Station bulletin-board contracts, and the living-galaxy price nudge.
+// Station bulletin-board contracts, the living-galaxy price nudge, and what a
+// rock hermit charges.
 //
 // Pure functions, deliberately free of three.js and DOM so that both the
 // game (src/game/game.ts) and the headless campaign simulator
@@ -127,6 +128,59 @@ export function makeLocalMarket(
     // exactly the save-scum this game now has to be robust to
     generateMarket(system, randomInt(256)),
     priceMultiplier);
+}
+
+/**
+ * What a hermit is sitting on: whatever they dug up.
+ *
+ * Named rather than indexed because `i === 12 || i === 13 || i === 14 ||
+ * i === 15` is only readable to someone who has the 1984 commodity table
+ * memorised. Matched on the market row's own name, which `generateMarket`
+ * copies straight off `COMMODITIES`.
+ */
+const HERMIT_ORE = new Set(['Minerals', 'Gold', 'Platinum', 'Gem-Stones']);
+
+/** What a hermit has run out of: anything that has to be flown in. */
+const HERMIT_SUPPLIES = new Set(['Food', 'Liquor/Wines', 'Machinery']);
+
+/** Ore is a quarter off here, and there is plenty of it. */
+const HERMIT_ORE_PRICE = 0.75;
+/** Bulk stock a rock miner is never short of, on top of the rolled quantity. */
+const HERMIT_ORE_GLUT = 20;
+/** Supplies cost a third more: nobody else is delivering out here. */
+const HERMIT_SUPPLY_PRICE = 1.3;
+
+/**
+ * Prices at a rock hermit's tunnel, rolled fresh.
+ *
+ * The hermit economy should read as the opposite of a station's: a miner is
+ * flush with what they dug up and desperate for what they cannot dig, so ore
+ * goes cheap and in quantity while food, drink and machinery are dear. That is
+ * the whole trade — buy ore here, sell it where the mining stopped — and it is
+ * also the one market that never asks what else is in your hold.
+ *
+ * `fluctuation` defaults to a seeded roll for the same reason
+ * `makeLocalMarket`'s does: an unseeded market seed means a reload rerolls the
+ * prices. It is a parameter so a headless run (the campaign) can supply its own
+ * stream instead of the world's.
+ */
+export function hermitMarket(
+  system: StarSystem,
+  fluctuation: number = randomInt(256),
+): MarketEntry[] {
+  return generateMarket(system, fluctuation).map((m) => {
+    if (HERMIT_ORE.has(m.name)) {
+      return {
+        ...m,
+        quantity: m.quantity + HERMIT_ORE_GLUT,
+        price: +(m.price * HERMIT_ORE_PRICE).toFixed(1),
+      };
+    }
+    if (HERMIT_SUPPLIES.has(m.name)) {
+      return { ...m, price: +(m.price * HERMIT_SUPPLY_PRICE).toFixed(1) };
+    }
+    return m;
+  });
 }
 
 

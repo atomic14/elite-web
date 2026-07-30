@@ -210,7 +210,7 @@ src/
 
     law.ts                  contraband, fines, and how far your standing falls
     contracts.ts            work on offer, taking it, being paid for it,
-                            market pressure, and pirate economics
+                            market pressure, hermit prices, pirate economics
     missions.ts             the Navy Constrictor arc (NOT the bulletin board)
     commander.ts            who you are: stats, cargo, rank — PURE, no browser
     shop.ts                 what things cost and what you may fit

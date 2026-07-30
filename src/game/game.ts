@@ -33,9 +33,9 @@ import type { ChartState } from './chart-state.ts';
 import { viewDirection, VIEW_QUATS } from './views.ts';
 import * as THREE from 'three';
 
-import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
+import { generateGalaxy, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
-import { generateContractOffers, acceptContract, settleContracts, contractMessage, type ContractEvent } from './contracts.ts';
+import { generateContractOffers, acceptContract, settleContracts, contractMessage, hermitMarket, type ContractEvent } from './contracts.ts';
 import { pirateThreat, markOf, type PirateThreat } from './threat.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
 import { PlayerShip, PLAYER_FLIGHT, type FlightDemand } from '../player.ts';
@@ -68,7 +68,7 @@ import {
   WorldStep, massLocked, FIXED_DT,
   type StepEvent, type StepHost,
 } from './world-step.ts';
-import { random, randomInt, randomDirection, seedWorld } from './rng.ts';
+import { random, randomDirection, seedWorld } from './rng.ts';
 import { clearWorld, loadCommander } from './storage.ts';
 import { type WorldSnapshot } from './snapshot.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
@@ -1387,15 +1387,9 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   openHermitTrade(): void {
     this.hermitTrading = true;
-    this.hermitMarket = generateMarket(this.system, randomInt(256))
-      .map((m, i) => {
-        // miners are flush with ore and pay over the odds for supplies
-        if (i === 12 || i === 13 || i === 14 || i === 15) {
-          return { ...m, quantity: m.quantity + 20, price: +(m.price * 0.75).toFixed(1) };
-        }
-        if (i === 0 || i === 4 || i === 8) return { ...m, price: +(m.price * 1.3).toFixed(1) };
-        return m;
-      });
+    // what the miner charges is a price rule, and price rules live in
+    // contracts.ts so the headless campaign can reach them (invariant 10)
+    this.hermitMarket = hermitMarket(this.system);
     this.market = this.hermitMarket;
 
     this.screens.open('market');
