@@ -8,7 +8,6 @@
 // to test "does this ray pass through that hull" without the hulls.
 
 import type { Equipment, LaserType } from './commander.ts';
-import type { ShipSystems } from './systems.ts';
 
 export interface LaserSpec {
   damage: number;
@@ -93,13 +92,27 @@ export function laserForView(equipment: Equipment, view: number): LaserSpec | nu
   return null;
 }
 
+/**
+ * The two fields a gun's readiness is made of: the reload and the heat.
+ *
+ * `ShipSystems` satisfies it, and so does the trainer's target hull, which
+ * carries these two and none of the shields — which is the point of naming the
+ * subset rather than demanding the whole ship. The trainer used to hand-roll
+ * `cooldown > 0 || temp >= CUTOUT` then the two assignments, i.e. this
+ * sequence written twice.
+ */
+export interface GunHeat {
+  laserTemp: number;
+  laserCooldown: number;
+}
+
 /** Cooled down and not overheated. */
-export function canFire(sys: ShipSystems): boolean {
+export function canFire(sys: GunHeat): boolean {
   return sys.laserCooldown <= 0 && sys.laserTemp < LASER_CUTOUT;
 }
 
 /** Spend the shot: start the cooldown and add its heat. */
-export function chargeShot(sys: ShipSystems, laser: LaserSpec): void {
+export function chargeShot(sys: GunHeat, laser: LaserSpec): void {
   sys.laserCooldown = laser.cooldown;
   sys.laserTemp = Math.min(1, sys.laserTemp + laser.heat);
 }
@@ -119,6 +132,71 @@ export function chargeShot(sys: ShipSystems, laser: LaserSpec): void {
 // 1.30s through 0.25, which is 0.667 damage/second against 0.041. Training
 // flies THIS gun now (ai-training/scenario.ts), so these numbers are the
 // balance levers for the game and for the trainer at the same time.
+
+/**
+ * How far an NPC can shoot. Matches the player's LASER_RANGE above, and it has
+ * to: a brain trained to open fire at 3000 units was silently refused the shot
+ * by a 2600 gate, so it would sit there pointing straight at the target and
+ * never pull the trigger.
+ *
+ * Measured before the change, two tier-0 pirates over 45 seconds: pointing at
+ * the player 90% of the time, but inside 2600 only 51% of it. Half the fight
+ * was spent aiming from out of a range the pirate did not know it had.
+ */
+export const NPC_LASER_RANGE = 3500;
+
+/**
+ * Time between an NPC's shots. The player's pulse laser reloads in 0.24s;
+ * these are the game's deliberate handicap, and they are NOT what limits an
+ * NPC's damage.
+ *
+ * Tested at pulse-laser parity (0.18-0.30s, five times faster): 3.7 shots per
+ * minute per ship against the current 4.1, and 3.52 damage against 3.78. No
+ * difference, because a pirate is only pointed within the 0.25 rad firing gate
+ * for about 5% of a fight. It is not waiting on the cooldown; it is waiting to
+ * be aimed at you, and it is busy weaving.
+ */
+export const NPC_COOLDOWN_LO = 0.9;
+export const NPC_COOLDOWN_SPREAD = 0.8;
+/** How near the nose a target must be before an NPC pulls the trigger. */
+export const NPC_FIRE_GATE = 0.25;
+/** Thargoids reload faster than anything else in the galaxy. */
+export const THARGOID_FIRE_RATE = 0.7;
+
+/**
+ * Pull an NPC's trigger: the gate, the range and the cooldown, in that order,
+ * plus the cooldown the shot spends.
+ *
+ * The ORDER is the rule, not the numbers. Nothing is spent unless the shot
+ * actually leaves — a ship out of the gate or out of range does not start a
+ * reload, so it fires the instant it lines up — and the die is rolled only
+ * then, which is what keeps a seeded run reproducible. That sequence was
+ * written out three times (npc.ts `brainFly`, npc.ts `attack` and the
+ * trainer's armed freighter) with a comment in the third asking the reader to
+ * keep it in step with the first. It had already drifted once: `attack()` ran
+ * a 0.22 gate and a 1.4+rand*1.8 cooldown against `brainFly`'s 0.25 and
+ * 0.9+rand*0.8, on the path every police ship, bounty hunter and knife-range
+ * pirate fires from.
+ *
+ * `rng` is passed in rather than imported so this file stays free of the PRNG,
+ * like `npcShotDamage(roll)` beside it — and it is called ONLY when the shot
+ * leaves.
+ *
+ * @param cooldown  seconds left on the gun, already decremented for this step
+ * @param angle     radians from the ship's nose to the target
+ * @param rateScale multiplier on the reload (THARGOID_FIRE_RATE, or 1)
+ * @returns the cooldown to start, or null when the trigger does nothing
+ */
+export function npcTriggerPull(
+  cooldown: number,
+  angle: number,
+  dist: number,
+  rng: () => number,
+  rateScale = 1,
+): number | null {
+  if (cooldown > 0 || dist >= NPC_LASER_RANGE || angle >= NPC_FIRE_GATE) return null;
+  return (NPC_COOLDOWN_LO + rng() * NPC_COOLDOWN_SPREAD) * rateScale;
+}
 
 /** Hit chance falls off with range, clamped at both ends. */
 export const NPC_HIT_BASE = 0.9;

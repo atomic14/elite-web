@@ -28,13 +28,12 @@ import * as THREE from 'three';
 
 import { PlayerShip, PLAYER_FLIGHT, rampToward, type FlightDemand } from '../player.ts';
 import {
-  NpcShip, steerQuatToward,
-  BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
-  NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE,
+  NpcShip, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
 } from '../game/npc.ts';
 import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
 import {
-  LASERS, LASER_RANGE, LASER_CUTOUT, hitCone, npcHitChance, npcShotDamage,
+  LASERS, LASER_RANGE, hitCone, canFire, chargeShot,
+  npcHitChance, npcShotDamage, npcTriggerPull,
 } from '../game/gunnery.ts';
 import { RAM_DAMAGE, npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
 import { LASER_COOL_RATE } from '../game/systems.ts';
@@ -546,11 +545,11 @@ export class Episode {
     const angle = this.facingAngle(t, threat.pos);
 
     if (t.hull.gun === 'npc') {
-      if (t.laserCooldown > 0) return null;
-      // as in npc.ts: outside the gate or out of range it never pulls the
-      // trigger, so it does not spend the cooldown either
-      if (angle >= NPC_FIRE_GATE || dist > LASER_RANGE) return null;
-      t.laserCooldown = NPC_COOLDOWN_LO + random() * NPC_COOLDOWN_SPREAD;
+      // the NPC's trigger, gate and cooldown: gunnery.ts's, and the same call
+      // npc.ts makes, so the order cannot drift from the game's
+      const reload = npcTriggerPull(t.laserCooldown, angle, dist, random);
+      if (reload === null) return null;
+      t.laserCooldown = reload;
       t.shotsFired += 1;
       if (random() >= npcHitChance(dist)) return { from: t, to: threat, hit: false };
       const damage = npcShotDamage(random());
@@ -561,9 +560,9 @@ export class Episode {
     }
 
     const pulse = LASERS.pulse;
-    if (t.laserCooldown > 0 || t.laserTemp >= LASER_CUTOUT) return null;
-    t.laserCooldown = pulse.cooldown;
-    t.laserTemp = Math.min(1, t.laserTemp + pulse.heat);
+    // the commander's trigger, and the same two calls the game's makes
+    if (!canFire(t)) return null;
+    chargeShot(t, pulse);
     t.shotsFired += 1;
     if (dist > LASER_RANGE || angle >= hitCone(threat.radius, dist)) {
       return { from: t, to: threat, hit: false };

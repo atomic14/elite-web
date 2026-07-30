@@ -7,14 +7,13 @@
 
 import * as THREE from 'three';
 import { existsSync } from 'node:fs';
-import { npcHitChance, NPC_HIT_CAP, NPC_HIT_FLOOR } from '../src/game/gunnery.ts';
+import {
+  npcHitChance, NPC_HIT_CAP, NPC_HIT_FLOOR,
+  NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_LASER_RANGE,
+} from '../src/game/gunnery.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import {
   NpcShip,
-  NPC_COOLDOWN_LO,
-  NPC_COOLDOWN_SPREAD,
-  NPC_FIRE_GATE,
-  NPC_LASER_RANGE,
   MIN_CRUISE_FRACTION,
   BRAIN_RATE_RAMP,
   BRAIN_RATE_DECAY,

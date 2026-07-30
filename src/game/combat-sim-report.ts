@@ -34,8 +34,7 @@
 
 import { publish, handle } from './console.ts';
 import * as THREE from 'three';
-import { NPC_FIRE_GATE, NPC_LASER_RANGE } from './npc.ts';
-import { LASER_RANGE } from './gunnery.ts';
+import { LASER_RANGE, NPC_FIRE_GATE, NPC_LASER_RANGE } from './gunnery.ts';
 import type { DamageSource } from './combat.ts';
 
 /**

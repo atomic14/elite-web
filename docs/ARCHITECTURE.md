@@ -193,7 +193,8 @@ src/
                             damagePlayer), and DamageSource, the five things
                             that can hurt the commander
     gunnery.ts              BOTH guns: the player's mounts, heat and aim assist,
-                            and the NPC's hit rolls, damage and missile choice
+                            and the NPC's trigger, hit rolls, damage and
+                            missile choice
     shot.ts                 what a shot passed through: ray first, then graze cone
     ordnance.ts             missiles in flight, the E.C.M., the energy bomb
     systems.ts              energy, shields, laser heat, cabin temp, damage model

@@ -8,8 +8,7 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { type DamageSource } from '../src/game/combat.ts';
-import { LASER_RANGE } from '../src/game/gunnery.ts';
-import { NPC_FIRE_GATE, NPC_LASER_RANGE } from '../src/game/npc.ts';
+import { LASER_RANGE, NPC_FIRE_GATE, NPC_LASER_RANGE } from '../src/game/gunnery.ts';
 import {
   CombatSimRecorder,
   combatSimJson,
