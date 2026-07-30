@@ -114,6 +114,18 @@ export const sfx = {
     sweep('square', freq, freq, duration, gain);
   },
   /**
+   * The hyperspace countdown, with `n` seconds left on it: a blip that climbs
+   * a hundred hertz a second towards the jump.
+   *
+   * Named for the occasion because the pitch used to be `700 + (5 - n) * 100`
+   * written out in the world step, which put audio design inside the
+   * simulation. Same tone as before, decided here.
+   */
+  countdown(n: number): void {
+    const f = 700 + (5 - n) * 100;
+    sweep('square', f, f, 0.07, 0.08);
+  },
+  /**
    * Start the docking waltz. Safe to call repeatedly — a second call while it
    * is already playing does nothing, so an autopilot that re-engages doesn't
    * stack voices on top of each other.

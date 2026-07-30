@@ -79,6 +79,7 @@ import type { ExerciseSpec } from './combat-sim-scenarios.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer } from './combat-computer.ts';
 import { Autopilot, type AutopilotEvent } from './autopilot.ts';
+import type { SoundEvent } from './sounds.ts';
 import {
   commandsFor, globalCommands, type Command, type ControlMode,
 } from './controls.ts';
@@ -1157,14 +1158,27 @@ export class Game {
    */
   private applyAutopilot(events: readonly AutopilotEvent[]): void {
     for (const e of events) {
-      switch (e.kind) {
-        case 'message': this.hud.showMessage(e.text, e.seconds); break;
-        case 'beep': sfx.beep(e.hz, e.seconds); break;
-        case 'dockingMusic':
-          if (e.on) sfx.dockingMusic();
-          else sfx.stopDockingMusic();
-          break;
-      }
+      if (e.kind === 'message') this.hud.showMessage(e.text, e.seconds);
+      else this.playSound(e);
+    }
+  }
+
+  /**
+   * The ONE place a `SoundEvent` becomes a noise.
+   *
+   * Both the world step and the autopilots return them (sounds.ts), and both
+   * `apply*` end up here rather than carrying a switch each — two near-identical
+   * `beep` arms in two switches is how a rule grows a second home.
+   */
+  private playSound(e: SoundEvent): void {
+    switch (e.kind) {
+      case 'beep': sfx.beep(e.hz, e.seconds); break;
+      case 'countdown': sfx.countdown(e.n); break;
+      case 'dockingMusic':
+        if (e.on) sfx.dockingMusic();
+        else sfx.stopDockingMusic();
+        break;
+      case 'sound': sfx[e.name](); break;
     }
   }
 
@@ -1321,14 +1335,17 @@ export class Game {
   }
 
   /**
-   * The step decides; the Game says it. Same shape as applyCombat, and for
-   * the same reason: a phase that called the HUD could not run in a trainer.
+   * The step decides; the Game says it and plays it. Same shape as applyCombat,
+   * and for the same reason: a phase that called the HUD — or the AudioContext
+   * — could not run in a trainer.
+   *
+   * `npcFired` is deliberately dropped here: it is for a measuring caller
+   * (combat-sim.ts), and the cockpit already hears the shot.
    */
   private applyStep(events: readonly StepEvent[]): void {
     for (const e of events) {
-      switch (e.kind) {
-        case 'message': this.hud.showMessage(e.text, e.seconds); break;
-      }
+      if (e.kind === 'message') this.hud.showMessage(e.text, e.seconds);
+      else if (e.kind !== 'npcFired') this.playSound(e);
     }
   }
 

@@ -215,6 +215,17 @@ console.log('\npurity');
     check(`${f} does not reach for the browser`,
       !/\b(localStorage|sessionStorage|document|window)\b/.test(src));
   }
+  // ...and neither does it IMPORT something that does. The world step held
+  // eleven `sfx.*` calls long after its HUD messages had become returned
+  // events, and named no browser API itself — it survived under node only
+  // because audio.ts swallows a failed `new AudioContext()`. The sounds are
+  // SoundEvents now (game/sounds.ts) and this is what stops them coming back.
+  for (const f of ['world-step.ts', 'autopilot.ts']) {
+    const src = readFileSync(new URL(`../src/game/${f}`, import.meta.url), 'utf8')
+      .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+    check(`${f} does not import audio.ts — it returns SoundEvents`,
+      !/audio\.ts/.test(src) && !/\bsfx\b/.test(src));
+  }
   // The flight seam, outside src/game/: player.ts took an `Input` until the
   // demand layer went in, which made the flight model — the thing every
   // harness wants to fly — constructible only in a browser. The producer that

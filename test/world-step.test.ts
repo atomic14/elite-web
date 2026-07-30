@@ -174,9 +174,16 @@ console.log('\nheadless world step');
     check('...the trigger reached the gun through the host', run.log.shots === 600);
     check('...the autosave asked the host rather than localStorage', run.log.saves >= 1);
     check('...and nothing it reported is anything but an event',
-      events.every((e) => (e.kind === 'message'
-        ? typeof e.text === 'string' && typeof e.seconds === 'number'
-        : e.kind === 'npcFired' && typeof e.atPlayer === 'boolean')));
+      events.every((e) => {
+        switch (e.kind) {
+          case 'message': return typeof e.text === 'string' && typeof e.seconds === 'number';
+          case 'npcFired': return typeof e.atPlayer === 'boolean';
+          case 'beep': return typeof e.hz === 'number';
+          case 'countdown': return typeof e.n === 'number';
+          case 'dockingMusic': return typeof e.on === 'boolean';
+          case 'sound': return typeof e.name === 'string';
+        }
+      }));
   }
 
   // the fourteen hud.showMessage calls: the step REPORTS them now
@@ -188,6 +195,10 @@ console.log('\nheadless world step');
     const events = fly(run, 1);
     check('a mass lock returns a message instead of calling a HUD',
       events.some((e) => e.kind === 'message' && e.text.startsWith('MASS LOCK')));
+    // ...and the same for the noise it makes. The step reached straight into
+    // the audio singleton for this one until sounds became events too.
+    check('...and the beep with it, rather than reaching for an AudioContext',
+      events.some((e) => e.kind === 'beep' && e.hz === 300));
     check('...and the torus really disengaged', !run.state.session.torusEngaged);
   }
   {
@@ -202,6 +213,21 @@ console.log('\nheadless world step');
     run.state.player.position.copy(run.state.world.sunPos);
     fly(run, 1);
     check('...and so does flying into the sun', run.log.deaths[0] === 'FLEW INTO THE SUN');
+  }
+
+  // The countdown blip: the step used to compute `700 + (5 - n) * 100` itself,
+  // which is audio design written into the simulation. It reports the SECOND
+  // and audio.ts owns the pitch.
+  {
+    const run = arrival(4245);
+    run.state.session.hyperCountdown = 4.001;
+    const events = fly(run, 1);
+    check('the hyperspace countdown reports the second, not a frequency',
+      events.some((e) => e.kind === 'countdown' && e.n === 4));
+    check('...alongside the message it has always shown',
+      events.some((e) => e.kind === 'message' && e.text === 'HYPERSPACE IN 4'));
+    check('...and no event carries a hertz value',
+      !events.some((e) => e.kind === 'beep'));
   }
 
   // --- determinism: same seed, same inputs, same run -------------------------

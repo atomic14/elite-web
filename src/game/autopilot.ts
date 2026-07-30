@@ -11,9 +11,9 @@
 //
 // So they share a file, and it follows the project's pattern: this DECIDES and
 // reports `AutopilotEvent`s, and the Game says them out loud. The sounds are
-// events too — a beep and the docking music — which is what keeps the file free
-// of `audio.ts` and therefore of the browser. Nothing here draws from the
-// seeded rng, so there is no ordering to preserve.
+// events too — a beep and the docking music, both `SoundEvent`s (sounds.ts) —
+// which is what keeps the file free of `audio.ts` and therefore of the browser.
+// Nothing here draws from the seeded rng, so there is no ordering to preserve.
 //
 // What this file does NOT own: the flying. The docking approach is docking.ts,
 // the policy is combat-computer.ts, and pulling the trigger is the Game's,
@@ -24,6 +24,7 @@ import type { FlightDemand } from '../player.ts';
 import type { Brain } from '../ai-training/policy.ts';
 import { hostilesNear } from '../hud/hud-binding.ts';
 import type { CombatComputer } from './combat-computer.ts';
+import type { SoundEvent } from './sounds.ts';
 import type { GameState } from './state.ts';
 
 /**
@@ -37,9 +38,7 @@ export const DOCK_COMPUTER_RANGE = 3500;
 /** What an autopilot reports for the orchestrator to say and play. */
 export type AutopilotEvent =
   | { kind: 'message'; text: string; seconds: number }
-  | { kind: 'beep'; hz: number; seconds?: number }
-  /** the C64 tradition, synthesised — see audio.ts */
-  | { kind: 'dockingMusic'; on: boolean };
+  | SoundEvent;
 
 const say = (text: string, seconds: number): AutopilotEvent =>
   ({ kind: 'message', text, seconds });

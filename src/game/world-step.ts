@@ -9,9 +9,13 @@
 //
 // So the phases moved here, and the fourteen `hud.showMessage` calls inside
 // them became RETURNED EVENTS — the same pattern as combat.ts, ordnance.ts and
-// trumbles.ts: *this decides and reports, the orchestrator applies*. The step
-// draws nothing, reads no clock, touches no DOM and never asks who is calling
-// it. `npm test` steps it under node with no Hud at all.
+// trumbles.ts: *this decides and reports, the orchestrator applies*. The eleven
+// `sfx.*` calls went the same way and for the same reason: they are
+// `SoundEvent`s now (sounds.ts), so the deepest module in the project no longer
+// imports the browser and no longer depends on `audio.ts` quietly surviving a
+// missing AudioContext. The step draws nothing, makes no noise, reads no clock,
+// touches no DOM and never asks who is calling it. `npm test` steps it under
+// node with no Hud at all.
 //
 // What is NOT here, and why: the consequences that reach outside the sky —
 // paying a bounty, moving your legal status, writing the save, opening the
@@ -30,7 +34,6 @@
 import * as THREE from 'three';
 
 import { COMMODITIES, type StarSystem } from '../galaxy/galaxy.ts';
-import { sfx } from '../audio.ts';
 import type { FlightDemand } from '../player.ts';
 import { cargoCapacity, cargoTonnes, MAX_FUEL } from './commander.ts';
 import { carryingContraband, SCAN_RANGE } from './law.ts';
@@ -47,6 +50,7 @@ import type { DamageSource } from './combat.ts';
 import { viewDirection } from './views.ts';
 import { Ordnance, ordnanceMessage, type OrdnanceReply } from './ordnance.ts';
 import type { NpcShip, FireEvent } from './npc.ts';
+import type { SoundEvent, SoundName } from './sounds.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import { AUTOSAVE_INTERVAL, type GameState } from './state.ts';
 
@@ -91,11 +95,16 @@ export function massLocked(state: GameState): boolean {
  *
  * A union rather than a bare list of strings because the next thing to come out
  * of the step belongs here too, and because it then reads the same as
- * CombatEvent and OrdnanceEvent, which is the point. The Game says the messages
- * and ignores the rest; a measuring caller does the opposite.
+ * CombatEvent and OrdnanceEvent, which is the point. The Game says the messages,
+ * plays the sounds and ignores the rest; a measuring caller does the opposite.
  */
 export type StepEvent =
   | { kind: 'message'; text: string; seconds: number }
+  /**
+   * Something should be heard. The same `SoundEvent` the autopilots return, so
+   * there is ONE place in game.ts that turns a sound into a call — sounds.ts.
+   */
+  | SoundEvent
   /**
    * A ship pulled its trigger, and at what.
    *
@@ -108,6 +117,9 @@ export type StepEvent =
   | { kind: 'npcFired'; npc: NpcShip; weapon: 'laser' | 'missile'; atPlayer: boolean };
 
 const say = (text: string, seconds: number): StepEvent => ({ kind: 'message', text, seconds });
+/** A tone, in hertz. The occasions with a name of their own are `heard()`. */
+const beep = (hz: number, seconds?: number): StepEvent => ({ kind: 'beep', hz, seconds });
+const heard = (name: SoundName): StepEvent => ({ kind: 'sound', name });
 
 /**
  * The consequences the step cannot own, and asks the orchestrator for.
@@ -227,7 +239,7 @@ export class WorldStep {
       if (this.massLocked()) {
         session.torusEngaged = false;
         out.push(say('MASS LOCK — TORUS DISENGAGED', 3));
-        sfx.beep(300);
+        out.push(beep(300));
       } else {
         player.position.addScaledVector(
           player.getForward(this.tmp), player.speed * 7 * dt);
@@ -247,7 +259,7 @@ export class WorldStep {
     const { player, session, world } = this.state;
     if (handsOn) {
       session.dcEngaged = false;
-      sfx.stopDockingMusic();
+      out.push({ kind: 'dockingMusic', on: false });
       out.push(say('MANUAL OVERRIDE', 2));
       return;
     }
@@ -368,11 +380,11 @@ export class WorldStep {
         // you a smuggler and the next police scan made you an Offender.
         commander.survivors += 1;
         out.push(say('SURVIVOR ABOARD', 4));
-        sfx.beep(600, 0.12);
+        out.push(beep(600, 0.12));
       } else {
         commander.cargo[c.commodity] += 1;
         out.push(say(`SCOOPED 1t ${COMMODITIES[c.commodity].name.toUpperCase()}`, 3));
-        sfx.beep(950, 0.08);
+        out.push(beep(950, 0.08));
       }
     }
     this.updateEncounters(out);
@@ -390,13 +402,13 @@ export class WorldStep {
         this.host.destroyNpc(e.npc);
       } else if (e.kind === 'hitPlayer') {
         world.effects.explosion(e.at, 0xff8866);
-        sfx.explosion();
+        out.push(heard('explosion'));
         this.host.applyPlayerDamage(e.damage, e.at, 'missile');
       } else if (e.kind === 'ecmDefeated') {
         world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
         this.state.ecmDetectedTimer = 2;
         out.push(say('TARGET E.C.M. — MISSILE DESTROYED', 3));
-        sfx.ecm();
+        out.push(heard('ecm'));
       } else {
         world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
       }
@@ -454,7 +466,7 @@ export class WorldStep {
       if (session.energyLowTimer <= 0) {
         session.energyLowTimer = 1.2;
         out.push(say('ENERGY LOW', 0.6));
-        sfx.beep(320, 0.1);
+        out.push(beep(320, 0.1));
       }
     }
 
@@ -479,7 +491,7 @@ export class WorldStep {
       const now = Math.ceil(session.hyperCountdown);
       if (now !== prev && now > 0) {
         out.push(say(`HYPERSPACE IN ${now}`, 1.2));
-        sfx.beep(700 + (5 - now) * 100, 0.07);
+        out.push({ kind: 'countdown', n: now });
       }
       if (session.hyperCountdown <= 0) {
         session.hyperCountdown = -1;
@@ -499,7 +511,7 @@ export class WorldStep {
     for (const e of r.events) {
       const secs = e.kind === 'purged' ? 5 : e.kind === 'fleeing' ? 1.5 : e.kind === 'ate' ? 4 : 2;
       out.push(say(trumbleMessage(e), secs));
-      if (e.kind === 'ate') sfx.beep(500, 0.1);
+      if (e.kind === 'ate') out.push(beep(500, 0.1));
     }
   }
 
@@ -573,7 +585,7 @@ export class WorldStep {
       } else if (npc.role === 'generation' && dist < 6000 && !session.genShipSeen) {
         session.genShipSeen = true;
         out.push(say('DERELICT GENERATION SHIP — NO LIFE SIGNS', 6));
-        sfx.beep(140, 0.5);
+        out.push(beep(140, 0.5));
       }
     }
   }
@@ -595,7 +607,7 @@ export class WorldStep {
         return;
       }
       const dist = npc.object.position.distanceTo(player.position);
-      sfx.enemyLaser();
+      out.push(heard('enemyLaser'));
       const hit = random() < npcHitChance(dist);
       // visible bolt: to us on a hit, wide of us on a miss
       const to = hit
