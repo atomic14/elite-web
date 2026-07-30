@@ -38,7 +38,7 @@ import { LivingGalaxy } from '../galaxy/living.ts';
 import { generateContractOffers, acceptContract, settleContracts, contractMessage, type ContractEvent } from './contracts.ts';
 import { pirateThreat, markOf, type PirateThreat } from './threat.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
-import { PlayerShip, type FlightDemand } from '../player.ts';
+import { PlayerShip, PLAYER_FLIGHT, type FlightDemand } from '../player.ts';
 import { Input } from '../engine/input.ts';
 import { flightDemand } from '../engine/flight-controls.ts';
 import { layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
@@ -1721,8 +1721,8 @@ export class Game {
       playerForward: this.player.getForward(this.tmp),
       viewDir: this.viewDir(this.tmp2),
       speedFrac: this.player.speed / this.player.maxSpeed,
-      rollFrac: this.player.rollRate / 2.0,
-      pitchFrac: this.player.pitchRate / 1.1,
+      rollFrac: this.player.rollRate / PLAYER_FLIGHT.maxRoll,
+      pitchFrac: this.player.pitchRate / PLAYER_FLIGHT.maxPitch,
       view: this.view,
       missiles: this.missiles,
       canisters: this.canisters,

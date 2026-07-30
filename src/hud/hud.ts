@@ -21,6 +21,15 @@ export interface ScannerContact {
   kind: ContactKind;
 }
 
+/**
+ * The roll and pitch pointers travel ±45% either side of centre, so a fraction
+ * outside -1..1 walks them off the end of their own bar. `HudState` declares the
+ * range; this holds the painter to it. It is a guard, not a second home for the
+ * flight envelope — `game.ts` divides by `PLAYER_FLIGHT`, and it once divided by
+ * a stale copy of the caps, which drove the pointer to 106%.
+ */
+const clampUnit = (n: number): number => Math.max(-1, Math.min(1, n));
+
 const CONTACT_COLORS: Record<ContactKind, string> = {
   station: '#4dff5c',
   ship: '#ffd24d',
@@ -160,8 +169,8 @@ export class Hud {
     if (this.messageTimer <= 0 && this.messageEl.textContent) this.messageEl.textContent = '';
 
     this.speedEl.style.width = `${state.speedFrac * 100}%`;
-    this.rollEl.style.left = `${50 + state.rollFrac * 45}%`;
-    this.pitchEl.style.left = `${50 + state.pitchFrac * 45}%`;
+    this.rollEl.style.left = `${50 + clampUnit(state.rollFrac) * 45}%`;
+    this.pitchEl.style.left = `${50 + clampUnit(state.pitchFrac) * 45}%`;
     this.foreEl.style.width = `${state.foreShield * 100}%`;
     this.aftEl.style.width = `${state.aftShield * 100}%`;
     this.fuelEl.style.width = `${state.fuelFrac * 100}%`;
