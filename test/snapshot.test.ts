@@ -1,0 +1,183 @@
+// The snapshot actually round-trips: values, not field names.
+//
+// Five times this project has shipped a save that forgot a field, and every one of
+// them passed a name-presence grep — because in each case the NAME was there and
+// the value was not. So this builds a state, flies it until nothing is at its
+// default, serialises, restores into a FRESH object, compares field by field, then
+// steps both on and demands they stay identical.
+
+import * as THREE from 'three';
+import { freshState } from '../src/game/state.ts';
+import { newCommander } from '../src/game/commander.ts';
+import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
+import { serialiseState, restoreState } from '../src/game/snapshot.ts';
+import { NpcShip } from '../src/game/npc.ts';
+import { check, keys } from './harness.ts';
+
+// --- the snapshot actually round-trips --------------------------------------
+
+// snapshot.ts had no direct coverage at all. Everything above it is a grep
+// over game.ts asking whether a field NAME appears in captureSnapshot and
+// restoreSnapshot — which cannot see whether the value that came back is the
+// value that went in, nor whether it landed in the object the renderer reads.
+//
+// That is exactly the gap the file's own history describes: four rounds of
+// "two reloads agree with each other but not with the run they came from".
+// A name-presence check passes through every one of them, because in each
+// case the name WAS there.
+//
+// So: build state, fly it until nothing is at its default, serialise, restore
+// into a FRESH object, and compare field by field — then step both on and
+// demand they stay identical, which is the property the bug actually broke.
+
+console.log('\nsnapshot round trip');
+{
+  /** Vector3 and Quaternion both look like this; nothing else in the state does. */
+  const vecLike = (v: unknown): v is { x: number; y: number; z: number; w?: number } =>
+    !!v && typeof v === 'object'
+    && typeof (v as { x?: unknown }).x === 'number'
+    && typeof (v as { y?: unknown }).y === 'number'
+    && typeof (v as { z?: unknown }).z === 'number';
+
+  /** Structural equality, treating a Vector3/Quaternion as its components. */
+  const same = (a: unknown, b: unknown): boolean => {
+    if (Object.is(a, b)) return true;
+    if (vecLike(a) && vecLike(b)) {
+      return a.x === b.x && a.y === b.y && a.z === b.z && (a.w ?? null) === (b.w ?? null);
+    }
+    if (a && b && typeof a === 'object' && typeof b === 'object') {
+      const ka = Object.keys(a).sort();
+      const kb = Object.keys(b).sort();
+      if (ka.join() !== kb.join()) return false;
+      return ka.every((k) => same((a as Record<string, unknown>)[k],
+        (b as Record<string, unknown>)[k]));
+    }
+    return false;
+  };
+
+  /** Which fields differ, by name — so a failure says what was lost. */
+  const diff = (a: Record<string, unknown>, b: Record<string, unknown>): string[] =>
+    Object.keys(a).filter((k) => !same(a[k], b[k]));
+
+  const at = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const makePlayer = (pos: THREE.Vector3) =>
+    ({ position: pos, quaternion: new THREE.Quaternion(), speed: 220 }) as never;
+  const station = new THREE.Object3D();
+  const fly = (npc: NpcShip, frames: number) => {
+    for (let i = 0; i < frames; i++) {
+      npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+    }
+  };
+
+  // --- NpcState ------------------------------------------------------------
+  seedWorld(20_260_729);
+  const flown = new NpcShip('pirate', at(120, -80, 1400), 5);
+  flown.threatTier = 1;
+  fly(flown, 600);
+
+  // A round trip over unchanged defaults proves nothing, so insist the state
+  // is genuinely dirty first — vectors moved, a decision cached, clocks part
+  // way through.
+  const live = flown.state as unknown as Record<string, unknown>;
+  check('the ship being snapshotted has actually flown',
+    flown.state.pos.length() > 0 && flown.state.speed > 0
+    && flown.state.brainControl !== null && flown.state.brainTimer !== 0);
+
+  // Through JSON, not structuredClone: this is what a save is, and it is the
+  // step that would expose a THREE object or a function hiding in the state.
+  const wire = JSON.stringify(serialiseState(live));
+  check('an NpcState snapshot is plain JSON', wire.length > 0 && !wire.includes('undefined'));
+  const saved = JSON.parse(wire) as Record<string, unknown>;
+  check(`every NpcState field reaches the snapshot (${Object.keys(saved).length} fields)`,
+    Object.keys(live).sort().join() === Object.keys(saved).sort().join(),
+    `missing: ${Object.keys(live).filter((k) => !(k in saved)).join(', ')}`);
+  check('...including the three vectors and the quaternion, as arrays',
+    Array.isArray(saved.pos) && (saved.pos as unknown[]).length === 3
+    && Array.isArray(saved.quat) && (saved.quat as unknown[]).length === 4
+    && Array.isArray(saved.packOffset) && Array.isArray(saved.waypoint));
+  check('...and the nested brain decision',
+    !!saved.brainControl && typeof saved.brainControl === 'object'
+    && 'pitch' in (saved.brainControl as object) && 'fire' in (saved.brainControl as object));
+
+  const fresh = new NpcShip('pirate', at(0, 0, 0), 5);
+  const meshPos = fresh.object.position;
+  const meshQuat = fresh.object.quaternion;
+  restoreState(fresh.state as unknown as Record<string, unknown>, saved);
+
+  // THE aliasing rule. npc.ts documents state.pos and state.quat as the SAME
+  // THREE objects the mesh uses; a restore that REPLACED them would still pass
+  // a value comparison and would leave the renderer drawing the old position
+  // for ever, because the mesh kept the object it was given at construction.
+  check('restore writes INTO the live vectors rather than replacing them',
+    fresh.state.pos === meshPos && fresh.state.quat === meshQuat);
+  check('...so the mesh is where the snapshot said',
+    meshPos.distanceTo(flown.object.position) === 0);
+
+  const back = diff(live, fresh.state as unknown as Record<string, unknown>);
+  check(`every NpcState field survives serialise → JSON → restore${back.length ? '' : ''}`,
+    back.length === 0, `lost: ${back.join(', ')}`);
+
+  // The property all four historical bugs broke, and the only one a field
+  // list cannot fake: restore the run and it must CONTINUE the same, not
+  // merely look the same. Both ships fly the next 300 frames from the same
+  // generator state.
+  const mark = rngState();
+  fly(flown, 300);
+  restoreRng(mark);
+  fly(fresh, 300);
+  check('a restored ship replays the run it came from — position',
+    fresh.object.position.distanceTo(flown.object.position) === 0,
+    `drifted ${fresh.object.position.distanceTo(flown.object.position).toFixed(4)}`);
+  // angleTo, not ===: it is acos of a dot product that is only unit-length to
+  // within rounding, so two BIT-IDENTICAL quaternions report about 5e-6 rather
+  // than 0. The exact comparison is the field-by-field one below.
+  check('...attitude',
+    fresh.object.quaternion.angleTo(flown.object.quaternion) < 1e-5,
+    `off by ${fresh.object.quaternion.angleTo(flown.object.quaternion)}`);
+  check('...and every other field',
+    diff(live, fresh.state as unknown as Record<string, unknown>).length === 0,
+    `diverged: ${diff(live, fresh.state as unknown as Record<string, unknown>).join(', ')}`);
+
+  // The negative control. If restoring is a no-op the checks above must fail,
+  // not pass — the failure mode this whole block exists to catch is a save
+  // that quietly restores nothing and is compared against a default.
+  {
+    seedWorld(20_260_729);
+    const unrestored = new NpcShip('pirate', at(0, 0, 0), 5);
+    restoreRng(mark);
+    fly(unrestored, 300);
+    check('...and a ship that was NOT restored does not (the control)',
+      unrestored.object.position.distanceTo(flown.object.position) > 1);
+  }
+
+  // --- SessionState --------------------------------------------------------
+  //
+  // Flat by contract (the check above asserts it), so the round trip is about
+  // completeness: twenty-three fields, of which a hand-written snapshot once
+  // caught five, and `torusEngaged` — a field that changes your speed — was
+  // among the eighteen it missed.
+  {
+    const session = freshState(newCommander()).session as unknown as Record<string, unknown>;
+    const keys = Object.keys(session);
+    // Give every field a value that is NOT its default, whatever its type, so
+    // no field can round-trip by having never changed.
+    let n = 0;
+    for (const k of keys) {
+      const v = session[k];
+      if (typeof v === 'boolean') session[k] = !v;
+      else if (typeof v === 'number') session[k] = v + (n += 1) + 0.5;
+    }
+    const dirty = structuredClone(session);
+    const wireSession = JSON.stringify(serialiseState(session));
+    const target = freshState(newCommander()).session as unknown as Record<string, unknown>;
+    restoreState(target, JSON.parse(wireSession) as Record<string, unknown>);
+    check(`every SessionState field round-trips (${keys.length} fields)`,
+      diff(dirty, target).length === 0, `lost: ${diff(dirty, target).join(', ')}`);
+    check('...and no field is silently added or dropped',
+      Object.keys(target).sort().join() === keys.sort().join());
+    // control: an untouched session must NOT match, or the check above is free
+    check('...where an untouched session does not match (the control)',
+      diff(dirty, freshState(newCommander()).session as unknown as Record<string, unknown>)
+        .length === keys.length);
+  }
+}

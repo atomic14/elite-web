@@ -42,7 +42,7 @@ before tuning it.**
 ```sh
 npm run dev        # landing at localhost:5173 · game at /play · viewer at /viewer
 npm run lint       # tsc --noEmit over src/, train/ and test/
-npm test           # invariant + unit tests (test/run.ts, no framework)
+npm test           # invariant + unit tests (no framework; test/run.ts is an index)
 npm run check      # lint + tests — what `prebuild` runs
 npm run build      # prebuild then vite build → dist/
 npm run campaign   # headless balance playtest (test/campaign.ts)
@@ -106,7 +106,25 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
     including bare references, THREE's own generators, and destructuring it out
     of `Math`. `game/rng.ts` is the only source of chance. `starfield.ts` and
     `audio.ts` are exempt because nothing reads them back.
-12. **Screens**: a screen owns its rendering, its keys and its state in one file,
+12. **Global variables are unacceptable, and `npm test` enforces it.** No rule
+    may be read from ambient state. If game code branches on it, it is a field
+    of `GameState` — that is what makes it saveable, testable as an argument,
+    and impossible to leave set by accident. Five `window.__` flags decided
+    which brain flew and what could be fitted, and each cost the same three
+    things: not in the snapshot, so a reload changed the game; settable by a
+    test only with a clean-up it had to remember; and a put-it-back dance in the
+    combat trainer guarding a hazard instead of removing it. They are
+    `state.brains` and `state.cheat` now.
+
+    A **handle** is the one legitimate exception and it is not a variable: the
+    game WRITES `__game`, `__policyKit` and `__simLog` so a console or an agent
+    can reach in, nothing reads them, and nothing branches on them. They live in
+    `src/game/console.ts`, the only file allowed to touch `globalThis` — same
+    bargain as `game/storage.ts` and localStorage. Module-level mutable state is
+    held to the same bar: `rng.ts`'s stream is allowed because it is snapshotted
+    and every consumer reseeds, which is the standard to meet, not a precedent
+    to cite.
+13. **Screens**: a screen owns its rendering, its keys and its state in one file,
     behind `open()` / `render()` / `input(i)` / optional `select(row)`. It never
     sets the mode, never touches the Game, and returns an outcome
     (`'stay' | 'back' | 'exit' | { open: id }`). `Game.mode` is DERIVED —
@@ -121,10 +139,10 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
     a key is held) plus `clickAt(el, e)` (a canvas mapping pixels to its own
     coordinates) exist **for the charts and only the charts** — discrete taps
     and `select(row)` cover everything else.
-13. **The menu cursor runs BEFORE the top screen**, and `Input.pressed()`
+14. **The menu cursor runs BEFORE the top screen**, and `Input.pressed()`
     consumes. That is safe only because it touches nothing unless a `.menu` is on
     screen, and even then only arrows and Enter. Don't widen it.
-14. **NPCs return `FireEvent`s; the Game resolves all consequences.** Don't give
+15. **NPCs return `FireEvent`s; the Game resolves all consequences.** Don't give
     an NPC a side effect. `ui/screens.ts` renders and nothing else, and the HUD
     is a dumb painter.
 
@@ -212,6 +230,13 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
 
 ## Style
 
+- **Tests are organised like `src/`.** One file per subsystem in `test/`
+  (`galaxy`, `economy`, `contracts`, `combat`, `gunnery`, `npc`, `flight`,
+  `world`, `world-step`, `state`, `snapshot`, `ai`, `combat-model`, `arena`,
+  `ui`, and four for the combat trainer). `test/run.ts` is a 59-line INDEX that
+  imports them and prints one total; `harness.ts` holds `check`, `fixtures.ts`
+  holds data two or more files need. Put a new test beside its subsystem, not in
+  the index.
 - **Keep files small, and `npm run sizes` enforces it.** The soft ceiling is
   **400 lines**; anything above it must be named in the allowlist in
   `tools/sizes.mjs` **with a reason**, and the check fails on a new file growing

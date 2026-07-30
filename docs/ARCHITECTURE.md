@@ -253,7 +253,10 @@ src/
   viewer/main.ts            three.js viewer for episodes
 
 test/harness.ts             check(), the counters and the shared fixtures
-test/run.ts                 invariant + unit tests (npm test)
+test/*.test.ts              invariant + unit tests, one file per subsystem
+test/run.ts                 the index: imports them all, one total (npm test)
+test/harness.ts             check/eq and the counters
+test/fixtures.ts            data two or more test files share
 test/combat-sim.test.ts     the training simulator's screen, keys and draft
 test/campaign.ts            headless balance playtest (npm run campaign)
 test/playtest.js            autonomous in-browser play agent (console)

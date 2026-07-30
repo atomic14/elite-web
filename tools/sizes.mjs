@@ -47,12 +47,13 @@ const ALLOWED = {
   'game/combat-sim-scenarios.ts': 'the scenario table plus the mode rules — data, and the two pure functions over it',
   'train/evolve.ts': 'the trainer: one search loop with its selection and logging',
   'test/campaign.ts': 'one career simulation, run thousands of times',
+  'test/world-step.test.ts': 'the five phases of the step in the order they run, mirroring world-step.ts — the order IS the content on both sides',
+  'test/combat-sim-career.test.ts': "the combat trainer's one rule — nothing that happens in the simulator leaves it — argued across three enforcement layers. Splitting it would put half a safety argument in another file.",
   'test/playtest.js': 'a console paste — it cannot import, so it must be self-contained',
 
   // WAITING TO BE SPLIT — not exceptions, debts
   'game/game.ts': 'DEBT: down from 3,244 and still the orchestrator plus leftovers. Target ~300.',
   'game/npc.ts': 'DEBT: behaviour and brain flight in one file; the flight half wants its own.',
-  'test/run.ts': 'DEBT: being split per subsystem to mirror src/. Started: check() and the shared fixtures are test/harness.ts, and test/combat-sim.test.ts is the first file to import them. Move a subsystem out per change; run.ts imports each one and prints the single total.',
   'game/combat-sim.ts': 'DEBT: the session lifecycle AND the twelve-member StepHost table in one file. The host is the safety-critical surface and wants to be readable on its own — split to combat-sim-host.ts.',
   'game/contracts.ts': 'DEBT: holds contracts AND pirate economics (markOf, pirateThreat, memberTier), which are not contracts. The threat model wants its own file.',
 };
