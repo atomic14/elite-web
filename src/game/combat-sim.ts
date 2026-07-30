@@ -62,7 +62,6 @@
 import * as THREE from 'three';
 
 import type { CommanderData, Equipment } from './commander.ts';
-import { MAX_FUEL, MAX_MISSILES } from './commander.ts';
 import {
   Combat, BEAM_FLASH, damagePlayer, firePlayerLaser,
   type CombatEvent, type CombatScratch, type DamageSource,
@@ -78,12 +77,13 @@ import {
   type BrainId, type ExerciseSession, type ExerciseSpec, type Opposition,
   type SimShip, type ThreatContext,
 } from './combat-sim-scenarios.ts';
-import { CLEAN } from './law.ts';
 import type { NpcShip } from './npc.ts';
 import type { Ordnance } from './ordnance.ts';
 import type { Persistence } from './persistence.ts';
 import { random, seedWorld } from './rng.ts';
-import type { BrainSelection } from './brains.ts';
+import {
+  exerciseCommander, exerciseStepHost, selectionForBrain,
+} from './combat-sim-safety.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import { arenaCentre, spawnOpposition, type OppositionUnit } from './spawning.ts';
 import { freshSession, type GameState } from './state.ts';
@@ -111,30 +111,6 @@ const ENTRY_THROTTLE = 0.25;
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
-/**
- * The A/B override, in the only terms the game can express it.
- *
- * Which named policy a pirate flies is a GLOBAL flag in brains.ts — there is no
- * per-ship field for it and inventing one is not this file's business
- * (spawning.ts says the same about `OppositionBrain`). So an exercise that names
- * a brain sets the flag for its duration and puts it back on the way out;
- * `teardown()` does that FIRST, because a career quietly flying the exercise's
- * brain is the one leak a player would never notice.
- *
- * The one brain with no entry — `pirate-attack-g1` — is not loaded by brains.ts,
- * so the game cannot fly it. Asking for it is refused rather than silently
- * ignored, because a report that says "g1" when the fight was against g3 is
- * worse than no report. `pirate-attack-e1` WAS in that position: the picker
- * offered it and the game could not load it, so every e1 exercise silently flew
- * g3 and said so in a warning. It is wired now.
- */
-const BRAIN_SELECTION: Partial<Record<BrainId, BrainSelection>> = {
-  'pirate-attack-g2': { sharp: true },
-  'pirate-attack-e1': { engine: true },
-  'pirate-attack-r2': { legacy: true },
-  'pirate-pack-r4-selectonly': { pack: true },
-  scripted: { scripted: true },
-};
 
 /**
  * The fit-out an exercise may lend you — `window.__cheat` made legitimate and
@@ -426,28 +402,21 @@ export class CombatSim {
    *     and the save itself.
    */
   private stepHost(): StepHost {
-    return {
-      inFlight: () => this.phase === 'fighting',
-      applyPlayerDamage: (amount, from, source) => this.takeHit(amount, from, source),
+    // The table itself is in combat-sim-safety.ts, beside the commander clone
+    // and the brain selection — the three layers of "nothing leaves the
+    // exercise" read together there rather than a third of the way down a
+    // 900-line file.
+    return exerciseStepHost({
+      fighting: () => this.phase === 'fighting',
+      takeHit: (amount, from, source) => this.takeHit(amount, from, source),
       destroyNpc: (npc) => this.destroyNpc(npc),
       wreckNpc: (npc) => this.applySimCombat(this.combat.wreck(npc), false),
-      fireLaser: () => this.pullTrigger(),
-      // An offence in a training room is not an offence. It is also what
-      // scrambles the station's defence Vipers, which would fly 77,000 units to
-      // join a fight the scenario did not author.
-      raiseLegal: () => {},
+      pullTrigger: () => this.pullTrigger(),
       die: (reason) => this.simDeath(reason),
-      // Unreachable from the arena and refused anyway: docking pays a fine,
-      // writes the save, clears the world blob and opens the station menu.
-      dock: () => {},
-      completeHyperspace: () => {
-        this.host.message('HYPERSPACE IS OFFLINE IN THE SIMULATOR', 3);
-      },
-      completeRescue: () => {},
-      openHermitTrade: () => {},
-      autoSave: () => {},
-    };
+      say: (text, seconds) => this.host.message(text, seconds),
+    });
   }
+
 
   // --- the round loop ------------------------------------------------------
 
@@ -877,7 +846,7 @@ export class CombatSim {
   private selectBrains(brain: BrainId | undefined): void {
     this.brainWarnings = [];
     if (!brain) return;
-    const sel = BRAIN_SELECTION[brain];
+    const sel = selectionForBrain(brain);
     if (sel === undefined) {
       // The shipped solo brain IS the default selection; anything else without
       // an entry is a brain brains.ts does not load, so the game cannot fly it.
@@ -890,30 +859,4 @@ export class CombatSim {
     }
     this.state.brains = { ...sel };
   }
-}
-
-/**
- * The commander the exercise flies: a clone, with no cargo and no reputation.
- *
- * What is DROPPED matters as much as what is kept. No cargo, so a hull breach
- * cannot cost you a tonne you are carrying for a contract and a police scan
- * cannot read contraband; no contracts, so a simulated pirate cannot tick a
- * bounty job along; no legal status, so an exercise cannot make you a Fugitive.
- *
- * `kills` and `combatScore` are COPIED rather than zeroed, on purpose. They are
- * the two fields the whole rule is about, and copying them means the exercise
- * credits this clone exactly as the game credits you — so the difference between
- * the two objects afterwards is the proof, rather than an absence of evidence.
- */
-export function exerciseCommander(career: CommanderData, fit: ExerciseFit = {}): CommanderData {
-  const c = structuredClone(career);
-  c.cargo = c.cargo.map(() => 0);
-  c.survivors = 0;
-  c.contracts = [];
-  c.legalStatus = CLEAN;
-  c.trumbles = 0;
-  c.fuel = MAX_FUEL;
-  c.equipment = { ...c.equipment, ...(fit.equipment ?? {}) };
-  c.missiles = Math.max(0, Math.min(MAX_MISSILES, Math.round(fit.missiles ?? career.missiles)));
-  return c;
 }

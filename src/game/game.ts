@@ -35,11 +35,8 @@ import * as THREE from 'three';
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
-import {
-  generateContractOffers, pirateThreat, markOf,
-  acceptContract, settleContracts, contractMessage,
-  type PirateThreat, type ContractEvent,
-} from './contracts.ts';
+import { generateContractOffers, acceptContract, settleContracts, contractMessage, type ContractEvent } from './contracts.ts';
+import { pirateThreat, markOf, type PirateThreat } from './threat.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
 import { PlayerShip, type FlightDemand } from '../player.ts';
 import { Input } from '../engine/input.ts';

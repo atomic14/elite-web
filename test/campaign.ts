@@ -17,10 +17,8 @@
 
 import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '../src/galaxy/galaxy.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
-import {
-  generateContractOffers, applyMarketPressure, chartDistanceTenths, pirateThreat,
-  markOf, memberTier, MAX_CONTRACTS, settleContracts,
-} from '../src/game/contracts.ts';
+import { generateContractOffers, applyMarketPressure, chartDistanceTenths, MAX_CONTRACTS, settleContracts } from '../src/game/contracts.ts';
+import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import {
   newCommander, cargoCapacity, cargoTonnes, rating, killValue, MAX_FUEL,
   type CommanderData, type Contract,

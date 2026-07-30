@@ -18,7 +18,7 @@
 
 import type { StarSystem, MarketEntry } from '../galaxy/galaxy.ts';
 import type { CommanderData, Contract } from './commander.ts';
-import type { PirateThreat } from './contracts.ts';
+import type { PirateThreat } from './threat.ts';
 import type { EncounterTimers } from './encounters.ts';
 import type { ShipSystems } from './systems.ts';
 import type { DockPlan } from './docking.ts';

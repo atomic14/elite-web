@@ -39,7 +39,7 @@ import {
   type ExerciseSession,
   type ThreatContext,
 } from '../src/game/combat-sim-scenarios.ts';
-import { pirateThreat, markOf, memberTier } from '../src/game/contracts.ts';
+import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 import { g1 } from './fixtures.ts';

@@ -30,7 +30,7 @@
 import { generateGalaxy, type MarketEntry } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
 import type { Contract } from './commander.ts';
-import type { PirateThreat } from './contracts.ts';
+import type { PirateThreat } from './threat.ts';
 import { CONSTRICTOR_SPEC, pirateSpecForTier } from './ship-specs.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { Ordnance } from './ordnance.ts';

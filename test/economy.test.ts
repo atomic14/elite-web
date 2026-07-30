@@ -24,7 +24,7 @@ import {
 } from '../src/game/law.ts';
 import { generateGalaxy, generateMarket, COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
-import { pirateThreat, markOf, memberTier } from '../src/game/contracts.ts';
+import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 import { g1 } from './fixtures.ts';

@@ -54,8 +54,7 @@ const ALLOWED = {
   // WAITING TO BE SPLIT — not exceptions, debts
   'game/game.ts': 'DEBT: down from 3,244 and still the orchestrator plus leftovers. Target ~300.',
   'game/npc.ts': 'DEBT: behaviour and brain flight in one file; the flight half wants its own.',
-  'game/combat-sim.ts': 'DEBT: the session lifecycle AND the twelve-member StepHost table in one file. The host is the safety-critical surface and wants to be readable on its own — split to combat-sim-host.ts.',
-  'game/contracts.ts': 'DEBT: holds contracts AND pirate economics (markOf, pirateThreat, memberTier), which are not contracts. The threat model wants its own file.',
+  'game/combat-sim.ts': 'the exercise lifecycle: begin, the round loop, teardown. 42% of it is the safety argument in prose, and the three layers of that argument now read together in combat-sim-safety.ts. What is left is one session and it does not read better in pieces.',
 };
 
 const roots = ['src', 'test', 'train', 'tools'];

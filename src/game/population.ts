@@ -10,7 +10,7 @@
 
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { random } from './rng.ts';
-import type { PirateThreat } from './contracts.ts';
+import type { PirateThreat } from './threat.ts';
 
 export interface PopulationPlan {
   traders: number;

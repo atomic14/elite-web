@@ -21,7 +21,7 @@ import type { StarSystem } from '../galaxy/galaxy.ts';
 import {
   SPECS, pirateSpecForTier, CONSTRICTOR_SPEC, type NpcSpec,
 } from './ship-specs.ts';
-import { markOf, memberTier, pirateThreat, type PirateThreat } from './contracts.ts';
+import { markOf, memberTier, pirateThreat, type PirateThreat } from './threat.ts';
 import { random } from './rng.ts';
 
 // --- what an opponent is ----------------------------------------------------

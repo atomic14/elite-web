@@ -21,7 +21,7 @@ import { steerQuatToward, type NpcShip } from './npc.ts';
 import {
   pirateSpecForTier, CONSTRICTOR_SPEC, SPECS, type NpcRole, type NpcSpec,
 } from './ship-specs.ts';
-import { memberTier } from './contracts.ts';
+import { memberTier } from './threat.ts';
 import { slotNormal } from '../world/slot.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
