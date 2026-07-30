@@ -152,7 +152,7 @@ export function observe(me: ObservableShip, target: ObservableShip, out: Float32
 export function observePack(
   me: ObservableShip,
   target: ObservableShip,
-  mates: { pos: V3; alive: boolean }[],
+  mates: readonly { pos: V3; alive: boolean }[],
   out: Float32Array,
 ): Float32Array {
   observe(me, target, out);
@@ -208,7 +208,7 @@ export interface ObservableMate {
 export function observePackWide(
   me: ObservableShip & { hp: number; cls: { hp: number } },
   target: ObservableShip,
-  mates: ObservableMate[],
+  mates: readonly ObservableMate[],
   out: Float32Array,
 ): Float32Array {
   observePack(me, target, mates, out);
@@ -244,6 +244,38 @@ export function observePackWide(
   out[24] = Math.min(1, living / 3);
   out[25] = Math.max(0, Math.min(1, me.hp / me.cls.hp));
   return out;
+}
+
+/**
+ * Which observation does THIS brain want? The widest one it has inputs for.
+ *
+ * The encoders and the sizes live in this file, so the choice between them
+ * belongs here too. It used to be made twice — three ways in npc.ts, two ways
+ * in scenario.ts — which meant a genome the trainer could produce was not, by
+ * construction, a genome the game could fly: npc.ts once knew only the 14 and
+ * the 18, so the round-4 wide brains had no way into the game at all.
+ *
+ * `mates` is the pack this ship is flying with, or **null when the caller has
+ * no pack context** — a lone hunter, or a harness with no fleet. Null means
+ * the solo encoder, whatever the brain's size: a pack policy flown without a
+ * pack reads the 14 numbers it shares with the solo one. Note that the solo
+ * encoder writes only the first `OBS_SIZE` slots, so a pack-sized brain on
+ * that path reads whatever the caller left in the tail of `out` — which is
+ * why callers with a fleet should pass it rather than pre-judging the size.
+ *
+ * `me` carries the hull fraction the wide encoder needs even on the solo path:
+ * a caller cannot know which encoder will run, so it supplies the union.
+ */
+export function observeFor(
+  brain: Brain,
+  me: ObservableShip & { hp: number; cls: { hp: number } },
+  target: ObservableShip,
+  mates: readonly ObservableMate[] | null,
+  out: Float32Array,
+): Float32Array {
+  if (!mates || brain.obsSize < PACK_OBS_SIZE) return observe(me, target, out);
+  if (brain.obsSize >= PACK_WIDE_OBS_SIZE) return observePackWide(me, target, mates, out);
+  return observePack(me, target, mates, out);
 }
 
 /** Forward pass → deterministic (argmax per head) control. */

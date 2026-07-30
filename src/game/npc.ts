@@ -4,9 +4,8 @@ import {
   SPECS, TURN, shipAccel, type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
 import {
-  observe, observePack, observePackWide, act, makeScratch,
-  PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
-  type Brain, type ObservableShip, type ObservableMate,
+  observeFor, act, makeScratch, PACK_WIDE_OBS_SIZE,
+  type Brain, type ObservableMate,
 } from '../ai-training/policy.ts';
 import {
   pirateBrainFor, defenceBrain, SHIPPED_BRAINS, type BrainSelection,
@@ -675,7 +674,10 @@ export class NpcShip {
     targetSpeed: number,
     dist: number,
     fireAt: 'player' | NpcShip | null,
-    /** non-null only for the 18-input pack brain, which observes its mates */
+    /**
+     * The ships this one is hunting with, or null if it flies alone. Pass it
+     * whenever it exists — `observeFor` decides whether this brain can read it.
+     */
     fleet: readonly NpcShip[] | null = null,
   ): FireEvent | null {
     this.brainTimer -= dt;
@@ -697,20 +699,12 @@ export class NpcShip {
       tv.quat.x = targetQuat.x; tv.quat.y = targetQuat.y;
       tv.quat.z = targetQuat.z; tv.quat.w = targetQuat.w;
       tv.speed = targetSpeed;
-      // Which observation: the widest one this brain has inputs for. A 26-input
-      // pack policy could be TRAINED and not FLOWN before this — npc.ts knew
-      // only the 14 and the 18, so the round-4 wide brains had no way into the
-      // game, and the trainer could produce a genome the engine could not run.
+      // Which observation this brain wants is policy.ts's question — see
+      // `observeFor`. All this file owes it is the pack, in the shape the wide
+      // encoder reads, and nothing if this ship flies alone.
       this.brainControl = act(
         brain,
-        !fleet || brain.obsSize < PACK_OBS_SIZE
-          ? observe(me as ObservableShip, tv as ObservableShip, NpcShip.obsBuf)
-          : brain.obsSize >= PACK_WIDE_OBS_SIZE
-            ? observePackWide(
-              me as ObservableShip & { hp: number; cls: { hp: number } },
-              tv as ObservableShip, this.packmates(fleet), NpcShip.obsBuf)
-            : observePack(me as ObservableShip, tv as ObservableShip,
-              this.packmates(fleet), NpcShip.obsBuf),
+        observeFor(brain, me, tv, fleet ? this.packmates(fleet) : null, NpcShip.obsBuf),
         NpcShip.scratch,
       );
     }

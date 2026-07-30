@@ -40,7 +40,7 @@ import { LASER_COOL_RATE } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
   observe, act, makeScratch,
-  PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain, type Control, type ObservableShip,
+  PACK_WIDE_OBS_SIZE, type Brain, type Control, type ObservableShip,
 } from './policy.ts';
 
 /** One ship in an episode, however it is flown. */
@@ -437,10 +437,12 @@ export class Episode {
       // rule and it is now literally the same code: a pirate shoots exactly as
       // often as being lined up allows.
       const shot = ctrl.kind === 'policy'
+        // The fleet goes in unconditionally: what a genome can SEE of it is
+        // `observeFor`'s call, not this file's. Deciding it here as well is how
+        // the trainer came to be able to produce genomes the game could not fly.
         ? p.npc.brainFly(
           ctrl.brain, dt, this.trader.pos, this.trader.quat, this.trader.speed,
-          range, 'player',
-          ctrl.brain.obsSize >= PACK_OBS_SIZE ? this.fleet : null)
+          range, 'player', this.fleet)
         : p.npc.attack(dt, this.trader.pos, range, true);
       if (shot && this.trader.alive) {
         events.push(this.resolveNpcShot(p, range));
