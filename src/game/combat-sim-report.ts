@@ -32,6 +32,7 @@
 //     A trainer reading the exported records is an external consumer, and the
 //     first shape change would otherwise break it in silence.
 
+import { publish, handle } from './console.ts';
 import * as THREE from 'three';
 import { NPC_FIRE_GATE, NPC_LASER_RANGE } from './npc.ts';
 import { LASER_RANGE } from './gunnery.ts';
@@ -840,12 +841,11 @@ export function makeSimLog(limit = SIM_LOG_LIMIT): SimLog {
  * than throwing its records away.
  */
 export function installSimLog(limit = SIM_LOG_LIMIT): SimLog {
-  const host = globalThis as unknown as Record<string, unknown>;
-  const existing = host.__simLog as SimLog | undefined;
+  const existing = handle('__simLog') as SimLog | undefined;
   if (existing && Array.isArray(existing.records) && typeof existing.push === 'function') {
     return existing;
   }
   const log = makeSimLog(limit);
-  host.__simLog = log;
+  publish('__simLog', log);
   return log;
 }

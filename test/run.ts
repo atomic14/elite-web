@@ -37,7 +37,7 @@ import {
 import { slotKeys, saveCommander } from '../src/game/storage.ts';
 import { equipRows, renderMarket } from '../src/ui/screens.ts';
 import { cargoTonnes } from '../src/game/commander.ts';
-import { pirateBrainFor, defenceBrain } from '../src/game/brains.ts';
+import { pirateBrainFor, defenceBrain, SHIPPED_BRAINS } from '../src/game/brains.ts';
 import { compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
 import {
   dumpCargo, offerBribe, appetiteOf, OPPORTUNIST_FLOOR, GANG_FLOOR,
@@ -2270,13 +2270,9 @@ console.log('\nthe law');
 
 console.log('\nbrain selection');
 {
-  const flags = globalThis as unknown as Record<string, unknown>;
-  const clear = () => {
-    delete flags.__scriptedPirates; delete flags.__packBrain;
-    delete flags.__sharpPirates; delete flags.__legacyPirates;
-  };
-
-  clear();
+  // No setup and no teardown: the selection is an ARGUMENT now, so a case
+  // cannot leak into the next one. It used to be four `window.__` globals with
+  // a clear() after every block — which worked, and only by hand.
   {
     const solo = pirateBrainFor(0, false);
     check('an opportunist flies the solo brain', !!solo && !solo.pack);
@@ -2295,29 +2291,34 @@ console.log('\nbrain selection');
       now.targetSpeed(0) === 150 && now.targetSpeed(400) === 400);
   }
   {
-    flags.__scriptedPirates = true;
-    check('__scriptedPirates turns every brain off',
-      pirateBrainFor(0, false) === null && pirateBrainFor(2, true) === null
-      && defenceBrain() === null);
-    clear();
+    check('brains.scripted turns every brain off',
+      pirateBrainFor(0, false, { scripted: true }) === null
+      && pirateBrainFor(2, true, { scripted: true }) === null
+      && defenceBrain({ scripted: true }) === null);
   }
   {
-    flags.__packBrain = true;
-    check('__packBrain forces the pack policy onto everyone',
-      pirateBrainFor(0, false)?.pack === true);
-    clear();
+    check('brains.pack forces the pack policy onto everyone',
+      pirateBrainFor(0, false, { pack: true })?.pack === true);
   }
   {
     const base = pirateBrainFor(0, false)!.brain;
-    flags.__sharpPirates = 'pro';
-    check("__sharpPirates='pro' leaves opportunists alone",
-      pirateBrainFor(0, false)!.brain === base);
+    check("brains.sharp='pro' leaves opportunists alone",
+      pirateBrainFor(0, false, { sharp: 'pro' })!.brain === base);
     check('...and re-arms professionals',
-      pirateBrainFor(1, false)!.brain !== base);
-    flags.__sharpPirates = true;
-    check('__sharpPirates=true re-arms everyone',
-      pirateBrainFor(0, false)!.brain !== base);
-    clear();
+      pirateBrainFor(1, false, { sharp: 'pro' })!.brain !== base);
+    check('brains.sharp=true re-arms everyone',
+      pirateBrainFor(0, false, { sharp: true })!.brain !== base);
+    check("brains.legacy='pro' likewise splits by tier",
+      pirateBrainFor(0, false, { legacy: 'pro' })!.brain === base
+      && pirateBrainFor(1, false, { legacy: 'pro' })!.brain !== base);
+  }
+  {
+    // The default is the shipped game, and it is frozen — a caller that
+    // mutated it would move every other caller's brains.
+    check('the shipped default carries no overrides',
+      Object.keys(SHIPPED_BRAINS).length === 0 && Object.isFrozen(SHIPPED_BRAINS));
+    check('an unspecified selection flies what the live game flies',
+      pirateBrainFor(1, false)!.brain === pirateBrainFor(1, false, {})!.brain);
   }
   check('the defence brain is fitted', defenceBrain() !== null);
 }
@@ -3592,6 +3593,76 @@ console.log('\nseeded world');
   check('a different seed gives a different one', JSON.stringify(a) !== JSON.stringify(c));
   check('...and it is a real distribution, not a constant',
     new Set(a).size === 3 && a.every((n) => n >= 0 && n < 1));
+}
+
+// --- no ambient globals -----------------------------------------------------
+//
+// The same shape as the ban above, and for the same reason: `Math.random` was a
+// second source of chance, and a `window.__` flag is a second source of RULES.
+// Five of them existed — `__scriptedPirates`, `__legacyPirates`, `__packBrain`,
+// `__sharpPirates`, `__cheat` — read from inside NpcShip.update and the equip
+// screen to decide which brain flew and what could be fitted.
+//
+// Each cost the same three things, and none of them was hypothetical:
+//
+//   1. the flag is not in the snapshot, and `globalThis` does not survive a
+//      reload, so a save made with one set came back flying something else —
+//      in a project whose headline property is that the world repeats
+//   2. a test could only set it and remember to clear up; the discipline held
+//      by hand, across 5,000 lines, which is not the same as being safe
+//   3. the combat trainer needed a save-the-old/put-it-back dance around every
+//      exercise, run FIRST in teardown, guarding a hazard instead of removing
+//      it. Making the selection state deleted the dance.
+//
+// They are `GameState.brains` and `GameState.cheat` now. What is still allowed
+// is a HANDLE — something the game WRITES so a console can reach in, which no
+// rule reads and which branches on nothing — and those go through
+// game/console.ts so this check has one exemption instead of an argument.
+
+console.log('\nno ambient globals');
+{
+  const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
+      : e.name.endsWith('.ts') ? [new URL(e.name, dir)] : []));
+  const SEAM = 'game/console.ts';
+  const offenders: string[] = [];
+  for (const url of walk(new URL('../src/', import.meta.url))) {
+    const short = url.pathname.slice(url.pathname.indexOf('/src/') + 5);
+    if (short === SEAM) continue;
+    // Strip `//`, ` *` AND a one-line `/** ... */` — that last form is not
+    // pedantry: two stale references to the deleted flags were sitting in
+    // exactly it, and the first version of this check walked straight past them.
+    const src = readFileSync(url, 'utf8')
+      .replace(/^\s*(\/\/|\*).*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    if (/globalThis/.test(src)) offenders.push(`${short} (globalThis)`);
+    // the older spelling of the same thing, and the one the flags actually used
+    if (/window\s*\.\s*__/.test(src)) offenders.push(`${short} (window.__)`);
+  }
+  check(`only ${SEAM} touches globalThis`
+    + `${offenders.length ? ' — found in ' + offenders.join(', ') : ''}`,
+    offenders.length === 0);
+
+  // ...and the seam is real rather than an empty file the check walks past
+  const seam = readFileSync(new URL(`../src/${SEAM}`, import.meta.url), 'utf8');
+  check('...and the seam publishes and reads back through one function each',
+    /export function publish\(/.test(seam) && /export function handle\(/.test(seam));
+
+  // The five that are gone stay gone, by name: a grep for the NAME catches a
+  // reintroduction that spells its access differently to dodge the check above.
+  for (const flag of ['__scriptedPirates', '__legacyPirates', '__packBrain',
+    '__sharpPirates', '__cheat']) {
+    const found = walk(new URL('../src/', import.meta.url)).filter((url) => {
+      const src = readFileSync(url, 'utf8')
+        .replace(/^\s*(\/\/|\*).*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+      return src.includes(flag);
+    });
+    check(`${flag} is gone from src/`, found.length === 0,
+      found.map((u) => u.pathname).join(', '));
+  }
+
+  // and the replacements are where the rules can find them
+  check('brain selection is a field of the state, and it is saved',
+    'brains' in freshState(newCommander()) && 'cheat' in freshState(newCommander()));
 }
 
 // --- what the shot hit ------------------------------------------------------
@@ -5287,6 +5358,35 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     restoreRng(mark);
     flyCareer(naive, 199, demand);
     check('...while 199 steps do not (the control)', trace(naive) !== wanted);
+
+    // --- the career's own brain selection survives an exercise --------------
+    //
+    // Which brain an NPC flies used to be four ambient `window.__` globals,
+    // which cost this three ways: the flag was not in the snapshot, so a save
+    // restored in a fresh tab flew DIFFERENT brains than the run it came from;
+    // a test leaked its choice into the next unless it cleared up by hand; and
+    // the trainer needed a save-the-old-value/put-it-back dance, run FIRST in
+    // teardown, because a career left flying an exercise's A/B brain is a leak
+    // nobody would ever notice.
+    //
+    // `state.brains` is a field of GameState, so it is in the entry snapshot
+    // and the ordinary restore puts it back. The hazard is deleted rather than
+    // guarded — which is only true if it is really in the snapshot, so: drop
+    // `brains` from Persistence.capture() and the LAST check here fails. That
+    // mutation passes every other test in this file, including the
+    // name-presence grep above, which sees the field name and not the value.
+    const ab = flying(5_150_515);
+    ab.state.brains = { legacy: 'pro' };
+    ab.sim.begin({
+      mode: 'sparring', scenario: 'single-pirate', tier: 2, seed: 4_242,
+      brain: 'pirate-pack-r4-selectonly',
+    });
+    check('an exercise flies the brain IT asked for, not the career\'s',
+      ab.state.brains.pack === true && ab.state.brains.legacy === undefined);
+    beat(ab, 120, demand);
+    ab.sim.quit();
+    check('...and the career\'s own selection is back when the exercise ends',
+      ab.state.brains.legacy === 'pro' && !ab.state.brains.pack);
   }
 
   if (hadStorage) globals.localStorage = previousStorage;

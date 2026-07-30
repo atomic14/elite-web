@@ -83,6 +83,7 @@ import type { NpcShip } from './npc.ts';
 import type { Ordnance } from './ordnance.ts';
 import type { Persistence } from './persistence.ts';
 import { random, seedWorld } from './rng.ts';
+import type { BrainSelection } from './brains.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import { arenaCentre, spawnOpposition, type OppositionUnit } from './spawning.ts';
 import { freshSession, type GameState } from './state.ts';
@@ -125,11 +126,11 @@ const UP = new THREE.Vector3(0, 1, 0);
  * refused rather than silently ignored, because a report that says "e1" when the
  * fight was against g3 is worse than no report.
  */
-const BRAIN_FLAGS: Partial<Record<BrainId, string>> = {
-  'pirate-attack-g2': '__sharpPirates',
-  'pirate-attack-r2': '__legacyPirates',
-  'pirate-pack-r4-selectonly': '__packBrain',
-  scripted: '__scriptedPirates',
+const BRAIN_SELECTION: Partial<Record<BrainId, BrainSelection>> = {
+  'pirate-attack-g2': { sharp: true },
+  'pirate-attack-r2': { legacy: true },
+  'pirate-pack-r4-selectonly': { pack: true },
+  scripted: { scripted: true },
 };
 
 /**
@@ -223,8 +224,7 @@ export class CombatSim {
   private recorder: CombatSimRecorder | null = null;
   private records: CombatSimReport[] = [];
   private outcome: SimOutcome = 'quit';
-  /** brain flags to put back, by name — `undefined` means "was not set" */
-  private flags = new Map<string, unknown>();
+  /** brains this exercise asked for that the game cannot load */
   /** complaints about the requested brain, carried into every round's record */
   private brainWarnings: string[] = [];
   private refused: string[] = [];
@@ -299,7 +299,7 @@ export class CombatSim {
     this.playerAlive = true;
     this.quitting = false;
     this.outcome = 'quit';
-    this.applyBrainFlags(spec.brain);
+    this.selectBrains(spec.brain);
 
     // A fresh stream for the fight, so a seed quoted in a report rebuilds it —
     // and the career's stream is restored on exit, so the exercise costs it
@@ -622,11 +622,8 @@ export class CombatSim {
   private teardown(): CombatSimReport[] {
     this.close(this.outcome);
 
-    // 1. The brain flags first: they are global, and a career quietly flying an
-    //    exercise's A/B brain is a leak nobody would ever notice.
-    this.restoreBrainFlags();
-
-    // 2. The world, the commander and the rng stream, all out of the entry
+    // 1. The world, the commander, the brain selection and the rng stream, all
+    //    out of the entry
     //    snapshot — with saving SUSPENDED, because the restore path ends at
     //    `Station.dock`, which calls `saveCommander`. In the happy path those
     //    bytes are identical to what is already on disk; if `restore()` were
@@ -862,16 +859,25 @@ export class CombatSim {
     this.state.player.quaternion.setFromRotationMatrix(this.tmpM);
   }
 
-  // --- the A/B flags -------------------------------------------------------
+  // --- which brain the opposition flies ------------------------------------
 
-  private applyBrainFlags(brain: BrainId | undefined): void {
-    this.flags.clear();
+  /**
+   * Point `state.brains` at the exercise's choice.
+   *
+   * There is no put-it-back half, and that is the point: `state.brains` is in
+   * the entry snapshot, so `teardown`'s restore returns the career's selection
+   * along with its world. This used to set four `window.__` globals and undo
+   * them by hand, FIRST in teardown, because a career left flying an exercise's
+   * A/B brain is a leak nobody would ever notice. Making it state deleted the
+   * hazard rather than guarding it.
+   */
+  private selectBrains(brain: BrainId | undefined): void {
     this.brainWarnings = [];
     if (!brain) return;
-    const flag = BRAIN_FLAGS[brain];
-    if (flag === undefined) {
-      // The shipped solo brain needs no flag; anything else without one is a
-      // brain brains.ts does not load, so the game cannot fly it.
+    const sel = BRAIN_SELECTION[brain];
+    if (sel === undefined) {
+      // The shipped solo brain IS the default selection; anything else without
+      // an entry is a brain brains.ts does not load, so the game cannot fly it.
       if (brain !== 'pirate-attack-g3') {
         this.brainWarnings.push(`this exercise asked for ${brain}, which the game does `
           + 'not load — the opposition flew what the live game flies, and the '
@@ -879,18 +885,7 @@ export class CombatSim {
       }
       return;
     }
-    const host = globalThis as unknown as Record<string, unknown>;
-    this.flags.set(flag, host[flag]);
-    host[flag] = true;
-  }
-
-  private restoreBrainFlags(): void {
-    const host = globalThis as unknown as Record<string, unknown>;
-    for (const [flag, was] of this.flags) {
-      if (was === undefined) delete host[flag];
-      else host[flag] = was;
-    }
-    this.flags.clear();
+    this.state.brains = { ...sel };
   }
 }
 

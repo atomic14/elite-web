@@ -22,6 +22,7 @@
 import type { CommanderData } from './commander.ts';
 import type { ShipSystems } from './systems.ts';
 import type { EncounterTimers } from './encounters.ts';
+import type { BrainSelection } from './brains.ts';
 
 /** Bump when the shape changes so stale snapshots are refused, not misread. */
 export const SNAPSHOT_VERSION = 1;
@@ -118,6 +119,10 @@ export interface WorldSnapshot {
   /** the reception this system laid on */
   lastThreat: Record<string, unknown> | null;
   ecmDetectedTimer: number;
+  /** which brains the NPCs fly — see BrainSelection; state, so it is saved */
+  brains: BrainSelection;
+  /** the playtest fit-anything override — see GameState.cheat */
+  cheat: boolean;
   /** every flight-session flag and timer, walked generically — see SessionState */
   session: Record<string, unknown>;
   /**

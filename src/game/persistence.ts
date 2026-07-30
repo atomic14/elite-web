@@ -120,6 +120,11 @@ export class Persistence {
         this.combatComputer.state as unknown as Record<string, unknown>),
       lastThreat: s.lastThreat ? { ...s.lastThreat } : null,
       ecmDetectedTimer: s.ecmDetectedTimer,
+      // Which brains the NPCs fly. In the snapshot because it is state the step
+      // READS: as a `window.__` flag, a save restored in a fresh tab silently
+      // flew the shipped brains instead of the ones the run was made with.
+      brains: { ...s.brains },
+      cheat: s.cheat,
       session: serialiseState(s.session as unknown as Record<string, unknown>),
       rng: rngState(),
       chartTarget: s.chart.targetIndex,
@@ -190,6 +195,8 @@ export class Persistence {
     this.ordnance.targetLock = snap.targetLock >= 0
       ? (s.world.npcs[snap.targetLock] ?? null) : null;
     this.ordnance.armed = snap.missileArmed;
+    s.brains = { ...snap.brains };
+    s.cheat = snap.cheat;
     s.world.station.quaternion.set(...snap.stationQuat);
     s.world.station.updateMatrixWorld(true);
     this.host.enterMode(snap.mode);

@@ -292,7 +292,7 @@ export class WorldStep {
     // frame rather than shrinking underneath the loop.
     for (const npc of [...world.npcs]) {
       const event = npc.update(dt, player, s.commander.legalStatus,
-        world.station, world.npcs, world.stationDockZ);
+        world.station, world.npcs, world.stationDockZ, s.brains);
       if (event) this.resolveNpcFire(npc, event, out);
 
       if (npc.wantsDespawn) {

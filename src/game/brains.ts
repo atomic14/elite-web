@@ -15,6 +15,7 @@ import {
   observe, observePack, act, makeScratch, brainFromFile,
   type Brain, type BrainFile,
 } from '../ai-training/policy.ts';
+import { publish } from './console.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import sharpBrainFile from '../ai-training/brains/pirate-attack-g2.json' with { type: 'json' };
@@ -50,8 +51,8 @@ import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with 
 // time but was trained when firing needed a 0.027 rad cone, so it learned
 // never to trust a loose line.
 //
-// Pirates fly with it at a 10 Hz decision rate; set `window.__scriptedPirates
-// = true` to compare against the old scripted AI.
+// Pirates fly with it at a 10 Hz decision rate; `state.brains.scripted = true`
+// compares it against the old scripted AI (see BrainSelection).
 const PIRATE_BRAIN: Brain | null = (() => {
   try {
     return brainFromFile(pirateBrainFile as unknown as BrainFile);
@@ -64,8 +65,8 @@ const PIRATE_BRAIN: Brain | null = (() => {
  * Generation 2: trained against the gun a pirate actually carries, and against
  * a target that stops to knife-fight. Kept on a flag rather than shipped.
  *
- *   window.__sharpPirates = true     every pirate flies it
- *   window.__sharpPirates = 'pro'    only professionals and gangs (tier >= 1)
+ *   state.brains.sharp = true     every pirate flies it
+ *   state.brains.sharp = 'pro'    only professionals and gangs (tier >= 1)
  *
  * It wins on every measurement and lost the only one that counts. Flown, it
  * hangs in space and pivots to shoot rather than making attack runs — the
@@ -87,7 +88,7 @@ const SHARP_BRAIN: Brain | null = (() => {
 /**
  * The pre-generation brain, for an instant A/B in a live session.
  *
- *   window.__legacyPirates = true    every pirate flies r2
+ *   state.brains.legacy = true    every pirate flies r2
  *
  * It gets the wide ram guard and the old constant target speed, so this is
  * the game exactly as it played before any of this work.
@@ -100,18 +101,54 @@ const LEGACY_BRAIN: Brain | null = (() => {
   }
 })();
 
-// `globalThis`, not `window`, throughout these flag readers. They are called
-// from inside NpcShip.update — the hot path of the world step — so reaching for
-// `window` made the largest world-step module throw the moment it was asked to
-// simulate anything under node. It is why the sim/game combat-parity invariant,
-// the one guarding the bug that went undetected for six training rounds, is
-// enforced by REGEX over source text instead of by calling the function.
-// globalThis reads undefined under node and is identical in a browser.
+/**
+ * Which brains fly, when the answer is not "the shipped ones".
+ *
+ * A field of `GameState`, passed down to the choice below — NOT four ambient
+ * `window.__` flags, which is what this was. Brain selection is read from
+ * inside `NpcShip.update`, so by this project's own rule (AI state is game
+ * state: anything the step READS is state) it belongs in the state. As globals
+ * it cost three separate things:
+ *
+ *   - a save made with a flag set, restored in a fresh tab, flew DIFFERENT
+ *     brains than the run it came from — the flag is not in the snapshot and
+ *     `globalThis` does not survive a reload
+ *   - a test had to remember to clear up, or leak its choice into every test
+ *     after it; the discipline held, but only by hand
+ *   - the combat trainer needed a save-the-old-value/put-it-back dance around
+ *     every exercise, and got it right, which is not the same as it being safe
+ *
+ * In the state all three go away: it is snapshotted with everything else, a
+ * test passes the selection it wants as an argument, and the trainer's
+ * teardown is the ordinary restore it already does.
+ *
+ * From a console, go through the one documented handle:
+ * `__game.state.brains.legacy = 'pro'`.
+ */
+export interface BrainSelection {
+  /** fly NO brains — the pre-neuroevolution scripted AI, i.e. the A/B control */
+  scripted?: boolean;
+  /** pre-gun-fix `pirate-attack-r2`: `true` for all, `'pro'` for tier >= 1 */
+  legacy?: boolean | 'pro';
+  /** force the pack policy onto solo pirates as well as gangs */
+  pack?: boolean;
+  /** generation 2 `pirate-attack-g2`: `true` for all, `'pro'` for tier >= 1 */
+  sharp?: boolean | 'pro';
+}
 
-/** Which pirates, if any, fly the pre-generation brain. See LEGACY_BRAIN. */
-function legacyBrainFor(tier: number): boolean {
-  const flag = (globalThis as unknown as Record<string, unknown>).__legacyPirates;
-  if (!flag || !LEGACY_BRAIN) return false;
+/**
+ * No overrides: what the live game flies. Frozen, because it is a shared
+ * default and a caller mutating it would move every other caller's brains.
+ */
+export const SHIPPED_BRAINS: BrainSelection = Object.freeze({});
+
+/**
+ * The `true | 'pro'` shape, read once: `'pro'` arms professionals and gangs and
+ * leaves the opportunists on the shipped brain, which is how a mixed reception
+ * gets tested without making every pirate a different animal.
+ */
+function appliesTo(flag: boolean | 'pro' | undefined, tier: number): boolean {
+  if (!flag) return false;
   return flag === 'pro' ? tier >= 1 : true;
 }
 
@@ -135,7 +172,7 @@ export const DEFEND_BRAIN: Brain | null = (() => {
  * trio takes 10.8-11.7s, and whether Elite's pirates should be 4-7x more
  * lethal is a game-design decision, not a tournament one.
  *
- * Set `window.__packBrain = true` to fly it and judge for yourself.
+ * Set `state.brains.pack = true` to fly it and judge for yourself.
  */
 const PACK_BRAIN: Brain | null = (() => {
   try {
@@ -144,10 +181,6 @@ const PACK_BRAIN: Brain | null = (() => {
     return null;
   }
 })();
-
-function brainsEnabled(): boolean {
-  return !(globalThis as unknown as Record<string, unknown>).__scriptedPirates;
-}
 
 /**
  * Range at which trained pilots hand back to the scripted break-off.
@@ -209,17 +242,6 @@ const RAM_GUARD_NO_RAM = 150;
 const TARGET_SPEED_FLOOR = 150;
 
 
-function packBrainEnabled(): boolean {
-  return !!(globalThis as unknown as Record<string, unknown>).__packBrain;
-}
-
-/** Which pirates, if any, fly the generation-2 brain. See SHARP_BRAIN. */
-function sharpBrainFor(tier: number): boolean {
-  const flag = (globalThis as unknown as Record<string, unknown>).__sharpPirates;
-  if (!flag || !SHARP_BRAIN) return false;
-  return flag === 'pro' ? tier >= 1 : true;
-}
-
 /**
  * Test-harness access to the trained policies (used by the autopilot
  * commanders in docs/JAMESON-TRIALS.md to fly the *player's* ship).
@@ -231,10 +253,10 @@ function sharpBrainFor(tier: number): boolean {
  * isHostileToPlayer(). three.js maths is fine headless; this was the blocker.
  */
 export function installPolicyKit(): void {
-  (globalThis as unknown as Record<string, unknown>).__policyKit = {
+  publish('__policyKit', {
     act, observe, observePack, makeScratch,
     pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
-  };
+  });
 }
 
 
@@ -276,15 +298,18 @@ export interface BrainChoice {
  * The brain for a pirate of this tier, or null to fly the scripted AI.
  *
  * This is invariant 8's split, stated once: opportunists and professionals fly
- * the solo brain, an organised gang flies the pack policy. Everything else
- * here is an A/B flag for playtesting.
+ * the solo brain, an organised gang flies the pack policy. Everything `sel`
+ * does on top of that is an A/B override for playtesting — see BrainSelection.
  */
-export function pirateBrainFor(tier: number, organised: boolean): BrainChoice | null {
-  if (!PIRATE_BRAIN || !brainsEnabled()) return null;
+export function pirateBrainFor(
+  tier: number, organised: boolean, sel: BrainSelection = SHIPPED_BRAINS,
+): BrainChoice | null {
+  if (!PIRATE_BRAIN || sel.scripted) return null;
 
-  const legacy = legacyBrainFor(tier);
-  const pack = !!PACK_BRAIN && (organised || packBrainEnabled());
-  const solo = legacy ? LEGACY_BRAIN! : sharpBrainFor(tier) ? SHARP_BRAIN! : PIRATE_BRAIN;
+  const legacy = !!LEGACY_BRAIN && appliesTo(sel.legacy, tier);
+  const pack = !!PACK_BRAIN && (organised || !!sel.pack);
+  const sharp = !!SHARP_BRAIN && appliesTo(sel.sharp, tier);
+  const solo = legacy ? LEGACY_BRAIN! : sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
 
   return {
     brain: pack ? PACK_BRAIN! : solo,
@@ -297,6 +322,6 @@ export function pirateBrainFor(tier: number, organised: boolean): BrainChoice | 
 }
 
 /** An armed trader or a player-assist ship flies the defence policy. */
-export function defenceBrain(): Brain | null {
-  return brainsEnabled() ? DEFEND_BRAIN : null;
+export function defenceBrain(sel: BrainSelection = SHIPPED_BRAINS): Brain | null {
+  return sel.scripted ? null : DEFEND_BRAIN;
 }

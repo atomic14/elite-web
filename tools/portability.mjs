@@ -18,7 +18,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const BROWSER = /\b(document|window|localStorage|sessionStorage|requestAnimationFrame|HTMLElement|HTMLCanvasElement|navigator|AudioContext)\b/;
+const BROWSER = /\b(document|window|localStorage|sessionStorage|requestAnimationFrame|HTMLElement|HTMLCanvasElement|navigator|AudioContext|globalThis)\b/;
 
 /**
  * Files that are *meant* to know about the platform. A desktop port
@@ -32,6 +32,10 @@ const PLATFORM = [
   // the one file allowed to know how a save is stored — swap it for a
   // file-backed one and nothing else changes
   'game/storage.ts',
+  // ...and the one allowed to publish a console handle. Same bargain: a port
+  // that has no console simply never calls it. Note this covers HANDLES the
+  // game writes, never FLAGS it reads — see the header of console.ts.
+  'game/console.ts',
   // the sun's corona is a canvas texture; it is rendering, and it already
   // degrades to null with no document
   'world/sun.ts',

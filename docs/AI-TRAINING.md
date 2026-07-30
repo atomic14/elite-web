@@ -21,7 +21,7 @@ simulation. Design below.
 > As shipped, pirates attacking the player fly the trained `pirate-attack-r2`
 > policy and armed traders defend with `jameson-defend` (TRAINING-LOG Runs
 > 4-5); the scripted logic below remains for every other behaviour and as
-> the `window.__scriptedPirates = true` fallback.
+> the `state.brains.scripted = true` fallback.
 
 `src/game/npc.ts` implements the behaviour matrix by hand:
 

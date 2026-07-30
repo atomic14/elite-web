@@ -32,6 +32,7 @@ import { makeDockPlan } from './docking.ts';
 import { freshTimers } from './encounters.ts';
 import { generateGalaxy } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
+import { SHIPPED_BRAINS, type BrainSelection } from './brains.ts';
 
 export interface GameState {
   // --- where and who ------------------------------------------------------
@@ -59,6 +60,22 @@ export interface GameState {
   lastThreat: PirateThreat | null;
   /** seconds the console 'E' light stays lit after an E.C.M. burst */
   ecmDetectedTimer: number;
+  /**
+   * Which brains the NPCs fly — the shipped ones unless a playtest or a combat
+   * exercise says otherwise. Here rather than in four `window.__` flags
+   * because the step reads it, so it is state (brains.ts, BrainSelection).
+   */
+  brains: BrainSelection;
+  /**
+   * Playtesting: fit anything from the catalogue, free and at any tech level.
+   *
+   * Beside `brains` because it is the same kind of thing — a development
+   * override that changes what the game allows — and in the state for the same
+   * reason: it was `window.__cheat`, and an ambient global is not somewhere a
+   * rule can be found, tested, or saved. `TradeContext` already took it as a
+   * field, so only its SOURCE was ever the problem.
+   */
+  cheat: boolean;
 
   // --- what is on offer ---------------------------------------------------
   market: MarketEntry[];
@@ -130,6 +147,8 @@ export function freshState(commander: CommanderData): GameState {
     encounterTimers: freshTimers(),
     lastThreat: null,
     ecmDetectedTimer: 0,
+    brains: { ...SHIPPED_BRAINS },
+    cheat: false,
     market: [],
     hermitMarket: [],
     contractOffers: [],

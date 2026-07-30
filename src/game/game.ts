@@ -27,6 +27,7 @@
 //
 // `window.__game` exposes the instance for the autopilot test harness
 // (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
+import { publish } from './console.ts';
 import * as THREE from 'three';
 
 import { generateGalaxy, generateMarket, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
@@ -101,17 +102,6 @@ import { CombatSimScreen, type CombatSimContext } from './screens/combat-sim.ts'
 import { ScreenHost } from '../ui/screen-host.ts';
 import { createRenderStack, BEAM_Z, type RenderStack } from '../engine/render-stack.ts';
 import { nearestSystemTo } from '../galaxy/navigation.ts';
-/**
- * Playtesting cheat: `window.__cheat = true` fits anything from the catalogue
- * anywhere, free and regardless of tech level. Deliberately a console handle
- * like `__scriptedPirates` and `__packBrain` rather than a key binding — it is
- * a development tool, and nobody should reach it by accident.
- */
-function cheatMode(): boolean {
-  return !!(globalThis as unknown as Record<string, unknown>).__cheat;
-}
-
-
 
 import {
   formatCredits,
@@ -581,7 +571,7 @@ export class Game {
 
     // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
     // docs/JAMESON-TRIALS.md) drives the whole game through this
-    (globalThis as unknown as Record<string, unknown>).__game = this;
+    publish('__game', this);
     installPolicyKit();
 
     // Screens register themselves with the host and are addressed by id from
@@ -665,7 +655,7 @@ export class Game {
       system: this.system,
       market: this.market,
       atHermit: this.hermitTrading,
-      cheat: cheatMode(),
+      cheat: this.state.cheat,
       message: (text, seconds) => this.hud.showMessage(text, seconds),
       addNotoriety: (amount) => this.living.addNotoriety(this.commander.systemIndex, amount),
       leaveHermit: () => {

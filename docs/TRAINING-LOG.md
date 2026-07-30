@@ -9,6 +9,25 @@ League/defend rounds load their frozen opponents from `src/ai-training/brains/` 
 rerun them against the **committed** round-1 brains (or archived copies),
 because retraining a phase overwrites its committed brain file.
 
+> **One thing every entry below predates.** Runs quote the A/B toggles as
+> console globals — `window.__scriptedPirates`, `window.__legacyPirates`,
+> `window.__packBrain`, `window.__sharpPirates`. Those five no longer exist:
+> which brain a ship flies is a field of the game state, because the step reads
+> it and therefore it is state. `npm test` now bans the globals from coming
+> back. The measurements are unaffected — only the way you switch between them
+> changed — so entries are left exactly as written, per this file's own rule.
+> Translate as you read:
+>
+> | the entry says | type this |
+> | --- | --- |
+> | `window.__scriptedPirates = true` | `__game.state.brains.scripted = true` |
+> | `window.__legacyPirates = true` | `__game.state.brains.legacy = true` |
+> | `window.__packBrain = true` | `__game.state.brains.pack = true` |
+> | `window.__sharpPirates = 'pro'` | `__game.state.brains.sharp = 'pro'` |
+>
+> `__game` itself is unchanged: a handle the game publishes is not a flag it
+> reads, and only the second kind was the problem. See `src/game/console.ts`.
+
 ## Infrastructure
 
 - **Environment**: `src/ai-training/scenario.ts` — episodes built from the

@@ -116,7 +116,7 @@ the player's hull is four hard-coded constants in `player.ts` (`MAX_SPEED`,
 cap speed and accel but not pitch or roll. Parameterising `PlayerShip` is a
 feature of its own AND changes the world every pirate brain was fitted in, since
 `scenario.ts` reads `PLAYER_FLIGHT` as its target. So v1 overrides lasers,
-shields, E.C.M., missiles, energy unit and energy bomb — `window.__cheat` made
+shields, E.C.M., missiles, energy unit and energy bomb — `state.cheat` made
 legitimate and scoped — and the GAP-ANALYSIS entry says the hull is not
 selectable.
 

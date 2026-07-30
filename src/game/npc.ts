@@ -8,7 +8,9 @@ import {
   PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
   type Brain, type ObservableShip, type ObservableMate,
 } from '../ai-training/policy.ts';
-import { pirateBrainFor, defenceBrain } from './brains.ts';
+import {
+  pirateBrainFor, defenceBrain, SHIPPED_BRAINS, type BrainSelection,
+} from './brains.ts';
 import { npcPrefersMissile, npcMissileLastStand, MISSILE_RELOAD } from './gunnery.ts';
 import { rampToward } from '../player.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
@@ -477,6 +479,7 @@ export class NpcShip {
     station: THREE.Object3D,
     fleet: readonly NpcShip[] = [],
     stationDockZ?: number,
+    brains: BrainSelection = SHIPPED_BRAINS,
   ): FireEvent | null {
     if (stationDockZ !== undefined) this.stationDockZ = stationDockZ;
     if (!this.alive) return null;
@@ -505,7 +508,7 @@ export class NpcShip {
     if (aggressiveToPlayer) {
       // Which brain, and the two numbers that come with it — see brains.ts.
       const choice = this.role === 'pirate'
-        ? pirateBrainFor(this.threatTier, this.organised) : null;
+        ? pirateBrainFor(this.threatTier, this.organised, brains) : null;
       const shot = choice && distPlayer >= choice.guard
         ? this.brainFly(choice.brain, dt,
           player.position, player.quaternion,
@@ -525,7 +528,7 @@ export class NpcShip {
 
     if (this.fleeing) {
       // armed traders turn and fight with the trained Jameson defence brain
-      const defence = this.armed ? defenceBrain() : null;
+      const defence = this.armed ? defenceBrain(brains) : null;
       if (defence) {
         if (this.provokedByPlayer && distPlayer < 6000) {
           return this.brainFly(defence, dt,

@@ -247,7 +247,7 @@ export interface EquipRow {
 /** Purchasable rows for this station, shared by renderer and purchase logic. */
 /**
  * @param cheat playtesting only — lifts the tech-level lock so anything in the
- *   catalogue can be fitted anywhere. See `window.__cheat` in game.ts.
+ *   catalogue can be fitted anywhere. See `GameState.cheat` in state.ts.
  */
 export function equipRows(sys: StarSystem, c: CommanderData, cheat = false): EquipRow[] {
   const fuel = fuelQuote(c);
@@ -1002,7 +1002,7 @@ export function renderCombatSimReport(
     <div class="keyline">
       RECORD ${index + 1} OF ${total}${total > 1 ? ' &middot; &larr;&rarr; ANOTHER' : ''}
       &middot; C COPY &middot; X EXPORT (&#8679;X ALL ${total})
-      &middot; ALSO ON window.__simLog &middot; ESC BACK
+      &middot; ALSO ON __simLog &middot; ESC BACK
     </div>
   `);
 }

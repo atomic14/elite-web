@@ -141,7 +141,7 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
 - Shipped: **`pirate-attack-g3`** (pirates), **`jameson-defend-g1`** (armed
   traders and anything player-assist), **`pirate-pack-r4-selectonly`**
   (organised gangs). `pirate-attack-r2` is the legacy control behind
-  `window.__legacyPirates`, not a shipped brain.
+  `state.brains.legacy`, not a shipped brain.
 - Balance is not settled, and a figure quoted in any doc may predate a physics
   change. Measure; don't cite.
 
@@ -183,8 +183,14 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
 - `window.__game` is the Game; `window.__policyKit` exposes the trained policies.
   Drive the game headlessly by calling `g.update(1/60, t)` in a loop — background
   tabs throttle rAF, so manual stepping is the reliable way.
-- `window.__scriptedPirates = true` disables all NPC brains (A/B testing).
-  `window.__cheat = true` fits anything from the catalogue, free.
+- **A/B switches are STATE, not globals.** `state.brains` picks which brains fly
+  (`scripted` disables them all, `legacy`/`sharp`/`pack` swap them — see
+  `BrainSelection`) and `state.cheat` fits anything from the catalogue free. They
+  were five `window.__` flags; a rule read from ambient state is not in the
+  snapshot, so a reload changed the game. From a console go through the handle:
+  `__game.state.brains.legacy = 'pro'`. `npm test` bans their return, and
+  `src/game/console.ts` is the only file allowed to touch `globalThis` — it
+  publishes handles the game WRITES, never flags it reads.
 - `npm run campaign` after touching prices, rewards, equipment or the living
   galaxy. `test/playtest.js` plays the real game and asserts invariants.
 - **Never write save slots 1-3.** Harnesses run in slot 4 (`SAVE_SLOTS`) and

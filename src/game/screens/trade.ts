@@ -35,7 +35,7 @@ export interface TradeContext {
   readonly atHermit: boolean;
   /** told when the market closes while at a hermit, so flight can tidy up */
   leaveHermit(): void;
-  /** window.__cheat — fits anything from the catalogue, free, at any tech level */
+  /** GameState.cheat — fits anything from the catalogue, free, at any tech level */
   readonly cheat: boolean;
   message(text: string, seconds: number): void;
   /** word gets around: see sell() */

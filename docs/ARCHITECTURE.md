@@ -346,7 +346,7 @@ traders defending themselves (`jameson-defend` brain). `brainFly()` runs the
 MLP at 10 Hz and integrates its discrete keyboard-style controls with the same
 ramp the player's ship uses. It is public, because a training episode flies a
 candidate genome through it — one flight model, one place. Set
-`window.__scriptedPirates = true` in the console to A/B the old scripted AI.
+`__game.state.brains.scripted = true` in the console to A/B the old scripted AI.
 
 ### 5. Training runs on the game, not on a copy of it
 
@@ -433,8 +433,8 @@ ships.
 - **Debug handles** (deliberate, documented): `window.__game` (the Game
   instance — used by the autopilot test harness, see
   docs/JAMESON-TRIALS.md), `window.__policyKit` (trained brains + inference
-  fns), `window.__scriptedPirates` (disable brains), `window.__cheat`
-  (buy any equipment free, any tech level), `window.__packBrain`
+  fns), `state.brains.scripted` (disable brains), `state.cheat`
+  (buy any equipment free, any tech level), `state.brains.pack`
   (switch pirates to the 18-input pack brain — off by default, and see
   docs/TRAINING-LOG.md for why).
 - **Determinism**: everything is seeded (mulberry32) and `Math.random` is
