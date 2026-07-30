@@ -20,6 +20,7 @@ import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with {
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import sharpBrainFile from '../ai-training/brains/pirate-attack-g2.json' with { type: 'json' };
 import legacyBrainFile from '../ai-training/brains/pirate-attack-r2.json' with { type: 'json' };
+import engineBrainFile from '../ai-training/brains/pirate-attack-e1.json' with { type: 'json' };
 import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
@@ -134,6 +135,8 @@ export interface BrainSelection {
   pack?: boolean;
   /** generation 2 `pirate-attack-g2`: `true` for all, `'pro'` for tier >= 1 */
   sharp?: boolean | 'pro';
+  /** run 18's `pirate-attack-e1`, the first trained on the game engine */
+  engine?: boolean | 'pro';
 }
 
 /**
@@ -151,6 +154,33 @@ function appliesTo(flag: boolean | 'pro' | undefined, tier: number): boolean {
   if (!flag) return false;
   return flag === 'pro' ? tier >= 1 : true;
 }
+
+/**
+ * Run 18's brain: the first one trained on the game engine itself, after the
+ * separate combat simulator was deleted (docs/TRAINING-LOG.md, run 18).
+ *
+ *   state.brains.engine = true     every pirate flies it
+ *   state.brains.engine = 'pro'    only professionals and gangs (tier >= 1)
+ *
+ * Loadable but NOT shipped, and the reason is the whole methodology here.
+ * It took a 100% validation kill rate — which is exactly the profile of
+ * generation 1 and generation 2, both of which won every measurement and lost
+ * the only one that counted, because a well-optimised pirate is a turret that
+ * hangs in space and snipes. Shipping this on its score would be making the
+ * same mistake a third time with better numbers.
+ *
+ * So it is here to be FLOWN — `T` at any station, pick it as the opposition,
+ * and compare it against g3 in the same scenario from the same seed. That
+ * comparison is the thing the trainer exists for, and until this was wired the
+ * trainer offered e1 in its picker and could not load it.
+ */
+const ENGINE_BRAIN: Brain | null = (() => {
+  try {
+    return brainFromFile(engineBrainFile as unknown as BrainFile);
+  } catch {
+    return null;
+  }
+})();
 
 export const DEFEND_BRAIN: Brain | null = (() => {
   try {
@@ -309,7 +339,10 @@ export function pirateBrainFor(
   const legacy = !!LEGACY_BRAIN && appliesTo(sel.legacy, tier);
   const pack = !!PACK_BRAIN && (organised || !!sel.pack);
   const sharp = !!SHARP_BRAIN && appliesTo(sel.sharp, tier);
-  const solo = legacy ? LEGACY_BRAIN! : sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
+  const engine = !!ENGINE_BRAIN && appliesTo(sel.engine, tier);
+  const solo = legacy ? LEGACY_BRAIN!
+    : engine ? ENGINE_BRAIN!
+      : sharp ? SHARP_BRAIN! : PIRATE_BRAIN;
 
   return {
     brain: pack ? PACK_BRAIN! : solo,

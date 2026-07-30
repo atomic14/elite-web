@@ -1611,3 +1611,39 @@ message naming `--opponent` as the alternative.
 The trader still wants a proper pirate rotation via repeated `--opponent` runs
 or a pirate-side pool; `trader-evade-e1` ships as the better of the two but is
 not the last word.
+
+## Postscript to run 18 — nothing shipped, and one sentence above is wrong
+
+Appended rather than edited, per this file's rule. The last line of run 18 says
+`trader-evade-e1` "ships as the better of the two". **It does not, and it never
+did.** Checked against the code rather than memory:
+
+- `brains.ts` imports g3, g2, r2, r4-selectonly and jameson-defend-g1. Every one
+  of them predates the engine merge. Neither `e1` brain is imported.
+- there is no wiring point for a trader-evade brain in the game *at all* — only
+  `viewer/main.ts` loads one. An armed trader flies the DEFENCE policy
+  (`jameson-defend-g1`), so "ships" was not merely unset, it had nowhere to go.
+- the combat trainer listed `pirate-attack-e1` in its picker and could not load
+  it, so every exercise that asked for e1 silently flew g3 and said so in a
+  warning nobody was reading.
+
+So: run 18 trained two brains on the game engine, and the game still flies the
+pre-merge ones. That is the accurate state.
+
+### `pirate-attack-e1` is now loadable, and still not shipped
+
+`state.brains.engine = true` flies it; the trainer's picker can select it for
+real. Not the default, and deliberately so — **it took a 100% validation kill
+rate, which is the exact profile of generation 1 and generation 2.** Both won
+every measurement in this file and lost the only one that counted, because the
+optimal way to hold a firing line is to stop moving, and evolution finds it.
+Shipping e1 on its score would be making that mistake a third time with better
+numbers.
+
+What settles it is a fight Chris flies: `T` at a station, same scenario, same
+seed, e1 as the opposition and then g3, and compare the reports. That comparison
+is what the trainer was built for, and it could not be run until now.
+
+The trader remains genuinely unfinished: `trader-evade-e1` is overfitted to a
+single opponent (0% deaths against its training partner, 18% against the
+scripted baseline) and wants a pirate rotation via repeated `--opponent` runs.

@@ -121,13 +121,16 @@ const UP = new THREE.Vector3(0, 1, 0);
  * `teardown()` does that FIRST, because a career quietly flying the exercise's
  * brain is the one leak a player would never notice.
  *
- * The two brains with no entry — `pirate-attack-g1` and `pirate-attack-e1` — are
- * not loaded by brains.ts at all, so the game cannot fly them. Asking for one is
- * refused rather than silently ignored, because a report that says "e1" when the
- * fight was against g3 is worse than no report.
+ * The one brain with no entry — `pirate-attack-g1` — is not loaded by brains.ts,
+ * so the game cannot fly it. Asking for it is refused rather than silently
+ * ignored, because a report that says "g1" when the fight was against g3 is
+ * worse than no report. `pirate-attack-e1` WAS in that position: the picker
+ * offered it and the game could not load it, so every e1 exercise silently flew
+ * g3 and said so in a warning. It is wired now.
  */
 const BRAIN_SELECTION: Partial<Record<BrainId, BrainSelection>> = {
   'pirate-attack-g2': { sharp: true },
+  'pirate-attack-e1': { engine: true },
   'pirate-attack-r2': { legacy: true },
   'pirate-pack-r4-selectonly': { pack: true },
   scripted: { scripted: true },
