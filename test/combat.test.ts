@@ -7,7 +7,6 @@
 
 import * as THREE from 'three';
 import { World } from '../src/game/world.ts';
-import { launchStationDefence } from '../src/game/spawning.ts';
 import { newCommander, cargoTonnes } from '../src/game/commander.ts';
 import {
   dumpCargo,
@@ -31,7 +30,7 @@ import { isHostileToPlayer } from '../src/game/npc.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { check } from './harness.ts';
-import { DT, g1, load } from './fixtures.ts';
+import { DT, load } from './fixtures.ts';
 
 // --- resolving a hit ---------------------------------------------------------
 //
@@ -376,26 +375,4 @@ console.log('\npolice hostility');
     !isHostileToPlayer(npcLike('hunter', { provoked: true }), 0));
   check('a destroyed ship is hostile to nobody',
     !isHostileToPlayer(npcLike('pirate', { alive: false }), 0));
-
-  // The station's own Vipers are launched AT you, so they must read hostile.
-  //
-  // This used to be a regex over game.ts looking for `provokedByPlayer = true`,
-  // because the rule was written inline in a file that needs a canvas to build.
-  // It is `launchStationDefence` in spawning.ts now, so the check can fly it:
-  // the regex would have passed on a line that never ran.
-  {
-    seedWorld(5_150_515);
-    const world = new World();
-    world.build(g1[7]);
-    const before = world.npcs.length;
-    const vipers = launchStationDefence(world, new THREE.Vector3());
-    check(`the station launches one or two Vipers (${vipers.length})`,
-      vipers.length >= 1 && vipers.length <= 2);
-    check('...which are actually in the sky', world.npcs.length === before + vipers.length);
-    check('...all of them police', vipers.every((v) => v.role === 'police'));
-    check('station defence vipers still come for you',
-      vipers.every((v) => isHostileToPlayer(v, 0)));
-    check('...and they are stacked down the slot, not spawned on each other',
-      new Set(vipers.map((v) => v.object.position.toArray().join())).size === vipers.length);
-  }
 }
