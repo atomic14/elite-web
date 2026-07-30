@@ -23,6 +23,7 @@
 // market is contracts.ts, the mission is missions.ts, the save is storage.ts.
 
 import * as THREE from 'three';
+import { slotNormal } from '../world/slot.ts';
 
 import { sfx } from '../audio.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
@@ -46,11 +47,7 @@ const LAUNCH_SPEED = 120;
  * One home for it: launching pushes you along it, and the station's Vipers
  * scramble along it. Both used to compute it themselves.
  */
-export function slotNormal(
-  station: THREE.Object3D, out = new THREE.Vector3(),
-): THREE.Vector3 {
-  return out.set(0, 0, -1).applyQuaternion(station.quaternion);
-}
+
 
 /** What the station reports for the orchestrator to say out loud. */
 export type StationEvent =

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { slotNormal } from './slot.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { createSun, type Sun } from './sun.ts';
 import { createPlanet, type Planet } from './planet.ts';
@@ -69,10 +70,10 @@ export function buildSystemScene(sys: StarSystem): SystemScene {
   root.add(station);
 
   // Launch/respawn point: just outside the slot face (planet side).
-  const slotNormal = new THREE.Vector3(0, 0, -1).applyQuaternion(station.quaternion);
+  const slot = slotNormal(station);
   const spawnPosition = station.position
     .clone()
-    .add(slotNormal.multiplyScalar(900));
+    .add(slot.multiplyScalar(900));
 
   return {
     root,
