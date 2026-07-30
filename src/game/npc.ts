@@ -4,7 +4,7 @@ import {
   SPECS, TURN, shipAccel, type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
 import {
-  observeFor, act, makeScratch, PACK_WIDE_OBS_SIZE,
+  observeFor, act, makeScratch, shipView, writeView, PACK_WIDE_OBS_SIZE,
   type Brain, type ObservableMate,
 } from '../ai-training/policy.ts';
 import {
@@ -264,16 +264,25 @@ export class NpcShip {
   /** …backed by a pool that is never truncated, so growth allocates once */
   private static readonly matePool: ObservableMate[] = [];
   private static readonly scratch = makeScratch();
-  private static readonly meView = {
-    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 },
-    speed: 0, cls: { maxSpeed: 0, turnRate: 0, hp: 1 }, hp: 1,
-    laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
-  };
-  private static readonly targetView = {
-    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 },
-    speed: 300, cls: { maxSpeed: 400, turnRate: 1.1 },
-    laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
-  };
+  /**
+   * The observation views, refilled per decision — see policy.ts `shipView`.
+   *
+   * TWO of these numbers are load-bearing, and both are fields brainFly never
+   * writes: `meView.laserTemp` stays 0, so obs slot 1 (our laser heat) is
+   * always 0 in the game, and `meView.hp`/`cls.hp` stay 1, so the wide
+   * encoder's "our own health fraction" (slot 25) reads 1.0 however shot up
+   * the ship is. Every shipped brain was fitted against exactly that, so
+   * feeding either a real number moves the observation out of the distribution
+   * the weights were trained in: a retrain, not a one-line fix.
+   *
+   * The rest are inert, and measurably so — brainFly overwrites the me
+   * envelope and the target's pos/quat/speed on every decision, and no encoder
+   * reads a TARGET's `cls` at all. They are the values that were here before,
+   * kept because a view with a plausible envelope is easier to read in a
+   * debugger than one full of zeroes.
+   */
+  private static readonly meView = shipView(0, 0);
+  private static readonly targetView = shipView(400, 1.1, 300);
 
   /** the seed its hull and stats were generated from — kept so a snapshot can rebuild it */
   readonly variantSeed: number;
@@ -685,19 +694,14 @@ export class NpcShip {
       this.brainTimer = 0.1;
       const me = NpcShip.meView;
       const tv = NpcShip.targetView;
-      const p = this.object.position;
-      const q = this.object.quaternion;
-      me.pos.x = p.x; me.pos.y = p.y; me.pos.z = p.z;
-      me.quat.x = q.x; me.quat.y = q.y; me.quat.z = q.z; me.quat.w = q.w;
+      writeView(me, this.object.position, this.object.quaternion);
       me.speed = this.speed;
       me.cls.maxSpeed = this.maxSpeed;
       me.cls.turnRate = this.turnRate;
       me.laserCooldown = this.fireCooldown;
       me.pitchRate = this.brainPitchRate;
       me.rollRate = this.brainRollRate;
-      tv.pos.x = targetPos.x; tv.pos.y = targetPos.y; tv.pos.z = targetPos.z;
-      tv.quat.x = targetQuat.x; tv.quat.y = targetQuat.y;
-      tv.quat.z = targetQuat.z; tv.quat.w = targetQuat.w;
+      writeView(tv, targetPos, targetQuat);
       tv.speed = targetSpeed;
       // Which observation this brain wants is policy.ts's question — see
       // `observeFor`. All this file owes it is the pack, in the shape the wide

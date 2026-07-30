@@ -39,8 +39,8 @@ import { RAM_DAMAGE, npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
 import { LASER_COOL_RATE } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
-  observe, act, makeScratch,
-  PACK_WIDE_OBS_SIZE, type Brain, type Control, type ObservableShip,
+  observe, act, makeScratch, shipView, writeView,
+  PACK_WIDE_OBS_SIZE, type Brain, type Control,
 } from './policy.ts';
 
 /** One ship in an episode, however it is flown. */
@@ -376,8 +376,8 @@ export class Episode {
   private readonly fleet: NpcShip[] = [];
   private readonly obs = new Float32Array(PACK_WIDE_OBS_SIZE);
   private readonly scratch = makeScratch();
-  private readonly meView = blankView();
-  private readonly threatView = blankView();
+  private readonly meView = shipView();
+  private readonly threatView = shipView();
   private readonly scratchVecs = { a: new THREE.Vector3(), b: new THREE.Vector3() };
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
@@ -674,7 +674,7 @@ export class Episode {
   private observeTrader(threat: PirateShip): Float32Array {
     const me = this.meView;
     const t = this.threatView;
-    copyView(me, this.trader.pos, this.trader.quat);
+    writeView(me, this.trader.pos, this.trader.quat);
     me.speed = this.trader.speed;
     me.cls.maxSpeed = this.trader.hull.maxSpeed;
     me.cls.turnRate = this.trader.hull.maxPitch / TURN.pitch;
@@ -682,9 +682,9 @@ export class Episode {
     me.laserCooldown = this.trader.laserCooldown;
     me.pitchRate = this.trader.pitchRate;
     me.rollRate = this.trader.rollRate;
-    copyView(t, threat.pos, threat.quat);
+    writeView(t, threat.pos, threat.quat);
     t.speed = threat.speed;
-    return observe(me as ObservableShip, t as ObservableShip, this.obs);
+    return observe(me, t, this.obs);
   }
 
   // --- geometry ----------------------------------------------------------------
@@ -780,28 +780,4 @@ export class Episode {
     return (survived / this.maxTime) * 10 + this.trader.hp * 5 + distBonus
       + (this.escaped ? 6 : 0);
   }
-}
-
-interface MutableView {
-  pos: { x: number; y: number; z: number };
-  quat: { x: number; y: number; z: number; w: number };
-  speed: number;
-  laserTemp: number;
-  laserCooldown: number;
-  pitchRate: number;
-  rollRate: number;
-  cls: { maxSpeed: number; turnRate: number };
-}
-
-function blankView(): MutableView {
-  return {
-    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 },
-    speed: 0, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
-    cls: { maxSpeed: 400, turnRate: 1 },
-  };
-}
-
-function copyView(v: MutableView, p: THREE.Vector3, q: THREE.Quaternion): void {
-  v.pos.x = p.x; v.pos.y = p.y; v.pos.z = p.z;
-  v.quat.x = q.x; v.quat.y = q.y; v.quat.z = q.z; v.quat.w = q.w;
 }

@@ -26,8 +26,8 @@ import {
 } from '../src/ai-training/scenario.ts';
 import {
   randomBrain, mutate, brainFromFile, OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
-  observe, act, makeScratch,
-  type Brain, type BrainFile,
+  observe, act, makeScratch, shipView,
+  type Brain, type BrainFile, type ShipView,
 } from '../src/ai-training/policy.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
@@ -424,11 +424,11 @@ function flies(genome: Brain): { forward: number; degenerate: boolean } {
   // brain emits across a spread of geometries, so it needs an observation and
   // nothing else. No ships are flown, so nothing here needs the engine —
   // which is why it survived the simulator's deletion as plain views.
-  const view = (maxSpeed: number, turnRate: number, z: number, speed: number) => ({
-    pos: { x: 0, y: 0, z }, quat: { x: 0, y: 0, z: 0, w: 1 },
-    speed, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
-    cls: { maxSpeed, turnRate },
-  });
+  const view = (maxSpeed: number, turnRate: number, z: number, speed: number): ShipView => {
+    const v = shipView(maxSpeed, turnRate, speed);
+    v.pos.z = z;
+    return v;
+  };
   // a spread of geometries and target speeds, not one canned setup
   for (const targetSpeed of [0, 90, 220, 400]) {
     // the freighter and the commander: the two hulls the pool trains against

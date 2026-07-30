@@ -46,23 +46,61 @@ function qRotate(q: Q4, p: V3): V3 {
 }
 
 /**
- * The minimal ship surface `observe` needs. Both the game and the training
- * scenarios adapt their THREE.js ships to it, which costs nothing: THREE
- * vectors and quaternions are structurally compatible with V3/Q4, so a view
- * object can point straight at a mesh's own transform.
+ * The ship surface the encoders read — ALL of it, including the hull fraction
+ * only `observePackWide` looks at.
+ *
+ * It used to be called `ObservableShip` and stop short of `hp`/`cls.hp`, so
+ * every caller reached the encoders through a cast — two in the trainer and
+ * the autopilot, and one in npc.ts widened with an intersection carrying
+ * exactly those two fields, the type saying out loud that the encoder read
+ * things it did not declare. A
+ * type that describes what a function reads and omits something it reads is
+ * simply wrong, and a cast is how that stays true. The fields are declared
+ * here instead, so the callers below fill a struct and hand it over.
+ *
+ * Both the game and the training scenarios adapt their THREE.js ships to it,
+ * which costs nothing: THREE vectors and quaternions are structurally
+ * compatible with V3/Q4, so a view can point straight at a mesh's transform.
  */
-export interface ObservableShip {
+export interface ShipView {
   pos: V3;
   quat: Q4;
   speed: number;
-  cls: { maxSpeed: number; turnRate: number };
+  cls: { maxSpeed: number; turnRate: number; hp: number };
+  /** current hull — read by `observePackWide` (slot 25) and nothing else */
+  hp: number;
   laserTemp: number;
   laserCooldown: number;
   pitchRate: number;
   rollRate: number;
 }
 
-function fwdOf(s: ObservableShip): V3 {
+/**
+ * A view to write into, once, at construction.
+ *
+ * The callers each keep theirs for the life of the ship and refill it per
+ * decision — a 10 Hz decision that allocated a scene-graph adaptor per NPC per
+ * frame is exactly what these views exist to avoid. The arguments are the
+ * fields a caller may treat as fixed for that ship, and for at least one of
+ * them the fixedness is load-bearing rather than lazy: the combat computer
+ * feeds the defence brain a threat speed of 280 forever, because that is the
+ * only number it has ever been flown against (see combat-computer.ts).
+ */
+export function shipView(maxSpeed = 400, turnRate = 1, speed = 0): ShipView {
+  return {
+    pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 },
+    speed, cls: { maxSpeed, turnRate, hp: 1 }, hp: 1,
+    laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
+  };
+}
+
+/** Point a view at a transform, copying — no allocation, so it is per-frame safe. */
+export function writeView(v: ShipView, pos: V3, quat: Q4): void {
+  v.pos.x = pos.x; v.pos.y = pos.y; v.pos.z = pos.z;
+  v.quat.x = quat.x; v.quat.y = quat.y; v.quat.z = quat.z; v.quat.w = quat.w;
+}
+
+function fwdOf(s: ShipView): V3 {
   return qRotate(s.quat, v3(0, 0, -1));
 }
 
@@ -117,7 +155,7 @@ export function brainFromFile(f: BrainFile): Brain {
  *  6 log distance  7 closing speed  8 target-facing-us dot
  *  9 angle-to-target/pi  10 target speed  11 pitchRate  12 rollRate  13 bias
  */
-export function observe(me: ObservableShip, target: ObservableShip, out: Float32Array): Float32Array {
+export function observe(me: ShipView, target: ShipView, out: Float32Array): Float32Array {
   const rel = vSub(target.pos, me.pos);
   const dist = vLen(rel);
   const relDir = vNorm(rel);
@@ -150,8 +188,8 @@ export function observe(me: ObservableShip, target: ObservableShip, out: Float32
  * our ship frame (3) and log distance (1). Lets a shared policy coordinate.
  */
 export function observePack(
-  me: ObservableShip,
-  target: ObservableShip,
+  me: ShipView,
+  target: ShipView,
   mates: readonly { pos: V3; alive: boolean }[],
   out: Float32Array,
 ): Float32Array {
@@ -206,8 +244,8 @@ export interface ObservableMate {
  *   25  our own health fraction — press or break off
  */
 export function observePackWide(
-  me: ObservableShip & { hp: number; cls: { hp: number } },
-  target: ObservableShip,
+  me: ShipView,
+  target: ShipView,
   mates: readonly ObservableMate[],
   out: Float32Array,
 ): Float32Array {
@@ -268,8 +306,8 @@ export function observePackWide(
  */
 export function observeFor(
   brain: Brain,
-  me: ObservableShip & { hp: number; cls: { hp: number } },
-  target: ObservableShip,
+  me: ShipView,
+  target: ShipView,
   mates: readonly ObservableMate[] | null,
   out: Float32Array,
 ): Float32Array {

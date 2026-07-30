@@ -15,7 +15,7 @@
 import type * as THREE from 'three';
 import { rampToward, type FlightDemand } from '../player.ts';
 import {
-  act, observe, makeScratch, type ObservableShip, type Brain,
+  act, observe, makeScratch, shipView, writeView, type Brain,
 } from '../ai-training/policy.ts';
 import {
   isHostileToPlayer, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY, type NpcShip,
@@ -83,7 +83,7 @@ export class CombatComputer {
   // ever fed through here.
   private readonly obs = new Float32Array(18);
   private readonly scratch = makeScratch();
-  private readonly me = blankShip(CC_MAX_SPEED, 0.5, 0);
+  private readonly me = shipView(CC_MAX_SPEED, 0.5, 0);
   /**
    * The threat's speed is a CONSTANT 280, and it has to stay one.
    *
@@ -93,7 +93,7 @@ export class CombatComputer {
    * it a real speed and the observation goes out of distribution. It reads as
    * an oversight; it is load-bearing until the brain is retrained.
    */
-  private readonly target = blankShip(300, 1.1, 280);
+  private readonly target = shipView(300, 1.1, 280);
 
   /** Forget the ramped rates, so re-engaging starts from level flight. */
   reset(): void {
@@ -132,15 +132,14 @@ export class CombatComputer {
     this.state.timer -= dt;
     if (!this.state.control || this.state.timer <= 0) {
       this.state.timer = DECISION_INTERVAL;
-      copyInto(this.me, player.position, player.quaternion);
+      writeView(this.me, player.position, player.quaternion);
       this.me.speed = player.speed;
       this.me.laserTemp = sys.laserTemp;
       this.me.laserCooldown = sys.laserCooldown;
       this.me.pitchRate = this.state.pitch;
       this.me.rollRate = this.state.roll;
-      copyInto(this.target, threat.object.position, threat.object.quaternion);
-      this.state.control = act(brain,
-        observe(this.me as ObservableShip, this.target as ObservableShip, this.obs), this.scratch);
+      writeView(this.target, threat.object.position, threat.object.quaternion);
+      this.state.control = act(brain, observe(this.me, this.target, this.obs), this.scratch);
     }
 
     const c = this.state.control;
@@ -172,29 +171,4 @@ export class CombatComputer {
  */
 export function ccRamp(cur: number, target: number, active: boolean, dt: number): number {
   return rampToward(cur, target, active, dt, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY);
-}
-
-interface MutableShip {
-  pos: { x: number; y: number; z: number };
-  quat: { x: number; y: number; z: number; w: number };
-  speed: number;
-  laserTemp: number;
-  laserCooldown: number;
-  pitchRate: number;
-  rollRate: number;
-  cls: { maxSpeed: number; turnRate: number };
-}
-
-function blankShip(maxSpeed: number, turnRate: number, speed: number): MutableShip {
-  return {
-    pos: { x: 0, y: 0, z: 0 },
-    quat: { x: 0, y: 0, z: 0, w: 1 },
-    speed, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
-    cls: { maxSpeed, turnRate },
-  };
-}
-
-function copyInto(s: MutableShip, p: THREE.Vector3, q: THREE.Quaternion): void {
-  s.pos.x = p.x; s.pos.y = p.y; s.pos.z = p.z;
-  s.quat.x = q.x; s.quat.y = q.y; s.quat.z = q.z; s.quat.w = q.w;
 }
