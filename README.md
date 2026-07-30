@@ -64,12 +64,17 @@ can also play a commander all the way to **E L I T E** (25,600 kills) in
 about 20 seconds, under three different strategies — `trader`, `hunter`,
 `privateer` — which is how the combat ladder below was measured.
 
-Two more harnesses live in `test/`. **`combat-recorder.js`** logs a fight you
-fly yourself — your accuracy and theirs, damage both ways, and the geometry
-that decides whether an NPC can shoot at all. **`arena.js`** spawns repeatable
-waves and measures your flight envelope. Both exist because every bot-flown
-measurement in this project turned out to be shaped by the bot: flying straight
-flatters one kind of AI, flying the defence policy flatters another.
+The docked **combat trainer** (`T` at any station) replaced three console
+harnesses. It logs a fight you actually flew — your accuracy and theirs,
+damage by source, the geometry that decides whether an NPC can shoot at all,
+and how you fly — and exports it as JSON. Scenarios are repeatable from a
+seed, so the same fight can be flown against two different brains and
+compared.
+
+It exists because every bot-flown measurement in this project turned out to be
+shaped by the bot: flying straight flatters one kind of AI, flying the defence
+policy flatters another. `npm run survivability` is still the bot answer to
+"can I survive a gang?"; the trainer's **waves** mode is the human one.
 
 There's also an **autonomous playtest agent** (`test/playtest.js`): paste it
 into the browser console with the game open and `await __playtest.run({

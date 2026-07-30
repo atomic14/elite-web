@@ -191,9 +191,14 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
   restore the pointer; do the same in console work. Backing up and restoring is
   NOT enough, because the world autosaves every 20 seconds and a tab left
   running will overwrite the restore.
-- Prefer a fight a human flew to a bot-flown measurement. Bots mislead in both
-  directions: flying straight flatters freighter-trained brains, and the defence
-  policy evades superbly while shooting badly.
+- **Prefer a fight a human flew to a bot-flown measurement.** Bots mislead in
+  both directions: flying straight flatters freighter-trained brains, and the
+  defence policy evades superbly while shooting badly. That is what the docked
+  combat trainer is for — `T` at any station. It reports accuracy both ways,
+  damage by source, engagement ranges, time on each other's six, and your own
+  flight envelope, and exports the lot as JSON (clipboard, file, and
+  `window.__simLog`). Feed those records back when judging a training run;
+  `npm run survivability` is the bot answer to the same question and says so.
 - When verifying a refactor, prove **equivalence with the previous code** (same
   seed, identical outcome), not merely that the new code is self-consistent.
   Freshly spawned NPCs need one settling step before their world matrices are
