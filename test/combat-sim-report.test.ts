@@ -5,6 +5,7 @@
 // every hit as `unknown`. The measurement is an argument in a signature now, which
 // cannot go stale that way. Versioned from day one: it has an external consumer.
 
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { type DamageSource } from '../src/game/combat.ts';
 import { LASER_RANGE } from '../src/game/gunnery.ts';
@@ -291,7 +292,17 @@ console.log('\ncombat simulator report');
     eq('...clear() empties it', log.records.length, 0);
 
     const host = globalThis as unknown as Record<string, unknown>;
-    check('importing the module touches no global', host.__simLog === undefined);
+    // The rule is "no side effects at module scope" (CLAUDE.md), and the honest
+    // way to check it is over the SOURCE. Reading globalThis here tested the
+    // same thing only while nothing else in the suite had built a Game — and
+    // the moment test/game.test.ts started constructing real ones, this began
+    // failing on test ORDER rather than on the property. `installSimLog` is
+    // called from the Game's constructor, which is exactly the design.
+    const reportSrc = readFileSync(
+      new URL('../src/game/combat-sim-report.ts', import.meta.url), 'utf8');
+    const topLevelPublish = reportSrc.split('\n')
+      .some((l: string) => /^publish\(/.test(l));   // column 0 = module scope
+    check('importing the module touches no global', !topLevelPublish);
     const installed = installSimLog(2);
     check('installSimLog() puts the ring on globalThis', host.__simLog === installed);
     check('...and a second call inherits the same ring rather than dropping it',

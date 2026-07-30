@@ -25,9 +25,10 @@
 // `controls.ts` turns an input into `Command`s and `runCommand` below applies
 // them, exactly as `flightDemand`/`PlayerShip.update` already did for flying.
 //
-// `window.__game` exposes the instance for the autopilot test harness
+// `__game` exposes the instance for the autopilot test harness (console.ts)
 // (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
 import { publish } from './console.ts';
+import type { Shell, Presentation, ShellFactory } from '../engine/shell.ts';
 import type { ChartState } from './chart-state.ts';
 import { viewDirection, VIEW_QUATS } from './views.ts';
 import * as THREE from 'three';
@@ -105,7 +106,7 @@ import { ContractsScreen, type ContractsContext } from './screens/contracts.ts';
 import { ChartScreen, type ChartContext } from './screens/chart.ts';
 import { CombatSimScreen, type CombatSimContext } from './screens/combat-sim.ts';
 import { ScreenHost } from '../ui/screen-host.ts';
-import { createRenderStack, BEAM_Z, type RenderStack } from '../engine/render-stack.ts';
+import { BEAM_Z } from '../engine/render-stack.ts';
 
 import {
   formatCredits,
@@ -160,8 +161,16 @@ const UP = new THREE.Vector3(0, 1, 0);
 // Fields the autonomous playtest agent (test/playtest.js) reads or drives
 // are public rather than private; they are otherwise internal.
 export class Game {
-  /** everything that needs a GPU — see engine/render-stack.ts */
-  private readonly render: RenderStack;
+  /**
+   * The machine this is running on — see engine/shell.ts.
+   *
+   * Seven members, and they are exactly the eleven lines of DOM that used to be
+   * scattered through this file. A desktop port writes another one; nothing
+   * below this line names a browser API.
+   */
+  private readonly shell: Shell;
+  /** what the game is SEEN through: a camera, the beams, and one draw call */
+  private readonly render: Presentation;
 
 
 
@@ -494,12 +503,7 @@ export class Game {
       this.commander, this.player.position);
     this.say(reply);
     if (reply !== 'bombFired') return;   // no bomb fitted: no flash either
-    const flash = document.getElementById('bomb-flash');
-    if (flash) {
-      flash.classList.add('boom');
-      void flash.offsetWidth;
-      flash.classList.remove('boom');
-    }
+    this.shell.flashBomb();
     for (const npc of caught) {
       npc.takeDamage(99, this.player.position, true);
       this.destroyNpc(npc);
@@ -543,9 +547,12 @@ export class Game {
   };
   private readonly tmpM = new THREE.Matrix4();
 
-  constructor(canvas: HTMLCanvasElement) {
-    this.render = createRenderStack(canvas, this.world.scene);
-    window.addEventListener('resize', () => this.resize());
+  constructor(makeShell: ShellFactory) {
+    // The shell is built HERE, not passed in ready-made, because it needs the
+    // scene and the scene belongs to the world this object just constructed.
+    this.shell = makeShell(this.world.scene);
+    this.render = this.shell.view;
+    this.shell.onResize(() => this.resize());
     this.resize();
 
     this.living.load(this.commander.galaxyState);
@@ -569,9 +576,9 @@ export class Game {
     this.hud.showMessage(
       `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
 
-    // all screens accept mouse input; the listener lives on the persistent
-    // overlay container, since screen contents are re-rendered wholesale
-    document.getElementById('screen')!.addEventListener('click', (e) => this.handleScreenClick(e));
+    // all screens accept mouse input; the shell owns the listener and hands
+    // back the element that carries data-key/data-row
+    this.shell.onScreenClick((el, e) => this.handleScreenClick(el, e));
 
     // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
     // docs/JAMESON-TRIALS.md) drives the whole game through this
@@ -618,7 +625,7 @@ export class Game {
     let last = performance.now();
     let accumulator = 0;
     let simTime = 0;
-    const frame = (now: number): void => {
+    this.shell.runLoop((now: number): void => {
       accumulator += Math.min((now - last) / 1000, MAX_FRAME_TIME);
       last = now;
       let steps = 0;
@@ -630,22 +637,18 @@ export class Game {
       }
       if (steps === MAX_STEPS_PER_FRAME) accumulator = 0; // gave up catching up
       this.draw(FIXED_DT);
-      requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
+    });
   }
 
   private resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { width: w, height: h } = this.shell.size();
     const pxPerRad = this.render.resize(w, h);
     this.hud.resizeOverlay(w, h);
     // Draw the sight to the assist envelope, so the circle means something: a
     // target inside it is a target the shot will reach for. Derived from the
     // real projection rather than picked by eye, so it stays honest if the fov
     // or the assist angle ever change.
-    document.documentElement.style.setProperty(
-      '--sight-r', `${Math.round(Math.tan(AIM_ASSIST) * pxPerRad)}px`);
+    this.shell.setSightRadius(Math.tan(AIM_ASSIST) * pxPerRad);
   }
 
   private get system(): StarSystem {
@@ -777,7 +780,7 @@ export class Game {
    * `populateSystem` is a call rather than a returned event because it DRAWS
    * from the seeded stream (see station.ts); `settleContracts` is one because
    * paying a contract beeps, and contracts.ts has never heard of an
-   * AudioContext.
+   * the audio context.
    */
   private stationHost(): StationHost {
     return {
@@ -1280,7 +1283,7 @@ export class Game {
     this.render.camera.quaternion.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
     this.beamTimer -= dt;
     this.render.beams.visible = this.beamTimer > 0;
-    this.render.composer.render();
+    this.render.draw();
     this.renderHud(dt);
   }
 
@@ -1446,7 +1449,7 @@ export class Game {
   private runCommand(c: Command): void {
     switch (c) {
       // --- global -----------------------------------------------------------
-      case 'toggleHelp': document.getElementById('help')!.classList.toggle('hidden'); break;
+      case 'toggleHelp': this.shell.toggleHelp(); break;
 
       // --- the station menu -------------------------------------------------
       case 'launch': this.launch(); break;
@@ -1571,13 +1574,12 @@ export class Game {
    * the keyboard run through exactly the same handlers; table rows carry a
    * `data-row` selection index; charts map clicks back to chart coordinates.
    */
-  private handleScreenClick(e: MouseEvent): void {
+  private handleScreenClick(el: unknown, e: unknown): void {
     // The host owns all of it: data-key becomes a keystroke so a click and the
     // printed shortcut take exactly the same path, data-row goes to the top
     // screen's select(), and anything else — a chart canvas — reaches its
     // clickAt() with the raw event so it can map pixels to its own space.
-    const el = (e.target as HTMLElement).closest('[data-key],[data-row]') as HTMLElement | null;
-    this.screens.click(el ?? (e.target as HTMLElement), this.input, e);
+    this.screens.click(el, this.input, e);
   }
 
 
@@ -1661,8 +1663,6 @@ export class Game {
    * having to learn the numbers.
    */
   private updateSight(): void {
-    const el = document.getElementById('crosshair');
-    if (!el) return;
     let on = false;
     if (this.mode === 'flight') {
       const forward = this.viewDir(this.tmp);
@@ -1675,7 +1675,7 @@ export class Game {
         if (forward.angleTo(to.normalize()) < cone) { on = true; break; }
       }
     }
-    el.classList.toggle('locked', on);
+    this.shell.setSightLit(on);
   }
 
   /**

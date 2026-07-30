@@ -222,6 +222,9 @@ export class ScreenHost {
    * and Enter. Do not widen it — add keys to the screen instead.
    */
   private runMenuCursor(i: Input): void {
+    // With no document there is no rendered menu to move a cursor over, and
+    // the invariant above holds trivially: it touches nothing.
+    if (typeof document === 'undefined') return;
     const items = [...document.querySelectorAll<HTMLElement>('#screen .menu div[data-key]')];
     if (!items.length) return;
     const down = i.pressed('ArrowDown');
@@ -248,7 +251,13 @@ export class ScreenHost {
    *
    * @returns true if the click was consumed.
    */
-  click(el: HTMLElement, i: Input, e?: MouseEvent): boolean {
+  click(target: unknown, i: Input, event?: unknown): boolean {
+    // `unknown` in, DOM types cast HERE, because this is the UI layer and the
+    // Game is not: game.ts forwards what the shell handed it without naming a
+    // single browser type. That is the last thing that kept the orchestrator
+    // out of the portable bucket.
+    const el = target as HTMLElement;
+    const e = event as MouseEvent | undefined;
     const key = el.dataset.key;
     if (key !== undefined) {
       i.injectPress(key);

@@ -28,6 +28,10 @@ const BROWSER = /\b(document|window|localStorage|sessionStorage|requestAnimation
 const PLATFORM = [
   'ui/', 'hud/', 'game/screens/', 'viewer/',
   'engine/render-stack.ts', 'engine/input.ts', 'engine/keymap.ts',
+  // the shell: the whole port surface. `engine/shell.ts` is NOT here — it is
+  // the interface plus a headless implementation, and it must stay portable
+  // or the seam is a fiction.
+  'engine/browser-shell.ts', 'engine/inert-dom.ts',
   'audio.ts', 'main.ts', 'manual.ts',
   // the one file allowed to know how a save is stored — swap it for a
   // file-backed one and nothing else changes

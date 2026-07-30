@@ -86,6 +86,7 @@ export function manualFlightKeys(): string[] {
 
 /** Rewrite the `?` guide's flight rows to describe the active layout. */
 export function refreshHelpPanel(): void {
+  if (typeof document === 'undefined') return;   // no panel to rewrite
   const set = (id: string, text: string) => {
     const el = document.getElementById(id);
     if (el) el.textContent = text;

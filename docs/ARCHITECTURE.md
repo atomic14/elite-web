@@ -12,7 +12,7 @@ core engine, could we do it?**
 ports unchanged     10066 lines   63%   the game itself
 platform             4288 lines   27%   renderer, HUD, screens, input, audio,
                                         storage — you EXPECT to rewrite these
-contaminated         1626 lines   10%   game/game.ts, and nothing else
+contaminated            0 lines    0%   nothing: the shell is the port surface
 ```
 
 The third number is the one to drive down; it was 17% across three files

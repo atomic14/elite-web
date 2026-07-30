@@ -7,6 +7,8 @@
 // mouth as it sweeps past. On the way IN there is no aperture (see below); the
 // tube simply dims down into the dark of the bay.
 
+import { elementById, viewport } from '../engine/inert-dom.ts';
+
 /** Which way you're going through the tube. */
 export type TunnelMode =
   /** launch / witch-space arrival: the mouth opens and reveals the universe */
@@ -29,7 +31,8 @@ export class TunnelEffect {
   private mode: TunnelMode = 'out';
 
   constructor() {
-    this.canvas = document.getElementById('tunnel') as HTMLCanvasElement;
+    // inert with no document — see engine/inert-dom.ts
+    this.canvas = elementById('tunnel') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d')!;
   }
 
@@ -41,8 +44,9 @@ export class TunnelEffect {
     this.timer = duration;
     this.duration = duration;
     this.mode = mode;
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
+    const { width, height } = viewport();
+    this.canvas.width = width;
+    this.canvas.height = height;
     this.canvas.style.display = 'block';
   }
 
@@ -72,9 +76,10 @@ export class TunnelEffect {
     if (this.timer <= 0) return;
     this.timer -= dt;
     // track window resizes mid-effect
-    if (this.canvas.width !== window.innerWidth || this.canvas.height !== window.innerHeight) {
-      this.canvas.width = window.innerWidth;
-      this.canvas.height = window.innerHeight;
+    const { width, height } = viewport();
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
     }
     if (this.timer <= 0) {
       this.canvas.style.display = 'none';

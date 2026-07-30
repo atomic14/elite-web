@@ -31,6 +31,7 @@ import './contracts.test.ts';
 import './trade.test.ts';
 import './world.test.ts';
 import './world-step.test.ts';
+import './game.test.ts';
 import './state.test.ts';
 import './snapshot.test.ts';
 

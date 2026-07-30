@@ -16,14 +16,23 @@ import { describeContract } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import type { CombatSimReport } from '../game/combat-sim-report.ts';
 import type { SimSetupRow } from '../game/screens/combat-sim-setup.ts';
+import { elementById, inertElement } from '../engine/inert-dom.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.
 
-const el = (): HTMLElement => document.getElementById('screen')!;
+// Inert with no document, so a headless Game can run the mode machine and the
+// screen stack without a DOM — see engine/inert-dom.ts. These are pure render
+// functions and nothing reads them back, so dropping the writes changes no rule.
+const el = (): HTMLElement => elementById('screen');
+const body = (): HTMLElement => (typeof document === 'undefined'
+  ? inertElement() : document.body);
+/** These four callers already handle a missing element, so null is the honest answer. */
+const maybeById = (id: string): HTMLElement | null => (typeof document === 'undefined'
+  ? null : document.getElementById(id));
 
 export function hideScreen(): void {
-  document.body.classList.remove('screen-open');
+  body().classList.remove('screen-open');
   el().classList.add('hidden');
 }
 
@@ -38,7 +47,7 @@ function show(html: string, wide = false): void {
   // the scanner or the gauges, and the console was costing the screen a third
   // of the viewport: #screen sat at top 40% with max-height 66vh purely to
   // clear it, which is why the short-range chart had to be squeezed.
-  document.body.classList.add('screen-open');
+  body().classList.add('screen-open');
 }
 
 export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText = ''): void {
@@ -450,7 +459,7 @@ export function renderChart(
 
 /** Redraw only the canvas + info line (cheap, for cursor moves). */
 export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartState): void {
-  const canvas = document.getElementById('chart-canvas') as HTMLCanvasElement | null;
+  const canvas = maybeById('chart-canvas') as HTMLCanvasElement | null;
   if (!canvas) return;
   const ctx = canvas.getContext('2d')!;
   const w = canvas.width;
@@ -513,7 +522,7 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
   ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 6);
   ctx.stroke();
 
-  const info = document.getElementById('chart-info');
+  const info = maybeById('chart-info');
   if (info) {
     const near = nearestSystem(systems, chart.cursorX, chart.cursorY);
     if (near) {
@@ -565,7 +574,7 @@ export function drawLocalChart(
   c: CommanderData,
   chart: ChartState,
 ): void {
-  const canvas = document.getElementById('local-canvas') as HTMLCanvasElement | null;
+  const canvas = maybeById('local-canvas') as HTMLCanvasElement | null;
   if (!canvas) return;
   const ctx = canvas.getContext('2d')!;
   const w = canvas.width;
@@ -637,7 +646,7 @@ export function drawLocalChart(
   ctx.stroke();
 
   // data on system (the nearest to the cursor)
-  const info = document.getElementById('local-info');
+  const info = maybeById('local-info');
   if (info) {
     const near = nearestSystem(systems, chart.cursorX, chart.cursorY);
     if (!near) {

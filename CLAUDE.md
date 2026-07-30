@@ -28,8 +28,9 @@ Everything follows from that:
 - Anything that drives behaviour and is not a constant is state, and state is
   saved. AI state is game state.
 - `npm run portability` measures how much of `src` would survive a move to
-  another shell. `game.ts` is the last file holding engine and shell together;
-  that number should keep falling.
+  another shell, and the contaminated bucket is **zero** — the platform lives
+  behind `engine/shell.ts`, which `browser-shell.ts` implements and
+  `headlessShell()` proves is real. Keep it at zero.
 
 **For the AI: threat is not fun.** A well-optimised pirate is a turret that hangs
 in space and snipes, and evolution will find it. We want a dogfight the player
@@ -192,9 +193,17 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
   (`installPolicyKit()`), never a bare assignment.
 - **Explicit `.ts` on relative imports**, and `with { type: 'json' }` on JSON
   imports. Vite infers both; node does not.
-- **Everything needing a GPU stays in `engine/render-stack.ts`.** `Game`'s
-  constructor still calls it, so constructing a `Game` needs a browser; the world
-  does not.
+- **Everything platform-bound is behind `Shell`** (`engine/shell.ts`): the GPU
+  stack, the frame loop, resize, clicks, the sight and the `?` panel. `Game`
+  takes a shell factory, so `new Game(() => headlessShell())` constructs and
+  flies under node — `test/game.test.ts` does exactly that, and asserts
+  `game.ts` names no DOM API at all, because TypeScript will not (the DOM types
+  are ambient, so `window.innerWidth` type-checks fine in a file that can never
+  run — that is how it hid in `tunnel.ts`).
+- **A painter with no DOM is inert, not broken** — `engine/inert-dom.ts`. Same
+  bargain as `storage.ts` with localStorage and `sun.ts` with the canvas: the
+  file that knows about the platform copes with it being absent. Nothing reads a
+  painter back, so dropping the writes changes no rule.
 
 ## Verification
 
