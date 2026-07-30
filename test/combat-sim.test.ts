@@ -111,10 +111,19 @@ console.log('\ncombat simulator — the simulator binding table');
     check(`no two ${mode} bindings claim the same key and modifier`,
       clash.length === 0, clash.map((b) => b.key).join(','));
   }
-  check('every simulator command has a case in game.ts, so no key is a no-op',
-    sim.concat('endExercise').every((c) => read('src/game/game.ts').includes(`case '${c}'`)));
-  check('...and so does openCombatSim',
-    read('src/game/game.ts').includes("case 'openCombatSim'"));
+  // These two used to grep game.ts for `case '<command>'`, because a `switch`
+  // with a missing case falls through and the key silently does nothing. The
+  // dispatch is a `Record<Command, () => void>` now, so the COMPILER refuses a
+  // command with no entry and the grep is redundant — but a grep for the entry
+  // still earns its keep by catching the reverse: an entry that exists and is
+  // wired to nothing.
+  const gameSrc = read('src/game/game.ts');
+  const wired = (c: string): boolean =>
+    new RegExp(`^\\s*${c}: \\(\\) => \\S`, 'm').test(gameSrc);
+  check('every simulator command is wired to something in game.ts',
+    sim.concat('endExercise').every(wired),
+    sim.concat('endExercise').filter((c) => !wired(c)).join(', '));
+  check('...and so is openCombatSim', wired('openCombatSim'));
 }
 
 // --- the other two homes, which nothing has ever asserted -------------------

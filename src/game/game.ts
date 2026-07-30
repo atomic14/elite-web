@@ -1436,74 +1436,80 @@ export class Game {
   }
 
   /**
-   * One command, one consequence.
+   * Every command, as data.
+   *
+   * A `Record<Command, ...>` rather than a switch, and the difference is not
+   * style: the compiler now REFUSES a Command with no entry. The switch could
+   * not — a missing case fell through and the key silently did nothing, which
+   * is why a test had to grep this file for `case '...'` to check none was
+   * missing. That test is a type error now.
+   *
+   * It also took the worst cyclomatic complexity in src/ (39, by lizard) down
+   * to nothing, because a lookup has no branches.
    *
    * Deliberately one-liners: anything longer than a line belongs in the module
    * that owns the rule. This is the whole surface a replay, an AI or a test
    * drives the game through — the same one a pair of hands does, since the
    * keyboard reaches it only through controls.ts.
    */
+  private readonly commands: Record<Command, () => void> = {
+    // --- global -----------------------------------------------------------
+    toggleHelp: () => this.shell.toggleHelp(),
+    // --- the station menu -------------------------------------------------
+    launch: () => this.launch(),
+    openMarket: () => this.screens.open('market'),
+    openContracts: () => this.screens.open('contracts'),
+    openEquip: () => this.screens.open('equip'),
+    openBriefing: () => this.screens.open('briefing'),
+    openSaves: () => this.openSaves(),
+    openSystemData: () => this.openSystemData(this.system, 'docked'),
+    openCombatSim: () => this.screens.open('combat-sim'),
+    exportSave: () => this.exportSave(),
+    importSave: () => this.importSave(),
+    toggleLayout: () => this.switchLayout(),
+    // --- erasing a career -------------------------------------------------
+    askNewGame: () => {
+      this.pendingNewGame = true;
+      renderNewGameConfirm(this.system, this.commander);
+    },
+    newGame: () => this.newCommanderGame(),
+    cancelNewGame: () => {
+      this.pendingNewGame = false;
+      renderDockedMenu(this.system, this.commander, this.station.missionText());
+    },
+    // --- shared between the menu and the cockpit --------------------------
+    openChart: () => this.openChart(this.cameFrom()),
+    openLocalChart: () => this.openLocalChart(this.cameFrom()),
+    openStatus: () => this.openStatus(this.cameFrom()),
+    // --- the cockpit ------------------------------------------------------
+    view0: () => this.setView(0),
+    view1: () => this.setView(1),
+    view2: () => this.setView(2),
+    view3: () => this.setView(3),
+    armMissile: () => this.armMissile(),
+    launchMissile: () => this.launchMissile(),
+    disarmMissile: () => this.disarmMissile(),
+    fireEcm: () => this.triggerEcm(),
+    detonateEnergyBomb: () => this.detonateEnergyBomb(),
+    toggleCombatComputer: () => this.toggleCombatComputer(),
+    toggleDockingComputer: () => this.dockingComputer(),
+    toggleMouseFlight: () => this.toggleMouseFlight(),
+    toggleTorus: () => this.toggleTorus(),
+    startHyperspace: () => this.startHyperspace(),
+    galacticJump: () => this.galacticJump(),
+    distressBeacon: () => this.sendDistressBeacon(),
+    jettison1: () => this.jettisonCargo(1),
+    jettison5: () => this.jettisonCargo(5),
+    // --- the training simulator -------------------------------------------
+    endExercise: () => this.endExercise(),
+    // --- after the end ----------------------------------------------------
+    respawn: () => this.respawn(),
+  };
+
   private runCommand(c: Command): void {
-    switch (c) {
-      // --- global -----------------------------------------------------------
-      case 'toggleHelp': this.shell.toggleHelp(); break;
-
-      // --- the station menu -------------------------------------------------
-      case 'launch': this.launch(); break;
-      case 'openMarket': this.screens.open('market'); break;
-      case 'openContracts': this.screens.open('contracts'); break;
-      case 'openEquip': this.screens.open('equip'); break;
-      case 'openBriefing': this.screens.open('briefing'); break;
-      case 'openSaves': this.openSaves(); break;
-      case 'openSystemData': this.openSystemData(this.system, 'docked'); break;
-      case 'openCombatSim': this.screens.open('combat-sim'); break;
-      case 'exportSave': this.exportSave(); break;
-      case 'importSave': this.importSave(); break;
-      case 'toggleLayout': this.switchLayout(); break;
-
-      // --- erasing a career -------------------------------------------------
-      case 'askNewGame':
-        this.pendingNewGame = true;
-        renderNewGameConfirm(this.system, this.commander);
-        break;
-      case 'newGame': this.newCommanderGame(); break;
-      case 'cancelNewGame':
-        this.pendingNewGame = false;
-        renderDockedMenu(this.system, this.commander, this.station.missionText());
-        break;
-
-      // --- shared between the menu and the cockpit --------------------------
-      case 'openChart': this.openChart(this.cameFrom()); break;
-      case 'openLocalChart': this.openLocalChart(this.cameFrom()); break;
-      case 'openStatus': this.openStatus(this.cameFrom()); break;
-
-      // --- the cockpit ------------------------------------------------------
-      case 'view0': this.setView(0); break;
-      case 'view1': this.setView(1); break;
-      case 'view2': this.setView(2); break;
-      case 'view3': this.setView(3); break;
-      case 'armMissile': this.armMissile(); break;
-      case 'launchMissile': this.launchMissile(); break;
-      case 'disarmMissile': this.disarmMissile(); break;
-      case 'fireEcm': this.triggerEcm(); break;
-      case 'detonateEnergyBomb': this.detonateEnergyBomb(); break;
-      case 'toggleCombatComputer': this.toggleCombatComputer(); break;
-      case 'toggleDockingComputer': this.dockingComputer(); break;
-      case 'toggleMouseFlight': this.toggleMouseFlight(); break;
-      case 'toggleTorus': this.toggleTorus(); break;
-      case 'startHyperspace': this.startHyperspace(); break;
-      case 'galacticJump': this.galacticJump(); break;
-      case 'distressBeacon': this.sendDistressBeacon(); break;
-      case 'jettison1': this.jettisonCargo(1); break;
-      case 'jettison5': this.jettisonCargo(5); break;
-
-      // --- the training simulator -------------------------------------------
-      case 'endExercise': this.endExercise(); break;
-
-      // --- after the end ----------------------------------------------------
-      case 'respawn': this.respawn(); break;
-    }
+    this.commands[c]();
   }
+
 
   /**
    * Where an overlay was opened from, so Escape puts the ship back.
