@@ -88,17 +88,19 @@ export interface Bribe {
  * — the toll accumulates, so a second handful can finish what the first started.
  */
 export function offerBribe(
-  pirates: readonly { alive: boolean; organised: boolean; satisfied: boolean }[],
+  pirates: readonly {
+    state: { alive: boolean; organised: boolean; satisfied: boolean };
+  }[],
   jettisonedValue: number,
   arrivalCargoValue: number,
 ): Bribe {
   let bought = 0;
   let stillWant = Infinity;
   for (const npc of pirates) {
-    if (!npc.alive || npc.satisfied) continue;
-    const appetite = appetiteOf(npc.organised, arrivalCargoValue);
+    if (!npc.state.alive || npc.state.satisfied) continue;
+    const appetite = appetiteOf(npc.state.organised, arrivalCargoValue);
     if (jettisonedValue >= appetite) {
-      npc.satisfied = true;
+      npc.state.satisfied = true;
       bought += 1;
     } else {
       stillWant = Math.min(stillWant, appetite - jettisonedValue);

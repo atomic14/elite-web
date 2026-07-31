@@ -264,11 +264,11 @@ class PirateShip implements EpisodeShip {
 
   get pos(): THREE.Vector3 { return this.npc.object.position; }
   get quat(): THREE.Quaternion { return this.npc.object.quaternion; }
-  get speed(): number { return this.npc.speed; }
-  get hp(): number { return this.npc.hp; }
-  set hp(v: number) { this.npc.hp = v; }
-  get alive(): boolean { return this.npc.alive; }
-  set alive(v: boolean) { this.npc.alive = v; }
+  get speed(): number { return this.npc.state.speed; }
+  get hp(): number { return this.npc.state.hp; }
+  set hp(v: number) { this.npc.state.hp = v; }
+  get alive(): boolean { return this.npc.state.alive; }
+  set alive(v: boolean) { this.npc.state.alive = v; }
 
   forward(out: THREE.Vector3): THREE.Vector3 {
     return out.set(0, 0, -1).applyQuaternion(this.quat);

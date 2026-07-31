@@ -1,0 +1,140 @@
+{
+  "suppressed": [
+    {
+      "id": "e2fc3ccdbb",
+      "reason": "gunnery.ts is the combat balance table: 34 exports are named constants plus one-line pure functions over them. A wide flat surface is correct here — the alternative is the literals-in-game.ts arrangement the file was created to end. Judge: justified-by-domain."
+    },
+    {
+      "id": "0065b22faf",
+      "reason": "player.ts exports PLAYER_FLIGHT and the flight-envelope constants precisely so no other module copies them. It is the fix for a one-rule-two-homes problem, not an instance of one. Judge: justified-by-domain."
+    },
+    {
+      "id": "f2803f21a3",
+      "reason": "scenario.ts exposes one Episode simulation facade plus the value types needed by trainers and viewers; its shared game-backed simulation sits behind that cohesive API. Judge: justified-by-domain."
+    },
+    {
+      "id": "0e823fef4b",
+      "reason": "navigation.ts gives each shared galaxy-distance and jump rule a named pure function so charts, gameplay, and headless campaign code cannot grow separate formulas. Judge: justified-by-domain."
+    },
+    {
+      "id": "5db70330ca",
+      "reason": "hyperspace.ts is a pure decision/result boundary: its exported refusal and result types make jump checks exhaustive without exposing mutable implementation. Judge: justified-by-domain."
+    },
+    {
+      "id": "5f8c669ac7",
+      "reason": "World is the explicit aggregate for scene objects and their lifetimes; its public fields and verbs are the owned world model, not unrelated forwarding exports. Judge: justified-by-domain."
+    },
+    {
+      "id": "66950c9aba",
+      "reason": "rng.ts exports the complete seeded random-stream vocabulary so every simulation and headless harness uses one reproducible source instead of copied helpers. Judge: justified-by-domain."
+    },
+    {
+      "id": "8484ba1a94",
+      "reason": "Input is the platform boundary for frame-oriented keyboard and mouse state; the measured surface is one cohesive class API hiding DOM listener and tap-consumption machinery. Judge: justified-by-domain."
+    },
+    {
+      "id": "87a79fc12e",
+      "reason": "encounters.ts is a pure rule module whose constants, input/output types, timer factory, and step function form the complete testable encounter decision table. Judge: justified-by-domain."
+    },
+    {
+      "id": "90be949fe5",
+      "reason": "systems.ts is the shared ship-durability and regeneration rulebook; named balance constants and pure transitions keep gameplay and survivability harnesses in parity. Judge: justified-by-domain."
+    },
+    {
+      "id": "930035e249",
+      "reason": "views.ts is the intentionally tiny dependency-free home for cockpit orientations and their shared direction transform, extracted to remove a dependency cycle and duplicate formula. Judge: justified-by-domain."
+    },
+    {
+      "id": "939a0fe09b",
+      "reason": "ScreenHost hides overlay stack and routing rules behind the Screen contract; the apparent surface is mostly the finite ScreenId/ScreenOutcome protocol and cohesive host methods. Judge: justified-by-domain."
+    },
+    {
+      "id": "9e32b05adc",
+      "reason": "jettison.ts is a pure cargo-consequence rulebook whose thresholds, result types, and decisions let the game and campaign evaluate the same bribery and dumping rules. Judge: justified-by-domain."
+    },
+    {
+      "id": "a818070137",
+      "reason": "DataScreen is one intentionally small Screen implementation; its context interface and class methods are the standard screen protocol, not mixed responsibilities. Judge: justified-by-domain."
+    },
+    {
+      "id": "bb8b197490",
+      "reason": "combat-sim-scenarios.ts is an exported scenario and mode rules catalogue shared by the live trainer, reports, and tests; named data types and pure selectors are its intended product. Judge: justified-by-domain."
+    },
+    {
+      "id": "ccf06ebe1a",
+      "reason": "console.ts is intentionally the single six-line global boundary, with one publish and one read-back verb; merging it elsewhere would spread globalThis coupling into game code. Judge: justified-by-domain."
+    },
+    {
+      "id": "d080b4f62f",
+      "reason": "ContractsScreen is one cohesive Screen implementation; its context contract and lifecycle/input methods are the expected overlay boundary. Judge: justified-by-domain."
+    },
+    {
+      "id": "de331d1c8a",
+      "reason": "law.ts is the named legal-status and contraband balance table; exporting constants and pure classifications keeps UI, world rules, and campaign logic on the same definitions. Judge: justified-by-domain."
+    },
+    {
+      "id": "e70b5fc948",
+      "reason": "StatusScreen is a minimal Screen adapter from a narrow status context to rendering and input; its small size is the benefit of the common screen protocol. Judge: justified-by-domain."
+    },
+    {
+      "id": "ec6c7c5087",
+      "reason": "Ordnance owns missile and energy-bomb transitions behind one class while exporting the event/reply value types and balance constants required by callers and tests. Judge: justified-by-domain."
+    },
+    {
+      "id": "ed7149611a",
+      "reason": "slot.ts is the dependency-light single home for station-slot orientation, preventing the same three-line geometry rule being copied across world and docking modules. Judge: justified-by-domain."
+    },
+    {
+      "id": "f4d51793f5",
+      "reason": "population.ts is a pure population-planning table: exported probabilities, plan data, and planning functions let world creation and tests share one deterministic rule set. Judge: justified-by-domain."
+    },
+    {
+      "id": "fedc0ef0a6",
+      "reason": "BriefingScreen is one intentionally small implementation of the shared Screen protocol; its lifecycle methods hide its rendering and input details. Judge: justified-by-domain."
+    },
+    {
+      "id": "28adaf0814",
+      "reason": "snapshot.ts exports a JSON schema and serialise/restore boundary; the public interfaces describe persisted data while conversion prevents classes and THREE objects leaking into saves. Judge: justified-by-domain."
+    },
+    {
+      "id": "32b84e307f",
+      "reason": "trumbles.ts is a pure infestation rule set shared by gameplay and tests; its balance constants, event union, step, and message mapping are the domain API. Judge: justified-by-domain."
+    },
+    {
+      "id": "3e213c88f7",
+      "reason": "flight-controls.ts exposes two structural input value contracts and one pure FlightDemand producer so keyboard, replay, and tests share the same pilot rule. Judge: justified-by-domain."
+    },
+    {
+      "id": "72fa50225a",
+      "reason": "missions.ts is a pure mission-state transition and presentation rulebook; its thresholds, event type, and focused queries are the complete shared domain vocabulary. Judge: justified-by-domain."
+    },
+    {
+      "id": "836e3fda00",
+      "reason": "shop.ts is the canonical price and equipment catalogue; named prices, quote types, catalogue data, and ownership checks keep screens and campaign simulation consistent. Judge: justified-by-domain."
+    },
+    {
+      "id": "9220eb0ff4",
+      "reason": "npc-targeting.ts contains one fleet-wide target-assignment pass plus its named range thresholds; hiding those constants would not deepen the single cohesive rule. Judge: justified-by-domain."
+    },
+    {
+      "id": "a2e7252dcd",
+      "reason": "saves.ts groups the two save-related Screen implementations with the import/export/new-commander operations they orchestrate; the exports form one commander-file workflow. Judge: justified-by-domain."
+    },
+    {
+      "id": "cdcb90aa3c",
+      "reason": "commander.ts is the canonical plain-data model and pure commander rule set used by browser, storage, and headless campaign code; its types, limits, and queries are intentionally public. Judge: justified-by-domain."
+    },
+    {
+      "id": "d4a85c54ea",
+      "reason": "combat-computer.ts hides policy observation and flight-demand generation behind CombatComputer; other exports are explicit state/value contracts and documented flight-envelope constants. Judge: justified-by-domain."
+    },
+    {
+      "id": "e90b3bce42",
+      "reason": "cargo.ts owns drifting cargo lifetimes behind CargoField and exports only the canister/reached contracts plus the shared scoop threshold needed at the consequence boundary. Judge: justified-by-domain."
+    },
+    {
+      "id": "8a08166a83",
+      "reason": "The combat-sim-safety.ts back edge is `import type { ExerciseFit }` from combat-sim.ts; TypeScript erases it, so the reported cycle has no runtime dependency to break. Judge: justified-by-domain."
+    }
+  ]
+}

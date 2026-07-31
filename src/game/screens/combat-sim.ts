@@ -158,7 +158,7 @@ export class CombatSimScreen implements Screen {
     if (!this.ctx().begin(specFrom(d, seed), fitFrom(d))) {
       return this.refuse('SIMULATOR UNAVAILABLE');
     }
-    sfx.beep(700, 0.08);
+    sfx.combatSimulationLaunched();
     return 'exit';
   }
 
@@ -233,7 +233,7 @@ export class CombatSimScreen implements Screen {
 
   private refuse(text: string): ScreenOutcome {
     this.ctx().message(text, 3);
-    sfx.beep(220);
+    sfx.refused();
     return 'stay';
   }
 }

@@ -648,13 +648,13 @@ export class CombatSim {
    * trigger is held and refuses internally while the laser is hot.
    */
   private pullTrigger(): void {
-    const before = this.opponents.map((o) => o.ship.hp);
+    const before = this.opponents.map((o) => o.ship.state.hp);
     const events = firePlayerLaser(this.state, this.combat, this.scratch);
     if (!events.some((e) => e.kind === 'fired')) return;   // hot gun, or no mount
 
     let landed: { opponent: number; damage: number } | null = null;
     for (let k = 0; k < this.opponents.length; k++) {
-      const dealt = before[k] - this.opponents[k].ship.hp;
+      const dealt = before[k] - this.opponents[k].ship.state.hp;
       if (dealt > 0) landed = { opponent: this.opponents[k].index, damage: dealt };
     }
     this.recorder?.playerShot(landed);
@@ -749,7 +749,7 @@ export class CombatSim {
     const live = this.state.world.npcs;
     for (const o of this.opponents) {
       if (o.down) continue;
-      if (o.ship.alive && live.includes(o.ship)) continue;
+      if (o.ship.state.alive && live.includes(o.ship)) continue;
       o.down = true;
       this.recorder?.opponentDown(o.index, false);
     }

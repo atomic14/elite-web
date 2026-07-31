@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
+import { SHIPPED_BRAINS } from '../src/game/brains.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import {
   freshSystems,
@@ -38,14 +39,19 @@ console.log('\nNPC flight');
   const makePlayer = (pos: THREE.Vector3) =>
     ({ position: pos, quaternion: new THREE.Quaternion(), speed: 100 }) as never;
   const station = new THREE.Object3D();
+  const worldView = (fleet: readonly NpcShip[], dockZ = 160) => ({
+    station, dockZ, fleet, playerLegal: 0, brains: SHIPPED_BRAINS,
+  });
 
   {
     const npc = new NpcShip('pirate', at(0, 0, 3000), 3);
     const before = npc.object.position.clone();
-    for (let i = 0; i < 120; i++) npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+    for (let i = 0; i < 120; i++) {
+      npc.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([npc]));
+    }
     check('a pirate closes on the player',
       npc.object.position.distanceTo(at(0, 0, 0)) < before.distanceTo(at(0, 0, 0)));
-    check('...and does not sit still doing it', npc.speed > 0);
+    check('...and does not sit still doing it', npc.state.speed > 0);
   }
   {
     // A hostile ship fires: update returns a FireEvent rather than dealing damage.
@@ -61,7 +67,7 @@ console.log('\nNPC flight');
     for (let seed = 0; seed < 4; seed++) {
       const npc = new NpcShip('pirate', at(0, 0, 900), seed);
       for (let i = 0; i < 1800; i++) {
-        const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+        const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([npc]));
         if (ev && ev.at === 'player') fired += 1;
       }
     }
@@ -71,7 +77,7 @@ console.log('\nNPC flight');
     // and an NPC NEVER damages anything itself — the Game resolves consequences
     const npc = new NpcShip('pirate', at(0, 0, 400), 7);
     const player = makePlayer(at(0, 0, 0));
-    for (let i = 0; i < 300; i++) npc.update(1 / 60, player, 0, station, [npc], 160);
+    for (let i = 0; i < 300; i++) npc.update(1 / 60, player, worldView([npc]));
     check('an NPC only ever RETURNS a fire event, never applies it',
       (player as unknown as { speed: number }).speed === 100);
   }
@@ -91,7 +97,7 @@ console.log('\nNPC flight');
       for (let seed = 0; seed < 6; seed++) {
         const npc = new NpcShip(role, at(0, 0, 900), seed);
         for (let i = 0; i < 3600; i++) {
-          const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+          const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([npc]));
           if (ev && ev.at === 'player') events += 1;
         }
       }
@@ -106,10 +112,24 @@ console.log('\nNPC flight');
       pirateShots > 0);
     const unmolested = new NpcShip('trader', at(0, 0, 900), 2);
     for (let i = 0; i < 1800; i++) {
-      unmolested.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [unmolested], 160);
+      unmolested.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([unmolested]));
     }
     check('...and is not even provoked by being flown at',
-      !unmolested.provoked && !unmolested.provokedByPlayer);
+      !unmolested.state.provoked && !unmolested.state.provokedByPlayer);
+  }
+
+  {
+    // A Dodo's slot sits 25 units shallower than a Coriolis slot. At z=-145
+    // this trader is still outside the Dodo hull and must keep approaching;
+    // treating the station as the old 160-unit fallback despawns it here.
+    const trader = new NpcShip('trader', at(0, 0, -145), 2);
+    trader.state.traderPhase = 'docking';
+    trader.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([trader], 135));
+    check('a trader does not dock short of a Dodo station slot', !trader.state.docked);
+    trader.object.position.set(0, 0, -134);
+    trader.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([trader], 135));
+    check('...and docks after crossing the Dodo slot depth',
+      trader.state.docked && trader.state.wantsDespawn);
   }
 
   // --- a pirate about to die spends its missiles ---------------------------
@@ -129,13 +149,13 @@ console.log('\nNPC flight');
       for (let s = 0; s < seeds; s++) {
         seedWorld(seedBase + s);
         const npc = new NpcShip('pirate', at(0, 0, dist), 5);
-        npc.threatTier = 1;
-        npc.hp = npc.maxHp * hull;
+        npc.state.threatTier = 1;
+        npc.state.hp = npc.maxHp * hull;
         let any = false;
         for (let i = 0; i < frames; i++) {
-          const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
-          if (ev && ev.at === 'player' && ev.weapon === 'missile' && npc.missiles > 0) {
-            npc.missiles -= 1;   // the Game spends the round — see enemyLaunchMissile
+          const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([npc]));
+          if (ev && ev.at === 'player' && ev.weapon === 'missile' && npc.state.missiles > 0) {
+            npc.state.missiles -= 1;   // the Game spends the round — see enemyLaunchMissile
             missiles += 1;
             any = true;
           }
@@ -147,7 +167,7 @@ console.log('\nNPC flight');
 
     seedWorld(20_260_727);
     check('a stock pirate hull carries a missile to launch',
-      new NpcShip('pirate', at(0, 0, 900), 5).missiles === 1);
+      new NpcShip('pirate', at(0, 0, 900), 5).state.missiles === 1);
 
     const hurt = fly(300, 0.35);
     check(`a pirate on its last legs gets the missile away (${hurt.launchedAtAll}/${hurt.seeds})`,
@@ -167,17 +187,17 @@ console.log('\nNPC flight');
       for (let s = 0; s < 20; s++) {
         seedWorld(7000 + s);
         const npc = new NpcShip('pirate', at(0, 0, 1400), 5);
-        npc.threatTier = 1;
+        npc.state.threatTier = 1;
         const player = makePlayer(at(0, 0, 0));
-        for (let i = 0; i < 60 * 20 && npc.alive; i++) {
-          const ev = npc.update(1 / 60, player, 0, station, [npc], 160);
-          if (ev && ev.at === 'player' && ev.weapon === 'missile' && npc.missiles > 0) {
-            npc.missiles -= 1;
+        for (let i = 0; i < 60 * 20 && npc.state.alive; i++) {
+          const ev = npc.update(1 / 60, player, worldView([npc]));
+          if (ev && ev.at === 'player' && ev.weapon === 'missile' && npc.state.missiles > 0) {
+            npc.state.missiles -= 1;
           }
           npc.takeDamage(0.667 / 60, at(0, 0, 0), true);
         }
-        if (!npc.alive) died += 1;
-        if (!npc.alive && npc.missiles > 0) armedToTheEnd += 1;
+        if (!npc.state.alive) died += 1;
+        if (!npc.state.alive && npc.state.missiles > 0) armedToTheEnd += 1;
       }
       check(`the trial killed all 20 pirates (${died})`, died === 20);
       check(`most die having launched, not holding (${20 - armedToTheEnd}/20 launched)`,
@@ -201,7 +221,8 @@ console.log('\nNPC targeting');
   // testing the copy rather than the rule.
   const { addAttacker, pruneAttackers, hasAttacker } = NpcShip.prototype;
   const ship = (role: string, x: number, over: Record<string, unknown> = {}) => ({
-    id: id++, role, alive: true, npcTarget: null as unknown, attackers: [] as unknown[],
+    id: id++, role, state: { alive: true }, npcTarget: null as unknown,
+    attackers: [] as unknown[],
     addAttacker, pruneAttackers, hasAttacker,
     object: at(x), ...over,
   }) as unknown as Parameters<typeof assignNpcTargets>[0][number];
@@ -242,7 +263,7 @@ console.log('\nNPC targeting');
     assignNpcTargets([pirate, trader], playerAt(500_000), 0);
     const dead = ship('trader', 900);
     pirate.npcTarget = dead;
-    (dead as unknown as { alive: boolean }).alive = false;
+    dead.state.alive = false;
     assignNpcTargets([pirate, trader, dead], playerAt(500_000), 0);
     check('a ship whose quarry died picks a new one', pirate.npcTarget === trader);
   }
@@ -254,7 +275,7 @@ console.log('\nNPC targeting');
     const list = (trader as unknown as { attackers: unknown[] }).attackers;
     check('registering the same attacker twice does not double it up',
       list.length === 1);
-    (gone as unknown as { alive: boolean }).alive = false;
+    gone.state.alive = false;
     assignNpcTargets([trader, gone], playerAt(500_000), 0);
     check('dead attackers are pruned from the list they are on',
       !trader.hasAttacker(gone));

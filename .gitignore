@@ -20,3 +20,7 @@ tools/species-raw/
 # python bytecode from tools/
 __pycache__/
 *.pyc
+
+# local architecture-review output; keep the adjudicated baseline
+.architecture-review/*
+!.architecture-review/baseline.json

@@ -15,20 +15,26 @@
 // kinds applied in two switches would be a smaller copy of the problem this
 // file exists to remove.
 
-/** A sound `audio.ts` already names for its occasion rather than its pitch. */
-export type SoundName = 'explosion' | 'ecm' | 'enemyLaser';
+/** A sound `audio.ts` names for its occasion rather than its construction. */
+export type SoundName =
+  | 'explosion'
+  | 'ecm'
+  | 'enemyLaser'
+  | 'refused'
+  | 'torusDropped'
+  | 'lowEnergy'
+  | 'survivorScooped'
+  | 'cargoScooped'
+  | 'trumbleAte'
+  | 'generationShipFound'
+  | 'contractPaid'
+  | 'contractExpired'
+  | 'contractAccepted'
+  | 'dockingComputerEngaged'
+  | 'combatComputerEngaged';
 
 /** A sound a rule module asks for. `game.ts` is the only thing that plays one. */
 export type SoundEvent =
-  /**
-   * A raw tone, in hertz.
-   *
-   * The honest admission that `audio.ts` does not yet have a verb for most of
-   * these occasions — see docs/TODO/10, which names them. A rule module picking
-   * a frequency is a seam in the wrong place; it is a much smaller one now that
-   * the rule module is not also the thing making the noise.
-   */
-  | { kind: 'beep'; hz: number; seconds?: number }
   /**
    * The hyperspace countdown, `n` seconds to go.
    *
@@ -36,7 +42,7 @@ export type SoundEvent =
    * computed inside the world step — audio design expressed as arithmetic in
    * the simulation. `audio.ts` owns the sweep now.
    */
-  | { kind: 'countdown'; n: number }
+  { kind: 'countdown'; n: number }
   /** the C64 tradition, synthesised — see audio.ts */
   | { kind: 'dockingMusic'; on: boolean }
   | { kind: 'sound'; name: SoundName };

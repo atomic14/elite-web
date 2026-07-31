@@ -17,6 +17,10 @@
  * speed from the run it came from.
  */
 export interface SessionState {
+  /** console message currently visible; empty once its lifetime expires */
+  messageText: string;
+  /** seconds remaining for `messageText` */
+  messageTimer: number;
   hyperCountdown: number;
   torusEngaged: boolean;
   witchspace: boolean;
@@ -43,4 +47,20 @@ export interface SessionState {
   ccEngaged: boolean;
   beamTimer: number;
   dcEngaged: boolean;
+}
+
+/** Put a message in canonical state; the HUD only paints these fields. */
+export function showMessage(state: SessionState, text: string, seconds = 3): void {
+  state.messageText = text;
+  state.messageTimer = seconds;
+}
+
+/** Advance the message lifetime as part of the fixed game step. */
+export function tickMessage(state: SessionState, dt: number): void {
+  if (!state.messageText) return;
+  state.messageTimer -= dt;
+  if (state.messageTimer <= 0) {
+    state.messageText = '';
+    state.messageTimer = 0;
+  }
 }

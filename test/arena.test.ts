@@ -107,10 +107,10 @@ console.log('\ncombat arena');
     check('...and only those ships — it does not build a system',
       world.npcs.length === 4 && world.npcs.every((n) => n.role === 'pirate'));
     check('...with the tiers it was given',
-      ships.map((n) => n.threatTier).join() === '2,1,1,1');
+      ships.map((n) => n.state.threatTier).join() === '2,1,1,1');
     check('...flying the pack policy, which is the `organised` flag',
-      ships.every((n) => n.organised) &&
-      ships.every((n) => pirateBrainFor(n.threatTier, n.organised)?.pack === true));
+      ships.every((n) => n.state.organised) &&
+      ships.every((n) => pirateBrainFor(n.state.threatTier, n.state.organised)?.pack === true));
 
     // hulls come from the roster for that tier and nowhere else
     const tierHulls = (tier: number): NpcSpec[] =>
@@ -160,7 +160,7 @@ console.log('\ncombat arena');
       const { world, origin } = arena();
       seedWorld(seed);
       return spawnOpposition(world, GANG, origin).map((n) => [
-        n.role, n.maxHp, n.radius, n.hasEcm, n.missiles,
+        n.role, n.maxHp, n.radius, n.state.hasEcm, n.state.missiles,
         ...n.object.position.toArray(), ...n.object.quaternion.toArray(),
       ].join(','));
     };
@@ -197,14 +197,14 @@ console.log('\ncombat arena');
     eq('an explicit hull is used as given', ships[2].maxHp, CONSTRICTOR_SPEC.hp);
     eq('a variant index picks that roster entry', ships[3].maxHp, SPECS.trader[2].hp);
     check('a Viper is a Viper', ships[0].maxHp === SPECS.police[0].hp);
-    check('the fit overrides the rack', ships[0].missiles === 3 && ships[1].missiles === 3);
+    check('the fit overrides the rack', ships[0].state.missiles === 3 && ships[1].state.missiles === 3);
     check('...and E.C.M., in both directions',
-      !ships[0].hasEcm && !ships[1].hasEcm && ships[3].hasEcm);
+      !ships[0].state.hasEcm && !ships[1].state.hasEcm && ships[3].state.hasEcm);
     // Police ignore a clean commander unless provoked — an authored
     // interdiction has to say it was, or two Vipers fly past and nothing happens.
     check('`hostile` is what makes an authored interdiction fight at all',
       ships.slice(0, 2).every((n) => isHostileToPlayer(n, 0)));
     check('...and it is not the default',
-      !isHostileToPlayer(ships[3], 0) && !ships[3].provokedByPlayer);
+      !isHostileToPlayer(ships[3], 0) && !ships[3].state.provokedByPlayer);
   }
 }

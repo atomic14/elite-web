@@ -145,13 +145,13 @@ console.log('\ncontracts');
   {
     const paid = contractMessage({ kind: 'paid', contract: cargoRun() }, systems);
     check('a payment is announced with the money',
-      paid.text.includes('CONTRACT PAID') && paid.beep?.hz === 1100);
+      paid.text.includes('CONTRACT PAID') && paid.sound === 'contractPaid');
     const acc = contractMessage(
       { kind: 'accepted', contract: cargoRun({ destination: 7 }) }, systems);
     check('...and an acceptance names the destination',
       acc.text.includes('LAVE') && acc.text === acc.text.toUpperCase());
-    check('a void consignment does not beep',
-      contractMessage({ kind: 'incomplete', contract: cargoRun() }, systems).beep === null);
+    check('a void consignment has no sound',
+      contractMessage({ kind: 'incomplete', contract: cargoRun() }, systems).sound === null);
   }
 }
 

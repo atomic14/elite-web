@@ -12,6 +12,8 @@ import { newCommander } from '../src/game/commander.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { NpcShip } from '../src/game/npc.ts';
+import { SHIPPED_BRAINS } from '../src/game/brains.ts';
+import { showMessage, tickMessage } from '../src/game/session.ts';
 import { check, keys } from './harness.ts';
 
 // --- the snapshot actually round-trips --------------------------------------
@@ -65,14 +67,16 @@ console.log('\nsnapshot round trip');
   const station = new THREE.Object3D();
   const fly = (npc: NpcShip, frames: number) => {
     for (let i = 0; i < frames; i++) {
-      npc.update(1 / 60, makePlayer(at(0, 0, 0)), 0, station, [npc], 160);
+      npc.update(1 / 60, makePlayer(at(0, 0, 0)), {
+        station, dockZ: 160, fleet: [npc], playerLegal: 0, brains: SHIPPED_BRAINS,
+      });
     }
   };
 
   // --- NpcState ------------------------------------------------------------
   seedWorld(20_260_729);
   const flown = new NpcShip('pirate', at(120, -80, 1400), 5);
-  flown.threatTier = 1;
+  flown.state.threatTier = 1;
   fly(flown, 600);
 
   // A round trip over unchanged defaults proves nothing, so insist the state
@@ -166,6 +170,7 @@ console.log('\nsnapshot round trip');
       const v = session[k];
       if (typeof v === 'boolean') session[k] = !v;
       else if (typeof v === 'number') session[k] = v + (n += 1) + 0.5;
+      else if (typeof v === 'string') session[k] = `dirty-${k}`;
     }
     const dirty = structuredClone(session);
     const wireSession = JSON.stringify(serialiseState(session));
@@ -179,5 +184,28 @@ console.log('\nsnapshot round trip');
     check('...where an untouched session does not match (the control)',
       diff(dirty, freshState(newCommander()).session as unknown as Record<string, unknown>)
         .length === keys.length);
+  }
+
+  {
+    const session = freshState(newCommander()).session;
+    showMessage(session, 'FUEL SCOOPS ON', 3);
+    tickMessage(session, 1.25);
+    check('a HUD message remains visible before its canonical lifetime expires',
+      session.messageText === 'FUEL SCOOPS ON' && session.messageTimer === 1.75);
+    tickMessage(session, 2);
+    check('...and expiry clears both the text and remaining lifetime',
+      session.messageText === '' && session.messageTimer === 0);
+  }
+
+  {
+    const source = freshState(newCommander()).session;
+    showMessage(source, 'INCOMING MISSILE', 4);
+    tickMessage(source, 1.5);
+    const saved = JSON.parse(JSON.stringify(serialiseState(
+      source as unknown as Record<string, unknown>))) as Record<string, unknown>;
+    const restored = freshState(newCommander()).session;
+    restoreState(restored as unknown as Record<string, unknown>, saved);
+    check('a half-expired HUD message resumes with the same visible lifetime',
+      restored.messageText === 'INCOMING MISSILE' && restored.messageTimer === 2.5);
   }
 }

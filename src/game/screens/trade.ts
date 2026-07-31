@@ -117,10 +117,10 @@ export class MarketScreen implements Screen {
       bought += 1;
     }
     if (bought > 0) {
-      sfx.beep(900, 0.05);
+      sfx.tradeBought();
       ctx.message(`BOUGHT ${bought}${m.unit} ${m.name.toUpperCase()}`, 2);
     } else {
-      sfx.beep(220);
+      sfx.refused();
     }
   }
 
@@ -139,7 +139,7 @@ export class MarketScreen implements Screen {
     }
     if (sold > 0) {
       ctx.commander.credits += revenue;
-      sfx.beep(700, 0.05);
+      sfx.tradeSold();
       ctx.message(`SOLD ${sold}${m.unit} FOR ${formatCredits(revenue)}`, 2);
       // Word gets around. A big payday — or any quantity of contraband — makes
       // you worth watching for, here and in the systems within a jump. This is
@@ -148,7 +148,7 @@ export class MarketScreen implements Screen {
       const notice = revenue / 40_000 + (contraband ? sold * 0.04 : 0);
       ctx.addNotoriety(Math.min(0.5, notice));
     } else {
-      sfx.beep(220);
+      sfx.refused();
     }
   }
 }
@@ -217,16 +217,16 @@ export function buyEquipment(id: string, ctx: TradeContext): void {
   // and from any stale data-key in the DOM.
   const row = equipRows(ctx.system, c, cheat).find((r) => r.id === id);
   if (!row) {
-    sfx.beep(220);
+    sfx.refused();
     return;
   }
   if (row.status !== '' || (row.price <= 0 && id !== 'fuel')) {
-    sfx.beep(220);
+    sfx.refused();
     return;
   }
   if (!cheat && c.credits < row.price) {
     ctx.message('INSUFFICIENT CREDITS', 2);
-    sfx.beep(220);
+    sfx.refused();
     return;
   }
   // Cheat purchases are free rather than deducted-from-nothing: letting
@@ -264,7 +264,7 @@ export function buyEquipment(id: string, ctx: TradeContext): void {
   }
   // one of only two places a save happens (the other is docking)
   saveCommander(c);
-  sfx.beep(600, 0.08);
+  sfx.equipmentBought();
 }
 
 /** Re-exported so game.ts's jettison path keeps its commodity table. */

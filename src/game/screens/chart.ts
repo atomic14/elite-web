@@ -126,7 +126,7 @@ export class ChartScreen implements Screen {
       const near = this.underCursor();
       if (near) {
         this.ctx().chart.targetIndex = near.index;
-        sfx.beep(900, 0.1);
+        sfx.chartTargetSelected();
         this.redraw();
       }
     }
@@ -153,7 +153,7 @@ export class ChartScreen implements Screen {
       chart.cursorX = near.x;
       chart.cursorY = near.y;
       chart.targetIndex = near.index;
-      sfx.beep(900, 0.1);
+      sfx.chartTargetSelected();
     }
     this.redraw();
     return true;

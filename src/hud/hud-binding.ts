@@ -13,7 +13,7 @@
 
 import * as THREE from 'three';
 import {
-  SCANNER_RANGE, type HudState, type ScannerContact, type ScreenTarget,
+  SCANNER_RANGE, type HudFrame, type HudState,
 } from './hud.ts';
 import {
   scannerContacts, projectMarker, shipIdUnderView, nearestHostile, dockingAid,
@@ -57,6 +57,8 @@ export interface HudSources {
   readonly witchspace: boolean;
   readonly assist: boolean;
   readonly ecmDetected: boolean;
+  readonly messageText: string;
+  readonly messageTimer: number;
 }
 
 /** Scratch vectors, so a per-frame read allocates nothing. */
@@ -65,13 +67,6 @@ export interface HudScratch {
   b: THREE.Vector3;
   c: THREE.Vector3;
   q: THREE.Quaternion;
-}
-
-export interface HudFrame {
-  state: HudState;
-  contacts: ScannerContact[];
-  targets: ScreenTarget[];
-  compassTarget: THREE.Vector3;
 }
 
 /** Is anything close enough and cross enough to turn the condition light red? */
@@ -97,7 +92,7 @@ export function compassTarget(
 ): THREE.Vector3 {
   if (s.witchspace) {
     const thargoid = s.world.npcs.find((n) =>
-      n.alive && !n.inert && (n.role === 'thargoid' || n.role === 'thargon'));
+      n.state.alive && !n.state.inert && (n.role === 'thargoid' || n.role === 'thargon'));
     if (thargoid) return thargoid.object.position;
     return s.world.planetPos;
   }
@@ -152,38 +147,40 @@ export function buildHudFrame(s: HudSources, scratch: HudScratch): HudFrame {
     : [];
 
   return {
+    messageText: s.messageText,
+    messageTimer: s.messageTimer,
+    playerPos: s.playerPos,
+    playerQuat: s.playerQuat,
     contacts: scannerContacts(
       world.station.position, world.npcs, s.missiles, s.canisters, legal),
     targets,
     compassTarget: compassTarget(s),
-    state: {
-      speedFrac: s.speedFrac,
-      rollFrac: s.rollFrac,
-      pitchFrac: s.pitchFrac,
-      foreShield: s.sys.foreShield,
-      aftShield: s.sys.aftShield,
-      energy: s.sys.energy,
-      fuelFrac: commander.fuel / MAX_FUEL,
-      laserTemp: s.sys.laserTemp,
-      altitudeFrac: altitude / (world.planetRadius * 2),
-      cabinTemp: s.sys.cabinTemp,
-      missiles: commander.missiles,
-      locked: s.targetLock !== null,
-      condition: !s.inFlight ? 'GREEN'
-        : hostilesNear(world.npcs, playerPos, legal) ? 'RED' : 'YELLOW',
-      credits: commander.credits,
-      view: s.view,
-      hasLaser: hasLaserInView(commander, s.view),
-      shipId: s.inFlight
-        ? shipIdUnderView(world.npcs, playerPos, s.viewDir, scratch.c) : '',
-      dockAid,
-      slotMarker,
-      threatMarker,
-      assist: s.assist,
-      armed: s.missileArmed,
-      stationInRange: s.inFlight && !s.witchspace
-        && playerPos.distanceTo(world.station.position) < SCANNER_RANGE,
-      ecmDetected: s.ecmDetected,
-    },
+    speedFrac: s.speedFrac,
+    rollFrac: s.rollFrac,
+    pitchFrac: s.pitchFrac,
+    foreShield: s.sys.foreShield,
+    aftShield: s.sys.aftShield,
+    energy: s.sys.energy,
+    fuelFrac: commander.fuel / MAX_FUEL,
+    laserTemp: s.sys.laserTemp,
+    altitudeFrac: altitude / (world.planetRadius * 2),
+    cabinTemp: s.sys.cabinTemp,
+    missiles: commander.missiles,
+    locked: s.targetLock !== null,
+    condition: !s.inFlight ? 'GREEN'
+      : hostilesNear(world.npcs, playerPos, legal) ? 'RED' : 'YELLOW',
+    credits: commander.credits,
+    view: s.view,
+    hasLaser: hasLaserInView(commander, s.view),
+    shipId: s.inFlight
+      ? shipIdUnderView(world.npcs, playerPos, s.viewDir, scratch.c) : '',
+    dockAid,
+    slotMarker,
+    threatMarker,
+    assist: s.assist,
+    armed: s.missileArmed,
+    stationInRange: s.inFlight && !s.witchspace
+      && playerPos.distanceTo(world.station.position) < SCANNER_RANGE,
+    ecmDetected: s.ecmDetected,
   };
 }

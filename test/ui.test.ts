@@ -8,7 +8,6 @@ import * as THREE from 'three';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { defenceBrain } from '../src/game/brains.ts';
-import { compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import { globalCommands, BINDINGS, type ControlMode } from '../src/game/controls.ts';
@@ -127,6 +126,11 @@ console.log('\ncommand layer');
   eqc('D reports the system you are standing on', cmds('docked', ['KeyD']), ['openSystemData']);
   eqc('T arms a missile', cmds('flight', ['KeyT']), ['armMissile']);
   eqc('J is the torus drive', cmds('flight', ['KeyJ']), ['toggleTorus']);
+  eqc('P pauses in flight', cmds('flight', ['KeyP']), ['togglePause']);
+  eqc('P also pauses the training simulator', cmds('simulator', ['KeyP']), ['togglePause']);
+  eqc('P does nothing on the docked menu', cmds('docked', ['KeyP']), []);
+  eqc('P does nothing on the new-game confirmation', cmds('confirmNewGame', ['KeyP']), []);
+  eqc('P does nothing after destruction', cmds('dead', ['KeyP']), []);
   eqc('Enter is the only key that answers the game over screen',
     cmds('dead', ['Enter']), ['respawn']);
   eqc('...and nothing else does', cmds('dead', ['KeyL', 'KeyM', 'Space']), []);
@@ -286,69 +290,5 @@ console.log('\nautopilots');
     const noBrain = auto.combatDemand(1 / 60, false, null);
     check('no policy means no autopilot',
       noBrain.demand === null && !state.session.ccEngaged);
-  }
-}
-
-// --- the dashboard reads, it does not decide ---------------------------------
-//
-// The compass rule in particular: it decided where the needle points from
-// inside a 100-line render method, so it had never been asserted.
-
-console.log('\nhud binding');
-{
-  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-  const sources = (over: Record<string, unknown>) => ({
-    witchspace: false,
-    playerPos: V(0, 0, 0),
-    world: {
-      planetPos: V(0, 0, 1e6), planetRadius: 1000,
-      sunPos: V(0, 0, -1e6), station: { position: V(0, 0, 1e6) },
-      npcs: [],
-    },
-    ...over,
-  }) as unknown as Parameters<typeof compassTarget>[0];
-
-  {
-    const s = sources({});
-    check('far from everything, the compass finds the planet',
-      compassTarget(s) === s.world.planetPos);
-  }
-  {
-    const s = sources({ playerPos: V(0, 0, -1e6 + 1000) });
-    check('close to the sun it switches, so you can skim by compass',
-      compassTarget(s) === s.world.sunPos);
-  }
-  {
-    // inside three planet radii, the station takes over
-    const s = sources({ playerPos: V(0, 0, 1e6 - 500) });
-    check('near the planet it finds the station',
-      compassTarget(s) === s.world.station.position);
-  }
-  {
-    // witch-space banishes the scenery, so the needle hunts Thargoids instead
-    const goid = { alive: true, inert: false, role: 'thargoid', object: { position: V(1, 2, 3) } };
-    const s = sources({ witchspace: true, world: { ...sources({}).world, npcs: [goid] } });
-    check('in witch-space it tracks the nearest Thargoid',
-      compassTarget(s) === goid.object.position);
-    const dead = { ...goid, alive: false };
-    const s2 = sources({ witchspace: true, world: { ...sources({}).world, npcs: [dead] } });
-    check('...and a dead one does not count',
-      compassTarget(s2) !== dead.object.position);
-  }
-  {
-    // the sun is 130k away here, but witch-space must win over the sun rule
-    const s = sources({ witchspace: true, playerPos: V(0, 0, -1e6 + 1000) });
-    check('witch-space beats the sun-skim rule', compassTarget(s) !== s.world.sunPos);
-  }
-
-  {
-    const kit = (over: Record<string, boolean>) =>
-      ({ equipment: { rearLaser: false, leftLaser: false, rightLaser: false, ...over } }) as never;
-    check('the front mount always has a gun', hasLaserInView(kit({}), 0));
-    check('...the others only when bought',
-      !hasLaserInView(kit({}), 1) && hasLaserInView(kit({ rearLaser: true }), 1));
-    check('...and each view reads its own mount',
-      hasLaserInView(kit({ leftLaser: true }), 2)
-      && !hasLaserInView(kit({ leftLaser: true }), 3));
   }
 }

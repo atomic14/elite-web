@@ -20,6 +20,7 @@ import {
   cargoCapacity, cargoTonnes, formatCredits,
   type CommanderData, type Contract,
 } from './commander.ts';
+import type { SoundName } from './sounds.ts';
 
 /** Chart distance in tenths of a light-year (the original's metric). */
 // Was a second copy of the chart metric. It now comes from the one owner, and
@@ -193,7 +194,7 @@ export function hermitMarket(
 // shipped ones. It calls these now.
 //
 // Same shape as missions.ts, which is the in-repo precedent: pure, mutates the
-// commander, and RETURNS what happened. The Game announces and beeps, because
+// commander, and RETURNS what happened. The Game announces and plays it, because
 // a HUD and an AudioContext are not something a headless career simulator has.
 
 /** What settling or accepting work did. */
@@ -255,7 +256,7 @@ export function settleContracts(c: CommanderData): ContractEvent[] {
  *
  * Mutates the commander (a cargo run loads the consignment on the spot) and
  * splices the accepted job out of `offers`. A refusal changes nothing at all,
- * which is what lets the caller treat it as a beep.
+ * which is what lets the caller treat it as a refusal.
  */
 export function acceptContract(
   c: CommanderData, offers: Contract[], index: number,
@@ -277,16 +278,16 @@ export function acceptContract(
 }
 
 /**
- * What to put on the HUD, and what to beep, for one contract event.
+ * What to put on the HUD, and what to play, for one contract event.
  *
  * Phrasing lives beside the rule and away from the AudioContext, the same way
- * `trumbleMessage` and `ordnanceMessage` do. `beep.seconds` left off means the
- * sound's own default length.
+ * `trumbleMessage` and `ordnanceMessage` do. Sound construction belongs to
+ * audio.ts; this message carries only the occasion.
  */
 export interface ContractMessage {
   text: string;
   seconds: number;
-  beep: { hz: number; seconds?: number } | null;
+  sound: SoundName | null;
 }
 
 export function contractMessage(e: ContractEvent, systems: StarSystem[]): ContractMessage {
@@ -295,17 +296,17 @@ export function contractMessage(e: ContractEvent, systems: StarSystem[]): Contra
       return {
         text: `CONTRACT PAID: ${formatCredits(e.contract.reward)}`,
         seconds: 5,
-        beep: { hz: 1100, seconds: 0.15 },
+        sound: 'contractPaid',
       };
     case 'incomplete':
-      return { text: 'CONSIGNMENT INCOMPLETE — CONTRACT VOID', seconds: 5, beep: null };
+      return { text: 'CONSIGNMENT INCOMPLETE — CONTRACT VOID', seconds: 5, sound: null };
     case 'expired':
-      return { text: 'CONTRACT EXPIRED', seconds: 4, beep: { hz: 220, seconds: 0.2 } };
+      return { text: 'CONTRACT EXPIRED', seconds: 4, sound: 'contractExpired' };
     case 'accepted':
       return {
         text: `ACCEPTED: ${describeContract(e.contract, systems).toUpperCase()}`,
         seconds: 4,
-        beep: { hz: 900, seconds: 0.1 },
+        sound: 'contractAccepted',
       };
     case 'refused':
       return {
@@ -313,7 +314,7 @@ export function contractMessage(e: ContractEvent, systems: StarSystem[]): Contra
           ? 'YOU ARE CARRYING ENOUGH WORK ALREADY'
           : 'NOT ENOUGH HOLD SPACE FOR THAT CONSIGNMENT',
         seconds: 3,
-        beep: { hz: 220 },
+        sound: 'refused',
       };
   }
 }

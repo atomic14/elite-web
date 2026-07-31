@@ -119,12 +119,13 @@ export class Ordnance {
   /** Arm a missile, if there is one to arm. */
   arm(commander: CommanderData): OrdnanceReply {
     if (commander.missiles <= 0) {
-      sfx.beep(180);
+      sfx.noMissiles();
       return 'noMissiles';
     }
     if (this.targetLock) return 'alreadyLocked';
     this.armed = !this.armed;
-    sfx.beep(this.armed ? 700 : 400, 0.08);
+    if (this.armed) sfx.missileArmed();
+    else sfx.missileUnarmed();
     return this.armed ? 'armed' : 'unarmed';
   }
 
@@ -142,7 +143,7 @@ export class Ordnance {
     let best: NpcShip | null = null;
     let bestAngle = LOCK_CONE;
     for (const npc of this.world.npcs) {
-      if (!npc.alive || npc.role === 'asteroid') continue;
+      if (!npc.state.alive || npc.role === 'asteroid') continue;
       const to = npc.object.position.clone().sub(playerPos);
       if (to.length() > LOCK_RANGE) continue;
       const angle = viewDir.angleTo(to.normalize());
@@ -150,15 +151,15 @@ export class Ordnance {
     }
     if (!best) return null;
     this.targetLock = best;
-    sfx.beep(1200, 0.12);
+    sfx.missileLocked();
     return 'locked';
   }
 
   /** Fire at the locked target. */
   launch(commander: CommanderData, playerPos: THREE.Vector3): OrdnanceReply | null {
-    if (commander.missiles <= 0) { sfx.beep(180); return null; }
+    if (commander.missiles <= 0) { sfx.noMissiles(); return null; }
     if (!this.targetLock) {
-      sfx.beep(220);
+      sfx.refused();
       return 'noLock';
     }
     commander.missiles -= 1;
@@ -189,11 +190,11 @@ export class Ordnance {
    */
   triggerEcm(commander: CommanderData, energy: number): OrdnanceReply {
     if (!commander.equipment.ecm) {
-      sfx.beep(220);
+      sfx.refused();
       return 'noEcm';
     }
     if (energy < ECM_ENERGY_COST) {
-      sfx.beep(180);
+      sfx.noEnergy();
       return 'noEnergy';
     }
     for (const m of [...this.missiles]) this.destroy(m);
@@ -206,12 +207,12 @@ export class Ordnance {
     commander: CommanderData, playerPos: THREE.Vector3,
   ): { reply: OrdnanceReply; caught: NpcShip[] } {
     if (!commander.equipment.energyBomb) {
-      sfx.beep(220);
+      sfx.refused();
       return { reply: 'noBomb', caught: [] };
     }
     commander.equipment.energyBomb = false;
     const caught = this.world.npcs.filter((n) =>
-      n.alive && n.role !== 'thargoid'   // thargoids shrug it off
+      n.state.alive && n.role !== 'thargoid'   // thargoids shrug it off
       && n.object.position.distanceTo(playerPos) <= ENERGY_BOMB_RANGE);
     for (const m of [...this.missiles]) this.destroy(m);
     sfx.explosion();
@@ -223,7 +224,7 @@ export class Ordnance {
     const events: OrdnanceEvent[] = [];
     for (const m of [...this.missiles]) {
       m.life -= dt;
-      if ((m.target !== null && !m.target.alive) || m.life <= 0) {
+      if ((m.target !== null && !m.target.state.alive) || m.life <= 0) {
         events.push({ kind: 'expired', at: m.object.position.clone() });
         this.destroy(m);
         continue;
@@ -232,7 +233,7 @@ export class Ordnance {
       const dir = this.tmp.copy(targetPos).sub(m.object.position);
       const dist = dir.length();
 
-      if (m.target && m.target.hasEcm && dist < ECM_RANGE && random() < dt * ECM_RATE) {
+      if (m.target && m.target.state.hasEcm && dist < ECM_RANGE && random() < dt * ECM_RATE) {
         events.push({ kind: 'ecmDefeated', at: m.object.position.clone() });
         this.destroy(m);
         continue;
@@ -299,5 +300,4 @@ export class Ordnance {
     this.missiles.push({ object, target, life });
   }
 }
-
 

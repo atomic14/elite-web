@@ -31,7 +31,7 @@ function nearest(
   let best: NpcShip | null = null;
   let bestD = range;
   for (const other of npcs) {
-    if (!other.alive || other.role !== role) continue;
+    if (!other.state.alive || other.role !== role) continue;
     const d = other.object.position.distanceTo(from.object.position);
     if (d < bestD) {
       bestD = d;
@@ -58,7 +58,7 @@ export function assignNpcTargets(
   for (const npc of npcs) npc.pruneAttackers();
 
   for (const npc of npcs) {
-    if (!npc.alive || (npc.npcTarget && npc.npcTarget.alive)) continue;
+    if (!npc.state.alive || (npc.npcTarget && npc.npcTarget.state.alive)) continue;
     if (npc.role === 'pirate') {
       // a pirate with the player in reach is already busy
       if (npc.object.position.distanceTo(playerPos) <= PLAYER_INTEREST_RANGE) continue;

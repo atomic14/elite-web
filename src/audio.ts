@@ -35,6 +35,11 @@ function sweep(type: OscillatorType, from: number, to: number, duration: number,
   o.stop(a.currentTime + duration);
 }
 
+/** The common square-wave voice used by the named interface sounds below. */
+function tone(frequency: number, duration = 0.08, gain = 0.08): void {
+  sweep('square', frequency, frequency, duration, gain);
+}
+
 function noiseBurst(duration: number, gain: number, lowpass = 4000): void {
   const a = ac();
   if (!a) return;
@@ -110,9 +115,38 @@ export const sfx = {
     noiseBurst(0.8, 0.3, 900);
     sweep('sine', 120, 30, 0.8, 0.25);
   },
-  beep(freq = 880, duration = 0.08, gain = 0.08): void {
-    sweep('square', freq, freq, duration, gain);
-  },
+  refused(): void { tone(220); },
+  noMissiles(): void { tone(180); },
+  noEnergy(): void { tone(180); },
+  missileArmed(): void { tone(700); },
+  missileUnarmed(): void { tone(400); },
+  missileLocked(): void { tone(1200, 0.12); },
+  missileDisarmed(): void { tone(500, 0.06); },
+  torusDropped(): void { tone(300); },
+  lowEnergy(): void { tone(320, 0.1); },
+  survivorScooped(): void { tone(600, 0.12); },
+  cargoScooped(): void { tone(950); },
+  trumbleAte(): void { tone(500, 0.1); },
+  generationShipFound(): void { tone(140, 0.5); },
+  contractPaid(): void { tone(1100, 0.15); },
+  contractExpired(): void { tone(220, 0.2); },
+  contractAccepted(): void { tone(900, 0.1); },
+  dockingComputerEngaged(): void { tone(700, 0.12); },
+  combatComputerEngaged(): void { tone(1000, 0.12); },
+  stationDefenceLaunched(): void { tone(300, 0.18); },
+  cargoLost(): void { tone(300, 0.12); },
+  equipmentDestroyed(): void { tone(240, 0.2); },
+  distressBeacon(): void { tone(500, 0.4); },
+  torusEngaged(): void { tone(1000, 0.15); },
+  viewChanged(): void { tone(600, 0.04); },
+  cargoJettisoned(): void { tone(320); },
+  tradeBought(): void { tone(900, 0.05); },
+  tradeSold(): void { tone(700, 0.05); },
+  equipmentBought(): void { tone(600); },
+  chartTargetSelected(): void { tone(900, 0.1); },
+  commanderDeleted(): void { tone(400, 0.1); },
+  commanderNamed(): void { tone(700, 0.1); },
+  combatSimulationLaunched(): void { tone(700); },
   /**
    * The hyperspace countdown, with `n` seconds left on it: a blip that climbs
    * a hundred hertz a second towards the jump.

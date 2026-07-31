@@ -120,9 +120,11 @@ an NPC's does not.
 - State is now `Game.state` (`state.ts`) — one object holding the galaxy, the
   commander, the world, the player, the session, the ship systems, the dock
   plan, the markets and the charts. `freshState(commander)` builds it under
-  node with no canvas and no browser. Game keeps delegating accessors so
-  `g.commander` still works at ~500 call sites. The station's quaternion is
-  still snapshotted by hand.
+  node with no canvas and no browser. Game code uses that canonical object
+  directly. The console-only `legacyHandles()` view keeps getter conveniences
+  such as `g.commander` for old untyped harnesses without adding a second
+  writable path to the Game class. The station's quaternion is still
+  snapshotted by hand.
 - **Flight** now has an intent layer: `PlayerShip.update(dt, demand)` takes a
   `FlightDemand` (rates, throttle, trigger) and the pilots produce one —
   `engine/flight-controls.ts` from a keyboard, `combat-computer.ts` from the
@@ -434,8 +436,8 @@ ships.
   flight and replayed by `resumeSavedWorld()` at boot, which is what lets you
   close the tab mid-fight. Docking and dying clear the world blob. Delete both
   for a fresh commander.
-- **Debug handles** (deliberate, documented): `window.__game` (the Game
-  instance — used by the autopilot test harness, see
+- **Debug handles** (deliberate, documented): `window.__game` (a
+  `legacyHandles(Game)` console view — used by the autopilot test harness, see
   docs/JAMESON-TRIALS.md), `window.__policyKit` (trained brains + inference
   fns), `state.brains.scripted` (disable brains), `state.cheat`
   (buy any equipment free, any tech level), `state.brains.pack`

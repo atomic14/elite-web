@@ -24,7 +24,7 @@ export function scannerContacts(
 ): ScannerContact[] {
   const contacts: ScannerContact[] = [{ position: stationPos, kind: 'station' }];
   for (const npc of npcs) {
-    if (!npc.alive) continue;
+    if (!npc.state.alive) continue;
     const kind =
       npc.role === 'asteroid' ? 'asteroid'
       : npc.role === 'thargoid' || npc.role === 'thargon' ? 'thargoid'
@@ -70,7 +70,7 @@ export function shipIdUnderView(
   let bestAngle = 0.06;
   let id = '';
   for (const npc of npcs) {
-    if (!npc.alive) continue;
+    if (!npc.state.alive) continue;
     const to = scratch.copy(npc.object.position).sub(playerPos);
     const dist = to.length();
     if (dist > 4500) continue;
@@ -171,7 +171,7 @@ export function screenTargets(
 ): ScreenTarget[] {
   const out: ScreenTarget[] = [];
   for (const npc of npcs) {
-    if (!npc.alive) continue;
+    if (!npc.state.alive) continue;
     const to = scratch.copy(npc.object.position).sub(playerPos);
     const dist = to.length();
     if (dist > TARGET_BRACKET_RANGE) continue;
@@ -186,7 +186,7 @@ export function screenTargets(
       size: Math.min(0.5, (npc.radius * 2.2) / dist),
       hostile: isHostileToPlayer(npc, legalStatus),
       locked: isLocked,
-      hp: npc.hp / npc.maxHp,
+      hp: npc.state.hp / npc.maxHp,
       label: `${(npc.object.name || 'ASTEROID').toUpperCase()}  ${(dist / 1000).toFixed(1)}KM`,
     };
     if (isLocked && npc.role !== 'asteroid') {

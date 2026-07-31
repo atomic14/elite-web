@@ -130,7 +130,7 @@
     nearestHostile(range) {
       let best = null, bestD = range;
       for (const n of g.npcs) {
-        if (!n.alive || !['pirate', 'thargoid', 'thargon'].includes(n.role)) continue;
+        if (!n.state.alive || !['pirate', 'thargoid', 'thargon'].includes(n.role)) continue;
         const d = n.object.position.distanceTo(g.player.position);
         if (d < bestD) { bestD = d; best = n; }
       }
@@ -339,12 +339,12 @@
         if (threat) {
           if (!fights) this.note('combat:engaged');
           fights += 1;
-          g.torusEngaged = false;
+          g.state.session.torusEngaged = false;
           finalRun = false;
           for (let i = 0; i < 8 && g.mode === 'flight'; i++) {
             this.combatStep(threat, 1 / 30);
             g.update(1 / 30, performance.now() / 1000 + i / 30);
-            if (!threat.alive) break;
+            if (!threat.state.alive) break;
           }
           steps += 8;
           combatSteps += 8;
@@ -359,7 +359,7 @@
           const hostileRoles = ['pirate', 'thargoid', 'thargon'];
           let nd = Infinity;
           for (const n of g.npcs) {
-            if (!n.alive) continue;
+            if (!n.state.alive) continue;
             if (blockaded && hostileRoles.includes(n.role)) continue;
             nd = Math.min(nd, n.object.position.distanceTo(g.player.position));
           }
@@ -381,10 +381,10 @@
         } else if (dist > 6000) {
           g.lookAlong(gate.clone().sub(g.player.position));
           g.player.speed = 400;
-          if (!g.massLocked()) g.torusEngaged = true;
+          if (!g.massLocked()) g.state.session.torusEngaged = true;
           this.step(20); steps += 20;
         } else if (g.player.position.distanceTo(gate) > 60) {
-          g.torusEngaged = false;
+          g.state.session.torusEngaged = false;
           g.lookAlong(gate.clone().sub(g.player.position));
           g.player.speed = Math.min(300, g.player.position.distanceTo(gate) * 0.5 + 40);
           this.step(6); steps += 6;
@@ -406,14 +406,19 @@
 
     /** Detour to any hermit we can see — exercises the encounter. */
     async visitHermitIfNear() {
-      const hermit = g.npcs.find((n) => n.alive && n.role === 'hermit' &&
+      const hermit = g.npcs.find((n) => n.state.alive && n.role === 'hermit' &&
         n.object.position.distanceTo(g.player.position) < 20000);
       if (!hermit) return false;
       for (let i = 0; i < 900 && g.mode === 'flight'; i++) {
         const d = g.player.position.distanceTo(hermit.object.position);
         g.lookAlong(hermit.object.position.clone().sub(g.player.position));
-        if (d > 3000) { g.player.speed = 400; if (!g.massLocked()) g.torusEngaged = true; }
-        else { g.torusEngaged = false; g.player.speed = d > 500 ? 120 : 15; }
+        if (d > 3000) {
+          g.player.speed = 400;
+          if (!g.massLocked()) g.state.session.torusEngaged = true;
+        } else {
+          g.state.session.torusEngaged = false;
+          g.player.speed = d > 500 ? 120 : 15;
+        }
         this.step(6);
         if (g.hermitTrading) break;
       }

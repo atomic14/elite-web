@@ -36,7 +36,7 @@ export interface CollisionScratch {
 
 /** A ship that is not a solid body: scenery, wrecks, and the docking traffic. */
 function isPhantom(npc: NpcShip): boolean {
-  return !npc.alive || npc.inert || npc.role === 'hermit' || npc.role === 'generation';
+  return !npc.state.alive || npc.state.inert || npc.role === 'hermit' || npc.role === 'generation';
 }
 
 /**
@@ -52,7 +52,7 @@ export function playerVsNpcs(
 ): NpcShip[] {
   const hits: NpcShip[] = [];
   for (const npc of npcs) {
-    if (!npc.alive) continue;
+    if (!npc.state.alive) continue;
     const gap = npc.object.position.distanceTo(playerPos);
     if (gap >= npc.radius + 25) continue;
     const away = scratch.a.copy(playerPos).sub(npc.object.position).normalize();
@@ -98,8 +98,8 @@ export function npcVsNpcs(
       const push = (contact + 40) / 2;
       a.object.position.copy(scratch.b).addScaledVector(scratch.a, push);
       b.object.position.copy(scratch.b).addScaledVector(scratch.a, -push);
-      a.speed *= NPC_SPEED_KEPT;
-      b.speed *= NPC_SPEED_KEPT;
+      a.state.speed *= NPC_SPEED_KEPT;
+      b.state.speed *= NPC_SPEED_KEPT;
       pairs.push([a, b]);
     }
   }
@@ -121,8 +121,8 @@ export function npcsVsStation(
   scratch: CollisionScratch,
 ): void {
   for (const npc of npcs) {
-    if (!npc.alive || npc.inert || npc.role === 'hermit') continue;
-    if (npc.docking) continue; // a trader on final approach is *meant* to go in
+    if (!npc.state.alive || npc.state.inert || npc.role === 'hermit') continue;
+    if (npc.state.docking) continue; // a trader on final approach is *meant* to go in
     const local = scratch.a.copy(npc.object.position);
     station.worldToLocal(local);
     if (Math.abs(local.x) > halfBox || Math.abs(local.y) > halfBox
@@ -131,6 +131,6 @@ export function npcsVsStation(
     if (scratch.b.lengthSq() < 1e-6) scratch.b.set(0, 1, 0);
     npc.object.position.copy(station.position)
       .addScaledVector(scratch.b.normalize(), halfBox + npc.radius);
-    npc.speed *= STATION_SPEED_KEPT;
+    npc.state.speed *= STATION_SPEED_KEPT;
   }
 }

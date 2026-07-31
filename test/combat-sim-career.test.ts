@@ -274,7 +274,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     for (let i = 0; i < 3; i++) {
       const t = s.world.spawn('trader',
         s.player.position.clone().add(new THREE.Vector3(900 * (i - 1), 200, -2400)), i);
-      t.hp = 3 + i;
+      t.state.hp = 3 + i;
     }
     settleMatrices(r);
 
@@ -284,7 +284,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     const careerObj = s.commander;
     const playerBefore = s.player.position.clone();
     const rngBefore = rngState();
-    const skyBefore = s.world.npcs.map((n) => [n.role, n.hp,
+    const skyBefore = s.world.npcs.map((n) => [n.role, n.state.hp,
       n.object.position.toArray().join()].join('|'));
     const writeMark = writes.length;
     const removeMark = removes.length;
@@ -330,18 +330,18 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
     // 1. A LASER kill — the path a host-only defence cannot see, because
     //    `Combat.fire` calls `destroy(commander, …)` internally.
-    foes[0].hp = 0.1;   // one bolt's worth: a laser does ~0.16 a shot
+    foes[0].state.hp = 0.1;   // one bolt's worth: a laser does ~0.16 a shot
     park(foes[0], s.player.position.clone().addScaledVector(fwd, 420));
     beat(r, 20, { ...CRUISE, fire: true }, () => foes[0].object.position);
-    check('a kill by laser leaves the sky', !foes[0].alive);
+    check('a kill by laser leaves the sky', !foes[0].state.alive);
     check('...and is credited to the EXERCISE commander, not the career',
       r.sim.commander!.kills === before.kills + 1 && before.kills === 137);
 
     // 2. A RAM kill — through the step's collision phase.
-    foes[1].hp = 0.2;
+    foes[1].state.hp = 0.2;
     park(foes[1], s.player.position.clone().addScaledVector(fwd, 10));
     beat(r, 4);
-    check('a kill by ram leaves the sky too', !foes[1].alive);
+    check('a kill by ram leaves the sky too', !foes[1].state.alive);
 
     // 3. A MISSILE kill — through `applyOrdnance`, and it spends the clone's rack.
     const rackBefore = r.sim.commander!.missiles;
@@ -352,7 +352,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     check('the missile came off the EXERCISE commander\'s rack',
       r.sim.commander!.missiles === rackBefore - 1);
     beat(r, 150, CRUISE, () => foes[2].object.position);
-    check('a kill by missile leaves the sky', !foes[2].alive);
+    check('a kill by missile leaves the sky', !foes[2].state.alive);
 
     // 4. An ENERGY BOMB kill — which reaches `Game.destroyNpc` from
     //    `runCommand`, not through the step at all. This is what the Game's
@@ -365,7 +365,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       r.sim.destroyNpc(npc);
     }
     beat(r, 2);
-    check('a kill by energy bomb leaves the sky', !foes[3].alive);
+    check('a kill by energy bomb leaves the sky', !foes[3].state.alive);
     check('...and four kills went to the clone, which the career never sees',
       r.sim.commander!.kills === before.kills + 4);
     check('...as did the bounties on them',
@@ -456,7 +456,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     check('the rng stream is exactly where the career left it',
       JSON.stringify(rngState()) === JSON.stringify(rngBefore));
     check('the sky came back',
-      s.world.npcs.map((n) => [n.role, n.hp,
+      s.world.npcs.map((n) => [n.role, n.state.hp,
         n.object.position.toArray().join()].join('|')).join('#') === skyBefore.join('#')
       && skyBefore.length > 0);
     check('...and the ship is where it was, not out in the arena',
@@ -552,7 +552,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     /** What the run LOOKED like, to the byte. */
     const trace = (r: Rig) => JSON.stringify({
       npcs: r.state.world.npcs.map((n) => [
-        n.role, n.hp,
+        n.role, n.state.hp,
         n.object.position.toArray().map((v) => v.toFixed(6)),
         n.object.quaternion.toArray().map((v) => v.toFixed(6)),
       ]),
@@ -579,7 +579,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
         const p = s.world.spawn('pirate',
           s.player.position.clone().add(new THREE.Vector3(320 * (i - 1), 140, -1500)),
           i, pirateSpecForTier(1, i));
-        p.threatTier = 1;
+        p.state.threatTier = 1;
       }
       settleMatrices(r);
       return r;

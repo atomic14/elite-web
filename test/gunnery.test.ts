@@ -131,7 +131,7 @@ console.log('\nshot tracing');
     return o;
   };
   const ship = (x: number, y: number, z: number, over: Record<string, unknown> = {}) =>
-    ({ object: box(x, y, z), alive: true, radius: 20, ...over });
+    ({ object: box(x, y, z), state: { alive: true }, radius: 20, ...over });
   const ray = new THREE.Raycaster();
   const scratch = new THREE.Vector3();
   const origin = new THREE.Vector3(0, 0, 0);
@@ -144,7 +144,7 @@ console.log('\nshot tracing');
   check('a shot into empty space misses',
     trace([ship(0, 6000, -500)]).kind === 'miss');
   check('a destroyed ship does not stop the beam',
-    trace([ship(0, 0, -500, { alive: false })]).kind === 'miss');
+    trace([ship(0, 0, -500, { state: { alive: false } })]).kind === 'miss');
   {
     const near = ship(0, 0, -300), far = ship(0, 0, -900);
     const hit = trace([far, near]);

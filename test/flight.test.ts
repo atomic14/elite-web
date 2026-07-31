@@ -321,8 +321,8 @@ console.log('\nflight demands');
     const player = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), speed: 200 };
     const sys = freshSystems();
     const pirate = new NpcShip('pirate', new THREE.Vector3(0, 0, -900), 5);
-    pirate.provoked = true;
-    pirate.provokedByPlayer = true;
+    pirate.state.provoked = true;
+    pirate.state.provokedByPlayer = true;
     let flown = 0;
     let demand: FlightDemand | null = null;
     for (let f = 0; f < 20; f++) {

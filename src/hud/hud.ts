@@ -41,6 +41,9 @@ const CONTACT_COLORS: Record<ContactKind, string> = {
 };
 
 export interface HudState {
+  /** canonical message state; lifetime advances outside the painter */
+  messageText: string;
+  messageTimer: number;
   speedFrac: number;
   rollFrac: number; // -1..1
   pitchFrac: number; // -1..1
@@ -61,7 +64,6 @@ export interface HudState {
   hasLaser: boolean;
   /** name + range of the ship under the crosshair ('' when none) */
   shipId: string;
-  /** docking aid: station-local lateral offset + signed roll error, or null */
   /**
    * Docking state. Once drove a separate corner overlay; that is gone — the
    * port marker says whether you are lined up, and saying it twice in two
@@ -84,6 +86,16 @@ export interface HudState {
   stationInRange: boolean;
   /** console 'E': an E.C.M. broadcast was detected recently */
   ecmDetected: boolean;
+}
+
+/** Every value needed to paint one complete dashboard frame. */
+export interface HudFrame extends HudState {
+  /** Live world transforms, deliberately held by reference rather than copied. */
+  playerPos: THREE.Vector3;
+  playerQuat: THREE.Quaternion;
+  contacts: ScannerContact[];
+  compassTarget: THREE.Vector3;
+  targets: ScreenTarget[];
 }
 
 /** A ship to bracket on screen, in normalised device coords (-1..1). */
@@ -128,8 +140,6 @@ export class Hud {
   private readonly messageEl = byId('message');
   private readonly flashEl = byId('damage-flash');
 
-  private messageTimer = 0;
-
   private readonly local = new THREE.Vector3();
   private readonly invQ = new THREE.Quaternion();
 
@@ -145,11 +155,6 @@ export class Hud {
     byId('system-name').textContent = describeSystem(system);
   }
 
-  showMessage(text: string, seconds = 3): void {
-    this.messageEl.textContent = text;
-    this.messageTimer = seconds;
-  }
-
   flashDamage(): void {
     this.flashEl.classList.add('hit');
     // force reflow so re-adding restarts the fade
@@ -157,55 +162,47 @@ export class Hud {
     this.flashEl.classList.remove('hit');
   }
 
-  render(
-    dt: number,
-    state: HudState,
-    playerPos: THREE.Vector3,
-    playerQuat: THREE.Quaternion,
-    contacts: ScannerContact[],
-    compassTarget: THREE.Vector3,
-  ): void {
-    this.messageTimer -= dt;
-    if (this.messageTimer <= 0 && this.messageEl.textContent) this.messageEl.textContent = '';
-
-    this.speedEl.style.width = `${state.speedFrac * 100}%`;
-    this.rollEl.style.left = `${50 + clampUnit(state.rollFrac) * 45}%`;
-    this.pitchEl.style.left = `${50 + clampUnit(state.pitchFrac) * 45}%`;
-    this.foreEl.style.width = `${state.foreShield * 100}%`;
-    this.aftEl.style.width = `${state.aftShield * 100}%`;
-    this.fuelEl.style.width = `${state.fuelFrac * 100}%`;
-    this.laserEl.style.width = `${state.laserTemp * 100}%`;
-    this.laserEl.style.background = state.laserTemp > 0.8 ? '#ff4d4d' : '';
-    this.altEl.style.width = `${Math.min(100, state.altitudeFrac * 100)}%`;
-    this.cabinEl.style.width = `${Math.min(100, state.cabinTemp * 100)}%`;
-    this.cabinEl.style.background = state.cabinTemp > 0.72 ? '#ff4d4d' : '';
-    this.viewEl.textContent = state.assist ? '◆ COMBAT COMPUTER ◆' : (VIEW_NAMES[state.view] ?? '');
-    this.crosshairEl.style.display = state.hasLaser ? '' : 'none';
-    this.shipIdEl.textContent = state.shipId;
+  render(_dt: number, frame: HudFrame): void {
+    this.messageEl.textContent = frame.messageTimer > 0 ? frame.messageText : '';
+    this.speedEl.style.width = `${frame.speedFrac * 100}%`;
+    this.rollEl.style.left = `${50 + clampUnit(frame.rollFrac) * 45}%`;
+    this.pitchEl.style.left = `${50 + clampUnit(frame.pitchFrac) * 45}%`;
+    this.foreEl.style.width = `${frame.foreShield * 100}%`;
+    this.aftEl.style.width = `${frame.aftShield * 100}%`;
+    this.fuelEl.style.width = `${frame.fuelFrac * 100}%`;
+    this.laserEl.style.width = `${frame.laserTemp * 100}%`;
+    this.laserEl.style.background = frame.laserTemp > 0.8 ? '#ff4d4d' : '';
+    this.altEl.style.width = `${Math.min(100, frame.altitudeFrac * 100)}%`;
+    this.cabinEl.style.width = `${Math.min(100, frame.cabinTemp * 100)}%`;
+    this.cabinEl.style.background = frame.cabinTemp > 0.72 ? '#ff4d4d' : '';
+    this.viewEl.textContent = frame.assist ? '◆ COMBAT COMPUTER ◆' : (VIEW_NAMES[frame.view] ?? '');
+    this.crosshairEl.style.display = frame.hasLaser ? '' : 'none';
+    this.shipIdEl.textContent = frame.shipId;
     this.energySegs.forEach((seg, i) => {
-      seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, state.energy - i))));
+      seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, frame.energy - i))));
     });
     this.missileEls.forEach((m, i) => {
-      const active = i === state.missiles - 1;
-      m.classList.toggle('spent', i >= state.missiles);
-      m.classList.toggle('armed', state.armed && active);
-      m.classList.toggle('locked', state.locked && active);
+      const active = i === frame.missiles - 1;
+      m.classList.toggle('spent', i >= frame.missiles);
+      m.classList.toggle('armed', frame.armed && active);
+      m.classList.toggle('locked', frame.locked && active);
     });
-    this.indS.classList.toggle('lit', state.stationInRange);
-    this.indE.classList.toggle('lit-amber', state.ecmDetected);
+    this.indS.classList.toggle('lit', frame.stationInRange);
+    this.indE.classList.toggle('lit-amber', frame.ecmDetected);
     this.lockEl.textContent = ''; // lock is shown by the bracket + missile pylon
-    this.conditionEl.textContent = `CONDITION: ${state.condition}`;
-    this.conditionEl.style.color = state.condition === 'RED' ? '#ff4d4d' : '';
-    this.creditsEl.textContent = formatCredits(state.credits);
+    this.conditionEl.textContent = `CONDITION: ${frame.condition}`;
+    this.conditionEl.style.color = frame.condition === 'RED' ? '#ff4d4d' : '';
+    this.creditsEl.textContent = formatCredits(frame.credits);
 
     // No separate docking-aid overlay: the port marker already says whether
     // you are lined up, and two things telling you the same thing in different
     // corners of the screen is worse than one. dockAid survives purely as the
     // source of that lined-up state.
-    this.drawSlotMarker(state.slotMarker, state.dockAid?.inSlot ?? false);
-    this.drawThreatMarker(state.threatMarker);
-    this.drawScanner(playerPos, playerQuat, contacts);
-    this.drawCompass(playerPos, playerQuat, compassTarget);
+    this.drawTargets(frame.targets);
+    this.drawSlotMarker(frame.slotMarker, frame.dockAid?.inSlot ?? false);
+    this.drawThreatMarker(frame.threatMarker);
+    this.drawScanner(frame.playerPos, frame.playerQuat, frame.contacts);
+    this.drawCompass(frame.playerPos, frame.playerQuat, frame.compassTarget);
   }
 
   /**
@@ -263,18 +260,6 @@ export class Hud {
     this.reticle.canvas.height = h;
   }
 
-  /**
-   * Docking alignment aid: the slot aperture as a rectangle, your lateral
-   * offset as a dot (green when you'd fit through), and the slot's rotation
-   * as a bar (green when your roll matches within tolerance).
-   */
-  /**
-   * Point at the docking slot. Close in, the station fills the view and the
-   * entrance is easily off to one side or past the edge of the screen, which
-   * reads as "there is no entrance". Brackets it when visible; an arrow at the
-   * screen edge when it isn't. Drawn on the reticle canvas, which drawTargets
-   * has already cleared this frame.
-   */
   /**
    * An arrow at the edge of the screen pointing at something you cannot see.
    *

@@ -21,7 +21,7 @@ export interface Solid {
 
 /** A ship, which additionally has a silhouette to graze. */
 export interface ShootableShip extends Solid {
-  alive: boolean;
+  state: { alive: boolean };
   radius: number;
 }
 
@@ -55,7 +55,7 @@ export function traceShot<S extends ShootableShip, C extends Solid>(
   let hit: ShotHit<S, C> = { kind: 'miss' };
 
   for (const ship of ships) {
-    if (!ship.alive) continue;
+    if (!ship.state.alive) continue;
     const dist = ship.object.position.distanceTo(origin);
     if (dist > bestDist + ship.radius) continue; // cheap reject before triangles
     // Raycaster reads matrixWorld, which three.js only refreshes during
@@ -98,7 +98,7 @@ export function traceShot<S extends ShootableShip, C extends Solid>(
   // Nothing was struck squarely. Now allow the graze — the beam has width, and
   // the aim assist adds to it at close range.
   for (const ship of ships) {
-    if (!ship.alive) continue;
+    if (!ship.state.alive) continue;
     const to = scratch.copy(ship.object.position).sub(origin);
     const dist = to.length();
     if (dist > bestDist) continue;

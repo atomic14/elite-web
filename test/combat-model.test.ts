@@ -131,7 +131,7 @@ console.log('\none combat model (the trainer flies the game)');
       state.brainTimer = 1;
       ship.brainFly(shippedPirate, 1 / 60, ahead, level, 300, 5000, null);
     }
-    return ship.speed;
+    return ship.state.speed;
   };
   const pirateFloor = brakeToStop('pirate', cobraSpec);
   check(`a braking pirate stops at ${pirateFloor.toFixed(0)},`

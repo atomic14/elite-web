@@ -72,6 +72,7 @@ export type Command =
   | 'toggleDockingComputer'
   | 'toggleMouseFlight'
   | 'toggleTorus'
+  | 'togglePause'
   | 'startHyperspace'
   | 'galacticJump'
   | 'distressBeacon'
@@ -143,6 +144,7 @@ const FLIGHT_BINDINGS: readonly Binding[] = [
   { key: 'Digit2', independent: true, command: 'view1' },
   { key: 'Digit3', independent: true, command: 'view2' },
   { key: 'Digit4', independent: true, command: 'view3' },
+  { key: 'KeyP', command: 'togglePause' },
   { key: 'KeyG', command: 'openChart' },
   { key: 'KeyN', command: 'openLocalChart' },
   { key: 'KeyI', command: 'openStatus' },

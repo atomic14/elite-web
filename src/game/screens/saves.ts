@@ -142,11 +142,11 @@ export class SavesScreen implements Screen {
       const slot = this.selected + 1;
       if (slot === currentSlot()) {
         ctx.message('CANNOT DELETE THE COMMANDER YOU ARE FLYING', 3);
-        sfx.beep(220);
+        sfx.refused();
       } else {
         deleteSlot(slot);
         this.render();
-        sfx.beep(400, 0.1);
+        sfx.commanderDeleted();
       }
       return 'stay';
     }
@@ -203,7 +203,7 @@ export class NamingScreen implements Screen {
       ctx.commander.name = name;
       saveCommander(ctx.commander);
       ctx.message(`COMMANDER ${name}`, 3);
-      sfx.beep(700, 0.1);
+      sfx.commanderNamed();
       return 'back';
     }
     let changed = false;

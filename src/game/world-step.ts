@@ -49,7 +49,7 @@ import { npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE } from '
 import type { DamageSource } from './combat.ts';
 import { viewDirection } from './views.ts';
 import { Ordnance, ordnanceMessage, type OrdnanceReply } from './ordnance.ts';
-import type { NpcShip, FireEvent } from './npc.ts';
+import type { NpcShip, FireEvent, WorldView } from './npc.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import { AUTOSAVE_INTERVAL, type GameState } from './state.ts';
@@ -84,7 +84,7 @@ export function massLocked(state: GameState): boolean {
   if (player.position.distanceTo(world.station.position) < 5000) return true;
   if (player.position.distanceTo(world.planetPos) - world.planetRadius < 4000) return true;
   for (const npc of world.npcs) {
-    if (npc.alive && npc.role !== 'asteroid' &&
+    if (npc.state.alive && npc.role !== 'asteroid' &&
         npc.object.position.distanceTo(player.position) < 4500) return true;
   }
   return false;
@@ -118,7 +118,6 @@ export type StepEvent =
 
 const say = (text: string, seconds: number): StepEvent => ({ kind: 'message', text, seconds });
 /** A tone, in hertz. The occasions with a name of their own are `heard()`. */
-const beep = (hz: number, seconds?: number): StepEvent => ({ kind: 'beep', hz, seconds });
 const heard = (name: SoundName): StepEvent => ({ kind: 'sound', name });
 
 /**
@@ -130,9 +129,9 @@ const heard = (name: SoundName): StepEvent => ({ kind: 'sound', name });
  * caller — so this is not "the Game", it is the eleven verbs the world step
  * genuinely needs, small enough for a test to implement and stub.
  *
- * Two of them (`applyPlayerDamage`, `fireLaser`) keep their game.ts names on
- * purpose: test/combat-recorder.js monkey-patches those methods to measure a
- * fight a human flew, and renaming them would break the one harness that can.
+ * These names describe StepHost's vocabulary only. The live-combat
+ * instrumentation API is `Game.setCombatObserver`; no recorder replaces these
+ * methods or depends on their visibility in Game.
  */
 export interface StepHost {
   /** is the ship still flying? `Game.mode` is a screen-stack question */
@@ -239,7 +238,7 @@ export class WorldStep {
       if (this.massLocked()) {
         session.torusEngaged = false;
         out.push(say('MASS LOCK — TORUS DISENGAGED', 3));
-        out.push(beep(300));
+        out.push(heard('torusDropped'));
       } else {
         player.position.addScaledVector(
           player.getForward(this.tmp), player.speed * 7 * dt);
@@ -287,19 +286,25 @@ export class WorldStep {
     // Snapshot: despawns and destructions below rebuild world.npcs, and the
     // fleet handed to update() should be consistent for every ship in the
     // frame rather than shrinking underneath the loop.
+    const view: WorldView = {
+      station: world.station,
+      dockZ: world.stationDockZ,
+      fleet: world.npcs,
+      playerLegal: s.commander.legalStatus,
+      brains: s.brains,
+    };
     for (const npc of [...world.npcs]) {
-      const event = npc.update(dt, player, s.commander.legalStatus,
-        world.station, world.npcs, world.stationDockZ, s.brains);
+      const event = npc.update(dt, player, view);
       if (event) this.resolveNpcFire(npc, event, out);
 
-      if (npc.wantsDespawn) {
+      if (npc.state.wantsDespawn) {
         // A ship that JUMPED OUT gets the witch-flash. A ship that DOCKED gets
         // nothing: it flew into the slot, which is not an event that emits
         // particles. It used to get a smaller, paler burst from the same
         // explosion system, and from outside that is indistinguishable from
         // watching it blow up — reported as exactly that, by someone watching
         // a trader line up perfectly and then apparently detonate.
-        if (!npc.docked) {
+        if (!npc.state.docked) {
           world.effects.explosion(npc.object.position.clone(), 0x9adfff,
             { count: 10, speed: 120, duration: 0.7 });
         }
@@ -337,8 +342,8 @@ export class WorldStep {
       productivity: here.productivity,
       government: here.government,
       traderCount: world.npcs.filter((n) => n.role === 'trader').length,
-      activeThargons: world.npcs.filter((n) => n.alive && n.role === 'thargon' && !n.inert).length,
-      hasThargoidMother: world.npcs.some((n) => n.alive && n.role === 'thargoid'),
+      activeThargons: world.npcs.filter((n) => n.state.alive && n.role === 'thargon' && !n.state.inert).length,
+      hasThargoidMother: world.npcs.some((n) => n.state.alive && n.role === 'thargoid'),
       playerFarFromStation:
         player.position.distanceTo(world.station.position) > AMBUSH_STANDOFF,
     })) {
@@ -353,7 +358,7 @@ export class WorldStep {
         }
         out.push(say('PIRATE SIGNATURES DETECTED', 4));
       } else {
-        const mother = world.npcs.find((n) => n.alive && n.role === 'thargoid')!;
+        const mother = world.npcs.find((n) => n.state.alive && n.role === 'thargoid')!;
         world.spawn('thargon',
           mother.object.position.clone().add(
             randomDirection(new THREE.Vector3()).multiplyScalar(150)),
@@ -380,11 +385,11 @@ export class WorldStep {
         // you a smuggler and the next police scan made you an Offender.
         commander.survivors += 1;
         out.push(say('SURVIVOR ABOARD', 4));
-        out.push(beep(600, 0.12));
+        out.push(heard('survivorScooped'));
       } else {
         commander.cargo[c.commodity] += 1;
         out.push(say(`SCOOPED 1t ${COMMODITIES[c.commodity].name.toUpperCase()}`, 3));
-        out.push(beep(950, 0.08));
+        out.push(heard('cargoScooped'));
       }
     }
     this.updateEncounters(out);
@@ -466,7 +471,7 @@ export class WorldStep {
       if (session.energyLowTimer <= 0) {
         session.energyLowTimer = 1.2;
         out.push(say('ENERGY LOW', 0.6));
-        out.push(beep(320, 0.1));
+        out.push(heard('lowEnergy'));
       }
     }
 
@@ -474,7 +479,7 @@ export class WorldStep {
     if (!session.policeScanned && !session.witchspace) {
       if (carryingContraband(commander.cargo)) {
         const policeNear = world.npcs.some((n) =>
-          n.alive && n.role === 'police' &&
+          n.state.alive && n.role === 'police' &&
           n.object.position.distanceTo(player.position) < SCAN_RANGE);
         if (policeNear) {
           session.policeScanned = true;
@@ -511,7 +516,7 @@ export class WorldStep {
     for (const e of r.events) {
       const secs = e.kind === 'purged' ? 5 : e.kind === 'fleeing' ? 1.5 : e.kind === 'ate' ? 4 : 2;
       out.push(say(trumbleMessage(e), secs));
-      if (e.kind === 'ate') out.push(beep(500, 0.1));
+      if (e.kind === 'ate') out.push(heard('trumbleAte'));
     }
   }
 
@@ -531,7 +536,7 @@ export class WorldStep {
     this.checkStation(out);
 
     const lock = this.ordnance.targetLock;
-    if (lock && !lock.alive) this.ordnance.targetLock = null;
+    if (lock && !lock.state.alive) this.ordnance.targetLock = null;
     this.updateMissileLock(out);
   }
 
@@ -570,7 +575,7 @@ export class WorldStep {
   private updateEncounters(out: StepEvent[]): void {
     const { world, player, session } = this.state;
     for (const npc of world.npcs) {
-      if (!npc.alive) continue;
+      if (!npc.state.alive) continue;
       const dist = npc.object.position.distanceTo(player.position);
       if (npc.role === 'hermit') {
         // must leave and come back before trading again, or you'd be stuck
@@ -585,7 +590,7 @@ export class WorldStep {
       } else if (npc.role === 'generation' && dist < 6000 && !session.genShipSeen) {
         session.genShipSeen = true;
         out.push(say('DERELICT GENERATION SHIP — NO LIFE SIGNS', 6));
-        out.push(beep(140, 0.5));
+        out.push(heard('generationShipFound'));
       }
     }
   }
@@ -602,7 +607,7 @@ export class WorldStep {
     if (event.at === 'player') {
       // The SHIP chose the weapon (npc.ts chooseWeapon); we only apply it.
       if (event.weapon === 'missile') {
-        npc.missiles -= 1;
+        npc.state.missiles -= 1;
         this.reply(this.ordnance.launchHostile(npc.nosePosition(this.tmp).clone()), out);
         return;
       }

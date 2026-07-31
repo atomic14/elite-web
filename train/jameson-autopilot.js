@@ -142,7 +142,7 @@
     nearestHostile(range) {
       let best = null, bestD = range;
       for (const n of g.npcs) {
-        if (!n.alive || (n.role !== 'pirate' && n.role !== 'thargoid' && n.role !== 'thargon')) continue;
+        if (!n.state.alive || (n.role !== 'pirate' && n.role !== 'thargoid' && n.role !== 'thargon')) continue;
         const d = n.object.position.distanceTo(g.player.position);
         if (d < bestD) { bestD = d; best = n; }
       }
@@ -192,7 +192,7 @@
         const slotN = new V(0, 0, -1).applyQuaternion(st.quaternion);
         const dist = g.player.position.distanceTo(st.position);
         const gate = st.position.clone().addScaledVector(slotN, 800);
-        const hostiles = g.npcs.filter((n) => n.alive && (n.role === 'pirate' || n.role === 'thargoid') &&
+        const hostiles = g.npcs.filter((n) => n.state.alive && (n.role === 'pirate' || n.role === 'thargoid') &&
           n.object.position.distanceTo(g.player.position) < 9000).length;
         maxHostiles = Math.max(maxHostiles, hostiles);
         hullMin = Math.min(hullMin, g.foreShield + g.aftShield + g.energy);
@@ -200,12 +200,12 @@
         // combat: hand the ship to the defence brain when pirates close in
         const threat = dist > 3000 ? this.nearestHostile(4500) : null;
         if (threat) {
-          g.torusEngaged = false;
+          g.state.session.torusEngaged = false;
           finalRun = false;
           for (let i = 0; i < 8 && g.mode === 'flight'; i++) {
             this.combatStep(threat, 1 / 30);
             g.update(1 / 30, performance.now() / 1000 + i / 30);
-            if (!threat.alive) break;
+            if (!threat.state.alive) break;
           }
           steps += 8; combatTicks += 8;
           if (steps % 1200 === 0) await sleep(0);
@@ -215,7 +215,7 @@
         // traffic hold: never ram anything (RIP MkII)
         if (dist < 6000) {
           let nd = Infinity;
-          for (const n of g.npcs) if (n.alive) nd = Math.min(nd, n.object.position.distanceTo(g.player.position));
+          for (const n of g.npcs) if (n.state.alive) nd = Math.min(nd, n.object.position.distanceTo(g.player.position));
           if (nd < 320) { g.player.speed = 0; stepN(10); steps += 10; continue; }
         }
 
@@ -229,10 +229,10 @@
         } else if (dist > 6000) {
           g.lookAlong(gate.clone().sub(g.player.position));
           g.player.speed = 400;
-          if (!g.massLocked()) g.torusEngaged = true;
+          if (!g.massLocked()) g.state.session.torusEngaged = true;
           stepN(20); steps += 20;
         } else if (g.player.position.distanceTo(gate) > 60) {
-          g.torusEngaged = false;
+          g.state.session.torusEngaged = false;
           g.lookAlong(gate.clone().sub(g.player.position));
           g.player.speed = Math.min(300, g.player.position.distanceTo(gate) * 0.5 + 40);
           stepN(6); steps += 6;

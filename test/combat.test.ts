@@ -120,7 +120,7 @@ console.log('\ncombat');
     const drone = world.spawn('thargon', at(-400), 2);
     const evs = combat.destroy(c, goid);
     check('the last thargoid dying deactivates its thargons',
-      drone.inert === true
+      drone.state.inert === true
       && msgs(evs).some((m) => m!.includes('THARGONS DEACTIVATED')));
   }
   {
@@ -128,7 +128,7 @@ console.log('\ncombat');
     world.spawn('thargoid', at(-900), 9);
     const drone = world.spawn('thargon', at(-400), 2);
     combat.destroy(c, world.spawn('thargoid', at(-500), 1));
-    check('...but not while another mothership is alive', drone.inert === false);
+    check('...but not while another mothership is alive', drone.state.inert === false);
   }
 }
 
@@ -285,7 +285,9 @@ console.log('\njettison');
   }
 
   {
-    const pirate = (organised: boolean) => ({ alive: true, organised, satisfied: false });
+    const pirate = (organised: boolean) => ({
+      state: { alive: true, organised, satisfied: false },
+    });
     const gang = [pirate(false), pirate(false), pirate(true)];
     const arrival = 10_000;
 
@@ -297,17 +299,17 @@ console.log('\njettison');
 
     const enough = offerBribe(gang, appetiteOf(false, arrival), arrival);
     check('paying the opportunist price peels off the opportunists',
-      enough.bought === 2 && gang[0].satisfied && gang[1].satisfied);
-    check('...but the gang leader is still coming', !gang[2].satisfied);
+      enough.bought === 2 && gang[0].state.satisfied && gang[1].state.satisfied);
+    check('...but the gang leader is still coming', !gang[2].state.satisfied);
 
     // the toll accumulates across dumps — a second handful finishes the job
     const rest = offerBribe(gang, appetiteOf(true, arrival), arrival);
     check('a second dump finishes what the first started',
-      rest.bought === 1 && gang[2].satisfied && rest.stillWant === null);
+      rest.bought === 1 && gang[2].state.satisfied && rest.stillWant === null);
     check('...and nobody is bought twice', offerBribe(gang, 1e9, arrival).bought === 0);
   }
   {
-    const dead = [{ alive: false, organised: false, satisfied: false }];
+  const dead = [{ state: { alive: false, organised: false, satisfied: false } }];
     check('the dead are not bribable', offerBribe(dead, 1e9, 0).bought === 0);
   }
 }
@@ -354,8 +356,10 @@ console.log('\nsurvivors');
 console.log('\npolice hostility');
 {
   const npcLike = (role: string, over: Record<string, unknown> = {}) =>
-    ({ alive: true, inert: false, satisfied: false, role, provoked: false,
-       provokedByPlayer: false, ...over }) as unknown as Parameters<typeof isHostileToPlayer>[0];
+    ({ role, state: {
+      alive: true, inert: false, satisfied: false, provoked: false,
+      provokedByPlayer: false, ...over,
+    } }) as unknown as Parameters<typeof isHostileToPlayer>[0];
 
   check('pirates are hostile to anyone',
     isHostileToPlayer(npcLike('pirate'), 0));

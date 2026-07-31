@@ -207,7 +207,10 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
 
 ## Verification
 
-- `window.__game` is the Game; `window.__policyKit` exposes the trained policies.
+- `window.__game` is the console-only `legacyHandles(Game)` view;
+  `window.__policyKit` exposes the trained policies. `__game.state` is the
+  canonical mutable model; legacy aliases such as `__game.commander` are
+  getter conveniences for the untyped harnesses.
   Drive the game headlessly by calling `g.update(1/60, t)` in a loop — background
   tabs throttle rAF, so manual stepping is the reliable way.
 - **A/B switches are STATE, not globals.** `state.brains` picks which brains fly

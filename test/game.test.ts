@@ -17,6 +17,7 @@
 
 import { readFileSync } from 'node:fs';
 import { Game } from '../src/game/game.ts';
+import { handle } from '../src/game/console.ts';
 import { headlessShell } from '../src/engine/shell.ts';
 import { withoutSaving } from '../src/game/storage.ts';
 import { seedWorld } from '../src/game/rng.ts';
@@ -47,6 +48,15 @@ console.log('\nthe game, headless');
     check('...with a commander who has the starting credits',
       g.state.commander.credits === 1000);
     check('...and a world built around a station', !!g.state.world.station);
+
+    const h = handle('__game') as Record<string, unknown>;
+    check('the console handle preserves legacy reads outside the Game class',
+      'commander' in h
+      && h.commander === g.state.commander && h.npcs === g.state.world.npcs);
+    check('...while the canonical state aliases are getter-only',
+      !Reflect.set(h, 'paused', true) && !g.state.session.paused);
+    check('Game itself has no forwarding commander accessor',
+      !Object.getOwnPropertyDescriptor(Game.prototype, 'commander'));
   }
 
   // --- the fixed-timestep loop actually advances the world ------------------
@@ -68,6 +78,28 @@ console.log('\nthe game, headless');
       g.state.player.position.distanceTo(start) > 100,
       `moved ${g.state.player.position.distanceTo(start).toFixed(0)}`);
     check('...with NPCs in the sky to move around', g.state.world.npcs.length > 0);
+  }
+
+  // --- pause is a command, but still freezes only flight -------------------
+  {
+    const g = fly(0);
+    g.input.injectPress('KeyP');
+    g.step(1 / 60, 0);
+    check('P does not pause the docked menu', !g.state.session.paused);
+
+    withoutSaving(() => g.launch());
+    g.input.injectPress('KeyP');
+    g.step(1 / 60, 1 / 60);
+    check('P pauses flight through the command path', g.state.session.paused);
+
+    const stopped = g.state.player.position.clone();
+    for (let i = 0; i < 30; i++) g.step(1 / 60, (i + 2) / 60);
+    check('a paused command-driven game does not advance the ship',
+      g.state.player.position.equals(stopped));
+
+    g.input.injectPress('KeyP');
+    g.step(1 / 60, 32 / 60);
+    check('the same command path resumes flight', !g.state.session.paused);
   }
 
   // --- determinism, through the WHOLE orchestrator --------------------------

@@ -25,20 +25,20 @@
 // `controls.ts` turns an input into `Command`s and `runCommand` below applies
 // them, exactly as `flightDemand`/`PlayerShip.update` already did for flying.
 //
-// `__game` exposes the instance for the autopilot test harness (console.ts)
-// (docs/JAMESON-TRIALS.md, train/jameson-autopilot.js) and console poking.
+// `__game` exposes a console compatibility view for the autopilot harness
+// (console.ts, game-handles.ts, train/jameson-autopilot.js) and console poking.
 import { publish } from './console.ts';
+import { legacyHandles } from './game-handles.ts';
 import type { Shell, Presentation, ShellFactory } from '../engine/shell.ts';
-import type { ChartState } from './chart-state.ts';
 import { viewDirection, VIEW_QUATS } from './views.ts';
 import * as THREE from 'three';
 
-import { generateGalaxy, COMMODITIES, type MarketEntry, type StarSystem } from '../galaxy/galaxy.ts';
+import { generateGalaxy, COMMODITIES, type StarSystem } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
 import { generateContractOffers, acceptContract, settleContracts, contractMessage, hermitMarket, type ContractEvent } from './contracts.ts';
-import { pirateThreat, markOf, type PirateThreat } from './threat.ts';
+import { pirateThreat, markOf } from './threat.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
-import { PlayerShip, PLAYER_FLIGHT, type FlightDemand } from '../player.ts';
+import { PLAYER_FLIGHT, type FlightDemand } from '../player.ts';
 import { Input } from '../engine/input.ts';
 import { flightDemand } from '../engine/flight-controls.ts';
 import { layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
@@ -51,7 +51,6 @@ import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
 import {
   type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
-import { type Canister } from './cargo.ts';
 import { spawnPopulation, launchStationDefence } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
 import {
@@ -59,11 +58,13 @@ import {
   type CombatEvent, type DamageSource,
 } from './combat.ts';
 import {
+  CombatInstrumentation, type CombatObserver,
+} from './instrumentation.ts';
+import {
   checkJump, resolveJump, refusalMessage, COUNTDOWN,
   checkGalacticJump, resolveGalacticJump, galacticRefusalMessage,
 } from './hyperspace.ts';
 import { constrictorLurksHere } from './missions.ts';
-import { World } from './world.ts';
 import {
   WorldStep, massLocked, FIXED_DT,
   type StepEvent, type StepHost,
@@ -71,6 +72,7 @@ import {
 import { random, randomDirection, seedWorld } from './rng.ts';
 import { clearWorld, loadCommander } from './storage.ts';
 import { type WorldSnapshot } from './snapshot.ts';
+import { showMessage as setMessage, tickMessage } from './session.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
 import { Station, type StationHost, type StationEvent } from './station.ts';
 import { CombatSim, type ExerciseFit, type SimHost } from './combat-sim.ts';
@@ -85,11 +87,11 @@ import {
 } from './controls.ts';
 import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
-  type Missile, type OrdnanceReply,
+  type OrdnanceReply,
 } from './ordnance.ts';
 import { hitCone, LASER_RANGE, AIM_ASSIST } from './gunnery.ts';
-import { freshTimers, type EncounterTimers } from './encounters.ts';
-import { breachLoss, type ShipSystems } from './systems.ts';
+import { freshTimers } from './encounters.ts';
+import { breachLoss } from './systems.ts';
 import {
   SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
   type SavesContext,
@@ -108,7 +110,7 @@ import { BEAM_Z } from '../engine/render-stack.ts';
 
 import {
   formatCredits,
-  type CommanderData, type Contract,
+  type Contract,
 } from './commander.ts';
 import {
   LEGAL_NAMES, CLEAN, DEFENCE_RANGE,
@@ -118,7 +120,6 @@ import {
   renderGameOver,
 } from '../ui/screens.ts';
 import { freshState, type GameState } from './state.ts';
-import type { SessionState } from './session.ts';
 
 
 
@@ -173,89 +174,20 @@ export class Game {
 
 
   /**
-   * Everything the world step may change, in ONE object — see state.ts.
+   * The canonical mutable game model. It deliberately stays public so tests,
+   * console agents and ports have one explicit route to state. The old
+   * `g.commander`/`g.world` conveniences are getters on the console-only
+   * `legacyHandles()` shim; they are not a second writable path.
    *
-   * The accessors below delegate to it. They exist because ~500 call sites in
-   * this file and every console harness say `g.commander` and `g.world`.
-   *
-   * An earlier version of this comment claimed "a field on `state` is one the
-   * snapshot walks". That was FALSE — captureSnapshot below is a hand-written
-   * list, and three fields (dockPlan, lastThreat, ecmDetectedTimer) were in
-   * `state` and silently unsaved. It is still hand-written, because `world`
-   * and `player` need bespoke handling; what changed is that `npm test` now
-   * fails if a GameState field is missing from either side of it.
+   * Snapshot capture remains a hand-written list because `world` and `player`
+   * need bespoke handling. A test fails if either side misses a GameState
+   * field.
    */
   readonly state: GameState = freshState(loadCommander());
 
-  get systems(): StarSystem[] { return this.state.systems; }
-  set systems(v: StarSystem[]) { this.state.systems = v; }
-  get commander(): CommanderData { return this.state.commander; }
-  set commander(v: CommanderData) { this.state.commander = v; }
-  get living(): LivingGalaxy { return this.state.living; }
-  set living(v: LivingGalaxy) { this.state.living = v; }
-  get world(): World { return this.state.world; }
-
-  /**
-   * The ships in the sky, and the scene they are in. Owned by `world`; kept
-   * here because the console harnesses (test/playtest.js, gang-trial.js,
-   * combat-recorder.js) and the docs reach for `g.npcs` and `g.scene` by name.
-   */
-  get npcs(): NpcShip[] { return this.world.npcs; }
-  get scene(): THREE.Scene { return this.world.scene; }
-
-  get player(): PlayerShip { return this.state.player; }
   readonly input = new Input();
   private readonly hud = new Hud();
   private readonly tunnel = new TunnelEffect();
-
-  /**
-   * Where the SHIP is. Flight, docked, or dead — the states that are not
-   * screens. Overlays live on the screen stack; `mode` is the two combined.
-   */
-  get session(): SessionState { return this.state.session; }
-
-  get hyperCountdown(): number { return this.session.hyperCountdown; }
-  set hyperCountdown(v: number) { this.session.hyperCountdown = v; }
-  get torusEngaged(): boolean { return this.session.torusEngaged; }
-  set torusEngaged(v: boolean) { this.session.torusEngaged = v; }
-  get witchspace(): boolean { return this.session.witchspace; }
-  set witchspace(v: boolean) { this.session.witchspace = v; }
-  get npcTargetTimer(): number { return this.session.npcTargetTimer; }
-  set npcTargetTimer(v: number) { this.session.npcTargetTimer = v; }
-  get autoSaveTimer(): number { return this.session.autoSaveTimer; }
-  set autoSaveTimer(v: number) { this.session.autoSaveTimer = v; }
-  get energyLowTimer(): number { return this.session.energyLowTimer; }
-  set energyLowTimer(v: number) { this.session.energyLowTimer = v; }
-  get policeScanned(): boolean { return this.session.policeScanned; }
-  set policeScanned(v: boolean) { this.session.policeScanned = v; }
-  get defenceLaunched(): boolean { return this.session.defenceLaunched; }
-  set defenceLaunched(v: boolean) { this.session.defenceLaunched = v; }
-  get hermitTrading(): boolean { return this.session.hermitTrading; }
-  set hermitTrading(v: boolean) { this.session.hermitTrading = v; }
-  get hermitCooldown(): boolean { return this.session.hermitCooldown; }
-  set hermitCooldown(v: boolean) { this.session.hermitCooldown = v; }
-  get jettisonedValue(): number { return this.session.jettisonedValue; }
-  set jettisonedValue(v: number) { this.session.jettisonedValue = v; }
-  get arrivalCargoValue(): number { return this.session.arrivalCargoValue; }
-  set arrivalCargoValue(v: number) { this.session.arrivalCargoValue = v; }
-  get genShipSeen(): boolean { return this.session.genShipSeen; }
-  set genShipSeen(v: boolean) { this.session.genShipSeen = v; }
-  get trumbleTimer(): number { return this.session.trumbleTimer; }
-  set trumbleTimer(v: number) { this.session.trumbleTimer = v; }
-  get beaconTimer(): number { return this.session.beaconTimer; }
-  set beaconTimer(v: number) { this.session.beaconTimer = v; }
-  get strandedHintTimer(): number { return this.session.strandedHintTimer; }
-  set strandedHintTimer(v: number) { this.session.strandedHintTimer = v; }
-  private get view(): number { return this.session.view; }
-  private set view(v: number) { this.session.view = v; }
-  get paused(): boolean { return this.session.paused; }
-  set paused(v: boolean) { this.session.paused = v; }
-  get ccEngaged(): boolean { return this.session.ccEngaged; }
-  set ccEngaged(v: boolean) { this.session.ccEngaged = v; }
-  get beamTimer(): number { return this.session.beamTimer; }
-  set beamTimer(v: number) { this.session.beamTimer = v; }
-  get dcEngaged(): boolean { return this.session.dcEngaged; }
-  set dcEngaged(v: boolean) { this.session.dcEngaged = v; }
 
   private baseMode: 'docked' | 'flight' | 'dead' = 'docked';
 
@@ -274,25 +206,14 @@ export class Game {
     return (this.screens.topId ?? this.baseMode) as Mode;
   }
 
-  get chart(): ChartState { return this.state.chart; }
-  get market(): MarketEntry[] { return this.state.market; }
-  set market(v: MarketEntry[]) { this.state.market = v; }
-
-
-  /** countdowns for arrivals, pirate waves and Thargon drops — see encounters.ts */
-  private get encounterTimers(): EncounterTimers { return this.state.encounterTimers; }
-  private set encounterTimers(v: EncounterTimers) { this.state.encounterTimers = v; }
-  /** trading with a rock hermit rather than a station */
-  private get hermitMarket(): MarketEntry[] { return this.state.hermitMarket; }
-  private set hermitMarket(v: MarketEntry[]) { this.state.hermitMarket = v; }
   /** waiting on the player to confirm erasing their commander */
   private pendingNewGame = false;
   private readonly market_ = new MarketScreen(() => this.tradeContext());
   private readonly contracts_ = new ContractsScreen(() => ({
-    commander: this.commander,
+    commander: this.state.commander,
     system: this.system,
-    systems: this.systems,
-    offers: this.contractOffers,
+    systems: this.state.systems,
+    offers: this.state.contractOffers,
     accept: (index) => { this.contracts_.selected = index; this.acceptContract(); },
   } satisfies ContractsContext));
 
@@ -301,30 +222,28 @@ export class Game {
 
   private chartContext(): ChartContext {
     return {
-      commander: this.commander,
-      systems: this.systems,
+      commander: this.state.commander,
+      systems: this.state.systems,
       system: this.system,
-      chart: this.chart,
+      chart: this.state.chart,
       viewData: (sys) => { this.dataSubject = sys; },
     };
   }
-  /** the reception the current system laid on — surfaced for the HUD/tests */
-  get lastThreat(): PirateThreat | null { return this.state.lastThreat; }
-  set lastThreat(v: PirateThreat | null) { this.state.lastThreat = v; }
-  get contractOffers(): Contract[] { return this.state.contractOffers; }
-  set contractOffers(v: Contract[]) { this.state.contractOffers = v; }
-  /**
-   * Selected contract row. A property because it lives on ContractsScreen now,
-   * and test/playtest.js assigns it before calling acceptContract().
-   */
-  /** @internal — driven by test/playtest.js */
-  get contractSelected(): number { return this.contracts_.selected; }
-  set contractSelected(v: number) { this.contracts_.selected = v; }
-  /** console 'E' dwell */
-  private get ecmDetectedTimer(): number { return this.state.ecmDetectedTimer; }
-  private set ecmDetectedTimer(v: number) { this.state.ecmDetectedTimer = v; }
   // combat computer: the jameson-defend policy flying the player's ship
   private readonly combatComputer = new CombatComputer();
+  /** Explicit telemetry seam; absent during ordinary play. */
+  private readonly combatInstrumentation = new CombatInstrumentation();
+
+  /**
+   * Observe live combat without replacing production methods.
+   *
+   * The returned disposer only removes this registration, so an old recorder
+   * stopping cannot accidentally detach a newer one. The console compatibility
+   * handle binds this method like every other genuine Game verb.
+   */
+  setCombatObserver(observer: CombatObserver | null): () => void {
+    return this.combatInstrumentation.setObserver(observer);
+  }
   /**
    * The two computers that fly the ship for you — see autopilot.ts.
    *
@@ -334,10 +253,10 @@ export class Game {
    */
   private readonly autopilot = new Autopilot(this.state, this.combatComputer);
   /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
-  private readonly ordnance = new Ordnance(this.world);
+  private readonly ordnance = new Ordnance(this.state.world);
   /**
    * Resolving hits: shots, wrecks, bounties — see combat.ts. */
-  private readonly combat = new Combat(this.world);
+  private readonly combat = new Combat(this.state.world);
 
   /**
    * The world advancing by one slice — see world-step.ts.
@@ -393,7 +312,7 @@ export class Game {
         this.baseMode = 'flight';
         hideScreen();
       },
-      message: (text, seconds) => this.hud.showMessage(text, seconds),
+      message: (text, seconds) => this.showMessage(text, seconds),
       flashDamage: () => this.hud.flashDamage(),
       aimBeams: (at) => this.aimBeams(at),
       // The exercise has torn down and the career is back: hold the records and
@@ -414,10 +333,10 @@ export class Game {
 
   /** The picker and the report, behind one screen id. */
   private readonly combatSim_ = new CombatSimScreen(() => ({
-    commander: this.commander,
+    commander: this.state.commander,
     reports: this.simReports,
     begin: (spec, fit) => this.startExercise(spec, fit),
-    message: (text, seconds) => this.hud.showMessage(text, seconds),
+    message: (text, seconds) => this.showMessage(text, seconds),
   } satisfies CombatSimContext));
 
   /**
@@ -438,9 +357,6 @@ export class Game {
    * console harnesses.
    */
   endExercise(): readonly CombatSimReport[] | null { return this.combatSim.quit(); }
-
-  /** Is an exercise running? The career's own rules are suspended while it is. */
-  get exercising(): boolean { return this.combatSim.active; }
 
   /**
    * What the world step may ask of the Game — the consequences that reach
@@ -468,67 +384,36 @@ export class Game {
     };
   }
 
-  /** Missiles in flight. Owned by `ordnance`; exposed for the HUD and saves. */
-  get missiles(): Missile[] { return this.ordnance.missiles; }
-  /** Cargo adrift. Owned by `cargo`; exposed for the HUD and the snapshot. */
-  get canisters(): Canister[] { return this.world.cargo.items; }
-  get targetLock(): NpcShip | null { return this.ordnance.targetLock; }
-  set targetLock(v: NpcShip | null) { this.ordnance.targetLock = v; }
-  get missileArmed(): boolean { return this.ordnance.armed; }
-  set missileArmed(v: boolean) { this.ordnance.armed = v; }
-
   /** Ordnance reports what it did; saying it is ours. */
   private say(reply: OrdnanceReply | null): void {
     if (!reply) return;
     const m = ordnanceMessage(reply);
-    this.hud.showMessage(m.text, m.seconds);
+    this.showMessage(m.text, m.seconds);
   }
 
-  private armMissile(): void { this.say(this.ordnance.arm(this.commander)); }
+  private armMissile(): void { this.say(this.ordnance.arm(this.state.commander)); }
 
   private launchMissile(): void {
-    this.say(this.ordnance.launch(this.commander, this.player.position));
+    this.say(this.ordnance.launch(this.state.commander, this.state.player.position));
   }
 
   private triggerEcm(): void {
-    const reply = this.ordnance.triggerEcm(this.commander, this.energy);
-    if (reply === 'ecmFired') this.energy -= ECM_ENERGY_COST;
+    const reply = this.ordnance.triggerEcm(this.state.commander, this.state.sys.energy);
+    if (reply === 'ecmFired') this.state.sys.energy -= ECM_ENERGY_COST;
     this.say(reply);
   }
 
   private detonateEnergyBomb(): void {
     const { reply, caught } = this.ordnance.detonateEnergyBomb(
-      this.commander, this.player.position);
+      this.state.commander, this.state.player.position);
     this.say(reply);
     if (reply !== 'bombFired') return;   // no bomb fitted: no flash either
     this.shell.flashBomb();
     for (const npc of caught) {
-      npc.takeDamage(99, this.player.position, true);
+      npc.takeDamage(99, this.state.player.position, true);
       this.destroyNpc(npc);
     }
   }
-
-  /**
-   * Energy, shields, laser heat and cabin temperature. The model lives in
-   * systems.ts; the accessors below keep `g.energy` working for the console
-   * harnesses (test/gang-trial.js, test/combat-recorder.js) that read and
-   * write them by name.
-   */
-  get sys(): ShipSystems { return this.state.sys; }
-
-  get foreShield(): number { return this.sys.foreShield; }
-  set foreShield(v: number) { this.sys.foreShield = v; }
-  get aftShield(): number { return this.sys.aftShield; }
-  set aftShield(v: number) { this.sys.aftShield = v; }
-  get energy(): number { return this.sys.energy; }
-  set energy(v: number) { this.sys.energy = v; }
-  get laserTemp(): number { return this.sys.laserTemp; }
-  set laserTemp(v: number) { this.sys.laserTemp = v; }
-  get laserCooldown(): number { return this.sys.laserCooldown; }
-  set laserCooldown(v: number) { this.sys.laserCooldown = v; }
-  get cabinTemp(): number { return this.sys.cabinTemp; }
-  set cabinTemp(v: number) { this.sys.cabinTemp = v; }
-
 
   private readonly dust = new SpaceDust();
   private readonly tmp = new THREE.Vector3();
@@ -545,25 +430,30 @@ export class Game {
   };
   private readonly tmpM = new THREE.Matrix4();
 
+  /** The single write seam for every console message. */
+  private showMessage(text: string, seconds = 3): void {
+    setMessage(this.state.session, text, seconds);
+  }
+
   constructor(makeShell: ShellFactory) {
     // The shell is built HERE, not passed in ready-made, because it needs the
     // scene and the scene belongs to the world this object just constructed.
-    this.shell = makeShell(this.world.scene);
+    this.shell = makeShell(this.state.world.scene);
     this.render = this.shell.view;
     this.shell.onResize(() => this.resize());
     this.resize();
 
-    this.living.load(this.commander.galaxyState);
+    this.state.living.load(this.state.commander.galaxyState);
     // catch the galaxy up if this save has been away a while
-    if (this.living.day < this.commander.day) {
-      this.living.advance(
-        Math.min(60, this.commander.day - this.living.day),
+    if (this.state.living.day < this.state.commander.day) {
+      this.state.living.advance(
+        Math.min(60, this.state.commander.day - this.state.living.day),
         COMMODITIES.map((c) => c.gradient));
     }
 
-    this.world.scene.add(createStarfield());
-    this.world.scene.add(this.dust.points, this.dust.streaks);
-    this.world.scene.add(this.render.camera);
+    this.state.world.scene.add(createStarfield());
+    this.state.world.scene.add(this.dust.points, this.dust.streaks);
+    this.state.world.scene.add(this.render.camera);
 
 
     this.buildWorld();
@@ -571,16 +461,35 @@ export class Game {
     // station, as Elite always did.
     if (!this.resumeSavedWorld()) this.enterDocked(true);
     refreshHelpPanel();
-    this.hud.showMessage(
+    this.showMessage(
       `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
 
     // all screens accept mouse input; the shell owns the listener and hands
     // back the element that carries data-key/data-row
     this.shell.onScreenClick((el, e) => this.handleScreenClick(el, e));
 
-    // test-harness handle: the Jameson autopilot (train/jameson-autopilot.js,
-    // docs/JAMESON-TRIALS.md) drives the whole game through this
-    publish('__game', this);
+    // Console and automated agents keep their convenient read handles without
+    // making those aliases part of the orchestrator's class surface.
+    publish('__game', legacyHandles(this, {
+      exercising: { get: () => this.combatSim.active },
+      missiles: { get: () => this.ordnance.missiles },
+      targetLock: {
+        get: () => this.ordnance.targetLock,
+        set: (v) => { this.ordnance.targetLock = v as NpcShip | null; },
+      },
+      missileArmed: {
+        get: () => this.ordnance.armed,
+        set: (v) => { this.ordnance.armed = Boolean(v); },
+      },
+      marketSelected: {
+        get: () => this.market_.selected,
+        set: (v) => { this.market_.selected = Number(v); },
+      },
+      contractSelected: {
+        get: () => this.contracts_.selected,
+        set: (v) => { this.contracts_.selected = Number(v); },
+      },
+    }));
     installPolicyKit();
 
     // Screens register themselves with the host and are addressed by id from
@@ -592,15 +501,15 @@ export class Game {
       new SavesScreen(() => this.savesContext()),
       new NamingScreen(() => this.savesContext()),
       new StatusScreen(() => ({
-        commander: this.commander,
-        systems: this.systems,
-        targetIndex: this.chart.targetIndex,
+        commander: this.state.commander,
+        systems: this.state.systems,
+        targetIndex: this.state.chart.targetIndex,
       } satisfies StatusContext)),
       new DataScreen(() => ({
         subject: this.dataSubject ?? this.system,
         here: this.system,
-        galaxy: this.commander.galaxy,
-        headline: (index) => this.living.headline(index),
+        galaxy: this.state.commander.galaxy,
+        headline: (index) => this.state.living.headline(index),
       } satisfies DataContext)),
       new BriefingScreen(),
       this.contracts_,
@@ -650,34 +559,26 @@ export class Game {
   }
 
   private get system(): StarSystem {
-    return this.systems[this.commander.systemIndex];
+    return this.state.systems[this.state.commander.systemIndex];
   }
 
   /** The only slice of the Game the market and outfitters are allowed to see. */
   private tradeContext(): TradeContext {
     return {
-      commander: this.commander,
+      commander: this.state.commander,
       system: this.system,
-      market: this.market,
-      atHermit: this.hermitTrading,
+      market: this.state.market,
+      atHermit: this.state.session.hermitTrading,
       cheat: this.state.cheat,
-      message: (text, seconds) => this.hud.showMessage(text, seconds),
-      addNotoriety: (amount) => this.living.addNotoriety(this.commander.systemIndex, amount),
+      message: (text, seconds) => this.showMessage(text, seconds),
+      addNotoriety: (amount) => this.state.living.addNotoriety(this.state.commander.systemIndex, amount),
       leaveHermit: () => {
-        this.hermitTrading = false;
-        this.hermitCooldown = true;
-        this.hud.showMessage('LEAVING THE HERMIT', 3);
+        this.state.session.hermitTrading = false;
+        this.state.session.hermitCooldown = true;
+        this.showMessage('LEAVING THE HERMIT', 3);
       },
     };
   }
-
-  /**
-   * Selected market row. A property rather than a field because it now lives
-   * on TradeScreen, and test/playtest.js assigns it before calling buyCargo.
-   */
-  /** @internal — driven by test/playtest.js */
-  get marketSelected(): number { return this.market_.selected; }
-  set marketSelected(v: number) { this.market_.selected = v; }
 
   /** @internal — driven by test/playtest.js */
   buyCargo(want: number): void { this.market_.buy(want); }
@@ -692,7 +593,7 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   buildWorld(): void {
-    this.world.build(this.system);
+    this.state.world.build(this.system);
     this.hud.setSystem(this.system);
   }
 
@@ -702,25 +603,25 @@ export class Game {
    */
   /** @internal — driven by test/playtest.js */
   enterWitchspace(): void {
-    this.witchspace = true;
+    this.state.session.witchspace = true;
     this.buildWorld();
-    this.world.banishScenery();
-    this.player.position.set(0, 0, 0);
-    this.player.speed = 200;
+    this.state.world.banishScenery();
+    this.state.player.position.set(0, 0, 0);
+    this.state.player.speed = 200;
     const n = 2 + (random() < 0.3 ? 1 : 0);
     for (let i = 0; i < n; i++) {
-      this.world.spawn('thargoid',
+      this.state.world.spawn('thargoid',
         randomDirection(new THREE.Vector3()).multiplyScalar(3500 + random() * 2500), i);
     }
-    this.encounterTimers.thargon = 4;
+    this.state.encounterTimers.thargon = 4;
     sfx.hyperspace();
     this.tunnel.start(1.1);
-    this.hud.showMessage('WITCH-SPACE — THARGOID AMBUSH', 6);
+    this.showMessage('WITCH-SPACE — THARGOID AMBUSH', 6);
   }
 
   /** @internal — driven by test/playtest.js */
   spawnNpc(role: NpcRole, position: THREE.Vector3, seed: number, spec?: NpcSpec): NpcShip {
-    return this.world.spawn(role, position, seed, spec);
+    return this.state.world.spawn(role, position, seed, spec);
   }
 
 
@@ -743,29 +644,29 @@ export class Game {
     const sys = this.system;
     const plan = planPopulation(
       sys, situation,
-      this.living.imminentArrivals(sys.index).length,
+      this.state.living.imminentArrivals(sys.index).length,
       // Pirates are businesses: lawlessness and the living galaxy set how many
       // are out here, but what you're visibly worth sets who they are and
       // whether they bothered to organise.
       situation === 'arrival'
-        ? pirateThreat(sys, this.living.danger(sys.index),
-          markOf(this.commander, this.living.notoriety(sys.index)))
+        ? pirateThreat(sys, this.state.living.danger(sys.index),
+          markOf(this.state.commander, this.state.living.notoriety(sys.index)))
         : null,
     );
 
-    const constrictorHere = situation === 'arrival' && constrictorLurksHere(this.commander);
+    const constrictorHere = situation === 'arrival' && constrictorLurksHere(this.state.commander);
 
     const built = spawnPopulation(
-      this.world, plan, sys, this.player.position, constrictorHere);
+      this.state.world, plan, sys, this.state.player.position, constrictorHere);
 
     if (plan.threat) {
-      this.lastThreat = plan.threat;
-      this.jettisonedValue = 0;
-      this.arrivalCargoValue = markOf(this.commander).cargoValue;
+      this.state.lastThreat = plan.threat;
+      this.state.session.jettisonedValue = 0;
+      this.state.session.arrivalCargoValue = markOf(this.state.commander).cargoValue;
     }
-    if (built.generationShip) this.genShipSeen = false;
+    if (built.generationShip) this.state.session.genShipSeen = false;
     if (built.missionTarget) {
-      this.hud.showMessage('SCANNER: UNREGISTERED PROTOTYPE DETECTED', 5);
+      this.showMessage('SCANNER: UNREGISTERED PROTOTYPE DETECTED', 5);
     }
   }
 
@@ -777,8 +678,8 @@ export class Game {
    * Same shape and same reason as `stepHost()` and `persistenceHost()`.
    * `populateSystem` is a call rather than a returned event because it DRAWS
    * from the seeded stream (see station.ts); `settleContracts` is one because
-   * paying a contract beeps, and contracts.ts has never heard of an
-   * the audio context.
+   * paying a contract has a sound, and contracts.ts has never heard of the
+   * audio context.
    */
   private stationHost(): StationHost {
     return {
@@ -789,7 +690,7 @@ export class Game {
       releaseMouseFlight: () => this.input.releaseMouseFlight(),
       populateSystem: (situation) => this.populateSystem(situation),
       settleContracts: () => this.settleContracts(),
-      resetContractSelection: () => { this.contractSelected = 0; },
+      resetContractSelection: () => { this.contracts_.selected = 0; },
     };
   }
 
@@ -797,7 +698,7 @@ export class Game {
   private applyStation(events: readonly StationEvent[]): void {
     for (const e of events) {
       switch (e.kind) {
-        case 'message': this.hud.showMessage(e.text, e.seconds); break;
+        case 'message': this.showMessage(e.text, e.seconds); break;
       }
     }
   }
@@ -819,23 +720,23 @@ export class Game {
 
   /** The only slice of the Game the saves screens are allowed to see. */
   private exportSave(): void {
-    exportCommanderFile(this.commander, this.system.name,
-      (text, seconds) => this.hud.showMessage(text, seconds));
+    exportCommanderFile(this.state.commander, this.system.name,
+      (text, seconds) => this.showMessage(text, seconds));
   }
 
   private importSave(): void {
     importCommanderFile(() => {
-      this.hud.showMessage('IMPORT FAILED — NOT A COMMANDER FILE', 4);
-      sfx.beep(220);
+      this.showMessage('IMPORT FAILED — NOT A COMMANDER FILE', 4);
+      sfx.refused();
     });
   }
 
   /** The only slice of the Game the saves screens are allowed to see. */
   private savesContext(): SavesContext {
     return {
-      commander: this.commander,
-      systems: this.systems,
-      message: (text, seconds) => this.hud.showMessage(text, seconds),
+      commander: this.state.commander,
+      systems: this.state.systems,
+      message: (text, seconds) => this.showMessage(text, seconds),
     };
   }
 
@@ -859,7 +760,7 @@ export class Game {
       buildWorld: () => this.buildWorld(),
       enterWitchspace: () => this.enterWitchspace(),
       isDead: () => this.mode === 'dead',
-      message: (text, seconds) => this.hud.showMessage(text, seconds),
+      message: (text, seconds) => this.showMessage(text, seconds),
     };
   }
 
@@ -883,7 +784,7 @@ export class Game {
   lookAlong(dir: THREE.Vector3): void {
     // Matrix4.lookAt uses camera convention: -Z (our nose) points at target.
     this.tmpM.lookAt(ZERO, dir, UP);
-    this.player.quaternion.setFromRotationMatrix(this.tmpM);
+    this.state.player.quaternion.setFromRotationMatrix(this.tmpM);
   }
 
   private die(reason: string): void {
@@ -898,34 +799,34 @@ export class Game {
     // death was optional if you refreshed.
     clearWorld();
     sfx.explosion();
-    this.world.effects.explosion(this.player.position.clone(), 0xff8866);
-    if (this.commander.equipment.escapePod) {
+    this.state.world.effects.explosion(this.state.player.position.clone(), 0xff8866);
+    if (this.state.commander.equipment.escapePod) {
       // the pod gets you to the local station; ship and cargo are gone
-      this.commander.equipment.escapePod = false;
-      this.commander.cargo = this.commander.cargo.map(() => 0);
+      this.state.commander.equipment.escapePod = false;
+      this.state.commander.cargo = this.state.commander.cargo.map(() => 0);
       this.enterDocked();
-      this.hud.showMessage('ESCAPE POD DEPLOYED — CARGO LOST', 6);
+      this.showMessage('ESCAPE POD DEPLOYED — CARGO LOST', 6);
       return;
     }
     this.baseMode = 'dead';
-    this.hud.showMessage(reason, 6);
-    renderGameOver(this.commander);
+    this.showMessage(reason, 6);
+    renderGameOver(this.state.commander);
   }
 
   /** @internal — driven by test/playtest.js */
   respawn(): void {
-    this.commander = loadCommander();
+    this.state.commander = loadCommander();
     // The loaded commander may name a DIFFERENT galaxy than the one we died
     // in — jump to galaxy 2, die before docking, and the last save is still
     // galaxy 1. Without these, `systems` stayed galaxy 2's and every lookup
     // through `get system()` read the wrong star. restoreSnapshot always did
     // this; respawn never did.
-    this.systems = generateGalaxy(this.commander.galaxy);
-    this.living = new LivingGalaxy(this.systems);
-    this.living.load(this.commander.galaxyState);
+    this.state.systems = generateGalaxy(this.state.commander.galaxy);
+    this.state.living = new LivingGalaxy(this.state.systems);
+    this.state.living.load(this.state.commander.galaxyState);
     this.combatComputer.reset();
-    this.chart.targetIndex = null;
-    this.witchspace = false;
+    this.state.chart.targetIndex = null;
+    this.state.session.witchspace = false;
     this.buildWorld();
     this.enterDocked(true);
   }
@@ -939,11 +840,11 @@ export class Game {
    */
   /** @internal — driven by test/playtest.js */
   generateContractOffers(): Contract[] {
-    return generateContractOffers(this.system, this.systems, this.commander.day);
+    return generateContractOffers(this.system, this.state.systems, this.state.commander.day);
   }
 
   /**
-   * The bulletin board decides; the Game says it and beeps it.
+   * The bulletin board decides; the Game says it and plays its named sound.
    *
    * Messages come back as StationEvents rather than going straight to the HUD
    * because docking says several things in a row and the last one is the one
@@ -951,24 +852,25 @@ export class Game {
    */
   private applyContracts(events: readonly ContractEvent[]): StationEvent[] {
     return events.map((e) => {
-      const m = contractMessage(e, this.systems);
-      if (m.beep) sfx.beep(m.beep.hz, m.beep.seconds);
+      const m = contractMessage(e, this.state.systems);
+      if (m.sound) this.playSound({ kind: 'sound', name: m.sound });
       return { kind: 'message', text: m.text, seconds: m.seconds } satisfies StationEvent;
     });
   }
 
   /** @internal — driven by test/playtest.js */
   acceptContract(): void {
-    const events = acceptContract(this.commander, this.contractOffers, this.contractSelected);
+    const events = acceptContract(
+      this.state.commander, this.state.contractOffers, this.contracts_.selected);
     if (events.some((e) => e.kind === 'accepted')) {
-      this.contractSelected = Math.max(0, this.contractSelected - 1);
+      this.contracts_.selected = Math.max(0, this.contracts_.selected - 1);
     }
     this.applyStation(this.applyContracts(events));
   }
 
   /** Pay out anything delivered here; drop anything overdue. */
   private settleContracts(): StationEvent[] {
-    return this.applyContracts(settleContracts(this.commander));
+    return this.applyContracts(settleContracts(this.state.commander));
   }
 
 
@@ -978,34 +880,34 @@ export class Game {
     // exercise's StepHost refuses `completeHyperspace` anyway, so without this
     // the countdown would run and then silently do nothing.
     if (this.combatSim.active) {
-      this.hud.showMessage('HYPERSPACE IS OFFLINE IN THE SIMULATOR', 3);
-      sfx.beep(220);
+      this.showMessage('HYPERSPACE IS OFFLINE IN THE SIMULATOR', 3);
+      sfx.refused();
       return;
     }
-    const check = checkJump(this.commander, this.systems, this.chart.targetIndex,
-      this.witchspace, this.hyperCountdown >= 0);
+    const check = checkJump(this.state.commander, this.state.systems, this.state.chart.targetIndex,
+      this.state.session.witchspace, this.state.session.hyperCountdown >= 0);
     if (!check.ok) {
       if (check.reason === 'alreadyJumping') return;
-      this.hud.showMessage(refusalMessage(check.reason, this.witchspace), 4);
-      sfx.beep(220);
+      this.showMessage(refusalMessage(check.reason, this.state.session.witchspace), 4);
+      sfx.refused();
       return;
     }
-    this.hyperCountdown = COUNTDOWN;
-    this.hud.showMessage(`HYPERSPACE IN ${COUNTDOWN}`, 1.2);
-    sfx.beep(700, 0.07);
+    this.state.session.hyperCountdown = COUNTDOWN;
+    this.showMessage(`HYPERSPACE IN ${COUNTDOWN}`, 1.2);
+    sfx.countdown(COUNTDOWN);
   }
 
   private completeHyperspace(): void {
-    const target = this.chart.targetIndex!;
-    const jump = resolveJump(this.commander, this.systems, target, this.witchspace);
+    const target = this.state.chart.targetIndex!;
+    const jump = resolveJump(this.state.commander, this.state.systems, target, this.state.session.witchspace);
     if (jump.misjump) {
       this.enterWitchspace(); // target retained for the escape jump
       return;
     }
-    this.living.advance(jump.days, COMMODITIES.map((c) => c.gradient));
-    this.chart.targetIndex = null;
+    this.state.living.advance(jump.days, COMMODITIES.map((c) => c.gradient));
+    this.state.chart.targetIndex = null;
     this.arriveInSystem();
-    this.hud.showMessage(`ARRIVED: ${this.system.name.toUpperCase()}`, 4);
+    this.showMessage(`ARRIVED: ${this.system.name.toUpperCase()}`, 4);
   }
 
   /** @internal — driven by test/playtest.js */
@@ -1013,22 +915,22 @@ export class Game {
     // Seed the world from WHERE and WHEN you are, so a given save arriving in
     // a given system on a given day meets the same reception twice. Without
     // this the fixed timestep buys repeatable physics and nothing else.
-    seedWorld(this.commander.galaxy * 0x9e3779b1
-      ^ (this.commander.systemIndex << 8) ^ this.commander.day);
-    this.witchspace = false; // any arrival leaves witch-space (incl. galactic jump)
+    seedWorld(this.state.commander.galaxy * 0x9e3779b1
+      ^ (this.state.commander.systemIndex << 8) ^ this.state.commander.day);
+    this.state.session.witchspace = false; // any arrival leaves witch-space (incl. galactic jump)
     this.buildWorld();
     // Arrive at the witchpoint, well out — the classic long torus cruise in.
     // Bearing is biased to the station's side of the planet (~30° cone) so
     // the planet never blocks the run.
-    const stationDir = this.world.station.position.clone().normalize();
+    const stationDir = this.state.world.station.position.clone().normalize();
     const dir = stationDir
       .add(randomDirection(new THREE.Vector3()).multiplyScalar(0.5))
       .normalize();
-    this.player.position.copy(dir.multiplyScalar(this.world.planetRadius * WITCHPOINT_RADII));
-    this.lookAlong(this.tmp.copy(this.player.position).negate());
-    this.player.speed = 250;
-    this.policeScanned = false;
-    this.encounterTimers = freshTimers();
+    this.state.player.position.copy(dir.multiplyScalar(this.state.world.planetRadius * WITCHPOINT_RADII));
+    this.lookAlong(this.tmp.copy(this.state.player.position).negate());
+    this.state.player.speed = 250;
+    this.state.session.policeScanned = false;
+    this.state.encounterTimers = freshTimers();
     this.populateSystem('arrival');
     sfx.hyperspace();
     this.tunnel.start(1.1);
@@ -1038,7 +940,7 @@ export class Game {
 
   /** Direction the current view faces, in world space. The maths is the step's. */
   private viewDir(out: THREE.Vector3): THREE.Vector3 {
-    return viewDirection(this.player.quaternion, this.view, out);
+    return viewDirection(this.state.player.quaternion, this.state.session.view, out);
   }
 
   /**
@@ -1051,9 +953,9 @@ export class Game {
   /** @internal — driven by test/playtest.js */
   raiseLegal(level: number): void {
     if (level <= CLEAN) return;   // shooting a pirate is nobody's business
-    if (this.commander.legalStatus < level) {
-      this.commander.legalStatus = level;
-      this.hud.showMessage(`LEGAL STATUS: ${LEGAL_NAMES[level].toUpperCase()}`, 3);
+    if (this.state.commander.legalStatus < level) {
+      this.state.commander.legalStatus = level;
+      this.showMessage(`LEGAL STATUS: ${LEGAL_NAMES[level].toUpperCase()}`, 3);
     }
     this.callStationDefence();
   }
@@ -1064,12 +966,12 @@ export class Game {
    * sight of the station and Vipers launch from the slot.
    */
   private callStationDefence(): void {
-    if (this.witchspace || this.defenceLaunched) return;
-    if (this.player.position.distanceTo(this.world.station.position) > DEFENCE_RANGE) return;
-    this.defenceLaunched = true;
-    launchStationDefence(this.world, this.tmp);
-    this.hud.showMessage('STATION DEFENCE LAUNCHED', 4);
-    sfx.beep(300, 0.18);
+    if (this.state.session.witchspace || this.state.session.defenceLaunched) return;
+    if (this.state.player.position.distanceTo(this.state.world.station.position) > DEFENCE_RANGE) return;
+    this.state.session.defenceLaunched = true;
+    launchStationDefence(this.state.world, this.tmp);
+    this.showMessage('STATION DEFENCE LAUNCHED', 4);
+    sfx.stationDefenceLaunched();
   }
 
   /**
@@ -1077,7 +979,7 @@ export class Game {
    * the same gun can be fired against a state that is not this Game's; what
    * lands on the HUD and in the law is what makes this one the Game's.
    *
-   * @internal — driven by test/playtest.js, wrapped by test/combat-recorder.js
+   * @internal — driven by test/playtest.js
    */
   fireLaser(): void {
     this.applyCombat(firePlayerLaser(this.state, this.combat, this.combatScratch));
@@ -1089,7 +991,7 @@ export class Game {
     // so it is the one kill an exercise cannot see through its own StepHost. An
     // exercise credits its clone and its record instead (see combat-sim.ts).
     if (this.combatSim.active) { this.combatSim.destroyNpc(npc); return; }
-    this.applyCombat(this.combat.destroy(this.commander, npc));
+    this.applyCombat(this.combat.destroy(this.state.commander, npc));
   }
 
   /** Removal with no credit — an NPC-vs-NPC kill, or a collision. */
@@ -1100,17 +1002,14 @@ export class Game {
   /**
    * The player takes a hit.
    *
-   * `source` says what did it and this implementation ignores it — the flash is
-   * the same whatever hit you. It is on the signature because a caller wrapping
-   * this method is the only place the fact is still available: see
-   * `DamageSource`, and test/combat-recorder.js, which reads it off argument
-   * three instead of guessing from `amount`.
-   *
-   * @internal — wrapped by test/combat-recorder.js
+   * `source` says what did it. Mechanics treat every source the same, but the
+   * explicit CombatObserver seam records the fact without replacing this
+   * method at runtime.
    */
-  applyPlayerDamage(amount: number, from: THREE.Vector3, _source: DamageSource): void {
+  private applyPlayerDamage(amount: number, from: THREE.Vector3, source: DamageSource): void {
     this.hud.flashDamage();
     this.applyCombat(damagePlayer(this.state, this.combat, amount, from, this.combatScratch));
+    this.combatInstrumentation.playerDamaged(amount, from, source);
   }
 
   /**
@@ -1120,11 +1019,11 @@ export class Game {
   private applyCombat(events: readonly CombatEvent[]): void {
     for (const e of events) {
       switch (e.kind) {
-        case 'message': this.hud.showMessage(e.text, e.seconds); break;
+        case 'message': this.showMessage(e.text, e.seconds); break;
         case 'offence': this.raiseLegal(e.level); break;
-        case 'wrecked': if (this.targetLock === e.npc) this.targetLock = null; break;
+        case 'wrecked': if (this.ordnance.targetLock === e.npc) this.ordnance.targetLock = null; break;
         case 'beam': this.aimBeams(e.at); break;
-        case 'fired': this.beamTimer = BEAM_FLASH; break;
+        case 'fired': this.state.session.beamTimer = BEAM_FLASH; break;
         case 'breach': this.damageSomething(); break;
         case 'died': this.die(e.reason); break;
       }
@@ -1133,19 +1032,19 @@ export class Game {
 
   /** A hull hit destroys a tonne of cargo, or knocks out a fitting. */
   private damageSomething(): void {
-    const lost = breachLoss(this.commander, random);
+    const lost = breachLoss(this.state.commander, random);
     if (lost.kind === 'cargo') {
       const c = COMMODITIES[lost.commodity];
-      this.hud.showMessage(`CARGO LOST: 1${c.unit} ${c.name.toUpperCase()}`, 3);
-      sfx.beep(300, 0.12);
+      this.showMessage(`CARGO LOST: 1${c.unit} ${c.name.toUpperCase()}`, 3);
+      sfx.cargoLost();
     } else if (lost.kind === 'equipment') {
       // Losing ANY fitting hands control back, which is how this behaved
       // before it moved to systems.ts — narrowing it to `combatComputer` was
       // an unflagged behaviour change that an audit caught. A hit hard enough
       // to knock out equipment is a moment the player should be flying.
-      this.ccEngaged = false;
-      this.hud.showMessage(`${lost.name} DESTROYED`, 4);
-      sfx.beep(240, 0.2);
+      this.state.session.ccEngaged = false;
+      this.showMessage(`${lost.name} DESTROYED`, 4);
+      sfx.equipmentDestroyed();
     }
   }
 
@@ -1158,7 +1057,7 @@ export class Game {
    */
   private applyAutopilot(events: readonly AutopilotEvent[]): void {
     for (const e of events) {
-      if (e.kind === 'message') this.hud.showMessage(e.text, e.seconds);
+      if (e.kind === 'message') this.showMessage(e.text, e.seconds);
       else this.playSound(e);
     }
   }
@@ -1172,7 +1071,6 @@ export class Game {
    */
   private playSound(e: SoundEvent): void {
     switch (e.kind) {
-      case 'beep': sfx.beep(e.hz, e.seconds); break;
       case 'countdown': sfx.countdown(e.n); break;
       case 'dockingMusic':
         if (e.on) sfx.dockingMusic();
@@ -1198,35 +1096,35 @@ export class Game {
    * pays the salvage fee.
    */
   sendDistressBeacon(): void {
-    if (!this.witchspace) {
-      this.hud.showMessage('DISTRESS BEACON IS FOR EMERGENCIES ONLY', 3);
-      sfx.beep(220);
+    if (!this.state.session.witchspace) {
+      this.showMessage('DISTRESS BEACON IS FOR EMERGENCIES ONLY', 3);
+      sfx.refused();
       return;
     }
-    if (this.beaconTimer >= 0) {
-      this.hud.showMessage('BEACON ALREADY BROADCASTING', 2);
+    if (this.state.session.beaconTimer >= 0) {
+      this.showMessage('BEACON ALREADY BROADCASTING', 2);
       return;
     }
-    this.beaconTimer = 20;
-    this.hud.showMessage('DISTRESS BEACON BROADCAST — HOLD ON, COMMANDER', 6);
-    sfx.beep(500, 0.4);
+    this.state.session.beaconTimer = 20;
+    this.showMessage('DISTRESS BEACON BROADCAST — HOLD ON, COMMANDER', 6);
+    sfx.distressBeacon();
   }
 
   private completeRescue(): void {
-    const c = this.commander;
+    const c = this.state.commander;
     const salvage = c.cargo.reduce((s, q) => s + q, 0);
     c.cargo = c.cargo.map(() => 0);
     c.fuel = Math.max(c.fuel, 10); // enough for one jump clear
-    this.beaconTimer = -1;
+    this.state.session.beaconTimer = -1;
     // dumped at the nearest system to where the mis-jump left us
-    const target = this.chart.targetIndex ?? c.systemIndex;
+    const target = this.state.chart.targetIndex ?? c.systemIndex;
     c.systemIndex = target;
     c.day += 3; // the tow takes a while
-    this.living.advance(3, COMMODITIES.map((cm) => cm.gradient));
-    this.chart.targetIndex = null;
-    this.witchspace = false;
+    this.state.living.advance(3, COMMODITIES.map((cm) => cm.gradient));
+    this.state.chart.targetIndex = null;
+    this.state.session.witchspace = false;
     this.arriveInSystem();
-    this.hud.showMessage(
+    this.showMessage(
       salvage > 0
         ? `RESCUED — ${salvage}t OF CARGO TAKEN AS SALVAGE`
         : 'RESCUED — NOTHING ABOARD WORTH TAKING',
@@ -1235,17 +1133,17 @@ export class Game {
 
   /** One-shot jump to the next galaxy; lands at the nearest system to our coords. */
   private galacticJump(): void {
-    const may = checkGalacticJump(this.commander, this.combatSim.active);
+    const may = checkGalacticJump(this.state.commander, this.combatSim.active);
     if (!may.ok) {
-      this.hud.showMessage(galacticRefusalMessage(may.reason), 3);
-      sfx.beep(220);
+      this.showMessage(galacticRefusalMessage(may.reason), 3);
+      sfx.refused();
       return;
     }
-    const jump = resolveGalacticJump(this.commander, this.system);
-    this.systems = jump.systems;
-    this.chart.targetIndex = null;
+    const jump = resolveGalacticJump(this.state.commander, this.system);
+    this.state.systems = jump.systems;
+    this.state.chart.targetIndex = null;
     this.arriveInSystem();
-    this.hud.showMessage(
+    this.showMessage(
       `GALAXY ${jump.galaxy} — ${this.system.name.toUpperCase()}`, 5);
   }
 
@@ -1273,16 +1171,26 @@ export class Game {
    * outcome regardless of frame rate.
    */
   step(dt: number, elapsed: number): void {
-    // pause (flight only — everything else is inherently paused)
-    if (this.mode === 'flight' && this.input.pressed('KeyP')) this.paused = !this.paused;
-    if (this.mode !== 'flight') this.paused = false;
-    if (this.paused) {
-      this.hud.showMessage('PAUSED — P TO RESUME', 0.4);
+    tickMessage(this.state.session, dt);
+    // Flight is the only state that can be paused. While it is paused, route
+    // input through the same command table as any other frame, but apply only
+    // the command that can resume it.
+    if (this.mode !== 'flight') this.state.session.paused = false;
+    if (this.state.session.paused) {
+      this.handleInput(dt, true);
+      if (this.state.session.paused) {
+        this.showMessage('PAUSED — P TO RESUME', 0.4);
+        this.input.endFrame();
+        return;
+      }
+    }
+    if (!this.tunnel.active) this.handleInput(dt);
+    else this.handleInput(dt, true);
+    if (this.state.session.paused) {
+      this.showMessage('PAUSED — P TO RESUME', 0.4);
       this.input.endFrame();
       return;
     }
-    if (!this.tunnel.active) this.handleInput(dt);
-    else this.input.endFrame();
     this.tunnel.update(dt);
     if (this.mode === 'flight') this.updateFlight(dt, elapsed);
     this.input.endFrame();
@@ -1290,10 +1198,10 @@ export class Game {
 
   /** Put the current world on screen. Changes nothing about it. */
   draw(dt: number): void {
-    this.render.camera.position.copy(this.player.position);
-    this.render.camera.quaternion.copy(this.player.quaternion).multiply(VIEW_QUATS[this.view]);
-    this.beamTimer -= dt;
-    this.render.beams.visible = this.beamTimer > 0;
+    this.render.camera.position.copy(this.state.player.position);
+    this.render.camera.quaternion.copy(this.state.player.quaternion).multiply(VIEW_QUATS[this.state.session.view]);
+    this.state.session.beamTimer -= dt;
+    this.render.beams.visible = this.state.session.beamTimer > 0;
     this.render.draw();
     this.renderHud(dt);
   }
@@ -1328,9 +1236,9 @@ export class Game {
     // the torus drive multiplies our travel by 8, and that is what smears the
     // stars.
     this.dust.update(
-      this.player.position,
-      this.player.getForward(this.tmp)
-        .multiplyScalar(this.player.speed * (this.torusEngaged && !this.massLocked() ? 8 : 1)),
+      this.state.player.position,
+      this.state.player.getForward(this.tmp)
+        .multiplyScalar(this.state.player.speed * (this.state.session.torusEngaged && !this.massLocked() ? 8 : 1)),
     );
   }
 
@@ -1344,7 +1252,7 @@ export class Game {
    */
   private applyStep(events: readonly StepEvent[]): void {
     for (const e of events) {
-      if (e.kind === 'message') this.hud.showMessage(e.text, e.seconds);
+      if (e.kind === 'message') this.showMessage(e.text, e.seconds);
       else if (e.kind !== 'npcFired') this.playSound(e);
     }
   }
@@ -1367,11 +1275,11 @@ export class Game {
    * you.
    */
   private pilotDemand(dt: number): FlightDemand {
-    const hands = flightDemand(this.input, this.player, dt);
+    const hands = flightDemand(this.input, this.state.player, dt);
     // the virtual stick self-centres; the producer is pure, so the mutation
     // is ours to do, immediately after reading it
     if (this.input.mouseFlight) this.input.decayMouse(dt);
-    if (!this.ccEngaged) return hands;
+    if (!this.state.session.ccEngaged) return hands;
     const auto = this.autopilot.combatDemand(dt, this.handsOn(), DEFEND_BRAIN);
     this.applyAutopilot(auto.events);
     return auto.demand
@@ -1386,15 +1294,15 @@ export class Game {
    */
   /** @internal — driven by test/playtest.js */
   openHermitTrade(): void {
-    this.hermitTrading = true;
+    this.state.session.hermitTrading = true;
     // what the miner charges is a price rule, and price rules live in
     // contracts.ts so the headless campaign can reach them (invariant 10)
-    this.hermitMarket = hermitMarket(this.system);
-    this.market = this.hermitMarket;
+    this.state.hermitMarket = hermitMarket(this.system);
+    this.state.market = this.state.hermitMarket;
 
     this.screens.open('market');
     this.baseMode = 'flight';
-    this.player.speed = 0;
+    this.state.player.speed = 0;
     sfx.dock();
     this.screens.open('market');
   }
@@ -1413,19 +1321,23 @@ export class Game {
    * screen stack gets first refusal, and only then does the base state get the
    * frame.
    */
-  private handleInput(dt: number): void {
+  private handleInput(dt: number, pausedOnly = false): void {
     const i = this.input;
-    for (const c of globalCommands(i)) this.runCommand(c);
+    if (!pausedOnly) {
+      for (const c of globalCommands(i)) this.runCommand(c);
 
-    // The host runs the menu cursor and gives the frame to the top screen.
-    // Every overlay has migrated to the Screen contract, so if one is open it
-    // handles the frame and we are done — what is left below is the three
-    // states that are NOT screens.
-    if (this.screens.update(i, dt)) return;
+      // The host runs the menu cursor and gives the frame to the top screen.
+      // Every overlay has migrated to the Screen contract, so if one is open it
+      // handles the frame and we are done — what is left below is the three
+      // states that are NOT screens.
+      if (this.screens.update(i, dt)) return;
+    }
 
     const mode = this.controlMode();
     if (!mode) return;
-    for (const c of commandsFor(mode, i)) this.runCommand(c);
+    for (const c of commandsFor(mode, i)) {
+      if (!pausedOnly || c === 'togglePause') this.runCommand(c);
+    }
   }
 
   /**
@@ -1481,12 +1393,12 @@ export class Game {
     // --- erasing a career -------------------------------------------------
     askNewGame: () => {
       this.pendingNewGame = true;
-      renderNewGameConfirm(this.system, this.commander);
+      renderNewGameConfirm(this.system, this.state.commander);
     },
     newGame: () => this.newCommanderGame(),
     cancelNewGame: () => {
       this.pendingNewGame = false;
-      renderDockedMenu(this.system, this.commander, this.station.missionText());
+      renderDockedMenu(this.system, this.state.commander, this.station.missionText());
     },
     // --- shared between the menu and the cockpit --------------------------
     openChart: () => this.openChart(this.cameFrom()),
@@ -1506,6 +1418,7 @@ export class Game {
     toggleDockingComputer: () => this.dockingComputer(),
     toggleMouseFlight: () => this.toggleMouseFlight(),
     toggleTorus: () => this.toggleTorus(),
+    togglePause: () => { this.state.session.paused = !this.state.session.paused; },
     startHyperspace: () => this.startHyperspace(),
     galacticJump: () => this.galacticJump(),
     distressBeacon: () => this.sendDistressBeacon(),
@@ -1532,40 +1445,40 @@ export class Game {
 
   private switchLayout(): void {
     const layout = toggleLayout();
-    this.hud.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
-    renderDockedMenu(this.system, this.commander, this.station.missionText());
+    this.showMessage(`KEYBOARD: ${layout.toUpperCase()} LAYOUT`, 3);
+    renderDockedMenu(this.system, this.state.commander, this.station.missionText());
   }
 
   private disarmMissile(): void {
-    if (!this.targetLock && !this.missileArmed) return;
+    if (!this.ordnance.targetLock && !this.ordnance.armed) return;
     this.ordnance.disarm();   // one home for "no lock, no pylon" — ordnance.ts
-    this.hud.showMessage('MISSILE DISARMED', 2);
-    sfx.beep(500, 0.06);
+    this.showMessage('MISSILE DISARMED', 2);
+    sfx.missileDisarmed();
   }
 
   private toggleMouseFlight(): void {
     if (this.input.mouseFlight) {
       this.input.releaseMouseFlight();
-      this.hud.showMessage('MOUSE FLIGHT OFF', 2);
+      this.showMessage('MOUSE FLIGHT OFF', 2);
     } else {
       this.input.requestMouseFlight();
-      this.hud.showMessage('MOUSE FLIGHT — ESC OR V TO RELEASE', 4);
+      this.showMessage('MOUSE FLIGHT — ESC OR V TO RELEASE', 4);
     }
   }
 
   private toggleTorus(): void {
     if (this.massLocked()) {
-      this.hud.showMessage('MASS LOCKED', 2);
-      sfx.beep(220);
+      this.showMessage('MASS LOCKED', 2);
+      sfx.refused();
       return;
     }
-    this.torusEngaged = !this.torusEngaged;
+    this.state.session.torusEngaged = !this.state.session.torusEngaged;
     // Engaging the drive opens the throttle. Nobody engages a jump drive in
     // order to crawl, and having to hold the accelerator afterwards was
     // busywork with one sensible answer.
-    if (this.torusEngaged) this.player.speed = this.player.maxSpeed;
-    this.hud.showMessage(this.torusEngaged ? 'TORUS DRIVE ENGAGED' : 'TORUS DRIVE OFF', 2);
-    if (this.torusEngaged) sfx.beep(1000, 0.15);
+    if (this.state.session.torusEngaged) this.state.player.speed = this.state.player.maxSpeed;
+    this.showMessage(this.state.session.torusEngaged ? 'TORUS DRIVE ENGAGED' : 'TORUS DRIVE OFF', 2);
+    if (this.state.session.torusEngaged) sfx.torusEngaged();
   }
 
   /** @internal — driven by test/playtest.js */
@@ -1599,9 +1512,9 @@ export class Game {
 
 
   private setView(v: number): void {
-    if (this.view === v) return;
-    this.view = v;
-    sfx.beep(600, 0.04);
+    if (this.state.session.view === v) return;
+    this.state.session.view = v;
+    sfx.viewChanged();
   }
 
 
@@ -1636,33 +1549,33 @@ export class Game {
    */
   /** @internal — driven by test/playtest.js */
   jettisonCargo(tonnes = 1): void {
-    if (this.mode !== 'flight') { sfx.beep(220); return; }
+    if (this.mode !== 'flight') { sfx.refused(); return; }
 
-    const dumped = dumpCargo(this.commander.cargo, tonnes);
+    const dumped = dumpCargo(this.state.commander.cargo, tonnes);
     if (dumped.tonnes.length === 0) {
-      this.hud.showMessage('HOLD EMPTY', 1.5);
-      sfx.beep(220);
+      this.showMessage('HOLD EMPTY', 1.5);
+      sfx.refused();
       return;
     }
     for (const commodity of dumped.tonnes) {
-      this.world.cargo.spawn(this.player.position.clone(), 1, [commodity]);
+      this.state.world.cargo.spawn(this.state.player.position.clone(), 1, [commodity]);
     }
-    this.jettisonedValue += dumped.value;
-    sfx.beep(320, 0.08);
+    this.state.session.jettisonedValue += dumped.value;
+    sfx.cargoJettisoned();
 
     const n = dumped.tonnes.length;
     const bribe = offerBribe(
-      this.world.npcs.filter((npc) => npc.role === 'pirate'),
-      this.jettisonedValue, this.arrivalCargoValue);
+      this.state.world.npcs.filter((npc) => npc.role === 'pirate'),
+      this.state.session.jettisonedValue, this.state.session.arrivalCargoValue);
     if (bribe.bought > 0) {
-      this.hud.showMessage(
+      this.showMessage(
         `${bribe.bought} ATTACKER${bribe.bought > 1 ? 'S' : ''} BREAKING OFF`, 3);
     } else if (bribe.stillWant !== null) {
-      this.hud.showMessage(
+      this.showMessage(
         `JETTISONED ${n}t ${dumped.lastName} — THEY WANT MORE `
         + `(${formatCredits(Math.ceil(bribe.stillWant))})`, 3);
     } else {
-      this.hud.showMessage(`JETTISONED ${n}t ${dumped.lastName}`, 2);
+      this.showMessage(`JETTISONED ${n}t ${dumped.lastName}`, 2);
     }
   }
 
@@ -1680,9 +1593,9 @@ export class Game {
     let on = false;
     if (this.mode === 'flight') {
       const forward = this.viewDir(this.tmp);
-      for (const npc of this.world.npcs) {
-        if (!npc.alive || npc.role === 'asteroid') continue;
-        const to = this.tmp2.copy(npc.object.position).sub(this.player.position);
+      for (const npc of this.state.world.npcs) {
+        if (!npc.state.alive || npc.role === 'asteroid') continue;
+        const to = this.tmp2.copy(npc.object.position).sub(this.state.player.position);
         const dist = to.length();
         if (dist > LASER_RANGE) continue;
         const cone = hitCone(npc.radius, dist);
@@ -1723,30 +1636,30 @@ export class Game {
   private renderHud(dt: number): void {
     this.updateSight();
     const frame = buildHudFrame({
-      commander: this.commander,
-      sys: this.sys,
-      world: this.world,
+      commander: this.state.commander,
+      sys: this.state.sys,
+      world: this.state.world,
       camera: this.render.camera,
-      playerPos: this.player.position,
-      playerQuat: this.player.quaternion,
-      playerForward: this.player.getForward(this.tmp),
+      playerPos: this.state.player.position,
+      playerQuat: this.state.player.quaternion,
+      playerForward: this.state.player.getForward(this.tmp),
       viewDir: this.viewDir(this.tmp2),
-      speedFrac: this.player.speed / this.player.maxSpeed,
-      rollFrac: this.player.rollRate / PLAYER_FLIGHT.maxRoll,
-      pitchFrac: this.player.pitchRate / PLAYER_FLIGHT.maxPitch,
-      view: this.view,
-      missiles: this.missiles,
-      canisters: this.canisters,
-      targetLock: this.targetLock,
-      missileArmed: this.missileArmed,
+      speedFrac: this.state.player.speed / this.state.player.maxSpeed,
+      rollFrac: this.state.player.rollRate / PLAYER_FLIGHT.maxRoll,
+      pitchFrac: this.state.player.pitchRate / PLAYER_FLIGHT.maxPitch,
+      view: this.state.session.view,
+      missiles: this.ordnance.missiles,
+      canisters: this.state.world.cargo.items,
+      targetLock: this.ordnance.targetLock,
+      missileArmed: this.ordnance.armed,
       inFlight: this.mode === 'flight',
-      witchspace: this.witchspace,
-      assist: this.ccEngaged,
-      ecmDetected: this.ecmDetectedTimer > 0,
+      witchspace: this.state.session.witchspace,
+      assist: this.state.session.ccEngaged,
+      ecmDetected: this.state.ecmDetectedTimer > 0,
+      messageText: this.state.session.messageText,
+      messageTimer: this.state.session.messageTimer,
     }, this.hudScratch);
 
-    this.hud.drawTargets(frame.targets);
-    this.hud.render(dt, frame.state, this.player.position, this.player.quaternion,
-      frame.contacts, frame.compassTarget);
+    this.hud.render(dt, frame);
   }
 }

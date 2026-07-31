@@ -188,7 +188,7 @@ console.log('\nhunting links survive a reload');
   pirate.npcTarget = trader;
   trader.addAttacker(pirate);
   police.npcTarget = pirate;   // the law registers nothing — see world.ts
-  trader.fleeing = true;
+  trader.state.fleeing = true;
 
   const saved = world.captureNpcs();
   world.restoreNpcs(saved, () => undefined);
@@ -199,7 +199,7 @@ console.log('\nhunting links survive a reload');
   check('the pirate is still hunting the trader', p2.npcTarget === t2);
   check('...and the trader still knows it — the reload that broke this once',
     t2.hasAttacker(p2));
-  check('...and is still running', t2.fleeing);
+  check('...and is still running', t2.state.fleeing);
   check('the police still chase the pirate', c2.npcTarget === p2);
   check('...but do NOT register as its attackers, as in a live run',
     !p2.hasAttacker(c2));

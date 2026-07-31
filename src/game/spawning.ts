@@ -85,8 +85,8 @@ export function spawnPopulation(
       const seed = i + sys.index * 3;
       const tier = memberTier(plan.threat.tier, i);
       const npc = world.spawn('pirate', pos, seed, pirateSpecForTier(tier, seed));
-      npc.organised = plan.threat.organised;
-      npc.threatTier = tier;
+      npc.state.organised = plan.threat.organised;
+      npc.state.threatTier = tier;
     }
   }
 
@@ -120,7 +120,7 @@ export function spawnPopulation(
     const pos = playerPos.clone()
       .add(randomDirection(new THREE.Vector3()).multiplyScalar(4000 + random() * 4000));
     missionTarget = world.spawn('pirate', pos, 0, CONSTRICTOR_SPEC);
-    missionTarget.isMissionTarget = true;
+    missionTarget.state.isMissionTarget = true;
   }
 
   return { generationShip, missionTarget };
@@ -340,14 +340,14 @@ export function spawnOpposition(
       // the whole gang flying away from you. Verified: the dot product of the
       // nose against the bearing to the player comes out at exactly -1.
       steerQuatToward(npc.object.quaternion, _face.copy(origin).sub(pos), Math.PI);
-      if (unit.tier !== undefined) npc.threatTier = unit.tier;
-      if (unit.brain === 'pack') npc.organised = true;
-      else if (unit.brain === 'solo') npc.organised = false;
+      if (unit.tier !== undefined) npc.state.threatTier = unit.tier;
+      if (unit.brain === 'pack') npc.state.organised = true;
+      else if (unit.brain === 'solo') npc.state.organised = false;
       if (unit.hostile) {
-        npc.provoked = true;
-        npc.provokedByPlayer = true;
+        npc.state.provoked = true;
+        npc.state.provokedByPlayer = true;
       }
-      if (unit.fit?.missiles !== undefined) npc.missiles = Math.max(0, unit.fit.missiles);
+      if (unit.fit?.missiles !== undefined) npc.state.missiles = Math.max(0, unit.fit.missiles);
       // Written through the state on purpose: `hasEcm` has a private setter
       // because in the galaxy it is a die roll against the hull's ecmChance at
       // warp-in, and only an authored exercise gets to say otherwise.
@@ -363,7 +363,7 @@ export function spawnArrivingTrader(world: World, range: number): void {
   const pos = world.station.position.clone()
     .add(randomDirection(new THREE.Vector3()).multiplyScalar(range));
   const trader = world.spawn('trader', pos, randomInt(100));
-  trader.traderPhase = 'arriving';
+  trader.state.traderPhase = 'arriving';
   // the witch-flash that says something just came out of hyperspace
   world.effects.explosion(pos.clone(), 0x9adfff, { count: 10, speed: 120, duration: 0.7 });
 }
@@ -389,8 +389,8 @@ export function launchStationDefence(world: World, tmp: THREE.Vector3): NpcShip[
       .addScaledVector(slotN, 500 + i * 120)
       .add(randomDirection(new THREE.Vector3()).multiplyScalar(80));
     const viper = world.spawn('police', pos, i);
-    viper.provoked = true;
-    viper.provokedByPlayer = true;
+    viper.state.provoked = true;
+    viper.state.provokedByPlayer = true;
     out.push(viper);
   }
   return out;

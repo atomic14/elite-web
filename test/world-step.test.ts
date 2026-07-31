@@ -146,7 +146,7 @@ console.log('\nheadless world step');
   /** What the run LOOKED like, to the byte — the determinism fixture. */
   const trace = (r: ReturnType<typeof arrival>) => JSON.stringify({
     npcs: r.state.world.npcs.map((n) => [
-      n.role, n.hp,
+      n.role, n.state.hp,
       n.object.position.toArray().map((v) => v.toFixed(6)),
       n.object.quaternion.toArray().map((v) => v.toFixed(6)),
     ]),
@@ -178,7 +178,6 @@ console.log('\nheadless world step');
         switch (e.kind) {
           case 'message': return typeof e.text === 'string' && typeof e.seconds === 'number';
           case 'npcFired': return typeof e.atPlayer === 'boolean';
-          case 'beep': return typeof e.hz === 'number';
           case 'countdown': return typeof e.n === 'number';
           case 'dockingMusic': return typeof e.on === 'boolean';
           case 'sound': return typeof e.name === 'string';
@@ -197,8 +196,8 @@ console.log('\nheadless world step');
       events.some((e) => e.kind === 'message' && e.text.startsWith('MASS LOCK')));
     // ...and the same for the noise it makes. The step reached straight into
     // the audio singleton for this one until sounds became events too.
-    check('...and the beep with it, rather than reaching for an AudioContext',
-      events.some((e) => e.kind === 'beep' && e.hz === 300));
+    check('...and the named sound with it, rather than reaching for an AudioContext',
+      events.some((e) => e.kind === 'sound' && e.name === 'torusDropped'));
     check('...and the torus really disengaged', !run.state.session.torusEngaged);
   }
   {
@@ -227,7 +226,7 @@ console.log('\nheadless world step');
     check('...alongside the message it has always shown',
       events.some((e) => e.kind === 'message' && e.text === 'HYPERSPACE IN 4'));
     check('...and no event carries a hertz value',
-      !events.some((e) => e.kind === 'beep'));
+      !events.some((e) => 'hz' in e));
   }
 
   // --- determinism: same seed, same inputs, same run -------------------------
@@ -272,7 +271,7 @@ console.log('\nheadless world step');
       state.player.position.set(0, 0, 0);
       state.player.quaternion.identity();          // nose along -Z
       const npc = state.world.spawn('pirate', new THREE.Vector3(0, 0, -400), 1);
-      npc.hp = 9;                                  // takes the hit, survives it
+      npc.state.hp = 9;                                  // takes the hit, survives it
       // a ship spawned this frame has no world matrix yet, and the raycast
       // reads matrixWorld — without this the shot is tested against the origin
       npc.object.updateMatrixWorld(true);
@@ -295,7 +294,7 @@ console.log('\nheadless world step');
               : e.kind === 'died' ? [e.kind, e.reason] : [e.kind]));
     /** what the shot LEFT behind: the target's hp and the ship's systems */
     const after = (d: ReturnType<typeof dueller>) =>
-      JSON.stringify([d.npc.hp, d.state.sys]);
+      JSON.stringify([d.npc.state.hp, d.state.sys]);
 
     const tmp = new THREE.Vector3();
     const byHand = dueller();
@@ -311,7 +310,7 @@ console.log('\nheadless world step');
     check('the extracted trigger reports what game.ts\'s seven arguments did',
       handEvents === outEvents);
     check('...and it was a hit, so the comparison is not of two empty lists',
-      handEvents.includes('"offence"') && byHand.npc.hp < 9);
+      handEvents.includes('"offence"') && byHand.npc.state.hp < 9);
     check('...leaving the same hp on the target and the same heat in the gun',
       after(byHand) === after(extracted));
 
@@ -325,7 +324,7 @@ console.log('\nheadless world step');
     rear.state.commander.equipment.rearLaser = true;
     const aft = digest(firePlayerLaser(rear.state, rear.combat, rear.scratch));
     check('a rear-view shot still hits what is behind you',
-      aft.includes('"offence"') && rear.npc.hp < 9);
+      aft.includes('"offence"') && rear.npc.state.hp < 9);
     // ...and without the mount there is nothing to fire, which is the other
     // half of the view reaching the gun
     const noMount = dueller();
@@ -334,7 +333,7 @@ console.log('\nheadless world step');
     noMount.state.session.view = 1;
     check('...and with no rear mount fitted, nothing happens at all',
       firePlayerLaser(noMount.state, noMount.combat, noMount.scratch).length === 0
-        && noMount.npc.hp === 9);
+        && noMount.npc.state.hp === 9);
 
     // ...and the damage model, the same way. The shield absorbs it, so
     // applyDamage draws no rng and the two calls are directly comparable.
@@ -478,7 +477,7 @@ console.log('\nheadless world step');
       const p = a.state.world.spawn('pirate',
         a.state.player.position.clone().add(new THREE.Vector3(320 * (i - 1), 140, -1500)),
         i, pirateSpecForTier(1, i));
-      p.threatTier = 1;
+      p.state.threatTier = 1;
     }
     a.state.world.spawn('trader',
       a.state.player.position.clone().add(new THREE.Vector3(-900, -200, -2600)), 7);

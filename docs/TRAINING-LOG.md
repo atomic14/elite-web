@@ -25,8 +25,10 @@ because retraining a phase overwrites its committed brain file.
 > | `window.__packBrain = true` | `__game.state.brains.pack = true` |
 > | `window.__sharpPirates = 'pro'` | `__game.state.brains.sharp = 'pro'` |
 >
-> `__game` itself is unchanged: a handle the game publishes is not a flag it
-> reads, and only the second kind was the problem. See `src/game/console.ts`.
+> `__game` remains a handle the game publishes rather than a flag it reads.
+> It is now a `legacyHandles(Game)` console view: mutate canonical state through
+> `__game.state`, while old harness reads such as `__game.commander` remain
+> available. See `src/game/game-handles.ts` and `src/game/console.ts`.
 
 ## Infrastructure
 

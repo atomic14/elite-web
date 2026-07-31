@@ -11,7 +11,7 @@
 //
 // So they share a file, and it follows the project's pattern: this DECIDES and
 // reports `AutopilotEvent`s, and the Game says them out loud. The sounds are
-// events too — a beep and the docking music, both `SoundEvent`s (sounds.ts) —
+// events too — named sounds and the docking music, both `SoundEvent`s (sounds.ts) —
 // which is what keeps the file free of `audio.ts` and therefore of the browser.
 // Nothing here draws from the seeded rng, so there is no ordering to preserve.
 //
@@ -42,8 +42,8 @@ export type AutopilotEvent =
 
 const say = (text: string, seconds: number): AutopilotEvent =>
   ({ kind: 'message', text, seconds });
-/** The refusal noise, at the pitch every other refusal in the game uses. */
-const REFUSED: AutopilotEvent = { kind: 'beep', hz: 220 };
+/** The refusal noise shared by every rejected command in the game. */
+const REFUSED: AutopilotEvent = { kind: 'sound', name: 'refused' };
 
 /** What the combat computer decided this frame. */
 export interface AutopilotDemand {
@@ -87,7 +87,7 @@ export class Autopilot {
     const events: AutopilotEvent[] = [
       say(on ? 'DOCKING COMPUTER ENGAGED' : 'DOCKING COMPUTER OFF', 2),
     ];
-    if (on) events.push({ kind: 'beep', hz: 700, seconds: 0.12 });
+    if (on) events.push({ kind: 'sound', name: 'dockingComputerEngaged' });
     events.push({ kind: 'dockingMusic', on });
     return events;
   }
@@ -115,7 +115,7 @@ export class Autopilot {
     s.session.view = 0; // it aims the front laser
     return [
       say('COMBAT COMPUTER ENGAGED — ANY FLIGHT KEY OVERRIDES', 4),
-      { kind: 'beep', hz: 1000, seconds: 0.12 },
+      { kind: 'sound', name: 'combatComputerEngaged' },
     ];
   }
 

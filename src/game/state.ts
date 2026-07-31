@@ -100,6 +100,8 @@ export const AUTOSAVE_INTERVAL = 20;
  */
 export function freshSession(): SessionState {
   return {
+    messageText: '',
+    messageTimer: 0,
     hyperCountdown: -1,
     torusEngaged: false,
     witchspace: false,

@@ -195,7 +195,7 @@ export class Combat {
     if (npc.role !== 'asteroid') {
       c.kills += 1;
       // rating counts difficulty, not bodies: see killValue()
-      c.combatScore += killValue(npc.threatTier);
+      c.combatScore += killValue(npc.state.threatTier);
     }
 
     if (npc.role === 'pirate') {
@@ -218,7 +218,7 @@ export class Combat {
     if (npc.role === 'asteroid' && c.equipment.miningLaser) {
       this.world.cargo.spawn(npc.object.position, 1 + randomInt(3), ORE);
     }
-    if (npc.isMissionTarget) {
+    if (npc.state.isMissionTarget) {
       const e = constrictorDestroyed(c);
       if (e) {
         out.push(say(`CONSTRICTOR DESTROYED — ${formatCredits(e.bounty)} NAVY BOUNTY`, 6));
@@ -251,9 +251,9 @@ export class Combat {
     }
     // the drones go dead when the last mothership does
     if (npc.role === 'thargoid'
-        && !this.world.npcs.some((n) => n.alive && n.role === 'thargoid')) {
+        && !this.world.npcs.some((n) => n.state.alive && n.role === 'thargoid')) {
       for (const t of this.world.npcs) {
-        if (t.role === 'thargon') t.inert = true;
+        if (t.role === 'thargon') t.state.inert = true;
       }
       out.push(say('THARGONS DEACTIVATED', 3));
     }

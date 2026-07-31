@@ -40,6 +40,7 @@ import './flight.test.ts';
 import './npc.test.ts';
 import './combat.test.ts';
 import './gunnery.test.ts';
+import './instrumentation.test.ts';
 
 // --- the trained brains -----------------------------------------------------
 import './ai.test.ts';
@@ -48,12 +49,17 @@ import './arena.test.ts';
 
 // --- the shell --------------------------------------------------------------
 import './ui.test.ts';
+import './hud-binding.test.ts';
 
 // --- the docked combat trainer ----------------------------------------------
 import './combat-sim.test.ts';
 import './combat-sim-scenarios.test.ts';
 import './combat-sim-report.test.ts';
 import './combat-sim-career.test.ts';
+
+// Installs a fake AudioContext, so keep it after every behavioural test that
+// may call a richer sound such as explosion().
+import './audio.test.ts';
 
 import { summarise } from './harness.ts';
 
