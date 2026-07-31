@@ -9,11 +9,11 @@ were removed from the active queue and remain available in Git history.
 
 ## Checklist
 
-Progress: **1 / 4 complete**. Last verified after item 17: `npm run lint`,
-`npm test`, and `npm run sizes` — **1269 passed, 0 failed**.
+Progress: **2 / 4 complete**. Last verified after item 18: `npm run lint`,
+`npm test`, and `npm run build` — **1274 passed, 0 failed**.
 
 - [x] 17 — [NPC docking latch is missing from the snapshot](17-npc-dock-plan-snapshot.md) — missing behavior state · high · small
-- [ ] 18 — [`draw()` advances the cockpit beam lifetime](18-beam-timer-in-step.md) — temporal decomposition · medium · small
+- [x] 18 — [`draw()` advances the cockpit beam lifetime](18-beam-timer-in-step.md) — temporal decomposition · medium · small
 - [ ] 19 — [Core rule modules still perform platform side effects](19-core-platform-side-effects.md) — platform leak · medium · large
 - [ ] 20 — [The portability gate does not follow imports](20-dependency-aware-portability.md) — tooling defect · medium · medium
 

@@ -72,7 +72,7 @@ import {
 import { random, randomDirection, seedWorld } from './rng.ts';
 import { clearWorld, loadCommander } from './storage.ts';
 import { type WorldSnapshot } from './snapshot.ts';
-import { showMessage as setMessage, tickMessage } from './session.ts';
+import { showMessage as setMessage, tickBeam, tickMessage } from './session.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
 import { Station, type StationHost, type StationEvent } from './station.ts';
 import { CombatSim, type ExerciseFit, type SimHost } from './combat-sim.ts';
@@ -1180,7 +1180,7 @@ export class Game {
       this.handleInput(dt, true);
       if (this.state.session.paused) {
         this.showMessage('PAUSED — P TO RESUME', 0.4);
-        this.input.endFrame();
+        this.finishStep(dt);
         return;
       }
     }
@@ -1188,19 +1188,30 @@ export class Game {
     else this.handleInput(dt, true);
     if (this.state.session.paused) {
       this.showMessage('PAUSED — P TO RESUME', 0.4);
-      this.input.endFrame();
+      this.finishStep(dt);
       return;
     }
     this.tunnel.update(dt);
     if (this.mode === 'flight') this.updateFlight(dt, elapsed);
+    this.finishStep(dt);
+  }
+
+  /**
+   * Finish every fixed step after its commands and world events have applied.
+   *
+   * The beam used to age in the following draw. Keeping it at the tail of the
+   * step preserves that ordering for a shot fired during this step, while
+   * making display cadence irrelevant to canonical state.
+   */
+  private finishStep(dt: number): void {
     this.input.endFrame();
+    tickBeam(this.state.session, dt);
   }
 
   /** Put the current world on screen. Changes nothing about it. */
   draw(dt: number): void {
     this.render.camera.position.copy(this.state.player.position);
     this.render.camera.quaternion.copy(this.state.player.quaternion).multiply(VIEW_QUATS[this.state.session.view]);
-    this.state.session.beamTimer -= dt;
     this.render.beams.visible = this.state.session.beamTimer > 0;
     this.render.draw();
     this.renderHud(dt);

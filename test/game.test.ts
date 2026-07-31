@@ -67,6 +67,33 @@ console.log('\nthe game, headless');
     check('...and the galaxy has not been corrupted', g.state.systems.length === 256);
   }
 
+  // --- visual effects age in the simulation, never in presentation ----------
+  {
+    const shell = headlessShell();
+    const g = withoutSaving(() => new Game(() => shell)).value;
+
+    g.state.session.beamTimer = 0.125;
+    g.step(0.0625, 0);
+    eq('a fixed step ages an active cockpit beam by exactly dt',
+      g.state.session.beamTimer, 0.0625);
+    g.step(0.1, 0.1);
+    eq('...and clamps the expired timer at zero',
+      g.state.session.beamTimer, 0);
+
+    g.state.session.beamTimer = 0.08;
+    const before = JSON.stringify(g.captureSnapshot());
+    g.draw(1);
+    g.draw(1);
+    const after = JSON.stringify(g.captureSnapshot());
+    check('repeated draws do not mutate serialized game state', after === before);
+    check('...and beam visibility still follows beamTimer > 0',
+      shell.view.beams.visible);
+
+    g.state.session.beamTimer = 0;
+    g.draw(1);
+    check('...while an expired beam is hidden', !shell.view.beams.visible);
+  }
+
   // --- launching, which is the transition the step order is built around ----
   {
     const g = fly(0);

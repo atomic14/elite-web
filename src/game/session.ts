@@ -64,3 +64,14 @@ export function tickMessage(state: SessionState, dt: number): void {
     state.messageTimer = 0;
   }
 }
+
+/**
+ * Advance the cockpit beam lifetime as part of the fixed game step.
+ *
+ * Unlike messages, the beam has no companion payload to clear. Clamping still
+ * matters because this state is snapshotted: an expired flash has one stable
+ * representation rather than a frame-count-dependent negative value.
+ */
+export function tickBeam(state: SessionState, dt: number): void {
+  state.beamTimer = Math.max(0, state.beamTimer - dt);
+}
