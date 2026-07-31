@@ -56,6 +56,15 @@ export interface NpcState {
   waypoint: THREE.Vector3;
   /** Where the last attack came from; traders flee this. */
   fleeFrom: THREE.Vector3;
+  /**
+   * The docking computer's reusable outputs and its behavior-driving phase.
+   *
+   * `phase` latches once a trader commits to the slot run. The vectors remain
+   * live scratch objects which `planDocking` rewrites in place each frame, so
+   * keeping the whole plan here preserves both replay state and the
+   * allocation-free update path.
+   */
+  dockPlan: DockPlan;
   /** Trader lifecycle. */
   traderPhase: TraderPhase;
   /**
@@ -245,8 +254,6 @@ export class NpcShip {
   /** NPC-vs-NPC target, assigned by the game (pirate→trader, police→pirate). */
   npcTarget: NpcShip | null = null;
 
-  private readonly dockPlan: DockPlan = makeDockPlan();
-
   private readonly maxSpeed: number;
   private readonly turnRate: number;
   /**
@@ -319,6 +326,7 @@ export class NpcShip {
       packOffset: new THREE.Vector3(),
       waypoint: new THREE.Vector3(),
       fleeFrom: new THREE.Vector3(),
+      dockPlan: makeDockPlan(),
       traderPhase: 'trading',
       brainControl: null,
       docksHere: random() < 0.5,
@@ -540,7 +548,7 @@ export class NpcShip {
       case 'docking': {
         // Shared with the player's docking computer — see game/docking.ts.
         const plan = planDocking(
-          this.object.position, station, view.dockZ, this.maxSpeed, this.dockPlan);
+          this.object.position, station, view.dockZ, this.maxSpeed, this.state.dockPlan);
         this.state.docking = plan.phase === 'run';
         this.state.speed = approach(this.state.speed, plan.speed, 90 * dt);
         // orientation from the plan's heading AND the station's up, so the

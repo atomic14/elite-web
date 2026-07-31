@@ -102,6 +102,10 @@ console.log('\nsnapshot round trip');
   check('...and the nested brain decision',
     !!saved.brainControl && typeof saved.brainControl === 'object'
     && 'pitch' in (saved.brainControl as object) && 'fire' in (saved.brainControl as object));
+  check('...and nested docking vectors as arrays',
+    !!saved.dockPlan && typeof saved.dockPlan === 'object'
+    && Array.isArray((saved.dockPlan as Record<string, unknown>).heading)
+    && Array.isArray((saved.dockPlan as Record<string, unknown>).up));
 
   const fresh = new NpcShip('pirate', at(0, 0, 0), 5);
   const meshPos = fresh.object.position;
@@ -152,6 +156,91 @@ console.log('\nsnapshot round trip');
     fly(unrestored, 300);
     check('...and a ship that was NOT restored does not (the control)',
       unrestored.object.position.distanceTo(flown.object.position) > 1);
+  }
+
+  // --- a trader committed to the docking run ------------------------------
+  //
+  // The generic replay above flies a pirate and therefore cannot exercise the
+  // docking plan's phase latch. Commit a trader, then displace it within the
+  // latch's tolerance: a committed plan continues toward the slot, while a
+  // freshly reset `gate` plan turns back outward. That makes the control fail
+  // for exactly the omitted-state bug rather than for some unrelated default.
+  {
+    seedWorld(20_260_731);
+    const trader = new NpcShip('trader', at(0, 0, -700), 2);
+    trader.state.traderPhase = 'docking';
+    trader.update(1 / 60, makePlayer(at(0, 0, 0)), {
+      station, dockZ: 160, fleet: [trader], playerLegal: 0, brains: SHIPPED_BRAINS,
+    });
+    check('the docking replay fixture has committed to the slot run',
+      trader.state.dockPlan.phase === 'run');
+    // A small disturbance after commitment is precisely why the phase latches:
+    // 60 is outside the 45-unit initial gate but inside the 90-unit run guard.
+    trader.state.pos.x = 60;
+
+    const dockingWire = JSON.stringify(serialiseState(
+      trader.state as unknown as Record<string, unknown>));
+    const dockingSaved = JSON.parse(dockingWire) as Record<string, unknown>;
+    const restoredTrader = new NpcShip('trader', at(0, 0, 0), 2);
+    const restoredPlan = restoredTrader.state.dockPlan;
+    const restoredHeading = restoredPlan.heading;
+    const restoredUp = restoredPlan.up;
+    restoreState(
+      restoredTrader.state as unknown as Record<string, unknown>, dockingSaved);
+
+    check('a mid-docking JSON snapshot restores the committed phase',
+      restoredTrader.state.dockPlan.phase === 'run');
+    check('...without replacing the reusable plan or its vectors',
+      restoredTrader.state.dockPlan === restoredPlan
+      && restoredTrader.state.dockPlan.heading === restoredHeading
+      && restoredTrader.state.dockPlan.up === restoredUp);
+
+    // Old snapshots have no dockPlan key. Restoring one must leave the fresh
+    // constructor default intact instead of manufacturing a partial plan.
+    const legacySaved = { ...dockingSaved };
+    delete legacySaved.dockPlan;
+    const legacyTrader = new NpcShip('trader', at(0, 0, 0), 2);
+    const legacyPlan = legacyTrader.state.dockPlan;
+    restoreState(legacyTrader.state as unknown as Record<string, unknown>, legacySaved);
+    check('an old NPC snapshot without a dock plan starts at the fresh gate default',
+      legacyTrader.state.dockPlan === legacyPlan
+      && legacyTrader.state.dockPlan.phase === 'gate');
+
+    const resetControl = new NpcShip('trader', at(0, 0, 0), 2);
+    restoreState(resetControl.state as unknown as Record<string, unknown>, dockingSaved);
+    resetControl.state.dockPlan.phase = 'gate';
+
+    let despawnFrame = -1;
+    let restoredDespawnFrame = -1;
+    let maxControlDrift = 0;
+    for (let frame = 0; frame < 1800; frame++) {
+      const updateOne = (npc: NpcShip) => npc.update(1 / 60, makePlayer(at(0, 0, 0)), {
+        station, dockZ: 160, fleet: [npc], playerLegal: 0, brains: SHIPPED_BRAINS,
+      });
+      if (!trader.state.wantsDespawn) updateOne(trader);
+      if (!restoredTrader.state.wantsDespawn) updateOne(restoredTrader);
+      if (!resetControl.state.wantsDespawn) updateOne(resetControl);
+
+      if (trader.state.wantsDespawn && despawnFrame < 0) despawnFrame = frame;
+      if (restoredTrader.state.wantsDespawn && restoredDespawnFrame < 0) {
+        restoredDespawnFrame = frame;
+      }
+      maxControlDrift = Math.max(
+        maxControlDrift, resetControl.state.pos.distanceTo(trader.state.pos));
+      if (despawnFrame >= 0 && restoredDespawnFrame >= 0) break;
+    }
+
+    check('the restored and uninterrupted traders request despawn on the same frame',
+      despawnFrame >= 0 && restoredDespawnFrame === despawnFrame,
+      `original ${despawnFrame}, restored ${restoredDespawnFrame}`);
+    check('...and remain exactly equivalent through docking',
+      diff(
+        trader.state as unknown as Record<string, unknown>,
+        restoredTrader.state as unknown as Record<string, unknown>,
+      ).length === 0);
+    check(`...where resetting only the latch makes the same fixture diverge `
+      + `(the control: ${maxControlDrift.toFixed(1)} units)`,
+      maxControlDrift > 10, `maximum drift ${maxControlDrift.toFixed(4)}`);
   }
 
   // --- SessionState --------------------------------------------------------

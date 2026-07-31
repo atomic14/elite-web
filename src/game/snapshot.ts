@@ -55,32 +55,64 @@ export type NpcSnapshot = {
   state: Record<string, unknown>;
 };
 
-/** Vectors and quaternions become arrays; everything else passes through. */
+/**
+ * Recursively turn vectors and quaternions into arrays.
+ *
+ * State used to be flat apart from replaceable decision records, so walking
+ * only its top level happened to be enough. `NpcState.dockPlan` is the first
+ * nested state with live vector identities: recurse so it remains plain JSON
+ * without making the snapshot codec know its field names.
+ */
+function serialiseValue(value: unknown): unknown {
+  if (value && typeof value === 'object' && 'x' in value && 'y' in value && 'z' in value) {
+    const p = value as { x: number; y: number; z: number; w?: number };
+    return p.w === undefined ? [p.x, p.y, p.z] : [p.x, p.y, p.z, p.w];
+  }
+  if (Array.isArray(value)) return value.map(serialiseValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, nested]) => [key, serialiseValue(nested)]),
+    );
+  }
+  return value;
+}
+
 export function serialiseState(state: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(state)) {
-    if (v && typeof v === 'object' && 'x' in v && 'y' in v && 'z' in v) {
-      const p = v as { x: number; y: number; z: number; w?: number };
-      out[k] = p.w === undefined ? [p.x, p.y, p.z] : [p.x, p.y, p.z, p.w];
-    } else {
-      out[k] = v;
-    }
-  }
+  for (const [k, v] of Object.entries(state)) out[k] = serialiseValue(v);
   return out;
 }
 
-/** ...and back, writing INTO the live vectors so aliasing to the mesh holds. */
-export function restoreState(state: Record<string, unknown>, saved: Record<string, unknown>): void {
-  for (const [k, v] of Object.entries(saved)) {
-    const target = state[k];
-    if (Array.isArray(v) && target && typeof target === 'object' && 'x' in target) {
-      const p = target as { x: number; y: number; z: number; w?: number };
-      p.x = v[0] as number; p.y = v[1] as number; p.z = v[2] as number;
-      if (v.length > 3) p.w = v[3] as number;
-    } else {
-      state[k] = v;
-    }
+/**
+ * Restore one value, recursing into existing objects where possible.
+ *
+ * Writing through existing objects is what preserves the mesh transform and
+ * docking plan's scratch-vector identities. A missing target (for example a
+ * nullable cached brain decision) is still replaced as before.
+ */
+function restoreValue(target: unknown, saved: unknown): unknown {
+  if (Array.isArray(saved)
+    && target && typeof target === 'object' && 'x' in target && 'y' in target && 'z' in target) {
+    const p = target as { x: number; y: number; z: number; w?: number };
+    p.x = saved[0] as number; p.y = saved[1] as number; p.z = saved[2] as number;
+    if (saved.length > 3) p.w = saved[3] as number;
+    return target;
   }
+  if (saved && typeof saved === 'object' && !Array.isArray(saved)
+    && target && typeof target === 'object' && !Array.isArray(target)) {
+    const targetRecord = target as Record<string, unknown>;
+    for (const [key, nested] of Object.entries(saved as Record<string, unknown>)) {
+      targetRecord[key] = restoreValue(targetRecord[key], nested);
+    }
+    return target;
+  }
+  return saved;
+}
+
+/** ...and back, writing INTO live vectors and nested reusable objects. */
+export function restoreState(state: Record<string, unknown>, saved: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(saved)) state[k] = restoreValue(state[k], v);
 }
 
 export interface MissileSnapshot {
