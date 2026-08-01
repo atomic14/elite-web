@@ -25,8 +25,8 @@ import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
 import type { World } from './world.ts';
 import { random } from './rng.ts';
-import { sfx } from '../audio.ts';
 import type { MissileSnapshot } from './snapshot.ts';
+import type { SoundEvent, SoundName } from './sounds.ts';
 
 /** Missile flight speed, world units per second. */
 export const MISSILE_SPEED = 700;
@@ -81,6 +81,37 @@ export type OrdnanceReply =
   | 'noLock' | 'away' | 'incoming'
   | 'noEcm' | 'noEnergy' | 'ecmFired' | 'noBomb' | 'bombFired';
 
+/** A command's semantic reply and every platform consequence it asks for. */
+export interface OrdnanceOutcome {
+  reply: OrdnanceReply | null;
+  events: SoundEvent[];
+}
+
+const heard = (name: SoundName): SoundEvent => ({ kind: 'sound', name });
+
+/**
+ * One mapping from ordnance meaning to sound meaning. Callers apply these
+ * events through the same sound path as every other rule module.
+ */
+function outcome(reply: OrdnanceReply | null): OrdnanceOutcome {
+  if (!reply || reply === 'alreadyLocked') return { reply, events: [] };
+  const sounds: Record<Exclude<OrdnanceReply, 'alreadyLocked'>, SoundName> = {
+    noMissiles: 'noMissiles',
+    armed: 'missileArmed',
+    unarmed: 'missileUnarmed',
+    locked: 'missileLocked',
+    noLock: 'refused',
+    away: 'missile',
+    incoming: 'missile',
+    noEcm: 'refused',
+    noEnergy: 'noEnergy',
+    ecmFired: 'ecm',
+    noBomb: 'refused',
+    bombFired: 'explosion',
+  };
+  return { reply, events: [heard(sounds[reply])] };
+}
+
 /** The line for a reply, so the wording lives with the rule. */
 export function ordnanceMessage(r: OrdnanceReply): { text: string; seconds: number } {
   switch (r) {
@@ -117,16 +148,13 @@ export class Ordnance {
   }
 
   /** Arm a missile, if there is one to arm. */
-  arm(commander: CommanderData): OrdnanceReply {
+  arm(commander: CommanderData): OrdnanceOutcome {
     if (commander.missiles <= 0) {
-      sfx.noMissiles();
-      return 'noMissiles';
+      return outcome('noMissiles');
     }
-    if (this.targetLock) return 'alreadyLocked';
+    if (this.targetLock) return outcome('alreadyLocked');
     this.armed = !this.armed;
-    if (this.armed) sfx.missileArmed();
-    else sfx.missileUnarmed();
-    return this.armed ? 'armed' : 'unarmed';
+    return outcome(this.armed ? 'armed' : 'unarmed');
   }
 
   disarm(): void {
@@ -138,8 +166,8 @@ export class Ordnance {
    * While armed, lock onto whatever enters the sight.
    * @param viewDir where the current view points — the lock cone's axis.
    */
-  updateLock(playerPos: THREE.Vector3, viewDir: THREE.Vector3): OrdnanceReply | null {
-    if (!this.armed || this.targetLock) return null;
+  updateLock(playerPos: THREE.Vector3, viewDir: THREE.Vector3): OrdnanceOutcome {
+    if (!this.armed || this.targetLock) return outcome(null);
     let best: NpcShip | null = null;
     let bestAngle = LOCK_CONE;
     for (const npc of this.world.npcs) {
@@ -149,32 +177,28 @@ export class Ordnance {
       const angle = viewDir.angleTo(to.normalize());
       if (angle < bestAngle) { bestAngle = angle; best = npc; }
     }
-    if (!best) return null;
+    if (!best) return outcome(null);
     this.targetLock = best;
-    sfx.missileLocked();
-    return 'locked';
+    return outcome('locked');
   }
 
   /** Fire at the locked target. */
-  launch(commander: CommanderData, playerPos: THREE.Vector3): OrdnanceReply | null {
-    if (commander.missiles <= 0) { sfx.noMissiles(); return null; }
+  launch(commander: CommanderData, playerPos: THREE.Vector3): OrdnanceOutcome {
+    if (commander.missiles <= 0) return { reply: null, events: [heard('noMissiles')] };
     if (!this.targetLock) {
-      sfx.refused();
-      return 'noLock';
+      return outcome('noLock');
     }
     commander.missiles -= 1;
     this.spawn(playerPos, this.targetLock);
     this.targetLock = null;
     this.armed = false;
-    sfx.missile();
-    return 'away';
+    return outcome('away');
   }
 
   /** An NPC fires one at the player. */
-  launchHostile(from: THREE.Vector3): OrdnanceReply {
+  launchHostile(from: THREE.Vector3): OrdnanceOutcome {
     this.spawn(from, null);
-    sfx.missile();
-    return 'incoming';
+    return outcome('incoming');
   }
 
   private spawn(from: THREE.Vector3, target: NpcShip | null): void {
@@ -186,37 +210,32 @@ export class Ordnance {
 
   /**
    * Fire the E.C.M.: every missile in the sky dies, ours included.
-   * @returns true if it was actually used.
+   * Reports whether it was used and the named sound to apply.
    */
-  triggerEcm(commander: CommanderData, energy: number): OrdnanceReply {
+  triggerEcm(commander: CommanderData, energy: number): OrdnanceOutcome {
     if (!commander.equipment.ecm) {
-      sfx.refused();
-      return 'noEcm';
+      return outcome('noEcm');
     }
     if (energy < ECM_ENERGY_COST) {
-      sfx.noEnergy();
-      return 'noEnergy';
+      return outcome('noEnergy');
     }
     for (const m of [...this.missiles]) this.destroy(m);
-    sfx.ecm();
-    return 'ecmFired';
+    return outcome('ecmFired');
   }
 
   /** Everything within range, gone. @returns the reply, and what it caught. */
   detonateEnergyBomb(
     commander: CommanderData, playerPos: THREE.Vector3,
-  ): { reply: OrdnanceReply; caught: NpcShip[] } {
+  ): OrdnanceOutcome & { caught: NpcShip[] } {
     if (!commander.equipment.energyBomb) {
-      sfx.refused();
-      return { reply: 'noBomb', caught: [] };
+      return { ...outcome('noBomb'), caught: [] };
     }
     commander.equipment.energyBomb = false;
     const caught = this.world.npcs.filter((n) =>
       n.state.alive && n.role !== 'thargoid'   // thargoids shrug it off
       && n.object.position.distanceTo(playerPos) <= ENERGY_BOMB_RANGE);
     for (const m of [...this.missiles]) this.destroy(m);
-    sfx.explosion();
-    return { reply: 'bombFired', caught: [...caught] };
+    return { ...outcome('bombFired'), caught: [...caught] };
   }
 
   /** One frame of missile flight. @returns what the Game must act on. */
@@ -300,4 +319,3 @@ export class Ordnance {
     this.missiles.push({ object, target, life });
   }
 }
-

@@ -32,7 +32,6 @@
 //     A trainer reading the exported records is an external consumer, and the
 //     first shape change would otherwise break it in silence.
 
-import { publish, handle } from './console.ts';
 import * as THREE from 'three';
 import { LASER_RANGE, NPC_FIRE_GATE, NPC_LASER_RANGE } from './gunnery.ts';
 import type { DamageSource } from './combat.ts';
@@ -825,26 +824,4 @@ export function makeSimLog(limit = SIM_LOG_LIMIT): SimLog {
     json() { return JSON.stringify(records, null, 1); },
     clear() { records.length = 0; },
   };
-}
-
-/**
- * Put the ring on `globalThis.__simLog`, so a console session or an agent can
- * read the exported records without going through the DOM.
- *
- * A FUNCTION, called by the Game — never a bare assignment at module scope,
- * which is the pattern brains.ts's `installPolicyKit()` exists to avoid: a
- * module that touches a browser global on import cannot be loaded under node,
- * and the whole point of this file is that it can.
- *
- * Idempotent: a second Game in the same page inherits the existing ring rather
- * than throwing its records away.
- */
-export function installSimLog(limit = SIM_LOG_LIMIT): SimLog {
-  const existing = handle('__simLog') as SimLog | undefined;
-  if (existing && Array.isArray(existing.records) && typeof existing.push === 'function') {
-    return existing;
-  }
-  const log = makeSimLog(limit);
-  publish('__simLog', log);
-  return log;
 }

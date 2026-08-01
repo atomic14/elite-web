@@ -48,7 +48,7 @@ import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE } from './gunnery.ts';
 import type { DamageSource } from './combat.ts';
 import { viewDirection } from './views.ts';
-import { Ordnance, ordnanceMessage, type OrdnanceReply } from './ordnance.ts';
+import { Ordnance, ordnanceMessage, type OrdnanceOutcome } from './ordnance.ts';
 import type { NpcShip, FireEvent, WorldView } from './npc.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
@@ -639,9 +639,10 @@ export class WorldStep {
   }
 
   /** Ordnance reports what it did; saying it is ours. */
-  private reply(r: OrdnanceReply | null, out: StepEvent[]): void {
-    if (!r) return;
-    const m = ordnanceMessage(r);
+  private reply(result: OrdnanceOutcome, out: StepEvent[]): void {
+    out.push(...result.events);
+    if (!result.reply) return;
+    const m = ordnanceMessage(result.reply);
     out.push(say(m.text, m.seconds));
   }
 

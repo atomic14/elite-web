@@ -21,7 +21,7 @@ export class Input {
   constructor() {
     // No DOM, no listeners — the key STATE above is portable, only the wiring
     // is not, and a headless Game drives that state directly. Same bargain as
-    // game/storage.ts with localStorage and world/sun.ts with the canvas: the
+    // game/storage.ts with localStorage and world/corona-texture.ts with canvas: the
     // file that knows about the platform is the file that copes with it being
     // absent. Without this, `new Input()` in a field initializer made the whole
     // Game unconstructible under node.

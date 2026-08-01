@@ -87,9 +87,9 @@ import {
 import type { WorldSnapshot } from './snapshot.ts';
 import { arenaCentre, spawnOpposition, type OppositionUnit } from './spawning.ts';
 import { freshSession, type GameState } from './state.ts';
-import { withoutSaving } from './storage.ts';
 import { breachLoss, freshSystems } from './systems.ts';
 import { type PilotInput, type StepEvent, type StepHost, WorldStep } from './world-step.ts';
+import type { SoundEvent } from './sounds.ts';
 
 /**
  * How far out the encounter timers are pushed while an exercise runs.
@@ -139,6 +139,7 @@ export interface SimHost {
   enterFlight(): void;
   /** something to say out loud */
   message(text: string, seconds: number): void;
+  sound(event: SoundEvent): void;
   /** the damage flash — a simulated hit should look like a real one */
   flashDamage(): void;
   /** point the cockpit beams at what the shot found, or straight ahead */
@@ -596,14 +597,13 @@ export class CombatSim {
 
     // 1. The world, the commander, the brain selection and the rng stream, all
     //    out of the entry
-    //    snapshot — with saving SUSPENDED, because the restore path ends at
+    //    snapshot — with saving SUSPENDED by Persistence, because the restore path ends at
     //    `Station.dock`, which calls `saveCommander`. In the happy path those
     //    bytes are identical to what is already on disk; if `restore()` were
     //    ever subtly wrong, that write would persist the corruption OVER a good
     //    save. Fail safe first.
     const snap = this.entry!;
-    const suspended = withoutSaving(() => this.persistence.restore(snap));
-    this.refused = suspended.refused;
+    this.refused = this.persistence.restoreWithoutSaving(snap);
 
     // 3. Verify second. The career that came back has to be the career that
     //    went in, to the byte; if it is not, take the snapshot's copy — it is
@@ -690,6 +690,10 @@ export class CombatSim {
    */
   private applySimCombat(events: readonly CombatEvent[], credited: boolean): void {
     for (const e of events) {
+      if (e.kind === 'sound' || e.kind === 'countdown' || e.kind === 'dockingMusic') {
+        this.host.sound(e);
+        continue;
+      }
       switch (e.kind) {
         case 'message': this.host.message(e.text, e.seconds); break;
         // REFUSED. The clone's legal status is nobody's business, and raising

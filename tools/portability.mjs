@@ -1,80 +1,147 @@
 // How much of this game could move to another shell?
 //
-// Chris's test, and it is a better one than "is this module leaky?" because it
-// has an answer rather than an opinion: if we wanted a desktop build with the
-// same core, could we do it, and what would we have to rewrite?
-//
-// Three buckets:
-//
-//   PORTS UNCHANGED   the game itself — rules, galaxy, physics, AI. Moves to
-//                     any shell that can draw and take input.
-//   PLATFORM          renderer, HUD, DOM screens, input, audio, storage. You
-//                     EXPECT to rewrite these; that is the port, not a leak.
-//   CONTAMINATED      engine code that cannot move because a mechanism has
-//                     leaked into it. This is the number that should fall.
-//
+// PORTS UNCHANGED is the game itself; PLATFORM is the shell a port rewrites;
+// CONTAMINATED is game code that has let that shell leak across the seam.
 // Run: node tools/portability.mjs   (also `npm run portability`)
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, normalize, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const BROWSER = /\b(document|window|localStorage|sessionStorage|requestAnimationFrame|HTMLElement|HTMLCanvasElement|navigator|AudioContext|globalThis)\b/;
 
-/**
- * Files that are *meant* to know about the platform. A desktop port
- * reimplements each of these against its own toolkit; that is the job, and
- * counting them as contamination would make the number meaningless.
- */
-const PLATFORM = [
+/** Files a desktop port deliberately replaces. */
+export const PLATFORM = [
   'ui/', 'hud/', 'game/screens/', 'viewer/',
+  // The composition root: only main.ts imports it in shipped code. It creates
+  // the input/HUD/screens and applies audio, storage and console effects; the
+  // reusable rules and fixed step are the modules it orchestrates.
+  'game/game.ts',
   'engine/render-stack.ts', 'engine/input.ts', 'engine/keymap.ts',
-  // the shell: the whole port surface. `engine/shell.ts` is NOT here — it is
-  // the interface plus a headless implementation, and it must stay portable
-  // or the seam is a fiction.
   'engine/browser-shell.ts', 'engine/inert-dom.ts',
   'audio.ts', 'main.ts', 'manual.ts',
-  // the one file allowed to know how a save is stored — swap it for a
-  // file-backed one and nothing else changes
-  'game/storage.ts',
-  // ...and the one allowed to publish a console handle. Same bargain: a port
-  // that has no console simply never calls it. Note this covers HANDLES the
-  // game writes, never FLAGS it reads — see the header of console.ts.
-  'game/console.ts',
-  // the sun's corona is a canvas texture; it is rendering, and it already
-  // degrades to null with no document
-  'world/sun.ts',
+  'game/storage.ts', 'game/console.ts', 'world/corona-texture.ts',
 ];
 
-const stripComments = (s) => s.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+const stripComments = (source) => source.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+const slash = (path) => path.replaceAll('\\', '/');
 
 function walk(dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const p = join(dir, e.name);
-    return e.isDirectory() ? walk(p) : p.endsWith('.ts') ? [p] : [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? walk(path) : path.endsWith('.ts') ? [path] : [];
   });
 }
 
-const buckets = { 'ports unchanged': [], platform: [], contaminated: [] };
+// Type-only declarations are intentionally absent: TypeScript erases them.
+const RUNTIME_IMPORT = /^\s*import\s+(?!type\b)(?:[\s\S]*?\sfrom\s+)?['"]([^'"]+)['"]/gm;
+const RUNTIME_EXPORT = /^\s*export\s+(?!type\b)[\s\S]*?\sfrom\s+['"]([^'"]+)['"]/gm;
 
-for (const path of walk('src').sort()) {
-  const rel = path.slice('src/'.length);
-  const lines = readFileSync(path, 'utf8').split('\n').length;
-  const isPlatform = PLATFORM.some((p) => rel.startsWith(p) || rel.endsWith(p));
-  if (isPlatform) buckets.platform.push([lines, rel]);
-  else if (BROWSER.test(stripComments(readFileSync(path, 'utf8')))) {
-    buckets.contaminated.push([lines, rel]);
-  } else buckets['ports unchanged'].push([lines, rel]);
-}
-
-const total = Object.values(buckets).flat().reduce((s, [n]) => s + n, 0);
-for (const [name, files] of Object.entries(buckets)) {
-  const n = files.reduce((s, [l]) => s + l, 0);
-  console.log(`${name.padEnd(18)} ${String(n).padStart(6)} lines  ${String(Math.round(n / total * 100)).padStart(3)}%  (${files.length} files)`);
-  if (name === 'contaminated') {
-    for (const [l, rel] of files.sort((a, b) => b[0] - a[0])) {
-      console.log(`  ${String(l).padStart(6)}  ${rel}`);
+function runtimeSpecifiers(source) {
+  const specifiers = [];
+  for (const pattern of [RUNTIME_IMPORT, RUNTIME_EXPORT]) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(source))) {
+      if (match[1].startsWith('.')) specifiers.push(match[1]);
     }
   }
+  return specifiers;
 }
-console.log(`${'total'.padEnd(18)} ${String(total).padStart(6)} lines`);
-console.log('\nthe contaminated list is the one to drive to zero.');
+
+function resolveRelativeImport(from, specifier, files) {
+  const target = normalize(join(dirname(from), specifier));
+  // The project uses explicit .ts imports, but accepting extensionless modules
+  // and directory indexes keeps the check aligned with TypeScript resolution.
+  const candidates = target.endsWith('.ts')
+    ? [target]
+    : [`${target}.ts`, join(target, 'index.ts')];
+  return candidates.find((candidate) => files.has(candidate));
+}
+
+/**
+ * Classify TypeScript files below root. Contamination chains begin at the
+ * affected file and end at an intended platform module or "browser token".
+ */
+export function analyzePortability(root = 'src', platform = PLATFORM) {
+  const files = new Set(walk(root).sort());
+  const rel = (path) => slash(relative(root, path));
+  const records = new Map();
+
+  for (const path of files) {
+    const source = readFileSync(path, 'utf8');
+    const name = rel(path);
+    records.set(path, {
+      path,
+      rel: name,
+      lines: source.split('\n').length,
+      platform: platform.some((entry) => name.startsWith(entry) || name.endsWith(entry)),
+      browser: BROWSER.test(stripComments(source)),
+      dependencies: [...new Set(runtimeSpecifiers(stripComments(source))
+        .map((specifier) => resolveRelativeImport(path, specifier, files))
+        .filter(Boolean))].sort((a, b) => rel(a).localeCompare(rel(b))),
+    });
+  }
+
+  // Seed the two direct classifications, then propagate them to a fixed
+  // point. A recursive DFS cannot safely call a back-edge "clean": if a
+  // platform edge appears later in that cycle, the already-memoised member
+  // would stay clean. Fixed-point propagation classifies the whole cycle and
+  // terminates after at most one promotion per file.
+  const state = new Map([...records].map(([path, record]) => [path,
+    record.platform
+      ? { kind: 'platform', chain: [record.rel] }
+      : record.browser
+        ? { kind: 'contaminated', chain: [record.rel, 'browser token'] }
+        : { kind: 'clean' },
+  ]));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [path, record] of records) {
+      if (state.get(path).kind !== 'clean') continue;
+      for (const dependency of record.dependencies) {
+        const dependencyResult = state.get(dependency);
+        if (dependencyResult.kind !== 'platform'
+            && dependencyResult.kind !== 'contaminated') continue;
+        state.set(path, {
+          kind: 'contaminated', chain: [record.rel, ...dependencyResult.chain],
+        });
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  const buckets = { 'ports unchanged': [], platform: [], contaminated: [] };
+  for (const path of [...files].sort((a, b) => rel(a).localeCompare(rel(b)))) {
+    const record = records.get(path);
+    const result = state.get(path);
+    const bucket = result.kind === 'clean' ? 'ports unchanged' : result.kind;
+    buckets[bucket].push({ ...record, chain: result.chain });
+  }
+  return buckets;
+}
+
+export function reportPortability(root = 'src') {
+  const buckets = analyzePortability(root);
+  const total = Object.values(buckets).flat().reduce((sum, file) => sum + file.lines, 0);
+  for (const [name, files] of Object.entries(buckets)) {
+    const lines = files.reduce((sum, file) => sum + file.lines, 0);
+    console.log(`${name.padEnd(18)} ${String(lines).padStart(6)} lines  ${String(Math.round(lines / total * 100)).padStart(3)}%  (${files.length} files)`);
+    if (name === 'contaminated') {
+      for (const file of files.sort((a, b) => b.lines - a.lines || a.rel.localeCompare(b.rel))) {
+        console.log(`  ${String(file.lines).padStart(6)}  ${file.chain.join(' -> ')}`);
+      }
+    }
+  }
+  console.log(`${'total'.padEnd(18)} ${String(total).padStart(6)} lines`);
+  console.log('\nthe contaminated list is the one to drive to zero.');
+  return buckets;
+}
+
+if (process.argv[1]
+    && normalize(process.argv[1]) === normalize(fileURLToPath(import.meta.url))) {
+  const buckets = reportPortability();
+  if (buckets.contaminated.length > 0) process.exitCode = 1;
+}

@@ -74,8 +74,8 @@ console.log('\nflight demands');
   {
     const h = hands(KEYS.rollLeft, KEYS.accel, KEYS.fire);
     const rates = { rollRate: 0.3, pitchRate: -0.2 };
-    const a = flightDemand(h, rates, DT);
-    const b = flightDemand(h, rates, DT);
+    const a = flightDemand(h, keymap(), rates, DT);
+    const b = flightDemand(h, keymap(), rates, DT);
     check('the same controls produce the same demand, twice',
       a.rollRate === b.rollRate && a.pitchRate === b.pitchRate
       && a.throttle === b.throttle && a.fire === b.fire);
@@ -88,7 +88,7 @@ console.log('\nflight demands');
   // --- and it says the right thing -------------------------------------------
   {
     const one = (held: string[], from = { rollRate: 0, pitchRate: 0 }) =>
-      flightDemand(hands(...held), from, DT);
+      flightDemand(hands(...held), keymap(), from, DT);
     const ramped = (target: number) => rampFlightRate(0, target, true, DT);
     check('roll left asks for a left roll rate',
       one([KEYS.rollLeft]).rollRate === ramped(PLAYER_FLIGHT.maxRoll));
@@ -113,7 +113,7 @@ console.log('\nflight demands');
     check('...and the mouse button is too', (() => {
       const h = hands();
       h.mouseFire = true;
-      return flightDemand(h, { rollRate: 0, pitchRate: 0 }, DT).fire;
+      return flightDemand(h, keymap(), { rollRate: 0, pitchRate: 0 }, DT).fire;
     })());
     check('a demand from a pilot with a ship of their own carries no limits',
       one([KEYS.accel]).limits === undefined);
@@ -125,13 +125,13 @@ console.log('\nflight demands');
     h.mouseFlight = true;
     h.mouseX = 0.5;
     h.mouseY = -0.25;
-    const d = flightDemand(h, { rollRate: 0, pitchRate: 0 }, DT);
+    const d = flightDemand(h, keymap(), { rollRate: 0, pitchRate: 0 }, DT);
     check('the virtual stick rolls the ship',
       d.rollRate === rampFlightRate(0, -0.5 * PLAYER_FLIGHT.maxRoll, true, DT));
     check('...and pitches it',
       d.pitchRate === rampFlightRate(0, -0.25 * PLAYER_FLIGHT.maxPitch, true, DT));
     h.down.add(KEYS.rollLeft);
-    const withKey = flightDemand(h, { rollRate: 0, pitchRate: 0 }, DT);
+    const withKey = flightDemand(h, keymap(), { rollRate: 0, pitchRate: 0 }, DT);
     check('...and the keyboard still overrides the axis it touches',
       withKey.rollRate === rampFlightRate(0, PLAYER_FLIGHT.maxRoll, true, DT)
       && withKey.pitchRate === d.pitchRate);
@@ -222,7 +222,7 @@ console.log('\nflight demands');
     };
     /** The new path, exactly as Game.pilotDemand + PlayerShip.update run it. */
     const newUpdate = (s: PlayerShip, dt: number, input: Hands): void => {
-      const d = flightDemand(input, s, dt);
+      const d = flightDemand(input, keymap(), s, dt);
       if (input.mouseFlight) input.decayMouse(dt);
       s.update(dt, d);
     };

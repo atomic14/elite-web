@@ -15,7 +15,6 @@ import {
   observe, observePack, act, makeScratch, brainFromFile,
   type Brain, type BrainFile,
 } from '../ai-training/policy.ts';
-import { publish } from './console.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import sharpBrainFile from '../ai-training/brains/pirate-attack-g2.json' with { type: 'json' };
@@ -271,22 +270,15 @@ const RAM_GUARD_NO_RAM = 150;
  */
 const TARGET_SPEED_FLOOR = 150;
 
-
 /**
- * Test-harness access to the trained policies (used by the autopilot
- * commanders in docs/JAMESON-TRIALS.md to fly the *player's* ship).
- *
- * A FUNCTION, called by the Game, rather than an assignment at module scope.
- * As a bare statement it ran on import, so `import('./npc.ts')` under node
- * threw on `window` — which is why the police-hostility checks in test/run.ts
- * had to assert against source text with a regex instead of calling
- * isHostileToPlayer(). three.js maths is fine headless; this was the blocker.
+ * Pure value behind the optional console handle used by training harnesses.
+ * The platform decides whether and where to publish it.
  */
-export function installPolicyKit(): void {
-  publish('__policyKit', {
+export function policyKit(): Record<string, unknown> {
+  return {
     act, observe, observePack, makeScratch,
     pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
-  });
+  };
 }
 
 

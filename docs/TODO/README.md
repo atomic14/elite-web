@@ -9,13 +9,16 @@ were removed from the active queue and remain available in Git history.
 
 ## Checklist
 
-Progress: **2 / 4 complete**. Last verified after item 18: `npm run lint`,
-`npm test`, and `npm run build` — **1274 passed, 0 failed**.
+Progress: **4 / 4 complete**. Last verified after item 20: `npm run build`,
+`npm run campaign`, and `npm run portability` — **1293 passed, 0 failed**. The
+new dependency-aware gate's fixtures pass and the live graph reports **0
+contaminated files**. Its first honest run exposed 16; the follow-up boundary
+cleanup removed those paths, so the zero is now graph-backed.
 
 - [x] 17 — [NPC docking latch is missing from the snapshot](17-npc-dock-plan-snapshot.md) — missing behavior state · high · small
 - [x] 18 — [`draw()` advances the cockpit beam lifetime](18-beam-timer-in-step.md) — temporal decomposition · medium · small
-- [ ] 19 — [Core rule modules still perform platform side effects](19-core-platform-side-effects.md) — platform leak · medium · large
-- [ ] 20 — [The portability gate does not follow imports](20-dependency-aware-portability.md) — tooling defect · medium · medium
+- [x] 19 — [Core rule modules still perform platform side effects](19-core-platform-side-effects.md) — platform leak · medium · large
+- [x] 20 — [The portability gate does not follow imports](20-dependency-aware-portability.md) — tooling defect · medium · medium
 
 ## Review context
 

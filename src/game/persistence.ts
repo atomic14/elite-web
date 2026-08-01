@@ -24,18 +24,17 @@
 //      draw after a reload is the draw the run was about to make.
 //
 // This file is NOT in the `purity` list in test/run.ts and should not be: it
-// reads and writes localStorage, through storage.ts. Everything it does to the
-// state, though, it does without a renderer.
+// reaches persistence through its host. Everything it does to the state,
+// though, it does without a renderer.
 
 import { generateGalaxy, type MarketEntry } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
-import type { Contract } from './commander.ts';
+import type { CommanderData, Contract } from './commander.ts';
 import type { PirateThreat } from './threat.ts';
 import { CONSTRICTOR_SPEC, pirateSpecForTier } from './ship-specs.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { Ordnance } from './ordnance.ts';
 import { rngState, restoreRng } from './rng.ts';
-import { saveWorld, readWorld, clearWorld, saveCommander } from './storage.ts';
 import {
   SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState,
   type WorldSnapshot,
@@ -45,11 +44,10 @@ import type { GameState } from './state.ts';
 /**
  * What restoring a world needs the orchestrator to do.
  *
- * Four verbs and two questions, and every one of them is a consequence that
- * reaches outside `GameState`: rebuilding the scene, re-entering witch-space
- * (which SPAWNS, and therefore draws), and the mode machine, which is the
- * Game's alone. Small enough for a test to implement in ten lines, which is the
- * bar `StepHost` set.
+ * Restore verbs, lifecycle questions, and the narrow persistence operations
+ * that reach outside `GameState`: rebuilding the scene, re-entering witch-space
+ * (which SPAWNS, and therefore draws), the mode machine, and the store, all of
+ * which belong to the Game. Still small enough for a test fixture to own.
  */
 export interface PersistenceHost {
   /** where the ship is right now — a snapshot records flight or docked */
@@ -68,6 +66,20 @@ export interface PersistenceHost {
   isDead(): boolean;
   /** something to say out loud */
   message(text: string, seconds: number): void;
+  /** Store the station-level part of a career. */
+  saveCommander(commander: CommanderData): void;
+  /** Store or retrieve the mid-flight part of a career. */
+  saveWorld(json: string): void;
+  readWorld(): string | null;
+  /** Forget a corrupt, stale, or no-longer-needed mid-flight save. */
+  clearWorld(): void;
+  /**
+   * Refuse save writes for a span, returning the keys that would have changed.
+   *
+   * The storage implementation owns the guard; Persistence only needs this
+   * narrow capability to restore a simulator entry without risking its career.
+   */
+  withoutSaving<T>(fn: () => T): { value: T; refused: string[] };
 }
 
 export class Persistence {
@@ -206,14 +218,24 @@ export class Persistence {
   }
 
   /**
+   * Restore while refusing every persistence write the rebuild may trigger.
+   *
+   * Returning the refused keys proves the guard was load-bearing to callers
+   * such as the combat simulator, without making them know the storage module.
+   */
+  restoreWithoutSaving(snap: WorldSnapshot): string[] {
+    return this.host.withoutSaving(() => this.restore(snap)).refused;
+  }
+
+  /**
    * Write the world down. Cheap enough to do on a timer, because the whole
    * point is that closing the tab mid-fight is not punished.
    */
   autoSave(): void {
     if (this.host.isDead()) return;
-    saveCommander(this.state.commander);
+    this.host.saveCommander(this.state.commander);
     try {
-      saveWorld(JSON.stringify(this.capture()));
+      this.host.saveWorld(JSON.stringify(this.capture()));
     } catch {
       // a world that will not serialise is a bug, but it must never take the
       // session down — the commander save above is already safe
@@ -228,7 +250,7 @@ export class Persistence {
    * normally at the station.
    */
   resume(): boolean {
-    const json = readWorld();
+    const json = this.host.readWorld();
     if (!json) return false;
     try {
       const snap = JSON.parse(json) as WorldSnapshot;
@@ -239,7 +261,7 @@ export class Persistence {
       return true;
     } catch {
       // a corrupt or stale world must never cost you the commander
-      clearWorld();
+      this.host.clearWorld();
       return false;
     }
   }

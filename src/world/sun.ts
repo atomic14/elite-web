@@ -72,39 +72,17 @@ export interface Sun {
 }
 
 /**
- * The corona's radial gradient, painted into a canvas.
- *
- * Returns null when there is no `document`. This one function was the ONLY
- * thing stopping the whole world model being built under node — `World.build`
- * ran headless right up to here and then threw, which meant the station,
- * planet and sun positions that massLocked(), checkHazards(), the docking
- * checks and the compass all read could not exist outside a browser.
- *
- * CLAUDE.md said everything needing a GPU was confined to render-stack.ts. It
- * was not; an audit found this. A sprite the simulation never reads is not
- * worth that, so it is now optional and the sun simply has no halo headless.
- *
- * The guard tests createElement, not `document` — test/run.ts installs a
- * partial document stub for the screen tests, so `typeof document` alone
- * reports "object" under node and then throws one line later.
+ * Presentation may provide a corona texture before a world is built. The
+ * default is deliberately null, so this module and every world module above
+ * it remain usable without a browser. `main.ts` installs the canvas-backed
+ * factory from `corona-texture.ts`; a different port can install its own.
  */
-function coronaTexture(): THREE.Texture | null {
-  if (typeof document === 'undefined'
-      || typeof document.createElement !== 'function') return null;
-  const size = 256;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  g.addColorStop(0.0, 'rgba(255, 240, 210, 0.9)');
-  g.addColorStop(0.25, 'rgba(255, 170, 80, 0.45)');
-  g.addColorStop(0.55, 'rgba(255, 110, 40, 0.14)');
-  g.addColorStop(1.0, 'rgba(255, 80, 20, 0.0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+export type CoronaTextureFactory = () => THREE.Texture | null;
+let coronaTexture: CoronaTextureFactory = () => null;
+
+/** Configure the optional presentation detail without importing its platform. */
+export function setCoronaTextureFactory(factory: CoronaTextureFactory): void {
+  coronaTexture = factory;
 }
 
 export function createSun(radius: number, position: THREE.Vector3): Sun {

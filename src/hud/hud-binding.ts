@@ -19,7 +19,7 @@ import {
   scannerContacts, projectMarker, shipIdUnderView, nearestHostile, dockingAid,
   screenTargets,
 } from './hud-model.ts';
-import { isHostileToPlayer, type NpcShip } from '../game/npc.ts';
+import { hostilesNear, type NpcShip } from '../game/npc.ts';
 import type { CommanderData } from '../game/commander.ts';
 import type { ShipSystems } from '../game/systems.ts';
 import type { World } from '../game/world.ts';
@@ -27,8 +27,6 @@ import type { Missile } from '../game/ordnance.ts';
 import type { Canister } from '../game/cargo.ts';
 import { MAX_FUEL } from '../game/commander.ts';
 
-/** A hostile this close puts the condition light on RED. */
-export const CONDITION_RED_RANGE = 9000;
 /** Closer than this to the sun, the compass switches to it for a sun-skim. */
 export const SUNSKIM_COMPASS_RANGE = 130_000;
 /** The station takes the compass within this many planet radii. */
@@ -67,15 +65,6 @@ export interface HudScratch {
   b: THREE.Vector3;
   c: THREE.Vector3;
   q: THREE.Quaternion;
-}
-
-/** Is anything close enough and cross enough to turn the condition light red? */
-export function hostilesNear(
-  npcs: readonly NpcShip[], playerPos: THREE.Vector3, legalStatus: number,
-): boolean {
-  return npcs.some((npc) =>
-    isHostileToPlayer(npc, legalStatus)
-    && npc.object.position.distanceTo(playerPos) < CONDITION_RED_RANGE);
 }
 
 /**

@@ -14,7 +14,6 @@
 // Mouse DECAY is not done here: `decayMouse` mutates the Input, and a pure
 // producer must not. The caller does it, immediately after reading — see
 // Game.pilotDemand.
-import { keymap } from './keymap.ts';
 import { PLAYER_FLIGHT, rampFlightRate, type FlightDemand } from '../player.ts';
 
 /**
@@ -35,14 +34,27 @@ export interface TurnRates {
   pitchRate: number;
 }
 
+/** The active bindings the flight controls need, supplied by their owner. */
+export interface FlightKeys {
+  readonly rollLeft: readonly string[];
+  readonly rollRight: readonly string[];
+  readonly pitchUp: readonly string[];
+  readonly pitchDown: readonly string[];
+  readonly accel: readonly string[];
+  readonly decel: readonly string[];
+  readonly fire: readonly string[];
+}
+
 /**
  * What the pilot at the keyboard is asking for.
  *
  * @param c    what is held down, and where the mouse is
+ * @param keys the active layout's bindings
  * @param from the rates already being flown, which the ramp continues from
  */
-export function flightDemand(c: FlightControls, from: TurnRates, dt: number): FlightDemand {
-  const keys = keymap(); // classic (1984) by default, modern as a toggle
+export function flightDemand(
+  c: FlightControls, keys: FlightKeys, from: TurnRates, dt: number,
+): FlightDemand {
   let rollIn = (c.held(...keys.rollLeft) ? 1 : 0) - (c.held(...keys.rollRight) ? 1 : 0);
   let pitchIn = (c.held(...keys.pitchUp) ? 1 : 0) - (c.held(...keys.pitchDown) ? 1 : 0);
 

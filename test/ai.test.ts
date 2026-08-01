@@ -6,7 +6,8 @@
 // the suite went on measuring two brains the game did not fly.
 
 import { readFileSync } from 'node:fs';
-import { pirateBrainFor, defenceBrain, SHIPPED_BRAINS } from '../src/game/brains.ts';
+import { pirateBrainFor, defenceBrain, DEFEND_BRAIN, SHIPPED_BRAINS } from '../src/game/brains.ts';
+import { handle, installPolicyKit } from '../src/game/console.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { randomBrain, type BrainFile } from '../src/ai-training/policy.ts';
 import { makeRng } from '../src/game/rng.ts';
@@ -184,6 +185,13 @@ console.log('\nbrain selection');
 
 console.log('\npurity');
 {
+  installPolicyKit();
+  const kit = handle('__policyKit') as Record<string, unknown>;
+  check('the console seam publishes the trained-policy debug handle',
+    typeof kit.act === 'function' && typeof kit.observe === 'function'
+    && typeof kit.observePack === 'function' && typeof kit.makeScratch === 'function');
+  check('...with the live defender policy', kit.defendBrain === DEFEND_BRAIN);
+
   const PURE = [
     'commander.ts', 'shop.ts', 'contracts.ts', 'law.ts', 'jettison.ts',
     'systems.ts', 'trumbles.ts', 'hyperspace.ts', 'missions.ts', 'population.ts',
@@ -196,6 +204,7 @@ console.log('\npurity');
     // module about opposition free of the network, the DOM and the World.
     'combat-sim-scenarios.ts',
     'combat-sim-report.ts',
+    'brains.ts',
     // the whole world step, as of the extraction out of game.ts — this is the
     // line that says the simulation can advance without a browser
     'world-step.ts',
@@ -215,6 +224,9 @@ console.log('\npurity');
     check(`${f} does not reach for the browser`,
       !/\b(localStorage|sessionStorage|document|window)\b/.test(src));
   }
+  const brainsSrc = readFileSync(new URL('../src/game/brains.ts', import.meta.url), 'utf8');
+  check('brains.ts does not import the console platform seam',
+    !brainsSrc.includes("from './console.ts'"));
   // ...and neither does it IMPORT something that does. The world step held
   // eleven `sfx.*` calls long after its HUD messages had become returned
   // events, and named no browser API itself — it survived under node only
@@ -225,6 +237,13 @@ console.log('\npurity');
       .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
     check(`${f} does not import audio.ts — it returns SoundEvents`,
       !/audio\.ts/.test(src) && !/\bsfx\b/.test(src));
+  }
+  for (const f of ['combat.ts', 'ordnance.ts', 'station.ts']) {
+    const src = readFileSync(new URL(`../src/game/${f}`, import.meta.url), 'utf8')
+      .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+    check(`${f} imports no audio, storage or DOM screen implementation`,
+      !/(audio|storage|ui\/screens)\.ts/.test(src)
+      && !/\b(sfx|renderDockedMenu|hideScreen)\b/.test(src));
   }
   // The flight seam, outside src/game/: player.ts took an `Input` until the
   // demand layer went in, which made the flight model — the thing every

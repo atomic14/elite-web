@@ -9,17 +9,22 @@ core engine, could we do it?**
 `npm run portability` answers it. Today:
 
 ```
-ports unchanged     10066 lines   63%   the game itself
-platform             4288 lines   27%   renderer, HUD, screens, input, audio,
-                                        storage — you EXPECT to rewrite these
-contaminated            0 lines    0%   nothing: the shell is the port surface
+ports unchanged     14165 lines   67%   the reusable rules and simulation
+platform             7039 lines   33%   composition root, renderer, HUD,
+                                        screens, input, audio and storage
+contaminated            0 lines    0%   no core runtime path reaches platform
 ```
 
-The third number is the one to drive down; it was 17% across three files
-before `sun.ts` stopped needing a canvas and `storage.ts` took the
-localStorage. `game.ts` is the last file where engine and shell are braided
-— the fixed-timestep loop and step order in the same class as the render
-stack, the Input, the Hud and the DOM screens.
+The third number is the one to drive down. The gate now follows relative
+runtime imports transitively (while ignoring erased type-only edges), so the
+old `0` is no longer false assurance from checking each file in isolation.
+Every contaminated line includes the dependency chain that reaches a platform
+module and makes `npm run portability` fail. Its first honest run found 16
+files. Console publication, persistence, hostility, flight bindings and the
+canvas corona now point outward through explicit seams instead. `game.ts` is
+declared as the platform composition root: no reusable module imports it (the
+gate asserts that only `main.ts` does), and it constructs the Input, HUD and
+screens that apply the core modules' reported outcomes.
 
 A test suite will not catch that number regressing. This will.
 
@@ -33,11 +38,11 @@ Everything else is a consequence, and each consequence is testable:
 | --- | --- | --- |
 | the snapshot IS the state | save anywhere, replay, test fixtures | mostly — see the gaps below |
 | `step()` is seeded and fixed-dt | the same inputs give the same run | done |
-| the renderer never writes state | you can delete it and still simulate | done for the HUD; `step()` still touches the DOM in four places |
+| the renderer never writes state | you can delete it and still simulate | **done** — the step reports presentation effects to the platform composition root |
 | the world builds without a browser | training against the real step | **done** — `World.build()` runs under node |
 | ...and STEPS without one | the trainer can use the real engine | **done** — `world-step.ts`, stepped headless by `npm test` |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 390 tests, no browser | done |
+| every rule is unit-testable headless | 1293 tests, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,

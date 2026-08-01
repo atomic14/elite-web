@@ -13,7 +13,6 @@ import {
   CombatSimRecorder,
   combatSimJson,
   makeSimLog,
-  installSimLog,
   aimAngle,
   quantile,
   mean,
@@ -26,6 +25,7 @@ import {
   type PlayerLoadout,
   type CombatSimReport,
 } from '../src/game/combat-sim-report.ts';
+import { installSimLog } from '../src/game/console.ts';
 import { check, eq } from './harness.ts';
 
 // --- the combat simulator's report ------------------------------------------
@@ -275,9 +275,8 @@ console.log('\ncombat simulator report');
       JSON.stringify(rec.report('destroyed')) === JSON.stringify(r));
   }
 
-  // 8. The ring of recent exercises, and the fact that it is INSTALLED rather
-  // than assigned at module scope — the rule brains.ts's installPolicyKit()
-  // exists to keep, and the reason this file loads under node at all.
+  // 8. The ring of recent exercises. Its core factory is pure; the console
+  // seam installs the optional global handle.
   {
     const rec = new CombatSimRecorder(setup());
     const r = rec.report('quit');
@@ -295,13 +294,12 @@ console.log('\ncombat simulator report');
     // way to check it is over the SOURCE. Reading globalThis here tested the
     // same thing only while nothing else in the suite had built a Game — and
     // the moment test/game.test.ts started constructing real ones, this began
-    // failing on test ORDER rather than on the property. `installSimLog` is
-    // called from the Game's constructor, which is exactly the design.
+    // failing on test ORDER rather than on the property. The installer belongs
+    // to console.ts; this report module must not even import that platform seam.
     const reportSrc = readFileSync(
       new URL('../src/game/combat-sim-report.ts', import.meta.url), 'utf8');
-    const topLevelPublish = reportSrc.split('\n')
-      .some((l: string) => /^publish\(/.test(l));   // column 0 = module scope
-    check('importing the module touches no global', !topLevelPublish);
+    check('the report module has no platform import',
+      !reportSrc.includes("from './console.ts'"));
     const installed = installSimLog(2);
     check('installSimLog() puts the ring on globalThis', host.__simLog === installed);
     check('...and a second call inherits the same ring rather than dropping it',

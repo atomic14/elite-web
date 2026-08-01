@@ -57,8 +57,8 @@ const refused: string[] = [];
  * that moves a player's money, had no tests: the first honest attempt to write
  * one crashed in the save layer.
  *
- * Degrading to null rather than throwing is the same bargain `world/sun.ts`
- * already makes with `document`: the file that knows about the platform is the
+ * Degrading to null rather than throwing is the same bargain
+ * `world/corona-texture.ts` makes with `document`: the file that knows about the platform is the
  * file that copes with it being absent.
  */
 function store(): Storage | null {

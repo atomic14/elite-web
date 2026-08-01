@@ -33,7 +33,7 @@ import { applyDamage } from './systems.ts';
 import { offenceFor, OFFENDER, FUGITIVE } from './law.ts';
 import { constrictorDestroyed } from './missions.ts';
 import { random, randomInt } from './rng.ts';
-import { sfx } from '../audio.ts';
+import type { SoundEvent, SoundName } from './sounds.ts';
 
 /** Cargo an ordinary wreck spills: food, textiles, liquor, machinery, alloys, furs, minerals. */
 const WRECK_CARGO = [0, 1, 4, 8, 9, 11, 12];
@@ -45,6 +45,7 @@ const ESCAPE_CHANCE = { trader: 0.45, other: 0.2 };
 export const BEAM_FLASH = 0.12;
 
 export type CombatEvent =
+  | SoundEvent
   | { kind: 'message'; text: string; seconds: number }
   /** raise the legal status — the Game does it, because it launches the Vipers */
   | { kind: 'offence'; level: number }
@@ -59,6 +60,7 @@ export type CombatEvent =
   | { kind: 'died'; reason: string };
 
 const say = (text: string, seconds: number): CombatEvent => ({ kind: 'message', text, seconds });
+const heard = (name: SoundName): CombatEvent => ({ kind: 'sound', name });
 
 /**
  * What hurt the player. Five things can, and this is the whole list — the five
@@ -125,8 +127,8 @@ export class Combat {
     const laser = laserForView(commander.equipment, view);
     if (!laser || !canFire(sys)) return [];
     chargeShot(sys, laser);
-    sfx.laser();
 
+    const sounds: CombatEvent[] = [heard('laser')];
     const out: CombatEvent[] = [{ kind: 'fired' }];
     const shot = traceShot(
       playerPos, viewDir, this.world.npcs, this.world.cargo.items,
@@ -144,7 +146,7 @@ export class Combat {
     });
 
     if (shot.kind === 'cargo') {
-      sfx.hit();
+      sounds.push(heard('hit'));
       this.world.effects.explosion(shot.cargo.object.position.clone(), 0x8ad0ff,
         { count: 10, speed: 55, duration: 0.4 });
       this.world.cargo.destroy(shot.cargo);
@@ -154,11 +156,11 @@ export class Combat {
       } else {
         out.push(say('CARGO DESTROYED', 2));
       }
-      return out;
+      return [...sounds, ...out];
     }
 
     if (shot.kind === 'station') {
-      sfx.hit();
+      sounds.push(heard('hit'));
       // sparks off the hull, but the station itself shrugs it off
       const impact = playerPos.clone().addScaledVector(viewDir, shot.distance);
       this.world.effects.explosion(impact, 0xd8ffcc, { count: 10, speed: 60, duration: 0.4 });
@@ -168,20 +170,28 @@ export class Combat {
       // escalates you to fugitive the normal way.
       out.push(say('STATION HULL HIT — DEFENCES SCRAMBLING', 3),
         { kind: 'offence', level: OFFENDER });
-      return out;
+      return [...sounds, ...out];
     }
 
     if (shot.kind === 'ship') {
-      sfx.hit();
+      sounds.push(heard('hit'));
       // impact flash at the target so hits read clearly
       this.world.effects.explosion(shot.ship.object.position.clone(), 0xd8ffcc,
         { count: 8, speed: 70, duration: 0.35 });
       out.push({ kind: 'offence', level: offenceFor(shot.ship.role, false) });
       if (shot.ship.takeDamage(laser.damage, playerPos, true)) {
-        out.push(...this.destroy(commander, shot.ship));
+        // destroy() reports its explosion before its semantic consequences.
+        // Keep all sounds ahead of events the Game could only apply after this
+        // call returned, matching the pre-extraction observable order.
+        for (const event of this.destroy(commander, shot.ship)) {
+          if (event.kind === 'sound'
+              || event.kind === 'countdown'
+              || event.kind === 'dockingMusic') sounds.push(event);
+          else out.push(event);
+        }
       }
     }
-    return out;
+    return [...sounds, ...out];
   }
 
   /**
@@ -237,7 +247,6 @@ export class Combat {
   wreck(npc: NpcShip): CombatEvent[] {
     const out: CombatEvent[] = [{ kind: 'wrecked', npc }];
     this.world.effects.explosion(npc.object.position.clone());
-    sfx.explosion();
     this.world.despawn(npc);
 
     // wily traders and many pirates punch out at the last moment
@@ -257,7 +266,7 @@ export class Combat {
       }
       out.push(say('THARGONS DEACTIVATED', 3));
     }
-    return out;
+    return [heard('explosion'), ...out];
   }
 
   /**
@@ -278,9 +287,8 @@ export class Combat {
     scratch.a.copy(from).sub(playerPos)
       .applyQuaternion(scratch.q.copy(playerQuat).invert());
     const result = applyDamage(sys, amount, scratch.a.z < 0);
-    sfx.damage();
 
-    const out: CombatEvent[] = [];
+    const out: CombatEvent[] = [heard('damage')];
     if (result.wreckedSomething) out.push({ kind: 'breach' });
     if (result.destroyed) out.push({ kind: 'died', reason: 'SHIP DESTROYED' });
     return out;

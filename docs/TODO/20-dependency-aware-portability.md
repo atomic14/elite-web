@@ -43,3 +43,16 @@ Keep direct browser-token detection as an independent contamination source.
   runtime edges.
 - `npm run lint && npm test && npm run sizes`
 - `git diff --check`
+
+## Outcome
+
+The first dependency-aware run reported **16 contaminated files**, not the old
+false zero. The three TODO 19 targets (`combat.ts`, `ordnance.ts`, and
+`station.ts`) were clean; the graph exposed older runtime paths through console
+and storage adapters, HUD binding, the sun renderer, and the keymap. Those
+boundaries now point outward through injected data or platform-owned installers.
+
+`game.ts` is explicitly the platform composition root: it constructs the
+Input, HUD and screens and applies platform effects, while only `main.ts`
+imports it in shipped code. A live invariant protects that direction. The gate
+now reports **0 contaminated files** and exits unsuccessfully if one returns.

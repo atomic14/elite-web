@@ -15,7 +15,7 @@ import {
   OPPORTUNIST_FLOOR,
   GANG_FLOOR,
 } from '../src/game/jettison.ts';
-import { breachLoss, CARGO_LOSS_CHANCE } from '../src/game/systems.ts';
+import { breachLoss, CARGO_LOSS_CHANCE, freshSystems } from '../src/game/systems.ts';
 import { Combat } from '../src/game/combat.ts';
 import {
   isContraband,
@@ -29,9 +29,8 @@ import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
-import { check } from './harness.ts';
+import { check, eq } from './harness.ts';
 import { DT, load } from './fixtures.ts';
-
 // --- resolving a hit ---------------------------------------------------------
 //
 // The bounty, the kill credit, the contract tick and the legal offence used to
@@ -74,6 +73,8 @@ console.log('\ncombat');
     check('...is nobody\'s business legally', offence(evs) === CLEAN);
     check('...and takes the ship out of the sky',
       world.npcs.length === 0 && kinds(evs).includes('wrecked'));
+    eq('combat reports the explosion before applying wreck consequences',
+      kinds(evs).slice(0, 2).join('|'), 'sound|wrecked');
   }
   {
     const { world, combat, c } = setup();
@@ -130,10 +131,25 @@ console.log('\ncombat');
     combat.destroy(c, world.spawn('thargoid', at(-500), 1));
     check('...but not while another mothership is alive', drone.state.inert === false);
   }
+  {
+    const world = new World();
+    const combat = new Combat(world);
+    const c = newCommander();
+    world.spawn('pirate', at(-500), 1);
+    const scratch = {
+      a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(),
+      ray: new THREE.Raycaster(),
+    };
+    const evs = combat.fire(
+      c, freshSystems(), new THREE.Vector3(), new THREE.Vector3(0, 0, -1),
+      0, true, scratch);
+    const ordered = evs.slice(0, 5).map((e) =>
+      e.kind === 'sound' ? `sound:${e.name}` : e.kind);
+    eq('a laser hit reports both sounds before ordered combat consequences',
+      ordered.join('|'), 'sound:laser|sound:hit|fired|beam|offence');
+  }
 }
-
 // --- collision rates --------------------------------------------------------
-
 // The collision round concluded the shipped brains "already fly clear of the
 // target, so a rule that punishes contact costs them nothing", from a table
 // covering the scripted trader and the Jameson matchups. It did not cover

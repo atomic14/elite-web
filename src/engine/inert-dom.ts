@@ -7,7 +7,7 @@
 // because three of its fields did.
 //
 // The bargain is the same one game/storage.ts makes with localStorage and
-// world/sun.ts makes with the canvas: the code that knows about the platform is
+// world/corona-texture.ts makes with canvas: code that knows about the platform is
 // the code that copes with the platform being absent. None of what a painter
 // does has to SUCCEED for the game to be correct — the HUD is a dumb painter
 // (CLAUDE.md invariant 15) and nothing reads it back — it only has to not throw.

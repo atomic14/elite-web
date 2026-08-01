@@ -24,6 +24,9 @@
 // globalThis, and no game rule may read from it. That is what stops the flags
 // growing back one convenience at a time.
 
+import { policyKit } from './brains.ts';
+import { makeSimLog, SIM_LOG_LIMIT, type SimLog } from './combat-sim-report.ts';
+
 /**
  * Publish a debug handle for a console session or an automated agent.
  *
@@ -39,4 +42,26 @@ export function publish(name: string, value: unknown): void {
 /** Read one back. For a harness checking its own wiring, not for game rules. */
 export function handle(name: string): unknown {
   return (globalThis as unknown as Record<string, unknown>)[name];
+}
+
+/**
+ * Publish test-harness access to the trained policies. This is platform
+ * publication, deliberately kept out of the pure brain-selection module.
+ */
+export function installPolicyKit(): void {
+  publish('__policyKit', policyKit());
+}
+
+/**
+ * Put the recent-exercise ring on the console handle. A second Game in the
+ * same host inherits the ring rather than throwing its records away.
+ */
+export function installSimLog(limit = SIM_LOG_LIMIT): SimLog {
+  const existing = handle('__simLog') as SimLog | undefined;
+  if (existing && Array.isArray(existing.records) && typeof existing.push === 'function') {
+    return existing;
+  }
+  const log = makeSimLog(limit);
+  publish('__simLog', log);
+  return log;
 }

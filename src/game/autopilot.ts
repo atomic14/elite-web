@@ -22,7 +22,7 @@
 
 import type { FlightDemand } from '../player.ts';
 import type { Brain } from '../ai-training/policy.ts';
-import { hostilesNear } from '../hud/hud-binding.ts';
+import { hostilesNear } from './npc.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { SoundEvent } from './sounds.ts';
 import type { GameState } from './state.ts';

@@ -25,16 +25,14 @@
 import * as THREE from 'three';
 import { slotNormal } from '../world/slot.ts';
 
-import { sfx } from '../audio.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { formatCredits } from './commander.ts';
 import { fineFor, CLEAN } from './law.ts';
 import { generateContractOffers, makeLocalMarket, describeContract } from './contracts.ts';
 import { stepMissionAtDock, missionHeadline } from './missions.ts';
-import { clearWorld, saveCommander } from './storage.ts';
 import type { Ordnance } from './ordnance.ts';
 import type { GameState } from './state.ts';
-import { renderDockedMenu, hideScreen } from '../ui/screens.ts';
+import type { SoundEvent, SoundName } from './sounds.ts';
 
 /** How far off the slot you sit when the bay spits you out. */
 const LAUNCH_STANDOFF = 450;
@@ -51,17 +49,23 @@ const LAUNCH_SPEED = 120;
 
 /** What the station reports for the orchestrator to say out loud. */
 export type StationEvent =
-  | { kind: 'message'; text: string; seconds: number };
+  | SoundEvent
+  | { kind: 'message'; text: string; seconds: number }
+  | { kind: 'persistence'; action: 'clearWorld' | 'saveCommander' }
+  | { kind: 'presentation'; action: 'releaseMouseFlight' }
+  | { kind: 'presentation'; action: 'screen'; screen: 'docked' | 'hidden' }
+  | { kind: 'presentation'; action: 'tunnel'; way: 'in' | 'out' };
 
 const say = (text: string, seconds: number): StationEvent =>
   ({ kind: 'message', text, seconds });
+const heard = (name: SoundName): StationEvent => ({ kind: 'sound', name });
 
 /**
  * What docking and launching need the orchestrator to do.
  *
- * The mode machine, the pointer lock, the bay-door effect, and the two things
- * that DRAW. Everything else the station does to the world it does directly to
- * `GameState`, which is why this list is as short as it is.
+ * The mode machine and the operations that DRAW stay synchronous. Pointer
+ * lock, bay-door theatre, screens, persistence and sound are returned events.
+ * Everything else is a direct update to `GameState`.
  */
 export interface StationHost {
   /** where the ship is — the base screen is the menu or the cockpit */
@@ -70,10 +74,6 @@ export interface StationHost {
   setBaseMode(mode: 'docked' | 'flight'): void;
   /** point the nose down `dir` */
   lookAlong(dir: THREE.Vector3): void;
-  /** the bay door: shutting around you on the way in, opening on the way out */
-  tunnel(way: 'in' | 'out'): void;
-  /** let go of the mouse-flight pointer lock */
-  releaseMouseFlight(): void;
   /** the traffic you meet on the way out — DRAWS, so a call and not an event */
   populateSystem(situation: 'launch'): void;
   /** pay out and expire the work you were carrying, and say what it paid */
@@ -106,17 +106,20 @@ export class Station {
   dock(booting = false): StationEvent[] {
     const s = this.state;
     const c = s.commander;
-    const events: StationEvent[] = [];
+    // Direct platform effects used to happen during this method, while HUD
+    // messages were applied only after it returned. Preserve that observable
+    // order by returning effects first and messages second.
+    const effects: StationEvent[] = [{ kind: 'dockingMusic', on: false }];
+    const messages: StationEvent[] = [];
 
     // whatever flew us in, we're down: drop the autopilot and cut the music
     s.session.dcEngaged = false;
-    sfx.stopDockingMusic();
     this.host.setBaseMode('docked');
     // Docking supersedes the mid-flight world. Leaving it behind meant a
     // reload resumed the snapshot from BEFORE the dock: the cargo you had
     // just sold was back in the hold, the equipment you bought was gone, and
     // the next dock wrote that rolled-back commander over the good one.
-    if (!booting) clearWorld();
+    if (!booting) effects.push({ kind: 'persistence', action: 'clearWorld' });
     s.world.clearNpcs();
     this.ordnance.clear();
     s.sys.foreShield = 1;
@@ -127,21 +130,21 @@ export class Station {
     s.session.torusEngaged = false;
     s.session.ccEngaged = false;
     this.ordnance.armed = false;
-    this.host.releaseMouseFlight();
+    effects.push({ kind: 'presentation', action: 'releaseMouseFlight' });
     // Hand over anyone you pulled out of a capsule. Without this they occupy
     // a bay for the rest of the career, which is the failure mode the old
     // `cargo[3]` at least avoided by being sellable.
     if (c.survivors > 0) {
       const n = c.survivors;
       c.survivors = 0;
-      events.push(say(`${n} SURVIVOR${n > 1 ? 'S' : ''} HANDED TO STATION MEDICAL`, 4));
+      messages.push(say(`${n} SURVIVOR${n > 1 ? 'S' : ''} HANDED TO STATION MEDICAL`, 4));
     }
 
     const fine = fineFor(c.legalStatus, c.credits);
     if (fine > 0 || c.legalStatus > CLEAN) {
       c.credits -= fine;
       c.legalStatus = CLEAN;
-      events.push(say(`OFFENCE FINE PAID: ${formatCredits(fine)}`, 5));
+      messages.push(say(`OFFENCE FINE PAID: ${formatCredits(fine)}`, 5));
     }
     s.session.policeScanned = false;
     s.session.defenceLaunched = false;
@@ -154,11 +157,11 @@ export class Station {
     // this owns the announcement, exactly as combat.ts announces the kill.
     // FIRST of the dock's rng draws — it picks the next target.
     for (const e of stepMissionAtDock(c, s.systems)) {
-      if (e.kind === 'briefed') events.push(say('INCOMING NAVY TRANSMISSION', 5));
+      if (e.kind === 'briefed') messages.push(say('INCOMING NAVY TRANSMISSION', 5));
       else if (e.kind === 'courierOrders') {
-        events.push(say('NAVY: COURIER RUN — EXPECT THARGOID INTERFERENCE', 6));
+        messages.push(say('NAVY: COURIER RUN — EXPECT THARGOID INTERFERENCE', 6));
       } else if (e.kind === 'delivered') {
-        events.push(say(
+        messages.push(say(
           `PLANS DELIVERED — ${formatCredits(e.payment)}, RIGHT ON COMMANDER`, 6));
       }
     }
@@ -166,24 +169,29 @@ export class Station {
     // SECOND draw: the market's seed.
     s.market = makeLocalMarket(this.system,
       (i) => s.living.priceMultiplier(c.systemIndex, i));
-    events.push(...this.host.settleContracts());
+    for (const event of this.host.settleContracts()) {
+      if (event.kind === 'message') messages.push(event);
+      else effects.push(event);
+    }
     // THIRD: the bulletin board.
     s.contractOffers = generateContractOffers(this.system, s.systems, c.day);
     this.host.resetContractSelection();
     c.galaxyState = s.living.save();
-    saveCommander(c);
+    effects.push({ kind: 'persistence', action: 'saveCommander' });
     if (!booting) {
-      sfx.stopDockingMusic();
-      sfx.dock();
-      sfx.tunnel();
-      this.host.tunnel('in'); // the bay shuts around you
+      effects.push(
+        { kind: 'dockingMusic', on: false },
+        heard('dock'),
+        heard('tunnel'),
+        { kind: 'presentation', action: 'tunnel', way: 'in' },
+      );
     }
     // park just outside the slot so the backdrop behind the menu is the station
     s.player.position.copy(s.world.spawnPosition);
     this.host.lookAlong(s.world.station.position.clone().sub(s.player.position));
     s.player.speed = 0;
-    renderDockedMenu(this.system, c, this.missionText());
-    return events;
+    effects.push({ kind: 'presentation', action: 'screen', screen: 'docked' });
+    return [...effects, ...messages];
   }
 
   /** Out of the slot, into policed traffic. */
@@ -195,21 +203,24 @@ export class Station {
     s.player.speed = LAUNCH_SPEED;
     this.host.setBaseMode('flight');
     s.session.view = 0;
-    hideScreen();
+    const effects: StationEvent[] = [
+      { kind: 'presentation', action: 'screen', screen: 'hidden' },
+    ];
     this.host.populateSystem('launch');
-    sfx.launch();
-    sfx.tunnel();
-    this.host.tunnel('out'); // and opens again on the way out
-    return [say(`LEAVING ${this.system.name.toUpperCase()} STATION`, 3)];
+    effects.push(
+      heard('launch'),
+      heard('tunnel'),
+      { kind: 'presentation', action: 'tunnel', way: 'out' },
+    );
+    return [...effects, say(`LEAVING ${this.system.name.toUpperCase()} STATION`, 3)];
   }
 
   /** Nothing on the screen stack: show the docked menu, or clear back to flight. */
-  showBaseScreen(): void {
+  showBaseScreen(): StationEvent[] {
     if (this.host.baseMode() === 'docked') {
-      renderDockedMenu(this.system, this.state.commander, this.missionText());
-    } else {
-      hideScreen();
+      return [{ kind: 'presentation', action: 'screen', screen: 'docked' }];
     }
+    return [{ kind: 'presentation', action: 'screen', screen: 'hidden' }];
   }
 
   /** The one line of standing orders under the station menu's header. */

@@ -17,6 +17,7 @@ import {
 } from '../src/game/world-step.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
+import { clearWorld, readWorld, saveCommander, saveWorld, withoutSaving } from '../src/game/storage.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
 import { newCommander } from '../src/game/commander.ts';
 import {
@@ -36,7 +37,7 @@ import { check } from './harness.ts';
 // --- the world builds without a browser --------------------------------------
 //
 // CLAUDE.md claimed everything needing a GPU was confined to
-// engine/render-stack.ts. It was not: sun.ts painted the corona sprite into a
+// engine/render-stack.ts. It was not: the corona texture painted a sprite into a
 // document.createElement('canvas') at build time, so World.build() — the
 // station, planet and sun that massLocked(), checkHazards(), the docking
 // checks and the compass all read — threw under node. An audit found it.
@@ -462,6 +463,11 @@ console.log('\nheadless world step');
       enterWitchspace: () => { log.push('witchspace'); },
       isDead: () => false,
       message: (text) => { log.push(`say:${text}`); },
+      saveCommander,
+      saveWorld,
+      readWorld,
+      clearWorld,
+      withoutSaving,
     });
 
     const a = arrival(31_337);

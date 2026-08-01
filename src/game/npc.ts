@@ -35,6 +35,9 @@ export const MIN_CRUISE_FRACTION = 0.43;
 export const BRAIN_RATE_RAMP = 4.1396;
 export const BRAIN_RATE_DECAY = 5.2207;
 
+/** A hostile this close puts the condition light on RED. */
+export const CONDITION_RED_RANGE = 9000;
+
 /**
  * Everything about a ship that can CHANGE.
  *
@@ -210,6 +213,15 @@ export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
     (npc.role === 'police' && (legalStatus >= 2 || npc.state.provokedByPlayer)) ||
     (npc.role === 'hunter' && (legalStatus >= 1 || npc.state.provokedByPlayer))
   );
+}
+
+/** Is anything close enough and cross enough to turn the condition light red? */
+export function hostilesNear(
+  npcs: readonly NpcShip[], playerPos: THREE.Vector3, legalStatus: number,
+): boolean {
+  return npcs.some((npc) =>
+    isHostileToPlayer(npc, legalStatus)
+    && npc.object.position.distanceTo(playerPos) < CONDITION_RED_RANGE);
 }
 
 export type TraderPhase = 'arriving' | 'trading' | 'departing' | 'docking';

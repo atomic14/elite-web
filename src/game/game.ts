@@ -27,7 +27,7 @@
 //
 // `__game` exposes a console compatibility view for the autopilot harness
 // (console.ts, game-handles.ts, train/jameson-autopilot.js) and console poking.
-import { publish } from './console.ts';
+import { publish, installPolicyKit, installSimLog } from './console.ts';
 import { legacyHandles } from './game-handles.ts';
 import type { Shell, Presentation, ShellFactory } from '../engine/shell.ts';
 import { viewDirection, VIEW_QUATS } from './views.ts';
@@ -41,13 +41,15 @@ import { createStarfield, SpaceDust } from '../world/starfield.ts';
 import { PLAYER_FLIGHT, type FlightDemand } from '../player.ts';
 import { Input } from '../engine/input.ts';
 import { flightDemand } from '../engine/flight-controls.ts';
-import { layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel } from '../engine/keymap.ts';
+import {
+  keymap, layoutName, toggleLayout, manualFlightKeys, refreshHelpPanel,
+} from '../engine/keymap.ts';
 import { Hud } from '../hud/hud.ts';
 import { buildHudFrame } from '../hud/hud-binding.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip } from './npc.ts';
-import { installPolicyKit, DEFEND_BRAIN } from './brains.ts';
+import { DEFEND_BRAIN } from './brains.ts';
 import {
   type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
@@ -70,13 +72,15 @@ import {
   type StepEvent, type StepHost,
 } from './world-step.ts';
 import { random, randomDirection, seedWorld } from './rng.ts';
-import { clearWorld, loadCommander } from './storage.ts';
+import {
+  clearWorld, loadCommander, readWorld, saveCommander, saveWorld, withoutSaving,
+} from './storage.ts';
 import { type WorldSnapshot } from './snapshot.ts';
 import { showMessage as setMessage, tickBeam, tickMessage } from './session.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
 import { Station, type StationHost, type StationEvent } from './station.ts';
 import { CombatSim, type ExerciseFit, type SimHost } from './combat-sim.ts';
-import { installSimLog, type CombatSimReport } from './combat-sim-report.ts';
+import type { CombatSimReport } from './combat-sim-report.ts';
 import type { ExerciseSpec } from './combat-sim-scenarios.ts';
 import { planPopulation } from './population.ts';
 import { CombatComputer } from './combat-computer.ts';
@@ -87,7 +91,7 @@ import {
 } from './controls.ts';
 import {
   Ordnance, ordnanceMessage, ECM_ENERGY_COST,
-  type OrdnanceReply,
+  type OrdnanceOutcome,
 } from './ordnance.ts';
 import { hitCone, LASER_RANGE, AIM_ASSIST } from './gunnery.ts';
 import { freshTimers } from './encounters.ts';
@@ -313,6 +317,7 @@ export class Game {
         hideScreen();
       },
       message: (text, seconds) => this.showMessage(text, seconds),
+      sound: (event) => this.playSound(event),
       flashDamage: () => this.hud.flashDamage(),
       aimBeams: (at) => this.aimBeams(at),
       // The exercise has torn down and the career is back: hold the records and
@@ -385,31 +390,40 @@ export class Game {
   }
 
   /** Ordnance reports what it did; saying it is ours. */
-  private say(reply: OrdnanceReply | null): void {
+  private say(reply: OrdnanceOutcome['reply']): void {
     if (!reply) return;
     const m = ordnanceMessage(reply);
     this.showMessage(m.text, m.seconds);
   }
 
-  private armMissile(): void { this.say(this.ordnance.arm(this.state.commander)); }
+  /** Ordnance sounds first, then says its semantic reply, as before extraction. */
+  private applyOrdnance(outcome: OrdnanceOutcome): void {
+    for (const event of outcome.events) this.playSound(event);
+    this.say(outcome.reply);
+  }
+
+  private armMissile(): void {
+    this.applyOrdnance(this.ordnance.arm(this.state.commander));
+  }
 
   private launchMissile(): void {
-    this.say(this.ordnance.launch(this.state.commander, this.state.player.position));
+    this.applyOrdnance(this.ordnance.launch(
+      this.state.commander, this.state.player.position));
   }
 
   private triggerEcm(): void {
-    const reply = this.ordnance.triggerEcm(this.state.commander, this.state.sys.energy);
-    if (reply === 'ecmFired') this.state.sys.energy -= ECM_ENERGY_COST;
-    this.say(reply);
+    const outcome = this.ordnance.triggerEcm(this.state.commander, this.state.sys.energy);
+    if (outcome.reply === 'ecmFired') this.state.sys.energy -= ECM_ENERGY_COST;
+    this.applyOrdnance(outcome);
   }
 
   private detonateEnergyBomb(): void {
-    const { reply, caught } = this.ordnance.detonateEnergyBomb(
+    const outcome = this.ordnance.detonateEnergyBomb(
       this.state.commander, this.state.player.position);
-    this.say(reply);
-    if (reply !== 'bombFired') return;   // no bomb fitted: no flash either
+    this.applyOrdnance(outcome);
+    if (outcome.reply !== 'bombFired') return;   // no bomb fitted: no flash either
     this.shell.flashBomb();
-    for (const npc of caught) {
+    for (const npc of outcome.caught) {
       npc.takeDamage(99, this.state.player.position, true);
       this.destroyNpc(npc);
     }
@@ -677,17 +691,15 @@ export class Game {
    *
    * Same shape and same reason as `stepHost()` and `persistenceHost()`.
    * `populateSystem` is a call rather than a returned event because it DRAWS
-   * from the seeded stream (see station.ts); `settleContracts` is one because
-   * paying a contract has a sound, and contracts.ts has never heard of the
-   * audio context.
+   * from the seeded stream (see station.ts). `settleContracts` remains a call
+   * at its exact seeded position, but reports its sound and message for the
+   * station event stream instead of applying either.
    */
   private stationHost(): StationHost {
     return {
       baseMode: () => this.baseMode,
       setBaseMode: (mode) => { this.baseMode = mode; },
       lookAlong: (dir) => this.lookAlong(dir),
-      tunnel: (way) => this.tunnel.start(1.4, way),
-      releaseMouseFlight: () => this.input.releaseMouseFlight(),
       populateSystem: (situation) => this.populateSystem(situation),
       settleContracts: () => this.settleContracts(),
       resetContractSelection: () => { this.contracts_.selected = 0; },
@@ -697,8 +709,25 @@ export class Game {
   /** The station decides; the Game says it. Same shape as applyStep. */
   private applyStation(events: readonly StationEvent[]): void {
     for (const e of events) {
+      if (e.kind === 'sound' || e.kind === 'countdown' || e.kind === 'dockingMusic') {
+        this.playSound(e);
+        continue;
+      }
       switch (e.kind) {
         case 'message': this.showMessage(e.text, e.seconds); break;
+        case 'persistence':
+          if (e.action === 'clearWorld') clearWorld();
+          else saveCommander(this.state.commander);
+          break;
+        case 'presentation':
+          if (e.action === 'releaseMouseFlight') this.input.releaseMouseFlight();
+          else if (e.action === 'tunnel') this.tunnel.start(1.4, e.way);
+          else if (e.screen === 'docked') {
+            renderDockedMenu(this.system, this.state.commander, this.station.missionText());
+          } else {
+            hideScreen();
+          }
+          break;
       }
     }
   }
@@ -761,6 +790,11 @@ export class Game {
       enterWitchspace: () => this.enterWitchspace(),
       isDead: () => this.mode === 'dead',
       message: (text, seconds) => this.showMessage(text, seconds),
+      saveCommander,
+      saveWorld,
+      readWorld,
+      clearWorld,
+      withoutSaving,
     };
   }
 
@@ -851,10 +885,12 @@ export class Game {
    * the player reads — see station.ts.
    */
   private applyContracts(events: readonly ContractEvent[]): StationEvent[] {
-    return events.map((e) => {
+    return events.flatMap((e): StationEvent[] => {
       const m = contractMessage(e, this.state.systems);
-      if (m.sound) this.playSound({ kind: 'sound', name: m.sound });
-      return { kind: 'message', text: m.text, seconds: m.seconds } satisfies StationEvent;
+      return [
+        ...(m.sound ? [{ kind: 'sound' as const, name: m.sound }] : []),
+        { kind: 'message', text: m.text, seconds: m.seconds },
+      ];
     });
   }
 
@@ -1018,6 +1054,10 @@ export class Game {
    */
   private applyCombat(events: readonly CombatEvent[]): void {
     for (const e of events) {
+      if (e.kind === 'sound' || e.kind === 'countdown' || e.kind === 'dockingMusic') {
+        this.playSound(e);
+        continue;
+      }
       switch (e.kind) {
         case 'message': this.showMessage(e.text, e.seconds); break;
         case 'offence': this.raiseLegal(e.level); break;
@@ -1286,7 +1326,7 @@ export class Game {
    * you.
    */
   private pilotDemand(dt: number): FlightDemand {
-    const hands = flightDemand(this.input, this.state.player, dt);
+    const hands = flightDemand(this.input, keymap(), this.state.player, dt);
     // the virtual stick self-centres; the producer is pure, so the mutation
     // is ours to do, immediately after reading it
     if (this.input.mouseFlight) this.input.decayMouse(dt);
@@ -1548,7 +1588,7 @@ export class Game {
   }
 
   /** Nothing on the stack: show the docked menu, or clear back to flight. */
-  private showBaseScreen(): void { this.station.showBaseScreen(); }
+  private showBaseScreen(): void { this.applyStation(this.station.showBaseScreen()); }
 
 
 

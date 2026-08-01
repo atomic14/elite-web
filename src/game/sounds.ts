@@ -17,8 +17,20 @@
 
 /** A sound `audio.ts` names for its occasion rather than its construction. */
 export type SoundName =
+  | 'laser'
+  | 'hit'
+  | 'damage'
   | 'explosion'
+  | 'noMissiles'
+  | 'noEnergy'
+  | 'missileArmed'
+  | 'missileUnarmed'
+  | 'missileLocked'
+  | 'missile'
   | 'ecm'
+  | 'dock'
+  | 'launch'
+  | 'tunnel'
   | 'enemyLaser'
   | 'refused'
   | 'torusDropped'

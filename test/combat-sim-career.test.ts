@@ -14,7 +14,9 @@ import { WorldStep, FIXED_DT, type StepHost } from '../src/game/world-step.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
 import { newCommander, MAX_FUEL, defaultEquipment } from '../src/game/commander.ts';
-import { slotKeys, saveCommander } from '../src/game/storage.ts';
+import {
+  clearWorld, readWorld, saveCommander, saveWorld, slotKeys, withoutSaving,
+} from '../src/game/storage.ts';
 import { Combat, firePlayerLaser, damagePlayer } from '../src/game/combat.ts';
 import { CONTRABAND, CLEAN, FUGITIVE } from '../src/game/law.ts';
 import type { CommanderData } from '../src/game/commander.ts';
@@ -167,12 +169,18 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       enterWitchspace: () => { state.world.banishScenery(); },
       isDead: () => r.baseMode === 'dead',
       message: (text) => r.said.push(text),
+      saveCommander: (commander) => saveCommander(commander, 4),
+      saveWorld: (json) => saveWorld(json, 4),
+      readWorld: () => readWorld(4),
+      clearWorld: () => clearWorld(4),
+      withoutSaving,
     };
     r.persistence = new Persistence(state, ordnance, new CombatComputer(), pHost);
 
     const simHost: SimHost = {
       enterFlight: () => { r.baseMode = 'flight'; },
       message: (text) => r.said.push(text),
+      sound: () => {},
       flashDamage: () => { r.flashes += 1; },
       aimBeams: () => {},
       finished: () => {},

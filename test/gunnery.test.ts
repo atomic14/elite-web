@@ -29,7 +29,7 @@ import {
   MISSILE_LAST_STAND_MIN_RANGE,
 } from '../src/game/gunnery.ts';
 import { freshSystems } from '../src/game/systems.ts';
-import { check } from './harness.ts';
+import { check, eq } from './harness.ts';
 
 // --- the player's guns ------------------------------------------------------
 
@@ -195,44 +195,57 @@ console.log('\nordnance');
     return { world, ord, cmdr };
   };
   const at = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const reply = (r: ReturnType<Ordnance['arm']>) => r.reply;
 
   {
     const { ord, cmdr } = armed();
-    check('arming is a toggle', ord.arm(cmdr) === 'armed' && ord.arm(cmdr) === 'unarmed');
+    const armedResult = ord.arm(cmdr);
+    const unarmedResult = ord.arm(cmdr);
+    check('arming is a toggle',
+      reply(armedResult) === 'armed' && reply(unarmedResult) === 'unarmed');
+    eq('arming reports its named sound alongside the reply',
+      `${armedResult.events[0]?.kind}:${armedResult.events[0]?.kind === 'sound'
+        ? armedResult.events[0].name : ''}|${armedResult.reply}`,
+      'sound:missileArmed|armed');
     cmdr.missiles = 0;
-    check('...but not with an empty rack', ord.arm(cmdr) === 'noMissiles');
+    check('...but not with an empty rack', reply(ord.arm(cmdr)) === 'noMissiles');
   }
   {
     const { world, ord, cmdr } = armed();
     const npc = world.spawn('pirate', at(0, 0, -800), 1);
     ord.arm(cmdr);
     check('a ship in the sight locks',
-      ord.updateLock(at(0, 0, 0), at(0, 0, -1)) === 'locked' && ord.targetLock === npc);
+      ord.updateLock(at(0, 0, 0), at(0, 0, -1)).reply === 'locked'
+      && ord.targetLock === npc);
     check('...and re-arming says so, rather than dropping it',
-      ord.arm(cmdr) === 'alreadyLocked' && ord.targetLock === npc);
+      ord.arm(cmdr).reply === 'alreadyLocked' && ord.targetLock === npc);
   }
   {
     const { world, ord, cmdr } = armed();
     world.spawn('asteroid', at(0, 0, -800), 1);
     ord.arm(cmdr);
-    check('a rock does not', ord.updateLock(at(0, 0, 0), at(0, 0, -1)) === null);
+    check('a rock does not', ord.updateLock(at(0, 0, 0), at(0, 0, -1)).reply === null);
   }
   {
     const { world, ord, cmdr } = armed();
     world.spawn('pirate', at(0, 0, 800), 1); // behind
     ord.arm(cmdr);
     check('nor does something behind you',
-      ord.updateLock(at(0, 0, 0), at(0, 0, -1)) === null);
+      ord.updateLock(at(0, 0, 0), at(0, 0, -1)).reply === null);
   }
   {
     const { world, ord, cmdr } = armed();
     const npc = world.spawn('pirate', at(0, 0, -800), 1);
+    const refused = ord.launch(cmdr, at(0, 0, 0));
     check('firing without a lock is refused',
-      ord.launch(cmdr, at(0, 0, 0)) === 'noLock' && cmdr.missiles === 4);
+      refused.reply === 'noLock' && cmdr.missiles === 4);
+    eq('a refused launch reports sound before its message is applied',
+      `${refused.events[0]?.kind === 'sound' ? refused.events[0].name : ''}|${refused.reply}`,
+      'refused|noLock');
     ord.arm(cmdr);
     ord.updateLock(at(0, 0, 0), at(0, 0, -1));
     check('firing with one spends a missile and puts it in the sky',
-      ord.launch(cmdr, at(0, 0, 0)) === 'away'
+      ord.launch(cmdr, at(0, 0, 0)).reply === 'away'
       && cmdr.missiles === 3 && ord.missiles.length === 1);
     check('...and leaves the launcher empty-handed',
       ord.targetLock === null && !ord.armed);
@@ -255,12 +268,17 @@ console.log('\nordnance');
 
     // E.C.M. kills everything in the sky, ours included
     ord.launchHostile(at(0, 0, -2000));
+    const low = ord.triggerEcm(cmdr, ECM_ENERGY_COST - 0.01);
     check('E.C.M. needs energy',
-      ord.triggerEcm(cmdr, ECM_ENERGY_COST - 0.01) === 'noEnergy' && ord.missiles.length === 1);
+      low.reply === 'noEnergy' && ord.missiles.length === 1);
+    const fired = ord.triggerEcm(cmdr, ECM_ENERGY_COST);
     check('...and clears the sky when it has it',
-      ord.triggerEcm(cmdr, ECM_ENERGY_COST) === 'ecmFired' && ord.missiles.length === 0);
+      fired.reply === 'ecmFired' && ord.missiles.length === 0);
+    eq('E.C.M. reports its named outcome without raw audio details',
+      `${fired.events[0]?.kind === 'sound' ? fired.events[0].name : ''}|${fired.reply}`,
+      'ecm|ecmFired');
     cmdr.equipment.ecm = false;
-    check('...and is refused when not fitted', ord.triggerEcm(cmdr, 10) === 'noEcm');
+    check('...and is refused when not fitted', ord.triggerEcm(cmdr, 10).reply === 'noEcm');
   }
   {
     const { world, ord, cmdr } = armed();
@@ -269,6 +287,9 @@ console.log('\nordnance');
     world.spawn('pirate', at(0, 0, -900_000), 3);
     const r = ord.detonateEnergyBomb(cmdr, at(0, 0, 0));
     check('the energy bomb catches what is close', r.reply === 'bombFired' && r.caught.length === 1);
+    eq('the bomb reports explosion before the caught ships are applied',
+      `${r.events[0]?.kind === 'sound' ? r.events[0].name : ''}|${r.reply}`,
+      'explosion|bombFired');
     check('...thargoids shrug it off',
       !r.caught.some((n) => n.role === 'thargoid'));
     check('...and it is a one-shot',
