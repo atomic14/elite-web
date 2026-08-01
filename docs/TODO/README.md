@@ -1,24 +1,42 @@
-# TODO — architecture review follow-ups, 2026-07-31
+# TODO — active development plans
 
-One file per fix. Each is self-contained so a fresh session can open one file,
-make the change, verify it, and stop. Work through them in numbered order with
-one sub-agent per item.
+One file per change. Each is self-contained so a fresh session can open one
+file, make the change, verify it, and stop. Work through numbered dependencies
+in order; independent items may be delegated in parallel only when their files
+and generated outputs do not overlap.
 
-TODO 01–16 were completed and checkpointed in commit `0fc8627`; their files
-were removed from the active queue and remain available in Git history.
+TODO 01-16 were completed and checkpointed in commit `0fc8627`. TODO 17-20
+were completed through commit `09278b7`.
 
-## Checklist
+## Elite-A damage and ship-catalogue alignment
 
-Progress: **4 / 4 complete**. Last verified after item 20: `npm run build`,
-`npm run campaign`, and `npm run portability` — **1293 passed, 0 failed**. The
-new dependency-aware gate's fixtures pass and the live graph reports **0
-contaminated files**. Its first honest run exposed 16; the follow-up boundary
-cleanup removed those paths, so the zero is now graph-backed.
+Progress: **0 / 10 complete**. Start with the
+[scope, fidelity decisions and dependency map](ELITE-A-COMBAT-PLAN.md). The
+source pack is currently at
+`/Users/chrisgreening/Downloads/elite_a_combat_pack`; TODO 21 makes the work
+self-contained inside the repository.
 
-- [x] 17 — [NPC docking latch is missing from the snapshot](17-npc-dock-plan-snapshot.md) — missing behavior state · high · small
-- [x] 18 — [`draw()` advances the cockpit beam lifetime](18-beam-timer-in-step.md) — temporal decomposition · medium · small
-- [x] 19 — [Core rule modules still perform platform side effects](19-core-platform-side-effects.md) — platform leak · medium · large
-- [x] 20 — [The portability gate does not follow imports](20-dependency-aware-portability.md) — tooling defect · medium · medium
+- [ ] 21 — [Vendor and generate the Elite-A reference catalogue](21-elite-a-reference-import.md) — data provenance · high · medium
+- [ ] 22 — [Implement the pure Elite-A combat oracle](22-elite-a-combat-oracle.md) — rules foundation · high · medium
+- [ ] 23 — [Add stable ship and combat-profile identities](23-stable-ship-and-combat-profile-ids.md) — state/future seam · high · medium
+- [ ] 24 — [Replace approximate geometry with all 38 designs](24-exact-elite-a-geometry.md) — rendering/hit registration · high · large
+- [ ] 25 — [Bring the complete Elite-A ship roster into runtime](25-complete-elite-a-runtime-roster.md) — world model · high · large
+- [ ] 26 — [Use exact player lasers, NPC energy and defence](26-player-lasers-and-npc-energy.md) — combat migration · critical · large
+- [ ] 27 — [Use 255-point player defence and clean NPC lasers](27-player-defence-and-npc-lasers.md) — combat migration · critical · large
+- [ ] 28 — [Audit secondary damage and eliminate mixed units](28-secondary-damage-and-mixed-units.md) — combat audit · critical · medium
+- [ ] 29 — [Rebaseline simulations, training and campaign combat](29-combat-training-and-balance-rebaseline.md) — AI/balance · high · large
+- [ ] 30 — [Make Elite-A damage alignment a permanent gate](30-elite-a-damage-alignment-gate.md) — verification · high · medium
+
+## Completed architecture queue
+
+Last verified after item 20: `npm run build`, `npm run campaign`, and
+`npm run portability` — **1293 passed, 0 failed**, with **0 contaminated
+files**.
+
+- [x] 17 — [NPC docking latch is missing from the snapshot](17-npc-dock-plan-snapshot.md)
+- [x] 18 — [`draw()` advances the cockpit beam lifetime](18-beam-timer-in-step.md)
+- [x] 19 — [Core rule modules still perform platform side effects](19-core-platform-side-effects.md)
+- [x] 20 — [The portability gate does not follow imports](20-dependency-aware-portability.md)
 
 ## Review context
 
