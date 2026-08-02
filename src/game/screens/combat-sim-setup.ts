@@ -69,6 +69,13 @@ export interface SimSetupPanel {
   /** the tallest `notes` can ever be, painted invisibly to hold the height */
   notesReserve: readonly string[];
   /**
+   * What the brain on the SELECTED row does in a fight, or null on a row that
+   * names no brain. The answer to "PIRATE-ATTACK-T29 — and what is that?".
+   */
+  brainNote: string | null;
+  /** the tallest `brainNote` can ever be, held open the same way */
+  brainReserve: string;
+  /**
    * The line under the fenced row, and whether it is a warning or a status.
    *
    * Structural rather than imported from combat-sim-notes.ts, which already
@@ -152,11 +159,45 @@ export function liveSelectionOf(d: SimDraft): BrainSelection {
 /** A row on the setup panel, and what &larr;&rarr; does to it. */
 export interface SetupCell extends SimSetupRow {
   change?: (d: number) => void;
+  /**
+   * HOME / END: go to the first or the last value without walking there.
+   *
+   * Only rows over a finite ordered LIST have one. Twelve brains and forty-odd
+   * hulls at one value per key press is a list you cannot get to the end of,
+   * and a number row (seed, count, missiles) has no end to go to.
+   */
+  jump?: (d: number) => void;
+  /**
+   * The brain this row currently names, for the line that says what it DOES.
+   *
+   * An id, never prose: `screens/combat-sim-notes.ts` turns it into a sentence
+   * and `game/brain-names.ts` owns the sentence. A group row left on AS THE
+   * GAME FLIES reports the brain that resolves to, because that is the one the
+   * pilot is about to meet.
+   *
+   * Both pickers' vocabularies, because both have a brain row: the exercise
+   * rows speak `BrainChoice` and the fenced career row speaks `LiveBrainId`.
+   */
+  brain?: BrainChoice | LiveBrainId;
 }
 
 const cycle = (n: number, len: number, d: number): number => (n + d + len) % len;
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
 const yesNo = (b: boolean): string => (b ? 'YES' : 'NO');
+
+/** The next value round a list, and the value at one end of it. */
+const step = <T>(xs: readonly T[], v: T, d: number): T => xs[cycle(xs.indexOf(v), xs.length, d)];
+const endOf = <T>(xs: readonly T[], d: number): T => (d > 0 ? xs[xs.length - 1] : xs[0]);
+
+/**
+ * `4/12` — where you are in a list you cannot see.
+ *
+ * The hull row has carried one since the roster went to 40-odd entries, for the
+ * reason every long row needs it: one arrow key steps one value, so without a
+ * position you cannot tell whether the next press wraps or walks. Now that both
+ * brain rows are a dozen values long they carry one too.
+ */
+const position = (at: number, len: number): string => `${at + 1}/${len}`;
 
 /**
  * A draft to start from: a single professional pirate, in the ship you own.
@@ -315,13 +356,15 @@ export function setupCells(d: SimDraft): SetupCell[] {
       heading: 'THE FIGHT',
       label: 'MODE',
       value: d.mode.toUpperCase(),
-      change: (n) => { d.mode = MODES[cycle(MODES.indexOf(d.mode), MODES.length, n)]; },
+      change: (n) => { d.mode = step(MODES, d.mode, n); },
+      jump: (n) => { d.mode = endOf(MODES, n); },
     },
     {
       label: 'FIGHT',
       value: scenario.name.toUpperCase(),
       dim: d.mode === 'waves' || custom,
       change: (n) => { d.scenario = cycle(d.scenario, SCENARIOS.length, n); },
+      jump: (n) => { d.scenario = n > 0 ? SCENARIOS.length - 1 : 0; },
     },
     {
       label: 'THREAT TIER',
@@ -343,10 +386,11 @@ export function setupCells(d: SimDraft): SetupCell[] {
     {
       heading: 'WHO FLIES WHAT',
       label: 'EXERCISE BRAIN',
-      value: d.brain === AS_THE_GAME_FLIES ? 'AS THE GAME FLIES' : d.brain,
-      change: (n) => {
-        d.brain = BRAIN_CHOICES[cycle(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length, n)];
-      },
+      value: `${position(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length)} `
+        + (d.brain === AS_THE_GAME_FLIES ? 'AS THE GAME FLIES' : d.brain),
+      brain: d.brain,
+      change: (n) => { d.brain = step(BRAIN_CHOICES, d.brain, n); },
+      jump: (n) => { d.brain = endOf(BRAIN_CHOICES, n); },
     },
     {
       label: 'OPPOSITION',
@@ -368,9 +412,10 @@ export function setupCells(d: SimDraft): SetupCell[] {
         // The position is on the front because the roster is 40-odd hulls
         // wide now and one arrow key steps one hull: without it you cannot tell
         // whether you are near the end of the list or the start of it.
-        value: `${(g.hull % hulls.length) + 1}/${hulls.length}`
+        value: `${position(g.hull % hulls.length, hulls.length)}`
           + ` ${hull.name.toUpperCase()} (${hull.role})`,
         change: (n) => { g.hull = cycle(g.hull, hulls.length, n); },
+        jump: (n) => { g.hull = n > 0 ? hulls.length - 1 : 0; },
       },
       {
         label: pad('COUNT'),
@@ -389,12 +434,16 @@ export function setupCells(d: SimDraft): SetupCell[] {
       },
       {
         label: pad('BRAIN'),
-        value: g.brain === AS_THE_GAME_FLIES
-          ? `AS THE GAME FLIES (${liveBrainFor(hull.role, g.organised, g.tier, live)})`
-          : g.brain,
-        change: (n) => {
-          g.brain = BRAIN_CHOICES[cycle(BRAIN_CHOICES.indexOf(g.brain), BRAIN_CHOICES.length, n)];
-        },
+        value: `${position(BRAIN_CHOICES.indexOf(g.brain), BRAIN_CHOICES.length)} `
+          + (g.brain === AS_THE_GAME_FLIES
+            ? `AS THE GAME FLIES (${liveBrainFor(hull.role, g.organised, g.tier, live)})`
+            : g.brain),
+        // Resolved, not the sentinel: a group left on AS THE GAME FLIES will fly
+        // a real policy and the line under the panel should describe THAT one.
+        brain: g.brain === AS_THE_GAME_FLIES
+          ? liveBrainFor(hull.role, g.organised, g.tier, live) : g.brain,
+        change: (n) => { g.brain = step(BRAIN_CHOICES, g.brain, n); },
+        jump: (n) => { g.brain = endOf(BRAIN_CHOICES, n); },
       },
       {
         label: pad('MISSILES'),
@@ -419,7 +468,8 @@ export function setupCells(d: SimDraft): SetupCell[] {
       heading: 'YOUR SHIP',
       label: 'YOUR LASER',
       value: f.laser.toUpperCase(),
-      change: (n) => { f.laser = LASERS[cycle(LASERS.indexOf(f.laser), LASERS.length, n)]; },
+      change: (n) => { f.laser = step(LASERS, f.laser, n); },
+      jump: (n) => { f.laser = endOf(LASERS, n); },
     },
     {
       label: 'YOUR REAR LASER',
@@ -453,13 +503,18 @@ export function setupCells(d: SimDraft): SetupCell[] {
     heading: 'THIS ONE LEAVES THE ROOM',
     fenced: true,
     label: 'LIVE BRAINS (CAREER)',
+    // No position on the console case, because there is no position: a selection
+    // the picker cannot name is not one of the eleven it offers.
     value: d.live === null ? 'SET FROM THE CONSOLE'
-      : d.live === AS_SHIPPED ? 'AS SHIPPED' : d.live.toUpperCase(),
+      : `${position(LIVE_BRAIN_IDS.indexOf(d.live), LIVE_BRAIN_IDS.length)} `
+        + (d.live === AS_SHIPPED ? 'AS SHIPPED' : d.live.toUpperCase()),
+    brain: d.live ?? undefined,
     change: (n) => {
       const at = d.live === null ? -1 : LIVE_BRAIN_IDS.indexOf(d.live);
       d.live = at < 0 ? LIVE_BRAIN_IDS[0]
         : LIVE_BRAIN_IDS[cycle(at, LIVE_BRAIN_IDS.length, n)];
     },
+    jump: (n) => { d.live = endOf(LIVE_BRAIN_IDS, n); },
   });
   return cells;
 }

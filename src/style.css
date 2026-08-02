@@ -448,14 +448,20 @@ body.screen-open #exercise { display: none; }
 #screen .reserved .hold { visibility: hidden; }
 
 /*
- * Three tones, and they have to be told apart without being read: amber is the
+ * Four tones, and they have to be told apart without being read: amber is the
  * contextual help about the fight, red is the career still being set when you
  * undock, and the quiet green is the same block saying there is nothing to
  * warn about — which is what stops the held space reading as a hole.
+ *
+ * The fourth is what the brain on the selected row DOES. It is help, so it is
+ * the help's colour, but it follows the cursor rather than the draft — quieter,
+ * so a row you are merely passing over does not read as loudly as the fight you
+ * have chosen.
  */
 #screen .note-help { color: var(--hud-amber); }
 #screen .note-warn { color: var(--hud-red); }
 #screen .note-calm { color: var(--hud-green); opacity: 0.5; letter-spacing: 1px; }
+#screen .note-brain { color: var(--hud-amber); opacity: 0.7; }
 
 /* the fence: what is inside it is still set when you undock */
 #screen .fence {

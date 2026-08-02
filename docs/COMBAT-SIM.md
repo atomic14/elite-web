@@ -120,6 +120,13 @@ Two levels, because the audiences differ:
   `game/brain-names.ts` and checked against the imports in `game/brains.ts` by
   `npm test`), and the fit — missiles, E.C.M.
 
+Every brain row says where in its list it is (`5/12`), HOME and END go to either
+end of a long list without walking there, and selecting a brain row prints what
+that brain DOES in a fight — one line of behaviour with the measured number that
+shows it, stated in `game/brain-names.ts` beside the name. The figures are the
+flight probe and the evaluation tournament, archived under `train/logs/`; a name
+the picker offers with no line to go with it fails `npm test`.
+
 There is one row on the panel that is NOT about the exercise, and it is fenced
 off at the foot of it, under a heading saying so: **LIVE BRAINS
 (CAREER)** writes `state.brains`, so the policy you pick there is what the whole

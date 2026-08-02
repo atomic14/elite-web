@@ -1,4 +1,4 @@
-// Which named policy flies, and the flags that change that.
+// Which named policy flies, what each one is LIKE, and the flags that change that.
 //
 // One question asked in three places. `NpcShip.update` needs the WEIGHTS, the
 // combat trainer's report needs the NAME, and both pickers need the LIST — and
@@ -12,6 +12,13 @@
 // the mapping between them. brains.ts turns a name into a loaded policy; this
 // module imports nothing, which is what lets the trainer's pure rules module ask
 // the same question without pulling 100 KB of JSON into its module graph.
+//
+// The CHARACTER of each brain is here for the same reason. A picker offering
+// twelve filenames tells a playtester nothing about what he is about to fly
+// against, and the answer was already measured — it was just in a doc. A
+// character is one line of BEHAVIOUR with the number that shows it, it belongs
+// beside the name rather than beside the weights, and `npm test` refuses a name
+// the pickers offer with no line to go with it.
 
 /**
  * Every policy the game LOADS, by the stem of its weights file, plus the
@@ -32,6 +39,106 @@ export type BrainName =
   | 'jameson-defend-g1'
   | 'jameson-defend-t29'
   | 'scripted';
+
+/**
+ * Every name a PICKER may offer: the loaded set, plus `pirate-attack-g1`.
+ *
+ * Wider than `BrainName` by exactly one, and that one is the point — the weights
+ * file exists and the trainer lists it, but brains.ts does not import it, so the
+ * game cannot fly it and asking is refused on the record rather than silently
+ * ignored. `combat-sim-scenarios.ts`'s `BrainId` IS this type; it was a second
+ * copy of the union until the character table needed to cover both.
+ */
+export type NamedBrain = BrainName | 'pirate-attack-g1';
+
+/**
+ * What each policy is LIKE in a fight — one line, behaviour first, with the one
+ * measured number that shows it.
+ *
+ * **Every figure here is traceable and none of it is invented.** The flight
+ * shapes (speed, median engagement range, attack runs, collisions per episode)
+ * are `train/flight-probe.ts` over 30 held-out episodes against a target that
+ * stops and turns; the damage shares are the 60-episode tournament in
+ * `npm run evaluate`. Both tables are archived in
+ * `train/logs/todo29/evaluate-after.txt` and read in docs/TRAINING-LOG.md,
+ * run 19 — except `pirate-attack-g1`, which no archived probe covered and which
+ * was measured for this table (docs/TRAINING-LOG.md, probe run for TODO 32,
+ * `train/logs/todo32/flight-probe.txt`).
+ *
+ * A line describes behaviour, NOT provenance: "hangs back and snipes" is what a
+ * pilot needs before he flies it, and "run 19's solo candidate" is not. Where a
+ * number would have to be guessed it says so instead — the panel saying NEVER
+ * PROBED is honest and useful, and a made-up figure is neither.
+ *
+ * The trainer's two pickers offer one more value each — AS THE GAME FLIES and
+ * AS SHIPPED — which are not brains but sentinels; their lines live with the
+ * rest of the panel's prose in `screens/combat-sim-notes.ts`.
+ */
+export const BRAIN_CHARACTER: Readonly<Record<NamedBrain, string>> = Object.freeze({
+  // probe: speed 216, range 85/234/964, 0.20 rams · tournament: 12.0% of her
+  // pools against a hauler, 5.3% against a commander who fights back
+  'pirate-attack-g3':
+    'CLOSES AND STAYS THERE — SPEED 216, MEDIAN RANGE 234, 0.20 COLLISIONS AN EPISODE. '
+    + 'THE FIGHT THE GAME SHIPS.',
+  // probe: speed 144, range 393/1447/2905, 0.83 passes · tournament: a gang of
+  // three takes 23.7% of her pools and kills her in 0% of episodes
+  'pirate-pack-r4-selectonly':
+    'A GANG THAT WATCHES ITS FLEET AND HOLDS OFF — MEDIAN RANGE 1447 AT SPEED 144. '
+    + 'THREE OF THEM TAKE 23.7% OF YOUR POOLS AND KILL NOBODY.',
+  // tournament, two shipped pirates on her tail: they hold her six 2.3s and she
+  // shoots down 0.42 of them an episode
+  'jameson-defend-g1':
+    'AN ARMED TRADER THAT TURNS AND FIGHTS — SHAKES TWO PIRATES OFF HER SIX IN 2.3s '
+    + 'AND SHOOTS DOWN 0.42 OF THEM AN EPISODE.',
+  // probe: speed 104, range 102/754/1952, 2.23 rams · tournament: 25.3% of her
+  // pools against a commander who fights back, to g3's 5.3%
+  'pirate-attack-t29':
+    'HANGS BACK AND SNIPES — SPEED 104, MEDIAN RANGE 754, 2.23 COLLISIONS AN EPISODE. '
+    + 'TAKES 25.3% OF YOUR POOLS TO G3\'S 5.3%, AND READS AS A TURRET.',
+  // probe: range 198/1340/4505 · tournament: 53.1% and 18% kills, against the
+  // shipped pack's 23.7% and none
+  'pirate-pack-t29':
+    'A GANG THAT SNIPES FROM 1340 AND CONNECTS — 53.1% OF YOUR POOLS AND 18% KILLS, '
+    + 'AGAINST THE SHIPPED PACK\'S 23.7% AND NONE.',
+  // tournament, two shipped pirates on her tail: 13.5s on her six against
+  // defend-g1's 2.3s, and 0.12 attackers downed against 0.42
+  'jameson-defend-t29':
+    'EVADES WELL, SHOOTS BADLY — LETS AN ATTACKER SIT ON HER SIX 13.5s TO DEFEND-G1\'S 2.3s, '
+    + 'AND DOWNS 0.12 AN EPISODE TO ITS 0.42.',
+  // probe: speed 117, range 113/628/1762, 2.27 rams, 42.1% of her pools — the
+  // same 42.1% t29 takes, which is why the two lines rhyme
+  'pirate-attack-g2':
+    'THE TURRET THAT WAS ROLLED BACK — SPEED 117, MEDIAN RANGE 628, 2.27 COLLISIONS AN '
+    + 'EPISODE. T29 IS THIS BRAIN AGAIN, TO THE DECIMAL.',
+  // probed for this table: speed 117, range 103/868/1994, 0.13 passes, 1.97 rams
+  'pirate-attack-g1':
+    'GENERATION 1, AND THE GAME CANNOT FLY IT — NOT IN THE BUNDLE, SO AN EXERCISE REFUSES IT '
+    + 'ON THE RECORD. PROBED: SPEED 117, MEDIAN RANGE 868.',
+  // probe: 0.93 completed close-and-break cycles an episode, the highest of any
+  // brain measured (the shipped pack is next at 0.83); speed 182, range
+  // 222/706/1740
+  'pirate-attack-e1':
+    'BREAKS OFF AND COMES BACK MORE THAN ANY OTHER — 0.93 ATTACK RUNS AN EPISODE AT SPEED 182, '
+    + 'MEDIAN RANGE 706.',
+  // probe: speed 262, range 185/254/1166 · the 220-unit dead zone is RAM_GUARD
+  // in brains.ts, and 220 is inside the range a human fights at (median 260)
+  'pirate-attack-r2':
+    'THE GAME BEFORE ANY OF THIS — FASTEST AT SPEED 262 AND CLOSES TO 254, BUT ITS GUNS CUT '
+    + 'OUT INSIDE 220 UNITS, WHICH IS WHERE A HUMAN FIGHTS.',
+  // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
+  // ships an episode to a commander who fights back
+  scripted:
+    'THE PRE-NEUROEVOLUTION AIMBOT — 58% ACCURACY AND 31.8s ON A HAULER\'S SIX, BUT IT LOSES '
+    + '0.93 SHIPS AN EPISODE TO A COMMANDER WHO SHOOTS BACK.',
+});
+
+/**
+ * What a named brain is like in a fight, or undefined for a name no picker
+ * offers. Takes a plain string for the same reason `selectionForBrain` does.
+ */
+export function brainCharacter(brain: string): string | undefined {
+  return BRAIN_CHARACTER[brain as NamedBrain];
+}
 
 /**
  * Which brains fly, when the answer is not "the shipped ones".

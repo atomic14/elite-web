@@ -233,7 +233,8 @@ src/
                             flight numbers that come with each
     brain-names.ts          WHICH policy flies, by name, given a
                             BrainSelection — the rule the ship, the
-                            trainer's report and both pickers all read
+                            trainer's report and both pickers all read,
+                            plus the one-line CHARACTER of each
 
     combat.ts               what happens when something is shot: bounties, kills,
                             wrecks, loot — plus the player's own trigger and

@@ -184,6 +184,14 @@ exercise. The panel is grouped — the fight, who flies what, your ship — with
 **LIVE BRAINS (CAREER)** fenced off at the foot, because that one is still set
 when you undock.
 
+A row over a list says where in it you are (`5/12`) and **HOME/END** go to
+either end without walking there. Selecting a brain row prints what that brain
+does in a fight, with the measured number that shows it — the shipped pirate
+closes to a median 234 units at speed 216, the TODO 29 candidate hangs at 754
+at speed 104 and snipes — so choosing one is a choice rather than a filename.
+Every figure comes from `train/flight-probe.ts` or the evaluation tournament,
+both archived under `train/logs/`.
+
 It is the real game: real flight model, real trained brains, real guns. But
 **nothing that happens in it leaves it** — no kills, no combat rating, no
 credits, no legal status, no save write, and death ends the exercise rather

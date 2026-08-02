@@ -1925,3 +1925,57 @@ BOT: its shopping list spends down to a 1,500-tenth float, so it holds a median
 of 63 Cr in cash at the moment the Navy calls, whatever its 5,900 Cr of net
 worth says. That is a purchasing policy, not a reachability problem, and the
 campaign now asserts the reachability instead.
+
+## Probe run — TODO 32: the numbers on the trainer's brain rows
+
+Not a training run. The combat trainer's two brain rows answered "which brain"
+with a filename, and TODO 32 gives every value a one-line CHARACTER — what it
+does in a fight, and the one measured number that shows it. This is where those
+numbers come from, so that every figure on the panel is traceable and none of
+it is invented.
+
+    node --experimental-strip-types --no-warnings --input-type=module -e \
+      "import { printFlightShapes } from './train/flight-probe.ts';
+       printFlightShapes([...the eight solo and pack policies...], 30)"
+
+Archived at `train/logs/todo32/flight-probe.txt`. Probe base `30,000,007` and
+`train/flight-probe.ts` are both unchanged, and the seven rows that also appear
+in run 19's `train/logs/todo29/evaluate-after.txt` reproduce byte for byte —
+which is the check that says nothing under the brains has moved since.
+
+| brain | speed | range p10/med/p90 | passes | rams/ep | of her pools |
+| --- | --- | --- | --- | --- | --- |
+| pirate-attack-g3 (shipped) | 216 | 85/**234**/964 | 0.00 | 0.20 | 6.1% |
+| pirate-pack-r4-selectonly (shipped) | 144 | 393/**1447**/2905 | 0.83 | 0.63 | 14.2% |
+| pirate-attack-t29 | 104 | 102/**754**/1952 | 0.00 | 2.23 | 42.1% |
+| pirate-pack-t29 | 185 | 198/**1340**/4505 | 0.50 | 1.47 | 29.7% |
+| pirate-attack-g2 | 117 | 113/**628**/1762 | 0.00 | 2.27 | 42.1% |
+| **pirate-attack-g1 (new)** | **117** | 103/**868**/1994 | 0.13 | 1.97 | 37.2% |
+| pirate-attack-e1 | 182 | 222/**706**/1740 | **0.93** | 0.93 | 20.7% |
+| pirate-attack-r2 | 262 | 185/**254**/1166 | 0.00 | 0.70 | 13.1% |
+
+**`pirate-attack-g1` is the one new row.** The picker offers it and the game
+cannot fly it — `brains.ts` does not import it, so an exercise refuses it on the
+record — but the weights file is in the tree and had never been probed, and
+"never probed" on the panel would have been a worse answer than measuring it.
+It reads as generation 2 does: speed 117, a median engagement range of 868, and
+1.97 collisions an episode. Generation 1 and 2 are the same animal, which is
+what the rollback said at the time.
+
+Two deliberate omissions, both stated in the archived log:
+
+- **The two `jameson-defend` policies are not in the table.** `flight-probe.ts`
+  flies the brain in a PIRATE seat against a holding target, so probing a
+  defence policy that way asks it a question it was never trained on — the run
+  above does produce rows for them, and they mean nothing. Their character lines
+  quote run 19's tournament instead ("the defence policy: two shipped pirates on
+  her tail"): `jameson-defend-g1` shakes attackers off her six in 2.3s and
+  shoots down 0.42 an episode; `jameson-defend-t29` lets them sit there 13.5s
+  and downs 0.12.
+- **The on-six column reads 0.0s for every brain and nothing quotes it.** The
+  probe's target holds station rather than running, so `tailTime` never
+  accumulates. It is a fact about the probe, not about the brains.
+
+`scripted` has no weights file to probe, so its line quotes the tournament as
+well: 58% accuracy and 31.8s on a hauler's six, and 0.93 ships lost an episode
+to a commander who fights back.

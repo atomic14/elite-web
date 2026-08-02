@@ -24,7 +24,7 @@ import {
 import { markOf, memberTier, pirateThreat, type PirateThreat } from './threat.ts';
 import {
   SHIPPED_BRAINS, defenceBrainNameFor, pirateBrainNameFor,
-  type BrainName, type BrainSelection,
+  type BrainSelection, type NamedBrain,
 } from './brain-names.ts';
 import { hasShipDef, shipDisplayName } from '../ships/registry.ts';
 import { random } from './rng.ts';
@@ -57,8 +57,12 @@ export const OPPOSITION_ROLES: readonly OppositionRole[] =
  * `scripted` is the pre-neuroevolution AI, i.e. `window.__scriptedPirates` made
  * a per-opponent choice instead of a global flag. It is the baseline every
  * training run is measured against.
+ *
+ * The union itself is `brain-names.ts`'s `NamedBrain` — every name a picker may
+ * offer, which is the loaded set plus `pirate-attack-g1` — because the character
+ * lines have to cover exactly the same list and a second copy of it would drift.
  */
-export type BrainId = BrainName | 'pirate-attack-g1';
+export type BrainId = NamedBrain;
 
 /**
  * The brains the live game flies, DERIVED — ask the rule, do not restate it.

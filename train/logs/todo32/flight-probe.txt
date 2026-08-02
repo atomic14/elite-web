@@ -1,0 +1,35 @@
+$ node --experimental-strip-types --no-warnings --input-type=module -e \
+    "import { printFlightShapes } from './train/flight-probe.ts';
+     printFlightShapes([...the eight solo and pack policies the trainer offers...], 30)"
+
+TODO 32 — the shapes behind the character lines on the combat trainer's brain
+rows. Probe base 30,000,007, unchanged; the seven rows that also appear in
+train/logs/todo29/evaluate-after.txt reproduce byte for byte, and
+pirate-attack-g1 is the new one — it is offered by the picker, is not in the
+bundle, and had never been probed.
+
+The two jameson-defend policies are deliberately NOT here: flight-probe.ts puts
+the brain in a PIRATE seat against a holding target, so a defence policy
+measured this way is answering a question it was never trained on. Their
+character lines quote the tournament instead (evaluate 60, "the defence policy:
+two shipped pirates on her tail" in train/logs/todo29/evaluate-after.txt).
+
+The on-six column reads 0.0s for every brain: the probe's target holds station
+rather than running, so `tailTime` never accumulates. Nothing quotes it.
+
+
+## the shape of the fight — 30 held-out episodes, target stops and turns to fight
+
+| brain | speed | throttle | range p10/med/p90 | closest | passes | on-six | rams | hurt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| pirate-attack-g3           |   216 |     100% |        85/234/964 |      41 |   0.00 |   0.0s | 0.20 |  6.1% |
+| pirate-pack-r4-selectonly  |   144 |     100% |     393/1447/2905 |      37 |   0.83 |   0.0s | 0.63 | 14.2% |
+| pirate-attack-t29          |   104 |     100% |      102/754/1952 |      33 |   0.00 |   0.0s | 2.23 | 42.1% |
+| pirate-pack-t29            |   185 |     100% |     198/1340/4505 |      34 |   0.50 |   0.0s | 1.47 | 29.7% |
+| pirate-attack-g2           |   117 |     100% |      113/628/1762 |      33 |   0.00 |   0.0s | 2.27 | 42.1% |
+| pirate-attack-g1           |   117 |     100% |      103/868/1994 |      35 |   0.13 |   0.0s | 1.97 | 37.2% |
+| pirate-attack-e1           |   182 |     100% |      222/706/1740 |      35 |   0.93 |   0.0s | 0.93 | 20.7% |
+| pirate-attack-r2           |   262 |     100% |      185/254/1166 |      40 |   0.00 |   0.0s | 0.70 | 13.1% |
+
+passes = closed inside 400 and broke back out past 900, per episode — a loiter scores none
+a TURRET reads: low speed, few passes, a collapsed range spread, low on-six

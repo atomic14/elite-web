@@ -16,8 +16,12 @@
 // hold the height open. That is why the reserves take no argument: an upper
 // bound that moved with the draft would not be one.
 
-import { SCENARIOS, type SimMode } from '../combat-sim-scenarios.ts';
-import { AS_SHIPPED, LIVE_BRAIN_IDS, type LiveBrainId } from '../brain-names.ts';
+import {
+  SCENARIOS, SHIPPED_DEFENCE_BRAIN, SHIPPED_PACK_BRAIN, SHIPPED_SOLO_BRAIN, type SimMode,
+} from '../combat-sim-scenarios.ts';
+import {
+  AS_SHIPPED, BRAIN_CHARACTER, LIVE_BRAIN_IDS, brainCharacter, type LiveBrainId,
+} from '../brain-names.ts';
 import { AS_THE_GAME_FLIES, type SimDraft } from './combat-sim-setup.ts';
 
 const MODE_BLURB: Record<SimMode, string> = {
@@ -69,6 +73,54 @@ export function draftNotesReserve(): string[] {
     longest(Object.values(MODE_BLURB)),
     longest([...SCENARIOS.map((s) => s.blurb.toUpperCase()), MIXED_BRAINS]),
   ];
+}
+
+// --- what the brain on the selected row actually does ------------------------
+//
+// A block of its own rather than a fourth line of the help above, and the
+// reason is the reservation: the help's slots are "the mode" and "the fight or
+// the complaint", so a line that comes and goes with the CURSOR rather than
+// with the draft would land in slot 1 or slot 2 depending on the fight, and a
+// per-slot upper bound would stop meaning anything. Its own block is its own
+// bound.
+
+/**
+ * The exercise picker's "no override" value, described the way a brain is.
+ *
+ * It is not a policy, so it has no character; what a pilot needs to know is
+ * that the answer comes from somewhere else, and where.
+ */
+const NO_OVERRIDE = 'NO OVERRIDE — EVERY SHIP FLIES WHAT THE LIVE GAME WOULD GIVE IT, '
+  + 'BY ITS ROLE AND ITS TIER.';
+
+/**
+ * The career picker's "no override" value, DERIVED from the shipped rule.
+ *
+ * Three names that must not be typed out here: `SHIPPED_BRAINS` is the one line
+ * that changes the default, and a hand-written list of what it currently means
+ * would be a second home for it, wrong on the day somebody promotes a candidate.
+ */
+const shippedSet = (): string =>
+  (`AS SHIPPED — ${SHIPPED_SOLO_BRAIN} SOLO, ${SHIPPED_PACK_BRAIN} FOR ORGANISED GANGS, `
+    + `${SHIPPED_DEFENCE_BRAIN} FOR ARMED TRADERS.`).toUpperCase();
+
+/**
+ * What the brain named on the selected row DOES — or null when the row names
+ * none, which is most of them.
+ *
+ * The picker's two sentinels are answered here and every real policy is
+ * answered by `game/brain-names.ts`, which owns naming and holds no weights.
+ */
+export function brainNote(id: string | null | undefined): string | null {
+  if (!id) return null;
+  if (id === AS_THE_GAME_FLIES) return NO_OVERRIDE;
+  if (id === AS_SHIPPED) return shippedSet();
+  return brainCharacter(id) ?? null;
+}
+
+/** The tallest `brainNote` can ever be: the longest line any brain has. */
+export function brainNoteReserve(): string {
+  return longest([...Object.values(BRAIN_CHARACTER), NO_OVERRIDE, shippedSet()]);
 }
 
 // --- the one note that is not about this exercise ---------------------------

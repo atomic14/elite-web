@@ -12,15 +12,15 @@ import {
   pirateBrainFor, defenceBrain, brainByName,
 } from '../src/game/brains.ts';
 import {
-  AS_SHIPPED, LIVE_BRAIN_IDS, defenceBrainNameFor, liveBrainId, liveBrainSelection,
-  pirateBrainNameFor, selectionForBrain, type BrainName,
+  AS_SHIPPED, BRAIN_CHARACTER, LIVE_BRAIN_IDS, brainCharacter, defenceBrainNameFor,
+  liveBrainId, liveBrainSelection, pirateBrainNameFor, selectionForBrain, type BrainName,
 } from '../src/game/brain-names.ts';
 import { liveBrainFor } from '../src/game/combat-sim-scenarios.ts';
 import {
-  defaultGroup, freshDraft, liveSelectionOf, setupCells, specFrom,
+  BRAIN_CHOICES, defaultGroup, freshDraft, liveSelectionOf, setupCells, specFrom,
 } from '../src/game/screens/combat-sim-setup.ts';
 import {
-  careerNote, careerNoteReserve, draftNotes,
+  brainNote, careerNote, careerNoteReserve, draftNotes,
 } from '../src/game/screens/combat-sim-notes.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { check, eq } from './harness.ts';
@@ -98,6 +98,44 @@ console.log('\nwhich brain flies, by name');
     && !Object.isFrozen(liveBrainSelection(AS_SHIPPED)));
 }
 
+// --- and every name it offers says what it DOES ------------------------------
+//
+// The pickers used to answer "which brain" with a filename, and PIRATE-ATTACK-T29
+// tells a playtester nothing about what he is about to fly against. Every value
+// either picker offers now has a one-line character beside the name, and this is
+// the check that makes adding a brain without describing it fail the build.
+
+console.log('\nevery brain the pickers offer has a character');
+{
+  const offered = [...new Set<string>([...BRAIN_CHOICES, ...LIVE_BRAIN_IDS])];
+  const silent = offered.filter((id) => !brainNote(id));
+  check(`every value on both brain rows says what it does (${offered.length})`,
+    silent.length === 0, silent.join(', '));
+  check('...and the character table covers the picker exactly, with nothing spare',
+    Object.keys(BRAIN_CHARACTER).every((id) => offered.includes(id)));
+
+  // Behaviour, not provenance: a line is there to be read before a fight, and
+  // "run 19's solo candidate" is not something a pilot can fly against.
+  const noNumber = Object.entries(BRAIN_CHARACTER)
+    .filter(([, line]) => !/\d/.test(line)).map(([id]) => id);
+  check('...and each carries the measured number that shows it',
+    noNumber.length === 0, noNumber.join(', '));
+
+  // The two sentinels are not brains, so they are answered by the panel's own
+  // prose — and the shipped one is DERIVED, so promoting a candidate moves it.
+  check('"as the game flies" says where the answer comes from instead',
+    /NO OVERRIDE/.test(brainNote('live') ?? ''));
+  check('...and "as shipped" names the three the shipped rule actually returns',
+    LIVE_BRAIN_IDS.filter((id) => id !== AS_SHIPPED)
+      .every((id) => !brainNote(AS_SHIPPED)!.includes(id.toUpperCase())
+        || [pirateBrainNameFor(0, false), pirateBrainNameFor(0, true),
+          defenceBrainNameFor()].includes(id as BrainName))
+    && brainNote(AS_SHIPPED)!.includes(pirateBrainNameFor(0, false).toUpperCase()));
+
+  check('a name no picker offers has no line, rather than a made-up one',
+    brainCharacter('pirate-attack-r14') === undefined && brainNote('') === null);
+}
+
 console.log('\nthe trainer names what the game flies');
 {
   // THE pairing, stated as the trainer states it. `liveBrainFor` is what the
@@ -138,7 +176,8 @@ console.log('\ncombat simulator — the live brain row');
 {
 const d = freshDraft(newCommander());
 const row = () => setupCells(d).find((c) => c.label === 'LIVE BRAINS (CAREER)')!;
-eq('the panel offers it, and it starts at the shipped set', row().value, 'AS SHIPPED');
+eq('the panel offers it, and it starts at the shipped set',
+  row().value, `1/${LIVE_BRAIN_IDS.length} AS SHIPPED`);
 eq('...so the draft asks for no override', JSON.stringify(liveSelectionOf(d)), '{}');
 // The fence is never an empty box: the reserved space is held whether or not
 // there is a warning in it, so the calm case says the calm thing instead of
@@ -160,7 +199,9 @@ check('...so no exercise setting sits below it',
 
 // step to a named policy: one arrow key, and it is the whole galaxy
 d.live = 'pirate-attack-t29';
-eq('a picked policy reads back on the row', row().value, 'PIRATE-ATTACK-T29');
+eq('a picked policy reads back on the row', row().value,
+  `${LIVE_BRAIN_IDS.indexOf('pirate-attack-t29') + 1}/${LIVE_BRAIN_IDS.length}`
+  + ' PIRATE-ATTACK-T29');
 eq('...and is the selection the game would fly',
   JSON.stringify(liveSelectionOf(d)), '{"t29":true}');
 check('...and the fenced note says it outlives the exercise',

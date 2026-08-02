@@ -913,8 +913,9 @@ export function renderCombatSimSetup(p: SimSetupPanel): void {
   const career = p.rows
     .map((r, i) => (r.fenced ? simSetupRow(r, i, p.selected) : '')).join('');
   const hints = [
-    'CLICK A ROW', '&uarr;&darr; SELECT', '&larr;&rarr; CHANGE', 'R RANDOM SEED',
-    'A ADD OPPONENT', 'X REMOVE', ...(p.hasReport ? ['L LAST REPORT'] : []), 'ESC DONE',
+    'CLICK A ROW', '&uarr;&darr; SELECT', '&larr;&rarr; CHANGE', 'HOME/END ENDS OF LIST',
+    'R RANDOM SEED', 'A ADD OPPONENT', 'X REMOVE',
+    ...(p.hasReport ? ['L LAST REPORT'] : []), 'ESC DONE',
   ];
   show(`
     <h2>COMBAT TRAINING SIMULATOR</h2>
@@ -925,6 +926,7 @@ export function renderCombatSimSetup(p: SimSetupPanel): void {
     </div>
     <table>${exercise}</table>
     ${reservedNotes(p.notes, p.notesReserve, 'note-help')}
+    ${reservedNotes(p.brainNote ? [p.brainNote] : [], [p.brainReserve], 'note-brain')}
     <div class="fence">
       <table>${career}</table>
       ${reservedNotes([p.careerNote.text], [p.careerReserve],

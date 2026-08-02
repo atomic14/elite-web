@@ -27,7 +27,7 @@ import {
   type SimDraft,
 } from './combat-sim-setup.ts';
 import {
-  careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
+  brainNote, brainNoteReserve, careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
 } from './combat-sim-notes.ts';
 import type { LiveBrainId } from '../brain-names.ts';
 import { renderCombatSimSetup, renderCombatSimReport } from '../../ui/screens.ts';
@@ -125,6 +125,10 @@ export class CombatSimScreen implements Screen {
       selected: this.row,
       notes: draftNotes(draft),
       notesReserve: draftNotesReserve(),
+      // The row's own answer to "and what is that?", so a brain row says what it
+      // does rather than only what it is called.
+      brainNote: brainNote(cells[this.row].brain),
+      brainReserve: brainNoteReserve(),
       careerNote: careerNote(draft),
       careerReserve: careerNoteReserve(),
       hasReport: this.ctx().reports.length > 0,
@@ -167,8 +171,16 @@ export class CombatSimScreen implements Screen {
     }
     const left = i.pressed('ArrowLeft');
     const right = i.pressed('ArrowRight');
-    if (left || right) {
-      cells[clamp(this.row, 0, cells.length - 1)].change?.(right ? 1 : -1);
+    // HOME / END are the same gesture with a bigger step: a list of twelve
+    // brains or forty-odd hulls has ends you should not have to walk to. Rows
+    // over a number have no `jump`, so the key does nothing on them rather than
+    // meaning something different.
+    const home = i.pressed('Home');
+    const end = i.pressed('End');
+    if (left || right || home || end) {
+      const cell = cells[clamp(this.row, 0, cells.length - 1)];
+      if (home || end) cell.jump?.(end ? 1 : -1);
+      else cell.change?.(right ? 1 : -1);
       // The LIVE BRAINS row is the one cell whose change has to reach the
       // career. Pushing it after every change rather than teaching this method
       // which row it is keeps the screen's ONE input surface: a click is a

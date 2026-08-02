@@ -10,17 +10,18 @@ were completed through commit `09278b7`.
 
 ## The combat trainer
 
-Progress: **2 / 9 complete**. `T` at any station is where Chris playtests, so
+Progress: **3 / 9 complete**. `T` at any station is where Chris playtests, so
 this is the room that has to be good. The findings came from a walk through the
 live panel plus the screens' own code, after the Elite-A phase changed what the
 numbers mean.
 
-31 is done: the panel is grouped and the career switch is fenced. Do 33 next —
-knowing you are in an exercise is the other thing standing between the tool and
-a productive session. 37 is independent of the rest and can go at any point.
+31, 32 and 33 are done: the panel is grouped, the career switch is fenced, a
+brain row says what that brain does in a fight, and you can tell you are in an
+exercise. Do 34 next — the report is the other half of 32's question, and the
+turret tell belongs in it. 37 is independent of the rest and can go at any point.
 
 - [x] 31 — [Give the setup panel a shape, and fence the career switch](31-trainer-setup-panel-hierarchy.md) — UI/UX · high · medium
-- [ ] 32 — [Make choosing a brain a real choice](32-trainer-brain-choice-is-legible.md) — UI/UX · high · medium
+- [x] 32 — [Make choosing a brain a real choice](32-trainer-brain-choice-is-legible.md) — UI/UX · high · medium
 - [x] 33 — [Tell the pilot they are in an exercise](33-exercise-hud.md) — UI/UX · high · medium
 - [ ] 34 — [Put the turret tell in the report](34-report-shows-how-they-flew.md) — UI/UX · high · medium
 - [ ] 35 — [Compare two records without leaving the room](35-compare-two-records.md) — UI/UX · medium · medium

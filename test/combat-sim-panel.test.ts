@@ -21,9 +21,9 @@ import {
   MODES, defaultGroup, freshDraft, setupCells,
 } from '../src/game/screens/combat-sim-setup.ts';
 import {
-  careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
+  brainNote, brainNoteReserve, careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
 } from '../src/game/screens/combat-sim-notes.ts';
-import { AS_SHIPPED } from '../src/game/brain-names.ts';
+import { AS_SHIPPED, BRAIN_CHARACTER } from '../src/game/brain-names.ts';
 
 const read = (path: string): string =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -133,6 +133,102 @@ console.log('\ncombat simulator — the notes hold their own height');
   check('...and the stylesheet gives the calm one a quiet green, not the red',
     /\.note-calm \{ color: var\(--hud-green\); opacity: 0\.5;/.test(read('src/style.css'))
     && /\.note-warn \{ color: var\(--hud-red\); \}/.test(read('src/style.css')));
+}
+
+// --- a brain row says what the brain DOES ------------------------------------
+//
+// The row said PIRATE-ATTACK-T29 and nothing else, which is a filename. The line
+// under the panel follows the CURSOR rather than the draft, so it gets its own
+// reserved block: the help above it holds one slot for the mode and one for the
+// fight, and a line that came and went with the cursor would land in either.
+
+console.log('\ncombat simulator — a brain row says what it does');
+{
+  const d = freshDraft(newCommander());
+  d.groups.push(defaultGroup(1));
+  const cells = setupCells(d);
+  const cell = (label: string) =>
+    cells.find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
+
+  // Every row that names a brain offers one, and no other row does — the line
+  // is contextual help for THIS row, not a fourth line of the fight's help.
+  const named = cells.filter((c) => c.brain !== undefined).map((c) => c.label.trim());
+  eq('the three brain rows carry a brain, and nothing else does',
+    named.map((l) => l.replace(/&nbsp;/g, '')).join(' / '),
+    'EXERCISE BRAIN / BRAIN / LIVE BRAINS (CAREER)');
+  check('...and each of them has something to say about it',
+    cells.filter((c) => c.brain !== undefined).every((c) => !!brainNote(c.brain)));
+
+  // A group left on "as the game flies" will fly a real policy, so the line
+  // describes THAT one rather than the sentinel.
+  check('a group on "as the game flies" describes the brain it resolves to',
+    brainNote(cell('BRAIN').brain) === brainNote('pirate-attack-g3'));
+  cell('BRAIN').change!(1);
+  check('...and a picked one describes itself',
+    brainNote(setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === 'BRAIN')!.brain)
+      === brainNote(setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === 'BRAIN')!
+        .value.replace(/^\d+\/\d+ /, '')));
+
+  // Held open whether or not there is a line in it, like every other note block.
+  const over = [...Object.keys(BRAIN_CHARACTER), 'live', AS_SHIPPED]
+    .filter((id) => (brainNote(id) ?? '').length > brainNoteReserve().length);
+  check('the reserve is an upper bound on every line it can hold',
+    over.length === 0, over.join(', '));
+  check('...and it is one of them, not padding',
+    [...Object.keys(BRAIN_CHARACTER), 'live', AS_SHIPPED]
+      .some((id) => brainNote(id) === brainNoteReserve()));
+  const screens = read('src/ui/screens.ts');
+  check('the renderer holds that space whether the line is there or not',
+    /reservedNotes\(p\.brainNote \? \[p\.brainNote\] : \[\], \[p\.brainReserve\]/.test(screens));
+}
+
+// --- and a long list can be got to the end of -------------------------------
+//
+// Twelve brains and forty-odd hulls, one value per key press, with no way to see
+// the list or tell that it had wrapped. The position says where you are; HOME
+// and END are the way to either end without walking.
+
+console.log('\ncombat simulator — a long list is navigable');
+{
+  const d = freshDraft(newCommander());
+  d.groups.push(defaultGroup(1));
+  const cell = (label: string) =>
+    setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
+
+  for (const label of ['EXERCISE BRAIN', 'BRAIN', 'GROUP 1 HULL', 'LIVE BRAINS (CAREER)']) {
+    check(`${label} says where in the list it is`, /^\d+\/\d+ /.test(cell(label).value));
+  }
+
+  // Stepping through a full list and back returns to where it started — the
+  // acceptance criterion, and the thing a wrapping list has to do.
+  for (const label of ['EXERCISE BRAIN', 'BRAIN', 'GROUP 1 HULL', 'LIVE BRAINS (CAREER)']) {
+    const was = cell(label).value;
+    const len = Number(was.split('/')[1].split(' ')[0]);
+    for (let n = 0; n < len; n++) cell(label).change!(1);
+    eq(`${label} comes back round after a full lap`, cell(label).value, was);
+    for (let n = 0; n < len; n++) cell(label).change!(-1);
+    eq(`...and back the other way`, cell(label).value, was);
+  }
+
+  // ...and both ends are one key away.
+  for (const label of ['EXERCISE BRAIN', 'BRAIN', 'GROUP 1 HULL', 'LIVE BRAINS (CAREER)']) {
+    cell(label).jump!(1);
+    const len = Number(cell(label).value.split('/')[1].split(' ')[0]);
+    eq(`END is the last value of ${label}`, cell(label).value.split(' ')[0], `${len}/${len}`);
+    cell(label).jump!(-1);
+    eq(`...and HOME is the first`, cell(label).value.split(' ')[0], `1/${len}`);
+  }
+  check('a row over a number has no end to jump to, so it has no jump',
+    !cell('SEED').jump && !cell('COUNT').jump && !cell('YOUR MISSILES').jump);
+
+  // The key lives in all four homes CLAUDE.md names — here, the hint, the ?
+  // panel and the README.
+  check('the screen reads HOME and END',
+    /i\.pressed\('Home'\)/.test(read('src/game/screens/combat-sim.ts'))
+    && /i\.pressed\('End'\)/.test(read('src/game/screens/combat-sim.ts')));
+  check('...the footer hint names them', /HOME\/END ENDS OF LIST/.test(read('src/ui/screens.ts')));
+  check('...so does the ? panel', /HOME \/ END/.test(read('play.html')));
+  check('...and so does the README', /\*\*HOME\/END\*\*/.test(read('README.md')));
 }
 
 // --- and the keys it offers are named ---------------------------------------
