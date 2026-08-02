@@ -10,7 +10,7 @@ were completed through commit `09278b7`.
 
 ## The combat trainer
 
-Progress: **6 / 9 complete**. `T` at any station is where Chris playtests, so
+Progress: **7 / 9 complete**. `T` at any station is where Chris playtests, so
 this is the room that has to be good. The findings came from a walk through the
 live panel plus the screens' own code, after the Elite-A phase changed what the
 numbers mean.
@@ -22,8 +22,11 @@ they held and their completed attack runs, on the same definitions
 `train/flight-probe.ts` reads — ENTER on the report holds two records side by
 side, refusing to difference a pair that is not one fight flown twice, and an
 exercise now opens in front of the pilot at a stated range, with the geometry on
-the record and the one scenario that opens behind you saying so. Do 39 next; 37
-and 38 are independent of the rest and can go at any point.
+the record and the one scenario that opens behind you saying so. 37 is done too:
+a tap that arrives in a busy frame is carried to the next one instead of being
+thrown away, bounded so that only a key something is already reading keeps a
+backlog and never more than three of it. Do 39 next; 38 is independent of the
+rest and can go at any point.
 
 - [x] 31 — [Give the setup panel a shape, and fence the career switch](31-trainer-setup-panel-hierarchy.md) — UI/UX · high · medium
 - [x] 32 — [Make choosing a brain a real choice](32-trainer-brain-choice-is-legible.md) — UI/UX · high · medium
@@ -31,7 +34,7 @@ and 38 are independent of the rest and can go at any point.
 - [x] 34 — [Put the turret tell in the report](34-report-shows-how-they-flew.md) — UI/UX · high · medium
 - [x] 35 — [Compare two records without leaving the room](35-compare-two-records.md) — UI/UX · medium · medium
 - [x] 36 — [Start the exercise where the pilot can see it](36-exercise-opening-geometry.md) — UI/UX · medium · small
-- [ ] 37 — [Do not throw away a tap that arrived in a busy frame](37-input-taps-are-not-lost.md) — correctness · medium · small
+- [x] 37 — [Do not throw away a tap that arrived in a busy frame](37-input-taps-are-not-lost.md) — correctness · medium · small
 - [ ] 38 — [The console still shows four energy banks](38-energy-reads-as-one-bank.md) — UI/UX · low · small
 - [ ] 39 — [Make the wave ramp keep getting harder](39-waves-keep-getting-harder.md) — gameplay · high · medium
 

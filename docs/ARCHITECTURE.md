@@ -346,7 +346,8 @@ src/
   engine/inert-dom.ts       a DOM element that accepts every write and does
                             none of them, so a painter with no DOM is inert
   engine/render-stack.ts    the ONLY file that needs a GPU
-  engine/input.ts           keyboard state (held/pressed/counts)
+  engine/input.ts           keyboard state (held/pressed/counts), and the
+                            bounded carry that keeps a busy frame's second tap
   engine/flight-controls.ts what the hands are asking for: keys -> FlightDemand
   engine/keymap.ts          flight bindings, both layouts
   ships/geometry.ts         the ShipDef contract and the two mesh builders

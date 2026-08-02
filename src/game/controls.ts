@@ -22,10 +22,13 @@
 //
 // Three rules the old chains encoded, all load-bearing:
 //
-//  - **One command per frame from a chain.** `Input.pressed()` consumes a tap
-//    and `endFrame()` drops whatever is left, so an `else if` chain could only
-//    ever run one branch. The scan stops at the first match for that reason —
-//    it is not an optimisation.
+//  - **One command per frame from a chain.** `Input.pressed()` consumes a tap,
+//    so an `else if` chain could only ever run one branch. The scan stops at
+//    the first match for that reason — it is not an optimisation. A tap the
+//    chain did not reach is not dropped at the end of the frame any more
+//    (`engine/input.ts` carries it, briefly and boundedly), so it is offered
+//    to the NEXT frame's table — which is how a mashed key reaches the game
+//    twice instead of once, and why the tables below must stay per mode.
 //  - **The view keys are independent.** The digit loop ran BEFORE the chain and
 //    did not stop it, so 2 and G in the same frame still switches to the rear
 //    view *and* opens the chart.
