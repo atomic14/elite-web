@@ -77,6 +77,7 @@ import {
   type BrainId, type ExerciseSession, type ExerciseSpec, type Opposition,
   type SimShip, type ThreatContext,
 } from './combat-sim-scenarios.ts';
+import type { PlayerPoolPoints } from './damage-units.ts';
 import type { NpcShip } from './npc.ts';
 import type { Ordnance } from './ordnance.ts';
 import type { Persistence } from './persistence.ts';
@@ -679,7 +680,8 @@ export class CombatSim {
    * `object.position`, which IS the ship's state vector, so identity is exact
    * where a magnitude table was only ever a guess (see `DamageSource`).
    */
-  private takeHit(amount: number, from: THREE.Vector3, source: DamageSource): void {
+  private takeHit(
+    amount: PlayerPoolPoints, from: THREE.Vector3, source: DamageSource): void {
     const hit = this.opponents.find((o) => o.ship.object.position === from);
     this.recorder?.taken(amount, source, hit?.index);
     this.host.flashDamage();

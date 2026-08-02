@@ -9,7 +9,7 @@ no WebGL anywhere in a training run.
 There used to be a second physics (`src/ai-training/core.ts`) kept in step by
 hand. It is deleted. What that means for you: **a change to a combat number is
 a change to the training environment**, so the shipped brains are stale the
-moment you touch `NPC_COOLDOWN_LO`, `RAM_DAMAGE`, a hull's energy bank or
+moment you touch `NPC_COOLDOWN_LO`, `IMPACT.ram`, a hull's energy bank or
 the player's flight envelope. That is the trade — nothing can silently drift any
 more, and nothing is free either.
 

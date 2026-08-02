@@ -20,6 +20,7 @@
 // `systems.ts` spends it. Neither restates a line of the oracle's arithmetic.
 
 import type { Equipment, LaserType } from './commander.ts';
+import { playerPoolPoints, type PlayerPoolPoints } from './damage-units.ts';
 import {
   eliteADamageToPlayer, eliteANpcLaserStrength, eliteAPlayerLaserHit,
 } from './elite-a/combat-math.ts';
@@ -262,8 +263,11 @@ const weaponBytes = new Map<NpcCombatProfileId, number>();
  * laser damage) is unreachable from here: gameplay only ever gets the clean
  * rule, which is why the argument is not passed on.
  */
-export function npcLaserDamageToPlayer(weaponByte: number, shipId: PlayerHullId): number {
-  return eliteADamageToPlayer(weaponByte, playerHull(shipId).perHitShieldArmour);
+export function npcLaserDamageToPlayer(
+  weaponByte: number, shipId: PlayerHullId,
+): PlayerPoolPoints {
+  return playerPoolPoints(
+    eliteADamageToPlayer(weaponByte, playerHull(shipId).perHitShieldArmour));
 }
 
 /** Hit strength before the player's armour: `laserPower << 2`, the clean rule. */
@@ -300,9 +304,8 @@ export const THARGOID_FIRE_RATE = 0.7;
  * 0.9+rand*0.8, on the path every police ship, bounty hunter and knife-range
  * pirate fires from.
  *
- * `rng` is passed in rather than imported so this file stays free of the PRNG,
- * like `npcShotDamage(roll)` beside it — and it is called ONLY when the shot
- * leaves.
+ * `rng` is passed in rather than imported so this file stays free of the PRNG —
+ * and it is called ONLY when the shot leaves.
  *
  * @param cooldown  seconds left on the gun, already decremented for this step
  * @param angle     radians from the ship's nose to the target
@@ -326,19 +329,16 @@ export const NPC_HIT_FALLOFF = 3500;
 export const NPC_HIT_CAP = 0.85;
 export const NPC_HIT_FLOOR = 0.15;
 /**
- * Damage per hit: 0.1 + up to 0.12 — and NOT the game's rule any more.
+ * Whether one ship's shot at another connects: a coin flip, and Harmless's.
  *
- * TODO 27 replaced this roll in live play with the firing build's exact laser
- * power (`npcLaserDamageToPlayer`). What still uses it is the TRAINING
- * episode's target, which stands in for the commander on the old normalized
- * scale; TODO 29 rebaselines that and this goes with it. Scaffolding with a
- * date on it, not a second opinion — nothing the player flies reads it.
+ * There is no damage constant beside it any more. What a crossfire hit is
+ * WORTH is `npcCrossfireDamage` in npc-energy.ts — the firing build's own laser
+ * strength against the target's own defence — where it used to be a flat 0.11
+ * on the pre-parity normalized scale that made a Thargoid's gun and a Worm's
+ * identical. Whether it lands stays a die roll, exactly as the player-facing
+ * gun's does.
  */
-export const NPC_DAMAGE_LO = 0.1;
-export const NPC_DAMAGE_SPREAD = 0.12;
-/** NPC-vs-NPC is cruder: a coin flip for this much. */
 export const NPC_VS_NPC_HIT = 0.5;
-export const NPC_VS_NPC_DAMAGE = 0.11;
 /** A missile is only worth launching in this band. */
 export const MISSILE_MIN_RANGE = 1200;
 export const MISSILE_MAX_RANGE = 3200;
@@ -372,11 +372,6 @@ export const MISSILE_RELOAD = 2;
 export function npcHitChance(dist: number): number {
   return Math.min(NPC_HIT_CAP,
     Math.max(NPC_HIT_FLOOR, NPC_HIT_BASE - dist / NPC_HIT_FALLOFF));
-}
-
-/** Damage from one NPC hit, on the old normalized scale. See NPC_DAMAGE_LO. */
-export function npcShotDamage(roll: number): number {
-  return NPC_DAMAGE_LO + roll * NPC_DAMAGE_SPREAD;
 }
 
 /** Would an NPC rather send a missile than a laser bolt? */

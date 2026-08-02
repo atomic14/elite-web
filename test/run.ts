@@ -44,6 +44,7 @@ import './systems.test.ts';
 import './combat.test.ts';
 import './gunnery.test.ts';
 import './instrumentation.test.ts';
+import './damage-paths.test.ts';
 import './elite-a-catalogue.test.ts';
 import './elite-a-oracle.test.ts';
 import './elite-a-live-combat.test.ts';

@@ -34,12 +34,14 @@ import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
 import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
 import {
   LASER_RANGE, hitCone, canFire, chargeShot, playerLaser,
-  npcHitChance, npcShotDamage, npcTriggerPull,
+  npcHitChance, npcTriggerPull, npcWeaponByte,
 } from '../game/gunnery.ts';
-import { legacyDamageToEnergy } from '../game/npc-energy.ts';
+import { npcCrossfireDamage } from '../game/npc-energy.ts';
+import { IMPACT, npcImpactDamage } from '../game/impact-damage.ts';
+import type { NpcEnergyPoints } from '../game/damage-units.ts';
 import { COBRA_MK_3_HULL_ID } from '../game/ship-identity.ts';
-import { RAM_DAMAGE, npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
-import { LASER_COOL_RATE } from '../game/systems.ts';
+import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
+import { LASER_COOL_RATE, MAX_SHIELD } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
   observe, act, makeScratch, shipView, writeView,
@@ -147,7 +149,7 @@ function traderHull(): TargetHull {
     name: 'Cobra Mk III',
     // Still the normalized hull: the episode's TARGET stands in for the
     // commander, whose banks moved onto the 255-point source scale in TODO 27
-    // while this stand-in — and the `npcShotDamage` roll thrown at it below —
+    // while this stand-in — and the `targetShotDamage` roll thrown at it below —
     // stayed where the shipped brains were fitted. TODO 29 rebaselines both
     // together, because moving one without the other is a different world.
     hp: s.legacyHullPoints,
@@ -226,8 +228,30 @@ const TARGET_HULLS: Record<TargetHullId, () => TargetHull> = {
 const PIRATE_COBRA: NpcSpec = SPECS.pirate[5];
 const PIRATE_SIDEWINDER: NpcSpec = SPECS.pirate[0];
 
+// --- the stand-in target's own scale ----------------------------------------
+//
+// EVERYTHING BELOW IS THE TRAINING TARGET'S, and it is the last normalized
+// scale in the project. `TargetShip` stands in for the commander at hp 1.0 with
+// no shields; the shipped brains were all fitted against it, and TODO 29
+// rebaselines it onto the commander's real 255-point pools. TODO 28 left it
+// alone deliberately — moving it is a different world, not a unit fix — but it
+// moved the numbers that feed it HERE, where the scale is, so that no game
+// module holds a fractional damage figure any more.
+//
+// Nothing on this scale ever reaches a real `NpcShip`: a pirate's bank takes
+// `NpcEnergyPoints` and the type refuses anything else.
+
+/** Damage per hit against the stand-in target: 0.1 plus up to 0.12. */
+export const TARGET_DAMAGE_LO = 0.1;
+export const TARGET_DAMAGE_SPREAD = 0.12;
+
+/** One NPC hit on the stand-in target, on its own normalized scale. */
+export function targetShotDamage(roll: number): number {
+  return TARGET_DAMAGE_LO + roll * TARGET_DAMAGE_SPREAD;
+}
+
 /**
- * What the *victim* of a ram takes, against the rammer's RAM_DAMAGE.
+ * What the *victim* of a ram takes, against the rammer's `IMPACT.ram`.
  *
  * In the game the player's fore/aft shields absorb collision damage before the
  * hull sees any (world-step.ts bills `applyPlayerDamage`), so ramming is
@@ -239,6 +263,20 @@ const PIRATE_SIDEWINDER: NpcSpec = SPECS.pirate[0];
 const VICTIM_RAM_DAMAGE = 0.12;
 
 /**
+ * The commander's real durability, in the units this episode's target speaks.
+ *
+ * THE ONE REMAINING CONVERSION IN THE PROJECT, and it lives here rather than in
+ * any game module because it is a property of the STAND-IN, not of combat: the
+ * target's hull is 1.0 where the commander's facing shield is `MAX_SHIELD`
+ * points. `train/survivability.ts` is its only caller — it corrects the
+ * defender's durability to the commander's before asking how long a gang takes
+ * — and it goes when TODO 29 puts the episode on the real pools.
+ */
+export function targetHullForPoolPoints(poolPoints: number): number {
+  return poolPoints / MAX_SHIELD;
+}
+
+/**
  * The commander's pulse laser, from the commander's hull.
  *
  * Resolved once because it is a constant of the world the episode models: the
@@ -246,6 +284,13 @@ const VICTIM_RAM_DAMAGE = 0.12;
  * there is no shipyard yet to change it.
  */
 const PLAYER_PULSE = playerLaser(COBRA_MK_3_HULL_ID, 'pulse');
+
+/**
+ * The packed weapon byte an armed freighter fires with — the trader Cobra's
+ * own released build, read off the roster row this episode's target stands in
+ * for rather than chosen.
+ */
+const TRADER_WEAPON_BYTE = npcWeaponByte(TRADER_COBRA.profileId);
 
 export interface EpisodeOptions {
   seed: number;
@@ -555,7 +600,7 @@ export class Episode {
     p.shotsFired += 1;
     const hit = random() < npcHitChance(dist);
     if (hit) {
-      const damage = npcShotDamage(random());
+      const damage = targetShotDamage(random());
       p.shotsHit += 1;
       p.damageDealt += damage;
       this.trader.takeDamage(damage);
@@ -586,9 +631,12 @@ export class Episode {
       t.laserCooldown = reload;
       t.shotsFired += 1;
       if (random() >= npcHitChance(dist)) return { from: t, to: threat, hit: false };
-      // An NPC's gun has no source byte yet, so it converts through the TODO 28
-      // bridge — the same call world-step.ts makes for NPC-versus-NPC fire.
-      const damage = legacyDamageToEnergy(npcShotDamage(random()));
+      // An armed freighter shooting a pirate is a CROSSFIRE hit, and it is worth
+      // exactly what world-step.ts says one is: the firing build's own laser
+      // strength against the target's own defence. The freighter fires the
+      // trader Cobra's released byte, because that is the hull it is standing in
+      // for. It used to be a normalized roll pushed across a conversion.
+      const damage = npcCrossfireDamage(TRADER_WEAPON_BYTE, threat.npc.energyPolicy);
       t.shotsHit += 1;
       t.damageDealt += damage;
       this.hurtPirate(threat, damage);
@@ -614,7 +662,7 @@ export class Episode {
     return { from: t, to: threat, hit: true };
   }
 
-  private hurtPirate(p: PirateShip, points: number): void {
+  private hurtPirate(p: PirateShip, points: NpcEnergyPoints): void {
     p.damageTaken += points;
     p.npc.takeDamage(points, this.trader.pos, true);
   }
@@ -626,10 +674,10 @@ export class Episode {
    * world-step.ts makes — and what it costs is decided here, as it is there.
    */
   private resolveCollisions(): void {
-    // The ram is a normalized amount and converts through the TODO 28 bridge,
-    // the same call world-step.ts makes. The TARGET's half stays normalized:
-    // its hull is the pre-TODO-27 stand-in until TODO 29 rebaselines it.
-    const ramEnergy = legacyDamageToEnergy(RAM_DAMAGE);
+    // A ram costs a ship the stated `IMPACT.ram` in its own points — the same
+    // call world-step.ts makes. The TARGET's half stays on the stand-in's own
+    // normalized scale (VICTIM_RAM_DAMAGE) until TODO 29 rebaselines it.
+    const ramEnergy = npcImpactDamage(IMPACT.ram);
     if (this.trader.alive) {
       const pos = this.trader.pos;
       for (const npc of playerVsNpcs(
@@ -647,7 +695,7 @@ export class Episode {
   }
 
   /** Damage with nobody to credit — a ram, which the fitness already punishes. */
-  private hurtSelf(p: PirateShip, points: number): void {
+  private hurtSelf(p: PirateShip, points: NpcEnergyPoints): void {
     p.damageTaken += points;
     p.npc.takeDamage(points);
   }

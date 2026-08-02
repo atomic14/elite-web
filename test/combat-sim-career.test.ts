@@ -35,6 +35,8 @@ import { type FlightDemand } from '../src/player.ts';
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { check } from './harness.ts';
+import { playerPoolPoints } from '../src/game/damage-units.ts';
+import { IMPACT, npcImpactDamage } from '../src/game/impact-damage.ts';
 
 // --- the exercise cannot touch the career ------------------------------------
 //
@@ -370,7 +372,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     const bomb = r.ordnance.detonateEnergyBomb(r.sim.commander!, s.player.position);
     check('the bomb came off the exercise commander\'s hull', bomb.reply === 'bombFired');
     for (const npc of bomb.caught) {
-      npc.takeDamage(99, s.player.position, true);
+      npc.takeDamage(npcImpactDamage(IMPACT.energyBomb), s.player.position, true);
       r.sim.destroyNpc(npc);
     }
     beat(r, 2);
@@ -389,7 +391,8 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       s.sys.aftShield = 0;
       s.sys.energy = MAX_ENERGY;
       // shields flat, so a single point is a hull hit and rolls for a fitting
-      r.sim.verbs.applyPlayerDamage(1, foes[4].object.position, 'laser');
+      r.sim.verbs.applyPlayerDamage(
+        playerPoolPoints(1), foes[4].object.position, 'laser');
       breached = !r.sim.commander!.equipment.ecm
         || !r.sim.commander!.equipment.scoops
         || !r.sim.commander!.equipment.rearLaser;
@@ -421,7 +424,8 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     // 6. And a DEATH, which must never reach `Game.die` and its clearWorld().
     const clone = structuredClone(r.sim.commander!);
     s.sys.energy = 1;
-    r.sim.verbs.applyPlayerDamage(durability(false), foes[4].object.position, 'laser');
+    r.sim.verbs.applyPlayerDamage(
+      playerPoolPoints(durability(false)), foes[4].object.position, 'laser');
     check('a simulated death ends the exercise', !r.sim.fighting);
     const records = r.sim.settle() ?? [];
     check('...and the teardown produced a record', records.length === 1);
@@ -526,7 +530,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
     const flashes = r.flashes;
     const shieldWas = s.sys.foreShield;
-    r.sim.verbs.applyPlayerDamage(10, at, 'laser');
+    r.sim.verbs.applyPlayerDamage(playerPoolPoints(10), at, 'laser');
     check('StepHost.applyPlayerDamage — REDIRECTED: real damage, real flash',
       s.sys.foreShield < shieldWas && r.flashes === flashes + 1);
 

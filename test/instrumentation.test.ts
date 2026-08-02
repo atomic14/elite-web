@@ -11,6 +11,7 @@ import { Game } from '../src/game/game.ts';
 import { CombatInstrumentation } from '../src/game/instrumentation.ts';
 import { withoutSaving } from '../src/game/storage.ts';
 import { check, eq } from './harness.ts';
+import { playerPoolPoints } from '../src/game/damage-units.ts';
 
 console.log('\ncombat instrumentation');
 {
@@ -24,17 +25,17 @@ console.log('\ncombat instrumentation');
     },
   });
 
-  instrumentation.playerDamaged(0.45, from, 'ram');
+  instrumentation.playerDamaged(playerPoolPoints(115), from, 'ram');
   eq('damage source reaches the registered observer', seen[0]?.source, 'ram');
   check('...with the exact amount and a position snapshot',
-    seen[0]?.amount === 0.45 && seen[0].from.x === 99 && from.equals(new THREE.Vector3(4, 5, 6)));
+    seen[0]?.amount === 115 && seen[0].from.x === 99 && from.equals(new THREE.Vector3(4, 5, 6)));
 
   stop();
-  instrumentation.playerDamaged(1.3, from, 'missile');
+  instrumentation.playerDamaged(playerPoolPoints(250), from, 'missile');
   eq('disposing instrumentation makes later damage inert', seen.length, 1);
 
   instrumentation.setObserver(null);
-  instrumentation.playerDamaged(0.06, from, 'cargo');
+  instrumentation.playerDamaged(playerPoolPoints(15), from, 'cargo');
   eq('optional instrumentation is inert when never installed', seen.length, 1);
 }
 
@@ -50,7 +51,7 @@ console.log('\ncombat instrumentation');
   });
 
   stopFirst();
-  instrumentation.playerDamaged(0.1, new THREE.Vector3(), 'laser');
+  instrumentation.playerDamaged(playerPoolPoints(9), new THREE.Vector3(), 'laser');
   check('an old disposer cannot detach a replacement observer',
     first === 0 && second === 1);
 }

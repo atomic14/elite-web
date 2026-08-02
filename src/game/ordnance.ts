@@ -69,12 +69,22 @@ export interface Missile {
   life: number;
 }
 
-/** What the Game has to act on after a step. */
+/**
+ * What the Game has to act on after a step.
+ *
+ * A warhead reaching something REPORTS THE IMPACT and no longer carries a
+ * number. It used to say `damage: 1.3` — a normalized literal, and the last
+ * damage figure in the project written where the thing that spends it could not
+ * see the scale — and `killed` was worse: an ordnance module deciding a ship was
+ * destroyed, which is a consequence (a bounty, a legal status, a contract tick)
+ * and therefore the Game's. What a warhead is worth is `IMPACT.warhead` in
+ * impact-damage.ts, and the step spends it like any other hit.
+ */
 export type OrdnanceEvent =
-  /** a missile reached an NPC — the Game bills the kill */
-  | { kind: 'killed'; npc: NpcShip }
+  /** a missile reached an NPC — the Game applies the warhead and bills what follows */
+  | { kind: 'hitNpc'; npc: NpcShip; at: THREE.Vector3 }
   /** a missile reached the player */
-  | { kind: 'hitPlayer'; at: THREE.Vector3; damage: number }
+  | { kind: 'hitPlayer'; at: THREE.Vector3 }
   /** a target's E.C.M. destroyed one of ours */
   | { kind: 'ecmDefeated'; at: THREE.Vector3 }
   /** it ran out of life or its target died */
@@ -279,8 +289,8 @@ export class Ordnance {
         const at = m.object.position.clone();
         const target = m.target;
         this.destroy(m);
-        if (target) events.push({ kind: 'killed', npc: target });
-        else events.push({ kind: 'hitPlayer', at, damage: 1.3 });
+        if (target) events.push({ kind: 'hitNpc', npc: target, at });
+        else events.push({ kind: 'hitPlayer', at });
       }
     }
     return events;

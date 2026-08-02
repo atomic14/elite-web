@@ -24,6 +24,7 @@
 import type { StepHost } from './world-step.ts';
 import type { NpcShip } from './npc.ts';
 import type { DamageSource } from './combat.ts';
+import type { PlayerPoolPoints } from './damage-units.ts';
 import { type CommanderData, MAX_FUEL, MAX_MISSILES } from './commander.ts';
 import { CLEAN } from './law.ts';
 import type { BrainId } from './combat-sim-scenarios.ts';
@@ -40,7 +41,7 @@ import * as THREE from 'three';
  */
 export interface ExerciseVerbs {
   fighting(): boolean;
-  takeHit(amount: number, from: THREE.Vector3, source: DamageSource): void;
+  takeHit(amount: PlayerPoolPoints, from: THREE.Vector3, source: DamageSource): void;
   destroyNpc(npc: NpcShip): void;
   wreckNpc(npc: NpcShip): void;
   pullTrigger(): void;

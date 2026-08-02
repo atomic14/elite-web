@@ -173,6 +173,58 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   notes they were never coded). This project is a homage, not a museum
   piece — see the deviations above.
 
+## Non-laser damage is Harmless policy (deliberate deviation, 2026-08)
+
+The Elite-A analysis pack tabulates registered LASER hits exhaustively — 15,600
+player-to-NPC rows and 3,900 NPC-to-player rows — and says nothing whatever
+about what a ram, a canister breaking on the hull, a Coriolis wall, a missile
+warhead or an energy bomb is worth. Those numbers are therefore **ours**, and
+they are labelled as ours: `src/game/impact-damage.ts` is their only home, and
+none of them may be quoted as an Elite-A fact.
+
+**The rule.** An impact costs a fixed whole number of source points, stated
+separately for a ship's energy bank and for the commander's pools, and is spent
+on whatever it hits without asking what that is.
+
+Two columns rather than one, because the two banks are not comparable: a
+released ship carries 2 to 255 energy, and the commander carries a 255-point
+facing shield in front of a 255-point bank. Fixed points rather than a share of
+the target, because a hull's size is meant to be worth something — the same
+44-point scrape is a third of a Sidewinder and a sixth of an Anaconda.
+
+**The anchors**, both the Cobra Mk III, and both re-derived from the catalogue
+by `test/damage-paths.test.ts` so a re-import cannot leave them stale:
+
+| impact | ship | commander | severity |
+| --- | --- | --- | --- |
+| ram | 44 | 115 | 45% of the 98-point NPC anchor / of a 255-point shield face |
+| canister on the hull | — | 15 | 6% of a face |
+| station scrape | — | 230 | 90% of a face |
+| missile warhead | 250 | 250 | flattens a full face exactly; above every released bank but five of 260 builds |
+| energy bomb | 255 | — | the top of the byte scale — nothing released survives it |
+
+The ram, the canister and the station scrape are the numbers Harmless has always
+played with, restated in the units they are now spent in. The warhead moved: it
+was an unconditional kill against a ship and 332 pool points against the
+commander, and is 250 either way — so the five heaviest released builds survive
+one at full energy by a sliver, and only an actual kill pays a bounty.
+
+**NPC-versus-NPC laser fire is a composition, not an invention.** The pack does
+not tabulate that direction, so `npcCrossfireDamage` uses the two source rules
+that each half of it does have — the firing build's own `laserPower << 2` and
+the defending build's own `maxEnergy & 7` — through the same oracle the two
+player-facing directions use. It replaced a flat 0.11 normalized amount that
+made a Thargoid's gun and a Worm's identical.
+
+**The Constrictor's halving and a station's immunity are properties of a PLAYER
+LASER.** They are fields on the target's profile, read by the player's shot and
+by nothing else: a crossfire hit on the Constrictor is not halved, and a ram on a
+station is not shrugged off. The impact functions are not even given a target to
+ask, which is the structural version of the same rule.
+
+The whole inventory — every path, its unit and its owner — is
+`docs/DAMAGE-PATHS.md`.
+
 ## Aim assist and the ring sight (deliberate deviation, 2026-07)
 
 The 1984 game had a cross and no assist: a shot hit if the target's silhouette

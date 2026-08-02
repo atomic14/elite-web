@@ -11,10 +11,24 @@
 // cargo pod that happens to contain a person. They should be their own object
 // with their own model — see the project's task list. This file is where that
 // change belongs, and the `kind` field is the seam.
+//
+// A CANISTER IS ALSO A TARGET, and since TODO 28 it is a source-profiled one.
+// Shooting one used to delete it whatever the laser was; it now carries the
+// pack's own energy for its design — the cargo canister (4) and the escape pod
+// (2), eight points each, no defence — and the shot is resolved through the
+// same oracle a ship's is. Every laser a flyable hull can carry still breaks one
+// with a single hit, so nothing about shooting cargo has changed today; what
+// changed is that "one hit" is now a consequence of the catalogue rather than a
+// line of code that could not be wrong.
 
 import * as THREE from 'three';
 import { buildShip } from '../ships/geometry.ts';
 import { OBJECT_DESIGNS, requireShipDef } from '../ships/registry.ts';
+import {
+  energyAfterDamage, isDestroyed, npcEnergyPolicy, playerLaserDamage,
+  type NpcEnergyPolicy,
+} from './npc-energy.ts';
+import { recommendedProfileIdFor } from './ship-identity.ts';
 import { random, randomDirection, randomInt } from './rng.ts';
 import type { CanisterSnapshot } from './snapshot.ts';
 
@@ -25,10 +39,23 @@ export interface Canister {
   velocity: THREE.Vector3;
   spinAxis: THREE.Vector3;
   kind: 'cargo' | 'capsule';
+  /** what is left of its released bank — 8 points, and it does not regenerate */
+  energy: number;
 }
 
 /** The released cargo canister — one hull, resolved once. */
 const CANISTER_HULL = requireShipDef(OBJECT_DESIGNS.cargoCanister);
+
+/** What each kind of drifting object can absorb. The pack's, not ours. */
+const POLICY: Record<Canister['kind'], NpcEnergyPolicy> = {
+  cargo: npcEnergyPolicy(recommendedProfileIdFor(OBJECT_DESIGNS.cargoCanister)),
+  capsule: npcEnergyPolicy(recommendedProfileIdFor(OBJECT_DESIGNS.escapePod)),
+};
+
+/** A fresh object of this kind, at full energy. */
+export function canisterMaxEnergy(kind: Canister['kind']): number {
+  return POLICY[kind].maxEnergy;
+}
 
 /** How close the player must get to scoop. */
 export const SCOOP_RANGE = 45;
@@ -59,6 +86,7 @@ export class CargoField {
         velocity: randomDirection(new THREE.Vector3()).multiplyScalar(15 + random() * 30),
         spinAxis: randomDirection(new THREE.Vector3()),
         kind: 'cargo',
+        energy: canisterMaxEnergy('cargo'),
       });
     }
   }
@@ -76,18 +104,23 @@ export class CargoField {
       velocity: randomDirection(new THREE.Vector3()).multiplyScalar(40 + random() * 30),
       spinAxis: randomDirection(new THREE.Vector3()),
       kind: 'capsule',
+      energy: canisterMaxEnergy('capsule'),
     });
   }
 
   /** Rebuild one from a snapshot, exactly as it was. */
   restore(
     pos: THREE.Vector3, velocity: THREE.Vector3, spinAxis: THREE.Vector3,
-    kind: 'cargo' | 'capsule', commodity: number,
+    kind: 'cargo' | 'capsule', commodity: number, energy?: number,
   ): void {
     const object = buildShip(CANISTER_HULL, kind === 'capsule' ? 0xffd24d : 0x8ad0ff);
     if (kind === 'capsule') object.scale.setScalar(0.8);
     object.position.copy(pos);
-    this.add(object, { commodity, velocity, spinAxis, kind });
+    // A save written before canisters had a bank comes back whole: a partly
+    // shot canister is not a thing those worlds could hold.
+    this.add(object, {
+      commodity, velocity, spinAxis, kind, energy: energy ?? canisterMaxEnergy(kind),
+    });
   }
 
   private add(object: THREE.Object3D, rest: Omit<Canister, 'object'>): void {
@@ -113,9 +146,18 @@ export class CargoField {
     return reached;
   }
 
-  /** Shot, rather than scooped — the Game draws the burst and pays the cost. */
-  destroy(c: Canister): void {
+  /**
+   * A registered player-laser hit of `hit` strength lands on one.
+   *
+   * The same call a ship takes (`NpcShip.takeLaserHit`), against the same
+   * oracle: the object's own bank and its own defence decide, so nothing here
+   * knows what a canister is made of. @returns true if it broke up.
+   */
+  takeLaserHit(c: Canister, hit: number): boolean {
+    c.energy = energyAfterDamage(c.energy, playerLaserDamage(POLICY[c.kind], hit));
+    if (!isDestroyed(c.energy)) return false;
     this.remove(c);
+    return true;
   }
 
   private remove(c: Canister): void {
@@ -132,6 +174,7 @@ export class CargoField {
       spinAxis: [c.spinAxis.x, c.spinAxis.y, c.spinAxis.z],
       kind: c.kind,
       commodity: c.commodity,
+      energy: c.energy,
     } satisfies CanisterSnapshot));
   }
 
@@ -141,7 +184,7 @@ export class CargoField {
     for (const c of saved) {
       this.restore(
         new THREE.Vector3(...c.pos), new THREE.Vector3(...c.velocity),
-        new THREE.Vector3(...c.spinAxis), c.kind, c.commodity);
+        new THREE.Vector3(...c.spinAxis), c.kind, c.commodity, c.energy);
     }
   }
 

@@ -37,6 +37,7 @@ import {
 import {
   applyDamage, breachLoss, durability, freshSystems, MAX_ENERGY, MAX_SHIELD,
 } from '../src/game/systems.ts';
+import { playerPoolPoints } from '../src/game/damage-units.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { Combat } from '../src/game/combat.ts';
 import { SPECS } from '../src/game/ship-specs.ts';
@@ -159,7 +160,7 @@ console.log('\nlive defence — the cases the contract names');
     // ONE-POINT PENETRATION of the SHIELD, which is the other boundary.
     const sys = freshSystems();
     sys.foreShield = 1;
-    const r = applyDamage(sys, 2, true, () => 1);
+    const r = applyDamage(sys, playerPoolPoints(2), true, () => 1);
     check('a hit one point bigger than the shield spills exactly one into energy',
       sys.foreShield === 0 && sys.energy === MAX_ENERGY - 1 && r.reachedHull);
   }
@@ -177,11 +178,11 @@ console.log('\nlive defence — the cases the contract names');
     const ahead = new THREE.Vector3(0, 0, -900);
     const astern = new THREE.Vector3(0, 0, 900);
     const fore = freshSystems();
-    combat.hitPlayer(fore, 30, ahead, pos, quat, scratch);
+    combat.hitPlayer(fore, playerPoolPoints(30), ahead, pos, quat, scratch);
     check('a hit from ahead lands on the FORE shield',
       fore.foreShield === MAX_SHIELD - 30 && fore.aftShield === MAX_SHIELD);
     const aft = freshSystems();
-    combat.hitPlayer(aft, 30, astern, pos, quat, scratch);
+    combat.hitPlayer(aft, playerPoolPoints(30), astern, pos, quat, scratch);
     check('...and one from astern on the AFT shield',
       aft.aftShield === MAX_SHIELD - 30 && aft.foreShield === MAX_SHIELD);
   }
@@ -210,11 +211,11 @@ console.log('\nlive defence — the cases the contract names');
     const sys = freshSystems();
     sys.foreShield = 0;
     let rolls = 0;
-    applyDamage(sys, MAX_ENERGY - 1, true, () => { rolls += 1; return 1; });
+    applyDamage(sys, playerPoolPoints(MAX_ENERGY - 1), true, () => { rolls += 1; return 1; });
     eq('one roll for a fitting per penetrating hit, whatever its size', rolls, 1);
     const shielded = freshSystems();
     let none = 0;
-    applyDamage(shielded, MAX_SHIELD, true, () => { none += 1; return 1; });
+    applyDamage(shielded, playerPoolPoints(MAX_SHIELD), true, () => { none += 1; return 1; });
     eq('...and none at all when the shield swallowed the whole hit', none, 0);
     // ...and what it costs is unchanged: cargo first, then a fitting.
     const commander = newCommander();

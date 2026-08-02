@@ -23,6 +23,7 @@ import {
   energyAfterDamage, isDestroyed, npcEnergyPolicy, playerLaserDamage,
   regeneratedEnergy, type NpcEnergyPolicy,
 } from './npc-energy.ts';
+import type { NpcEnergyPoints } from './damage-units.ts';
 import { rampToward } from '../player.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
@@ -1004,12 +1005,14 @@ export class NpcShip {
   }
 
   /**
-   * @param points WHOLE energy points. Everything that is not a player laser
-   * still speaks the old normalized scale and must convert with
-   * `legacyDamageToEnergy` — the TODO 28 bridge — before it gets here.
+   * @param points source energy points, minted by whichever module owns the
+   * rule: `playerLaserDamage` and `npcCrossfireDamage` (npc-energy.ts) for the
+   * two guns, `npcImpactDamage` (impact-damage.ts) for a ram, a warhead or the
+   * energy bomb. The type is branded, so a number from any other scale — or a
+   * bare literal — will not compile.
    * @returns true if the ship was destroyed.
    */
-  takeDamage(points: number, from?: THREE.Vector3, byPlayer = false): boolean {
+  takeDamage(points: NpcEnergyPoints, from?: THREE.Vector3, byPlayer = false): boolean {
     this.state.provoked = true;
     if (byPlayer) this.state.provokedByPlayer = true;
     if (from && this.role === 'trader') {

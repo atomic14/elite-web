@@ -12,12 +12,12 @@ import { World } from '../src/game/world.ts';
 import {
   WorldStep,
   massLocked,
-  CANISTER_HULL_DAMAGE,
-  STATION_COLLISION_DAMAGE,
   type StepEvent,
   type StepHost,
 } from '../src/game/world-step.ts';
-import { legacyDamageToPlayer, MAX_ENERGY, MAX_SHIELD } from '../src/game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../src/game/systems.ts';
+import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';
+import { playerPoolPoints, type PlayerPoolPoints } from '../src/game/damage-units.ts';
 import { npcLaserDamageToPlayer } from '../src/game/gunnery.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
@@ -32,7 +32,6 @@ import {
   type DamageSource,
 } from '../src/game/combat.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
-import { RAM_DAMAGE } from '../src/game/collisions.ts';
 import { pirateSpecForTier } from '../src/game/ship-specs.ts';
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
@@ -100,7 +99,7 @@ console.log('\nheadless world step');
     const log = {
       deaths: [] as string[], saves: 0, docks: 0, shots: 0, damage: 0, hermits: 0,
       /** every hit the player took, and what the step said did it */
-      hits: [] as { amount: number; source: DamageSource }[],
+      hits: [] as { amount: PlayerPoolPoints; source: DamageSource }[],
     };
     // The host is the ONLY thing standing behind the step, and it is a stub:
     // no Hud, no screens, no localStorage, no renderer.
@@ -346,13 +345,13 @@ console.log('\nheadless world step');
     const shieldWas = hitByHand.state.sys.foreShield;
     const hitFrom = new THREE.Vector3(0, 0, -400);
     const handHit = digest(hitByHand.combat.hitPlayer(
-      hitByHand.state.sys, 0.5, hitFrom,
+      hitByHand.state.sys, playerPoolPoints(128), hitFrom,
       hitByHand.state.player.position, hitByHand.state.player.quaternion,
       hitByHand.scratch));
     const hitExtracted = dueller();
     const outHit = digest(
-      damagePlayer(hitExtracted.state, hitExtracted.combat, 0.5, hitFrom,
-        hitExtracted.scratch));
+      damagePlayer(hitExtracted.state, hitExtracted.combat, playerPoolPoints(128),
+        hitFrom, hitExtracted.scratch));
     check('the extracted damage path reports the same as the hand-built call',
       handHit === outHit);
     check('...and takes it off the same shield, which really did drop',
@@ -363,8 +362,8 @@ console.log('\nheadless world step');
     // thing hitPlayer resolves out of the player's transform, so it is the bit
     // the extraction could most easily have got wrong.
     const fromAft = dueller();
-    damagePlayer(fromAft.state, fromAft.combat, 0.5, new THREE.Vector3(0, 0, 400),
-      fromAft.scratch);
+    damagePlayer(fromAft.state, fromAft.combat, playerPoolPoints(128),
+      new THREE.Vector3(0, 0, 400), fromAft.scratch);
     check('a hit from astern lands on the aft shield',
       fromAft.state.sys.aftShield < shieldWas
         && fromAft.state.sys.foreShield === shieldWas);
@@ -377,7 +376,8 @@ console.log('\nheadless world step');
   // to attribute the damage — test/combat-recorder.js, and the report a combat
   // simulator owes — had to classify it by magnitude: 0.1-0.221 laser, 0.45
   // ram, 1.3 missile. That cannot error, only be quietly wrong, and it already
-  // overlapped (NPC_VS_NPC_DAMAGE is 0.11). `source` replaces the guess.
+  // overlapped (the old NPC-vs-NPC amount was 0.11). `source` replaces the
+  // guess — and every one of those magnitudes is now a stated `IMPACT`.
   {
     const SOURCES: DamageSource[] = ['laser', 'missile', 'ram', 'station', 'cargo'];
     const seen = new Set<DamageSource>();
@@ -408,8 +408,8 @@ console.log('\nheadless world step');
     fly(canister, 2);
     const onHull = canister.log.hits.filter((h) => h.source === 'cargo');
     check('a canister breaking on the hull is tagged "cargo"', onHull.length === 1);
-    check(`...at ${CANISTER_HULL_DAMAGE} across the TODO 28 bridge`,
-      onHull[0]?.amount === legacyDamageToPlayer(CANISTER_HULL_DAMAGE));
+    check(`...at IMPACT.canisterOnHull (${IMPACT.canisterOnHull.commander} points)`,
+      onHull[0]?.amount === playerImpactDamage(IMPACT.canisterOnHull));
     for (const s of tag(canister)) seen.add(s);
 
     // a ship flying into you
@@ -418,8 +418,8 @@ console.log('\nheadless world step');
     fly(ram, 1);
     const rammed = ram.log.hits.filter((h) => h.source === 'ram');
     check('a ram is tagged "ram"', rammed.length >= 1);
-    check(`...at RAM_DAMAGE (${RAM_DAMAGE}) across the TODO 28 bridge`,
-      rammed.every((h) => h.amount === legacyDamageToPlayer(RAM_DAMAGE)));
+    check(`...at IMPACT.ram (${IMPACT.ram.commander} points)`,
+      rammed.every((h) => h.amount === playerImpactDamage(IMPACT.ram)));
     for (const s of tag(ram)) seen.add(s);
 
     // the Coriolis wall
@@ -428,8 +428,8 @@ console.log('\nheadless world step');
     fly(wall, 1);
     const scraped = wall.log.hits.filter((h) => h.source === 'station');
     check('flying into the station is tagged "station"', scraped.length === 1);
-    check(`...at ${STATION_COLLISION_DAMAGE} across the TODO 28 bridge`,
-      scraped[0]?.amount === legacyDamageToPlayer(STATION_COLLISION_DAMAGE));
+    check(`...at IMPACT.stationScrape (${IMPACT.stationScrape.commander} points)`,
+      scraped[0]?.amount === playerImpactDamage(IMPACT.stationScrape));
     for (const s of tag(wall)) seen.add(s);
 
     // a missile that got through
@@ -439,6 +439,8 @@ console.log('\nheadless world step');
     fly(missile, 300);
     const hit = missile.log.hits.filter((h) => h.source === 'missile');
     check('a missile getting through is tagged "missile"', hit.length >= 1);
+    check(`...at IMPACT.warhead (${IMPACT.warhead.commander} points)`,
+      hit.every((h) => h.amount === playerImpactDamage(IMPACT.warhead)));
     for (const s of tag(missile)) seen.add(s);
 
     check('all five ways to be hurt are named, and nothing else is',

@@ -200,8 +200,13 @@ src/
                             what they resolve to, what a save without one
                             becomes, and the two Harmless-only overlays
     npc-energy.ts           an NPC's bank: the exact released max, immunity, the
-                            Constrictor's halving, regeneration — and the one
-                            named bridge every non-laser source still crosses
+                            Constrictor's halving, regeneration, and what one
+                            ship's gun is worth against another's bank
+    damage-units.ts         the two branded damage units, and the only way to
+                            make one — see docs/DAMAGE-PATHS.md
+    impact-damage.ts        the ONE Harmless rule for everything that is not a
+                            laser: a ram, a canister, the Coriolis wall, a
+                            warhead, the energy bomb
     brains.ts               the five trained policies, and who flies which
 
     combat.ts               what happens when something is shot: bounties, kills,
@@ -219,8 +224,7 @@ src/
     systems.ts              the commander's three 255-point banks, what a hit
                             costs them, how they recharge (Harmless policy on
                             the oracle's tick clock), laser heat, cabin temp,
-                            the save migration, and the one named bridge every
-                            non-laser source still crosses
+                            and the save migration
     collisions.ts           who is overlapping whom, and how to separate them
     combat-computer.ts      the defence brain flying the PLAYER's ship
     autopilot.ts            is something else flying, and what does it want?
@@ -238,7 +242,8 @@ src/
     commander.ts            who you are: stats, cargo, rank — PURE, no browser
     shop.ts                 what things cost and what you may fit
     storage.ts              the ONLY file that touches localStorage
-    cargo.ts                canisters and capsules adrift, and scooping them
+    cargo.ts                canisters and capsules adrift, scooping them, and
+                            what a laser hit does to one (their released banks)
     jettison.ts             dumping cargo, and whether it buys off the gang
     trumbles.ts             they breed, they eat the hold, heat drives them out
 
@@ -328,6 +333,11 @@ tools/elite-a/              build (what the game learns), fixtures (what the
                             tests read), emit (what it looks like on disk)
 reference/elite-a/          the vendored pack, verbatim, plus its manifest
 docs/                       you are here
+docs/DAMAGE-PATHS.md        EVERY way anything can be hurt: source, target,
+                            unit, owner, and whether the number is the released
+                            game's or ours. Held to the code by
+                            test/damage-paths.test.ts — start there before
+                            touching a damage number.
 ```
 
 ## The five ideas that explain most of the code

@@ -45,10 +45,15 @@ A pulse laser needs 115 hits, 27.6 seconds of unbroken fire. Only a military
 laser kills it in reasonable time. But the campaign says 100% of commanders
 buy a beam and 3% ever buy a military laser.
 
-TODO 26 shipped the source rule unaltered and did not work around it. Decide
-here: brief the player that the mission needs a military laser, adjust the
-mission's reward or availability, or record a deliberate deviation. Do not
-change the oracle — its rows are immutable.
+TODO 26 shipped the source rule unaltered and did not work around it.
+
+Chris's read, and it is the likelier one: most players doing Navy missions
+will have upgraded to a military laser, as in the original. The 3% figure is
+the CAMPAIGN BOT's purchasing policy, not human behaviour, so it measures the
+bot rather than the game. That makes this a signposting problem rather than a
+balance one — the military laser is 60,000 Cr at TL10+, so the question is
+whether the briefing says what the job needs and whether the player can
+reasonably have reached TL10 by then. Do not change the oracle.
 
 ## Carried over from TODO 27 — some attackers cannot hurt you at all
 
@@ -58,6 +63,12 @@ over the live path: **119 of the 260 released builds do zero laser damage to
 a Cobra Mk III**, and 9 of the 49 builds the roster can actually spawn. The
 worst case is the **Asp Mk II, which flies as both a pirate and a bounty
 hunter and cannot scratch the player** — it will chase, shoot, and never win.
+
+**A pack does not fix this.** Armour subtracts from EACH hit before the shield
+sees it, so zero does not accumulate. The Asp's laser is 4 points against a
+minimum armour of 4 (the Adder), and it does exactly 0 to all fifteen flyable
+hulls. Ten Asps firing for a minute take nothing off. Ramming and missiles are
+the only ways such a ship can threaten anyone.
 
 Everything else chips: a typical pirate does 9 points against a 510-point
 front-face pool, so a Cobra Mk III soaks about 57 pirate laser hits where it

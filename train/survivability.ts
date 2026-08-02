@@ -21,13 +21,13 @@
 // balance figure this project has quoted rested on that transcription still
 // matching the code. It now calls durability() instead, so it cannot drift.
 //
-// TWO SCALES MEET HERE, and the conversion is named rather than assumed. The
+// TWO SCALES MEET HERE, and the conversion belongs to the odd one. The
 // commander's banks are 255-point pools since TODO 27; an episode's target is
-// still the pre-TODO-27 normalized stand-in (`ai-training/scenario.ts`), and so
-// is the damage the episode's pirates roll at it. So the game's durability is
-// divided back by PLAYER_ENERGY_PER_LEGACY_POINT — the same constant the TODO
-// 28 bridge multiplies by — to say what it is worth in the units this episode
-// actually speaks. TODO 29 moves the episode and this division goes with it.
+// still the pre-TODO-27 normalized stand-in, and so is the damage the episode's
+// pirates roll at it. So the game's durability goes through
+// `targetHullForPoolPoints`, which lives in `ai-training/scenario.ts` beside the
+// stand-in whose scale it describes — the last conversion in the project, and
+// it goes when TODO 29 puts the episode on the real pools.
 //
 // The commander soaks one shield plus the whole bank from the front, two
 // shields plus the bank when manoeuvring. Regeneration is ignored: it is worth
@@ -38,10 +38,12 @@
 // the torus drive, and RAM_GUARD breaking pirates off at knife range — none
 // of which exist here. Treat this as the floor, not the answer.
 
-import { Episode, type Controller } from '../src/ai-training/scenario.ts';
+import {
+  Episode, targetHullForPoolPoints, type Controller,
+} from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { readFileSync } from 'node:fs';
-import { durability, PLAYER_ENERGY_PER_LEGACY_POINT } from '../src/game/systems.ts';
+import { durability } from '../src/game/systems.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
@@ -87,8 +89,7 @@ function run(pirateBrain: Brain, hp: number, gang: number): Result {
 
 // From game/systems.ts, not from a comment: change the shield or energy model
 // and this table follows it. The division is the scale seam described above.
-const inEpisodeUnits = (poolPoints: number): number =>
-  poolPoints / PLAYER_ENERGY_PER_LEGACY_POINT;
+const inEpisodeUnits = targetHullForPoolPoints;
 const HP = [
   [1.0, 'sim trader (what the tournament measures)'],
   [inEpisodeUnits(durability(false)), 'player, hits landing on one face'],

@@ -25,6 +25,7 @@ import type { World } from './world.ts';
 import type { NpcShip } from './npc.ts';
 import type { GameState } from './state.ts';
 import type { ShipSystems } from './systems.ts';
+import type { PlayerPoolPoints } from './damage-units.ts';
 import { viewDirection } from './views.ts';
 import { type CommanderData, formatCredits, killValue } from './commander.ts';
 import { laserForView, canFire, chargeShot } from './gunnery.ts';
@@ -70,9 +71,12 @@ const heard = (name: SoundName): CombatEvent => ({ kind: 'sound', name });
  * was being guessed at afterwards from the size of the number:
  * test/combat-recorder.js classified 0.1-0.221 as a laser, 0.45 as a ram and
  * 1.3 as a missile, which cannot error — only be quietly wrong, as it already
- * was, since `NPC_VS_NPC_DAMAGE` (0.11) sits inside that laser window. Any
- * balance change to `RAM_DAMAGE` or the shot roll rewrote the table with no
+ * was, since the old NPC-vs-NPC amount of 0.11 sat inside that laser window.
+ * Any balance change to the ram or the shot roll rewrote the table with no
  * warning. The game knows; now it says.
+ *
+ * Those three magnitudes are gone with the scale that produced them: what each
+ * of the five costs is a row of the inventory in docs/DAMAGE-PATHS.md.
  */
 export type DamageSource =
   /** an NPC's gun found you */
@@ -147,9 +151,15 @@ export class Combat {
 
     if (shot.kind === 'cargo') {
       sounds.push(heard('hit'));
+      // The HIT goes across, exactly as it does to a ship: the canister's own
+      // released bank decides whether it breaks up (cargo.ts). Every laser a
+      // flyable hull carries still does it in one, so this is the same game —
+      // but it is the catalogue saying so rather than a `destroy()` call.
+      const broke = this.world.cargo.takeLaserHit(shot.cargo, laser.hit);
       this.world.effects.explosion(shot.cargo.object.position.clone(), 0x8ad0ff,
-        { count: 10, speed: 55, duration: 0.4 });
-      this.world.cargo.destroy(shot.cargo);
+        broke ? { count: 10, speed: 55, duration: 0.4 }
+          : { count: 4, speed: 30, duration: 0.25 });
+      if (!broke) return [...sounds, ...out];
       if (shot.cargo.kind === 'capsule') {
         // there is someone in that thing
         out.push(say('ESCAPE CAPSULE DESTROYED', 3), { kind: 'offence', level: FUGITIVE });
@@ -279,13 +289,13 @@ export class Combat {
    * Only the caller knows which way the ship is pointing, so the direction is
    * resolved here into the one bit the damage model wants: did it come from
    * ahead? And only the caller knows what hit them, which is why the number
-   * arrives already finished: an NPC laser has met the hull's armour once
-   * (`gunnery.ts`), and everything else has crossed the TODO 28 bridge
-   * (`systems.ts` `legacyDamageToPlayer`).
+   * arrives already finished and already in the commander's own unit: an NPC
+   * laser has met the hull's armour once (`gunnery.ts`), and a ram, a canister,
+   * the Coriolis wall or a warhead is a stated `IMPACT` (`impact-damage.ts`).
    */
   hitPlayer(
     sys: ShipSystems,
-    damage: number,
+    damage: PlayerPoolPoints,
     from: THREE.Vector3,
     playerPos: THREE.Vector3,
     playerQuat: THREE.Quaternion,
@@ -338,7 +348,7 @@ export function firePlayerLaser(
  * business — see `DamageSource` and `StepHost.applyPlayerDamage`.
  */
 export function damagePlayer(
-  state: GameState, combat: Combat, damage: number, from: THREE.Vector3,
+  state: GameState, combat: Combat, damage: PlayerPoolPoints, from: THREE.Vector3,
   scratch: CombatScratch,
 ): CombatEvent[] {
   const { sys, player } = state;

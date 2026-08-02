@@ -154,9 +154,13 @@ makes its target move like a human.
 Note `gang-trial.js` is only replaced for the human-flown question. It flies the
 defence brain — a bot — and `npm run survivability` remains the bot answer.
 
-**Version the JSON from day one** (`schema: 1`, as `SNAPSHOT_VERSION` does). It
+**Version the JSON from day one** (`schema`, as `SNAPSHOT_VERSION` does). It
 is an interface with an external consumer; the first shape change would
-otherwise silently break whatever reads `__simLog`.
+otherwise silently break whatever reads `__simLog`. It is at **2**: TODO 28
+changed what the damage figures MEAN — a warhead is 250 pool points where it was
+332, and a crossfire hit is the firing build's own gun rather than a flat 11 —
+so records exported before it cannot be compared with records after it. See
+docs/DAMAGE-PATHS.md.
 
 **Export** as JSON — clipboard and downloadable file — plus an in-memory ring of
 recent exercises on `window.__simLog`, so a console session or an agent can read

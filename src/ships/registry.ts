@@ -87,6 +87,13 @@ export function registeredHull(id: ShipDesignId): RegisteredHull {
  */
 export const OBJECT_DESIGNS = {
   cargoCanister: shipDesignIdOf(4),
+  /**
+   * The released escape pod. Harmless has no pod MESH — a capsule is drawn as a
+   * canister with a different colour, the shortcut game/cargo.ts's header owns —
+   * so this id is here for its COMBAT PROFILE: what a pod can absorb before it
+   * breaks up is the pack's, not a guess (see game/cargo.ts).
+   */
+  escapePod: shipDesignIdOf(2),
   missile: shipDesignIdOf(15),
 } as const;
 

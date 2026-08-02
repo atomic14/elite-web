@@ -13,10 +13,13 @@
 //
 // THE BANKS ARE 255-POINT POOLS AND WHOLE NUMBERS (TODO 27), because a
 // fractional point is not something a 6502 byte can express. Every way of
-// hurting them arrives as whole points: an NPC laser through `gunnery.ts`'s
-// `npcLaserDamageToPlayer` (its power, less this hull's armour, once), and
-// everything else through `legacyDamageToPlayer` below — the TODO 28 bridge's
-// player half, whose NPC twin is `npc-energy.ts`'s `legacyDamageToEnergy`.
+// hurting them arrives as `PlayerPoolPoints` (damage-units.ts), minted by the
+// module that owns the rule and by nothing else: an NPC laser through
+// `gunnery.ts`'s `npcLaserDamageToPlayer` (its power, less this hull's armour,
+// once), and a ram, a canister, the Coriolis wall or a warhead through
+// `impact-damage.ts`. TODO 28 deleted the conversion that used to stand here —
+// `legacyDamageToPlayer`, and its NPC twin — along with the normalized scale it
+// converted from. There is no scale left to convert.
 //
 // RECHARGE IS HARMLESS POLICY, stated as ours: the pack gives each hull an
 // `energyRechargeRating` and no clock, and what a rating is worth in seconds is
@@ -27,6 +30,7 @@
 import { random } from './rng.ts';
 import type { Equipment } from './commander.ts';
 import { eliteARegenTicks, eliteATicksPerPoint } from './elite-a/combat-math.ts';
+import type { PlayerPoolPoints } from './damage-units.ts';
 import { COBRA_MK_3_HULL_ID, playerHull, type PlayerHullId } from './ship-identity.ts';
 
 /** Everything about the ship that a fight changes. */
@@ -62,12 +66,6 @@ export const MAX_SHIELD = 255;
  */
 export const LEGACY_MAX_ENERGY = 4;
 export const LEGACY_MAX_SHIELD = 1;
-
-/**
- * One pre-TODO-27 damage point, in the pool points it became. DERIVED, not
- * chosen: an old point was exactly one full shield face, and a face is 255 now.
- */
-export const PLAYER_ENERGY_PER_LEGACY_POINT = MAX_SHIELD / LEGACY_MAX_SHIELD;
 
 /**
  * Below this the console flashes ENERGY LOW and the shields stop recovering: a
@@ -134,24 +132,6 @@ export function repairAtStation(sys: ShipSystems): void {
 }
 
 /**
- * ONE named conversion from the old normalized player scale into pool points.
- *
- * **This is the TODO 28 bridge, player side.** Every way of being hurt that is
- * not an NPC laser still speaks the pre-TODO-27 units — a ram, a canister on
- * the hull, a missile strike, the Coriolis wall — and TODO 28 is where each of
- * them gets a source-backed number of its own. Until then they come through
- * here, so the mixing is in one place with one scale instead of spread over
- * four call sites as literals. Its NPC-side twin is `legacyDamageToEnergy`.
- *
- * Rounded to a whole point and floored at one, for the same reason: an old
- * amount that mattered must not silently become no damage at all.
- */
-export function legacyDamageToPlayer(amount: number): number {
-  if (!(amount > 0)) return 0;
-  return Math.max(1, Math.round(amount * PLAYER_ENERGY_PER_LEGACY_POINT));
-}
-
-/**
  * How much damage this ship can absorb before energy reaches zero.
  *
  * In POOL POINTS: one shield face (or both, for a commander manoeuvring so hits
@@ -189,11 +169,14 @@ export interface DamageResult {
  */
 export function applyDamage(
   sys: ShipSystems,
-  damage: number,
+  damage: PlayerPoolPoints,
   fromFront: boolean,
   roll: () => number = random,
 ): DamageResult {
-  let remaining = damage;
+  // A plain number from here on: what is LEFT of a hit after a shield has eaten
+  // some of it is a remainder, not a fresh damage figure, and typing it as one
+  // would let `applyDamage(sys, remaining, ...)` compile somewhere else.
+  let remaining: number = damage;
   if (fromFront) {
     const absorbed = Math.min(sys.foreShield, remaining);
     sys.foreShield -= absorbed;

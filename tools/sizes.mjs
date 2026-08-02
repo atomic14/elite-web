@@ -54,6 +54,7 @@ const ALLOWED = {
   'test/campaign.ts': 'one career simulation, run thousands of times',
   'test/world-step.test.ts': 'the five phases of the step in the order they run, mirroring world-step.ts — the order IS the content on both sides',
   'test/combat-sim-career.test.ts': "the combat trainer's one rule — nothing that happens in the simulator leaves it — argued across three enforcement layers. Splitting it would put half a safety argument in another file.",
+  'test/damage-paths.test.ts': 'the damage-path audit: the enforcement half of docs/DAMAGE-PATHS.md, which is ONE inventory. It holds the impact anchors, the crossfire rule, the player-laser-only properties and five source scans to the same table; split, each half would stop being a complete answer to "which numbers are in which units", which is the question the whole file exists to make answerable.',
   'test/playtest.js': 'a console paste — it cannot import, so it must be self-contained',
 
   // WAITING TO BE SPLIT — not exceptions, debts

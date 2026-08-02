@@ -280,7 +280,7 @@ console.log('\nordnance');
     let events: ReturnType<typeof ord.step> = [];
     for (let i = 0; i < 600 && !events.length; i++) events = ord.step(1 / 60, at(0, 0, 0));
     check('a missile runs its target down',
-      events.some((e) => e.kind === 'killed' && e.npc === npc));
+      events.some((e) => e.kind === 'hitNpc' && e.npc === npc));
     check('...and is gone from the sky afterwards', ord.missiles.length === 0);
   }
   {
@@ -290,7 +290,10 @@ console.log('\nordnance');
       ord.missiles.length === 1);
     let events: ReturnType<typeof ord.step> = [];
     for (let i = 0; i < 900 && !events.length; i++) events = ord.step(1 / 60, at(0, 0, 0));
-    check('...for real damage', events.some((e) => e.kind === 'hitPlayer' && e.damage > 0));
+    // The event reports the IMPACT; what a warhead is worth is the step's, from
+    // `IMPACT.warhead` — see game/impact-damage.ts.
+    check('...and reports the impact for the step to bill',
+      events.some((e) => e.kind === 'hitPlayer'));
 
     // E.C.M. kills everything in the sky, ours included
     ord.launchHostile(at(0, 0, -2000));

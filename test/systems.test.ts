@@ -17,7 +17,6 @@ import {
   durability,
   energyRegenPerSecond,
   freshSystems,
-  legacyDamageToPlayer,
   migratedSystems,
   regenerate,
   repairAtStation,
@@ -29,11 +28,10 @@ import {
   LOW_ENERGY,
   MAX_ENERGY,
   MAX_SHIELD,
-  PLAYER_ENERGY_PER_LEGACY_POINT,
   type RegenOptions,
   type ShipSystems,
 } from '../src/game/systems.ts';
-import { readFileSync } from 'node:fs';
+import { playerPoolPoints } from '../src/game/damage-units.ts';
 
 /** The hull the recharge policy is anchored on — see systems.ts. */
 const COBRA: RegenOptions = { shipId: COBRA_MK_3_HULL_ID, energyUnit: false };
@@ -47,7 +45,7 @@ console.log('\nship systems');
 
   {
     const s = freshSystems();
-    const r = applyDamage(s, 40, true, () => 1);
+    const r = applyDamage(s, playerPoolPoints(40), true, () => 1);
     check('a hit from ahead is absorbed by the FORE shield',
       s.foreShield === MAX_SHIELD - 40 && s.aftShield === MAX_SHIELD
         && s.energy === MAX_ENERGY);
@@ -55,31 +53,31 @@ console.log('\nship systems');
   }
   {
     const s = freshSystems();
-    applyDamage(s, 40, false, () => 1);
+    applyDamage(s, playerPoolPoints(40), false, () => 1);
     check('a hit from behind is absorbed by the AFT shield',
       s.aftShield === MAX_SHIELD - 40 && s.foreShield === MAX_SHIELD);
   }
   {
     const s = freshSystems();
-    applyDamage(s, MAX_SHIELD + 30, true, () => 1);   // the whole shield + 30
+    applyDamage(s, playerPoolPoints(MAX_SHIELD + 30), true, () => 1);   // the whole shield + 30
     check('overflow past a flattened shield comes straight out of energy',
       s.foreShield === 0 && s.energy === MAX_ENERGY - 30);
   }
   {
     const s = freshSystems();
-    const r = applyDamage(s, durability(false), true, () => 1);
+    const r = applyDamage(s, playerPoolPoints(durability(false)), true, () => 1);
     check('exactly one face-full of durability destroys the ship',
       r.destroyed && s.energy === 0);
   }
   {
     const s = freshSystems();
-    const r = applyDamage(s, durability(false) - 1, true, () => 1);
+    const r = applyDamage(s, playerPoolPoints(durability(false) - 1), true, () => 1);
     check('...and one point less does not', !r.destroyed && s.energy === 1);
   }
   {
     const s = freshSystems();
-    const never = applyDamage(s, MAX_SHIELD + 1, true, () => 0.99);
-    const always = applyDamage(freshSystems(), MAX_SHIELD + 1, true, () => 0.01);
+    const never = applyDamage(s, playerPoolPoints(MAX_SHIELD + 1), true, () => 0.99);
+    const always = applyDamage(freshSystems(), playerPoolPoints(MAX_SHIELD + 1), true, () => 0.01);
     check('a hull hit rolls for wrecking a fitting',
       !never.wreckedSomething && always.wreckedSomething);
   }
@@ -89,11 +87,11 @@ console.log('\nship systems');
     let rolls = 0;
     const s = freshSystems();
     s.foreShield = 0;
-    applyDamage(s, 200, true, () => { rolls += 1; return 1; });
+    applyDamage(s, playerPoolPoints(200), true, () => { rolls += 1; return 1; });
     check('...exactly once per penetrating hit, however large the hit is',
       rolls === 1);
     let none = 0;
-    applyDamage(freshSystems(), 10, true, () => { none += 1; return 1; });
+    applyDamage(freshSystems(), playerPoolPoints(10), true, () => { none += 1; return 1; });
     check('...and not at all when the shield swallowed it', none === 0);
   }
 
@@ -234,33 +232,20 @@ console.log('\nship systems — recharge, and the TODO 28 bridge');
   }
 }
 
-// The TODO 28 bridge, player side: one named crossing, and the maxima it is
-// anchored on.
+// The pools take POOL POINTS and nothing else. What may be spent against them,
+// where those numbers come from and which call sites are allowed to mint one is
+// test/damage-paths.test.ts — the whole damage inventory in one place, rather
+// than half an argument here and half of it beside the NPC banks.
 {
-  eq('one legacy player point is one full shield face',
-    PLAYER_ENERGY_PER_LEGACY_POINT, MAX_SHIELD / LEGACY_MAX_SHIELD);
-  eq('a legacy amount converts to whole points', legacyDamageToPlayer(0.45), 115);
-  eq('...and something that mattered never becomes nothing',
-    legacyDamageToPlayer(0.001), 1);
-  eq('...where nothing stays nothing', legacyDamageToPlayer(0), 0);
-  eq('...and so does a negative', legacyDamageToPlayer(-3), 0);
-
-  // Every `applyPlayerDamage` call in the step passes a finished number: an NPC
-  // laser through `npcLaserDamageToPlayer`, everything else through
-  // `legacyDamageToPlayer`. A literal going straight in is the failure this
-  // catches, and it is the one that would re-merge the two unit systems.
-  const ALLOWED = /^(npcLaserDamageToPlayer\(|legacyDamageToPlayer\(|ramPlayer\b)/;
-  const src = readFileSync(
-    new URL('../src/game/world-step.ts', import.meta.url), 'utf8');
-  const bad: string[] = [];
-  let calls = 0;
-  for (const m of src.matchAll(/host\.applyPlayerDamage\(\s*\n?\s*([^,]+),/g)) {
-    calls += 1;
-    if (!ALLOWED.test(m[1].trim())) bad.push(m[1].trim());
-  }
-  check(`every applyPlayerDamage caller passes finished points (${calls} calls)`,
-    bad.length === 0, bad.join(' · '));
-  check('...and the check is not vacuous', calls >= 5);
+  const s = freshSystems();
+  const r = applyDamage(s, playerPoolPoints(0), true, () => 1);
+  check('a zero-point hit costs nothing and reaches nothing',
+    !r.reachedHull && !r.destroyed && s.foreShield === MAX_SHIELD);
+  let threw = false;
+  try {
+    applyDamage(freshSystems(), playerPoolPoints(0.45), true, () => 1);
+  } catch { threw = true; }
+  check('...and a fractional amount cannot be minted as pool points at all', threw);
 }
 
 console.log('\nship systems — the banks a save and a station hand back');

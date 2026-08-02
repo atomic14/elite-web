@@ -18,7 +18,8 @@ import {
   BRAIN_RATE_RAMP,
   BRAIN_RATE_DECAY,
 } from '../src/game/npc.ts';
-import { PLAYER_SPEED_KEPT, NPC_SPEED_KEPT, RAM_DAMAGE } from '../src/game/collisions.ts';
+import { PLAYER_SPEED_KEPT, NPC_SPEED_KEPT } from '../src/game/collisions.ts';
+import { IMPACT } from '../src/game/impact-damage.ts';
 import { shipTargetRadius } from '../src/ships/registry.ts';
 import {
   SPECS,
@@ -219,6 +220,7 @@ console.log('\none combat model (the trainer flies the game)');
 
   // 8. Ramming: one constant, one speed rule, billed by the episode the way
   // world-step.ts bills it.
-  check(`ramming costs the rammer RAM_DAMAGE (${RAM_DAMAGE}), and costs both the same speed`,
-    PLAYER_SPEED_KEPT === NPC_SPEED_KEPT);
+  check('ramming costs each side its own stated points, and both the same speed',
+    IMPACT.ram.ship === 44 && IMPACT.ram.commander === 115
+    && PLAYER_SPEED_KEPT === NPC_SPEED_KEPT);
 }

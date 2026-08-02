@@ -43,8 +43,17 @@ import type {
  * The shape of an exported record. Bump it when a field changes meaning or
  * leaves, not when one is added — a reader that ignores unknown keys survives
  * additions, which is why SNAPSHOT_VERSION is still 1.
+ *
+ * 1 -> 2 (TODO 28): `damageToYou` and every `damageBySource` bucket in the
+ * `them` direction changed MEANING. The laser buckets did not move, but a ram,
+ * a canister on the hull, a Coriolis scrape and a warhead are stated point
+ * numbers now (`impact-damage.ts`) rather than a normalized fraction pushed
+ * through a conversion — a warhead is 250 pool points where it was 332, and
+ * `damageFromYou` moved too, because a crossfire hit is the firing build's own
+ * laser against the target's own defence rather than a flat 11 points. Records
+ * exported before this cannot be compared with records exported after it.
  */
-export const COMBAT_SIM_SCHEMA = 1;
+export const COMBAT_SIM_SCHEMA = 2;
 
 /**
  * How often geometry is sampled, in Hz. Every duration this module reports is
@@ -546,9 +555,9 @@ export class CombatSimRecorder {
    *
    * combat-recorder.js used to classify by magnitude (0.1-0.221 a laser, 0.45 a
    * ram, 1.3 a missile), which cannot error, only be quietly wrong, and was:
-   * `NPC_VS_NPC_DAMAGE` at 0.11 sits inside the laser window, so a ship that
-   * rammed the commander read as several perfect shots and the enemy accuracy
-   * came out at the hit cap. `DamageSource` is a static fact at each of the five
+   * the old NPC-vs-NPC amount of 0.11 sat inside the laser window, so a ship
+   * that rammed the commander read as several perfect shots and the enemy
+   * accuracy came out at the hit cap. `DamageSource` is a static fact at each of the five
    * places world-step.ts bills the player, and only the laser counts against
    * their accuracy.
    *

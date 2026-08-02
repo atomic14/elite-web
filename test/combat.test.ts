@@ -19,8 +19,7 @@ import {
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
-import { legacyDamageToEnergy } from '../src/game/npc-energy.ts';
-import { RAM_DAMAGE } from '../src/game/collisions.ts';
+import { IMPACT, npcImpactDamage } from '../src/game/impact-damage.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { check, eq } from './harness.ts';
@@ -158,11 +157,10 @@ console.log('\ncombat');
 
 console.log('\ncollision rates');
 {
-  // What ONE ram costs a pirate, in the units its bank is now kept in: the
-  // energy the TODO 28 bridge converts RAM_DAMAGE into (npc-energy.ts). The
-  // ratio below is a count of collisions, so it has to divide by the same
-  // number the episode actually subtracted.
-  const COLLISION_DAMAGE = legacyDamageToEnergy(RAM_DAMAGE);
+  // What ONE ram costs a pirate, in the units its bank is kept in: the stated
+  // `IMPACT.ram` (game/impact-damage.ts). The ratio below is a count of
+  // collisions, so it has to divide by the same number the episode subtracted.
+  const COLLISION_DAMAGE = npcImpactDamage(IMPACT.ram);
   const rams = (make: () => { pirates: Controller[]; trader: Controller; traderArmed?: boolean },
                 episodes: number): number => {
     let total = 0;

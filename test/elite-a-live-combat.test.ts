@@ -27,15 +27,15 @@ import { ELITE_A_PLAYER_HULLS } from '../src/game/elite-a/player-hulls.generated
 import type { EliteALaserType } from '../src/game/elite-a/types.ts';
 import {
   COBRA_MK_3_HULL_ID, HARMLESS_OVERLAYS, PLAYER_HULL_IDS,
-  npcCombatProfileIdOf, shipDesignIdOf, type PlayerHullId,
+  npcCombatProfileIdOf, type PlayerHullId,
 } from '../src/game/ship-identity.ts';
 import {
   laserForView, playerLaser, playerLaserHit, LASER_PACING,
 } from '../src/game/gunnery.ts';
 import {
-  ENERGY_PER_LEGACY_HULL_POINT, energyAfterDamage, isDestroyed, legacyDamageToEnergy,
-  npcEnergyPolicy, playerLaserDamage,
+  energyAfterDamage, isDestroyed, npcEnergyPolicy, playerLaserDamage,
 } from '../src/game/npc-energy.ts';
+import { npcEnergyPoints, type NpcEnergyPoints } from '../src/game/damage-units.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { Combat, firePlayerLaser } from '../src/game/combat.ts';
 import { CONSTRICTOR_SPEC, SPECS } from '../src/game/ship-specs.ts';
@@ -87,7 +87,7 @@ const flying = (shipId: PlayerHullId, laser: 'pulse' | 'beam' | 'military',
  * `NpcShip.takeDamage` runs — and it COUNTS rather than dividing, so an
  * agreement with the pack's ceiling division is two independent claims.
  */
-function hitsToDestroy(maxEnergy: number, damage: number): number | null {
+function hitsToDestroy(maxEnergy: number, damage: NpcEnergyPoints): number | null {
   if (damage <= 0) return null;
   let energy = maxEnergy;
   let n = 0;
@@ -226,7 +226,8 @@ console.log('\nlive combat — the cases the contract names');
   const dragon = npcEnergyPolicy(npcCombatProfileIdOf(recommendedNpcProfile(29).variantId));
   eq('a Dragon eats an Adder\'s whole pulse hit',
     playerLaserDamage(dragon, playerLaserHit(PLAYER_HULL_IDS[0], 'pulse')), 0);
-  eq('...so it never dies to one', hitsToDestroy(dragon.maxEnergy, 0), null);
+  eq('...so it never dies to one',
+    hitsToDestroy(dragon.maxEnergy, npcEnergyPoints(0)), null);
 
   // IMMUNITY, from the profile — no role or hull name anywhere near the gun
   const hermit = spawn('hermit');
@@ -357,41 +358,4 @@ console.log('\nlive combat — regeneration');
   const alive = new NpcShip('pirate', new THREE.Vector3(), 0, SPECS.pirate[0]);
   eq('...where an ordinary AI ship recovers one point a second',
     alive.energyPolicy.regenPerSecond, 1);
-}
-
-console.log('\nlive combat — the TODO 28 bridge is the only crossing');
-{
-  eq('one legacy hull point is one released Cobra Mk III',
-    ENERGY_PER_LEGACY_HULL_POINT, recommendedNpcProfile(10).maxEnergy);
-  eq('...and that design really is the Cobra Mk III the roster flies',
-    `${recommendedNpcProfile(10).shipName}/${shipDesignIdOf(10)}`,
-    `Cobra Mk III/${SPECS.trader[0].designId}`);
-  eq('a legacy amount converts to whole points', legacyDamageToEnergy(0.45), 44);
-  eq('...and something that mattered never becomes nothing',
-    legacyDamageToEnergy(0.001), 1);
-  eq('...where nothing stays nothing', legacyDamageToEnergy(0), 0);
-
-  // Every `takeDamage` call on an NPC passes ENERGY POINTS, and the only way a
-  // normalized amount becomes points is the named bridge. A literal or an
-  // old-scale constant going straight into the pool is the failure this
-  // catches, and it is the one that would silently re-merge the two unit
-  // systems. `this.trader` is excluded because an episode's target is a
-  // `TargetShip` standing in for the commander on the pre-TODO-27 normalized
-  // scale until TODO 29 — the exclusion is by RECEIVER, so it cannot hide an NPC.
-  const ALLOWED = /^(legacyDamageToEnergy\(|playerLaserDamage\(|ramEnergy\b|points\b|damage\b)/;
-  const files = ['game/world-step.ts', 'game/game.ts', 'game/combat.ts', 'game/npc.ts',
-    'ai-training/scenario.ts'];
-  const bad: string[] = [];
-  let calls = 0;
-  for (const f of files) {
-    const src = readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
-    for (const m of src.matchAll(/([\w.]+)\.takeDamage\(\s*([^,)]+)/g)) {
-      if (/\btrader\b/.test(m[1])) continue;
-      calls += 1;
-      if (!ALLOWED.test(m[2].trim())) bad.push(`${f}: ${m[1]}.takeDamage(${m[2].trim()}`);
-    }
-  }
-  check(`every NPC takeDamage caller passes energy points (${calls} calls)`,
-    bad.length === 0, bad.join(' · '));
-  check('...and the check is not vacuous', calls >= 8);
 }

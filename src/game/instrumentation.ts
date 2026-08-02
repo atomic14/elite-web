@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 
 import type { DamageSource } from './combat.ts';
+import type { PlayerPoolPoints } from './damage-units.ts';
 
 /**
  * Events a live-combat recorder may observe.
@@ -19,7 +20,8 @@ import type { DamageSource } from './combat.ts';
  * simulation.
  */
 export interface CombatObserver {
-  onPlayerDamaged?(amount: number, from: THREE.Vector3, source: DamageSource): void;
+  onPlayerDamaged?(
+    amount: PlayerPoolPoints, from: THREE.Vector3, source: DamageSource): void;
 }
 
 /**
@@ -41,7 +43,8 @@ export class CombatInstrumentation {
     };
   }
 
-  playerDamaged(amount: number, from: THREE.Vector3, source: DamageSource): void {
+  playerDamaged(
+    amount: PlayerPoolPoints, from: THREE.Vector3, source: DamageSource): void {
     this.observer?.onPlayerDamaged?.(amount, from.clone(), source);
   }
 }
