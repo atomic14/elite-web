@@ -8,6 +8,26 @@ and generated outputs do not overlap.
 TODO 01-16 were completed and checkpointed in commit `0fc8627`. TODO 17-20
 were completed through commit `09278b7`.
 
+## The combat trainer
+
+Progress: **0 / 8 complete**. `T` at any station is where Chris playtests, so
+this is the room that has to be good. The findings came from a walk through the
+live panel plus the screens' own code, after the Elite-A phase changed what the
+numbers mean.
+
+Do 31 and 33 first: the panel's shape and knowing you are in an exercise are
+what stand between the tool and a productive session. 37 is independent of the
+rest and can go at any point.
+
+- [ ] 31 — [Give the setup panel a shape, and fence the career switch](31-trainer-setup-panel-hierarchy.md) — UI/UX · high · medium
+- [ ] 32 — [Make choosing a brain a real choice](32-trainer-brain-choice-is-legible.md) — UI/UX · high · medium
+- [ ] 33 — [Tell the pilot they are in an exercise](33-exercise-hud.md) — UI/UX · high · medium
+- [ ] 34 — [Put the turret tell in the report](34-report-shows-how-they-flew.md) — UI/UX · high · medium
+- [ ] 35 — [Compare two records without leaving the room](35-compare-two-records.md) — UI/UX · medium · medium
+- [ ] 36 — [Start the exercise where the pilot can see it](36-exercise-opening-geometry.md) — UI/UX · medium · small
+- [ ] 37 — [Do not throw away a tap that arrived in a busy frame](37-input-taps-are-not-lost.md) — correctness · medium · small
+- [ ] 38 — [The console still shows four energy banks](38-energy-reads-as-one-bank.md) — UI/UX · low · small
+
 ## Elite-A damage and ship-catalogue alignment
 
 Progress: **10 / 10 complete**. Start with the
