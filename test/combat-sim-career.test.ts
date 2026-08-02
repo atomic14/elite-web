@@ -282,7 +282,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     for (let i = 0; i < 3; i++) {
       const t = s.world.spawn('trader',
         s.player.position.clone().add(new THREE.Vector3(900 * (i - 1), 200, -2400)), i);
-      t.state.hp = 3 + i;
+      t.state.energy = 300 + i;
     }
     settleMatrices(r);
 
@@ -292,7 +292,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     const careerObj = s.commander;
     const playerBefore = s.player.position.clone();
     const rngBefore = rngState();
-    const skyBefore = s.world.npcs.map((n) => [n.role, n.state.hp,
+    const skyBefore = s.world.npcs.map((n) => [n.role, n.state.energy,
       n.object.position.toArray().join()].join('|'));
     const writeMark = writes.length;
     const removeMark = removes.length;
@@ -338,7 +338,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
     // 1. A LASER kill — the path a host-only defence cannot see, because
     //    `Combat.fire` calls `destroy(commander, …)` internally.
-    foes[0].state.hp = 0.1;   // one bolt's worth: a laser does ~0.16 a shot
+    foes[0].state.energy = 1;   // one bolt's worth: a pulse laser does 7-8 points
     park(foes[0], s.player.position.clone().addScaledVector(fwd, 420));
     beat(r, 20, { ...CRUISE, fire: true }, () => foes[0].object.position);
     check('a kill by laser leaves the sky', !foes[0].state.alive);
@@ -346,7 +346,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       r.sim.commander!.kills === before.kills + 1 && before.kills === 137);
 
     // 2. A RAM kill — through the step's collision phase.
-    foes[1].state.hp = 0.2;
+    foes[1].state.energy = 2;
     park(foes[1], s.player.position.clone().addScaledVector(fwd, 10));
     beat(r, 4);
     check('a kill by ram leaves the sky too', !foes[1].state.alive);
@@ -464,7 +464,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     check('the rng stream is exactly where the career left it',
       JSON.stringify(rngState()) === JSON.stringify(rngBefore));
     check('the sky came back',
-      s.world.npcs.map((n) => [n.role, n.state.hp,
+      s.world.npcs.map((n) => [n.role, n.state.energy,
         n.object.position.toArray().join()].join('|')).join('#') === skyBefore.join('#')
       && skyBefore.length > 0);
     check('...and the ship is where it was, not out in the arena',
@@ -560,7 +560,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     /** What the run LOOKED like, to the byte. */
     const trace = (r: Rig) => JSON.stringify({
       npcs: r.state.world.npcs.map((n) => [
-        n.role, n.state.hp,
+        n.role, n.state.energy,
         n.object.position.toArray().map((v) => v.toFixed(6)),
         n.object.quaternion.toArray().map((v) => v.toFixed(6)),
       ]),

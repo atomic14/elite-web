@@ -16,6 +16,7 @@ import { newCommander } from '../src/game/commander.ts';
 import { pirateBrainFor } from '../src/game/brains.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer, NpcShip } from '../src/game/npc.ts';
+import { npcMaxEnergy } from '../src/game/npc-energy.ts';
 import {
   SPECS,
   PIRATE_TIERS,
@@ -117,7 +118,7 @@ console.log('\ncombat arena');
     // pirate roster now (ship-specs.ts) and there are more than four of some.
     const tierHulls = (tier: number): NpcSpec[] => PIRATE_TIERS[tier];
     const fromRoster = (n: NpcShip, tier: number) => tierHulls(tier).some((s) =>
-      s.designId === n.designId && s.hp === n.maxHp);
+      s.designId === n.designId && npcMaxEnergy(s.profileId) === n.maxEnergy);
     check('...and hulls from the tier roster',
       fromRoster(ships[0], 2) && ships.slice(1).every((n) => fromRoster(n, 1)));
 
@@ -161,7 +162,7 @@ console.log('\ncombat arena');
       const { world, origin } = arena();
       seedWorld(seed);
       return spawnOpposition(world, GANG, origin).map((n) => [
-        n.role, n.maxHp, n.radius, n.state.hasEcm, n.state.missiles,
+        n.role, n.maxEnergy, n.radius, n.state.hasEcm, n.state.missiles,
         ...n.object.position.toArray(), ...n.object.quaternion.toArray(),
       ].join(','));
     };
@@ -184,7 +185,7 @@ console.log('\ncombat arena');
       }));
     check('...out of the role\'s own roster',
       ships.every((n) => SPECS.hunter.some(
-        (s) => s.designId === n.designId && s.hp === n.maxHp)));
+        (s) => s.designId === n.designId && npcMaxEnergy(s.profileId) === n.maxEnergy)));
   }
 
   // The three ways to say which hull, and the fit-out overrides.
@@ -196,9 +197,11 @@ console.log('\ncombat arena');
       { role: 'pirate', count: 1, hull: CONSTRICTOR_SPEC },
       { role: 'trader', count: 1, variant: 2, fit: { ecm: true } },
     ], origin);
-    eq('an explicit hull is used as given', ships[2].maxHp, CONSTRICTOR_SPEC.hp);
-    eq('a variant index picks that roster entry', ships[3].maxHp, SPECS.trader[2].hp);
-    check('a Viper is a Viper', ships[0].maxHp === SPECS.police[0].hp);
+    eq('an explicit hull is used as given',
+      ships[2].maxEnergy, npcMaxEnergy(CONSTRICTOR_SPEC.profileId));
+    eq('a variant index picks that roster entry',
+      ships[3].profileId, SPECS.trader[2].profileId);
+    check('a Viper is a Viper', ships[0].profileId === SPECS.police[0].profileId);
     check('the fit overrides the rack', ships[0].state.missiles === 3 && ships[1].state.missiles === 3);
     check('...and E.C.M., in both directions',
       !ships[0].state.hasEcm && !ships[1].state.hasEcm && ships[3].state.hasEcm);

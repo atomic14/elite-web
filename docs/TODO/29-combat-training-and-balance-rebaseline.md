@@ -33,6 +33,23 @@ than retain a parallel normalized approximation.
 9. Run browser play trials for hit readability, time-to-kill, warning cadence,
    docking risk and representative old/new hull encounters.
 
+## Carried over from TODO 26 — the Constrictor is unkillable
+
+Source-exact rules make the Navy mission unwinnable for almost every
+commander, and this is the balance call this TODO exists to make.
+
+The Constrictor halves player hit strength before its 3 points of defence
+subtract. A beam laser hits for 7, halves to 3, and does **zero** — the
+pack's own `hits-to-destroy` row for Cobra Mk III / beam / G:28 is `null`.
+A pulse laser needs 115 hits, 27.6 seconds of unbroken fire. Only a military
+laser kills it in reasonable time. But the campaign says 100% of commanders
+buy a beam and 3% ever buy a military laser.
+
+TODO 26 shipped the source rule unaltered and did not work around it. Decide
+here: brief the player that the mission needs a military laser, adjust the
+mission's reward or availability, or record a deliberate deviation. Do not
+change the oracle — its rows are immutable.
+
 ## Reproducibility
 
 Record commands, seeds, scenario counts, catalogue manifest hash, schema

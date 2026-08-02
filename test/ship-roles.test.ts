@@ -290,7 +290,7 @@ console.log('\na seeded run selects the same designs across save and restore');
   }).value;
 
   const fleet = () => g.state.world.npcs.map(
-    (n) => `${n.role}:${n.designId}:${n.profileId}:${n.radius}:${n.maxHp}`).join('|');
+    (n) => `${n.role}:${n.designId}:${n.profileId}:${n.radius}:${n.maxEnergy}`).join('|');
   check(`the flight has ships in it (${g.state.world.npcs.length})`,
     g.state.world.npcs.length > 0);
   const before = fleet();
@@ -328,14 +328,14 @@ console.log('\nrestore rebuilds a ship from the design its snapshot recorded');
     const npc = world.spawn('pirate', new THREE.Vector3(i * 40, 0, 0), i, spec);
     npc.state.threatTier = 2;
   });
-  const before = world.npcs.map((n) => `${n.designId}:${n.radius}:${n.maxHp}`);
+  const before = world.npcs.map((n) => `${n.designId}:${n.radius}:${n.maxEnergy}`);
 
   const saved = world.captureNpcs();
   // The rule persistence.ts applies, called the way it calls it.
   world.restoreNpcs(saved, (n) => specForDesign(n.role as NpcRole, n.designId)
     ?? pirateSpecForTier(Number(n.state.threatTier ?? 0), n.seed));
   eq('a trainer-picked pirate hull survives the reload',
-    world.npcs.map((n) => `${n.designId}:${n.radius}:${n.maxHp}`).join('|'), before.join('|'));
+    world.npcs.map((n) => `${n.designId}:${n.radius}:${n.maxEnergy}`).join('|'), before.join('|'));
   check('...and the hull it came back on is the one its identity claims',
     world.npcs.every((n) => registeredHull(n.designId).targetRadius === n.radius));
 

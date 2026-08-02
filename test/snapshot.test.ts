@@ -12,9 +12,14 @@ import { newCommander } from '../src/game/commander.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { NpcShip } from '../src/game/npc.ts';
+import { World } from '../src/game/world.ts';
+import { SPECS, specForDesign } from '../src/game/ship-specs.ts';
+import { migratedNpcState } from '../src/game/npc-energy.ts';
+import type { NpcRole } from '../src/game/ship-roles.ts';
 import { SHIPPED_BRAINS } from '../src/game/brains.ts';
 import { showMessage, tickMessage } from '../src/game/session.ts';
 import { check, keys } from './harness.ts';
+import { g1 } from './fixtures.ts';
 
 // --- the snapshot actually round-trips --------------------------------------
 
@@ -241,6 +246,66 @@ console.log('\nsnapshot round trip');
     check(`...where resetting only the latch makes the same fixture diverge `
       + `(the control: ${maxControlDrift.toFixed(1)} units)`,
       maxControlDrift > 10, `maximum drift ${maxControlDrift.toFixed(4)}`);
+  }
+
+  // --- energy: exact round trip, and the pre-TODO-26 migration -------------
+  //
+  // Energy is an integer point count now, and a save written before it carried
+  // `hp` on a normalized per-hull scale. Both have to land: a new save must
+  // come back on exactly the point it left, and an old one must come back at
+  // the FRACTION of a hull it had, spent against the profile's real bank —
+  // never full (a free repair) and never zero (dead on load).
+  {
+    seedWorld(20_260_726);
+    const wounded = new NpcShip('pirate', at(0, 0, 0), 5);
+    wounded.state.energy = 37;
+    wounded.state.regenCarry = 1234;
+    const world = new World();
+    world.build(g1[7]);
+    world.spawn('pirate', at(0, 0, 0), 5);
+    world.npcs[0].state.energy = 37;
+    world.npcs[0].state.regenCarry = 1234;
+    const exact = world.captureNpcs();
+    world.restoreNpcs(exact, (n) => specForDesign(n.role as NpcRole, n.designId));
+    check('an exact energy point and its sub-tick carry round-trip untouched',
+      world.npcs[0].state.energy === 37 && world.npcs[0].state.regenCarry === 1234);
+    check('...and the exact profile identity comes back with it',
+      world.npcs[0].profileId === wounded.profileId
+      && world.npcs[0].designId === wounded.designId);
+    // The migration itself must be a pure function of the save: a restore that
+    // DREW to decide how much energy a ship had would move every seeded outcome
+    // after it, and `Persistence.restore` puts the stream back last precisely so
+    // the rebuild's own draws cannot. This is the half that is this file's.
+    const beforeDraws = rngState();
+    const migrated = migratedNpcState({ hp: 0.5 }, 98, 1);
+    check('the pre-energy migration is pure — it draws nothing and rerolls nothing',
+      JSON.stringify(rngState()) === JSON.stringify(beforeDraws)
+      && migrated.energy === 49 && migrated.regenCarry === 0);
+    check('...and a save that already carries energy is handed back untouched',
+      migratedNpcState({ energy: 7, regenCarry: 5 }, 98, 1).energy === 7);
+
+    // A legacy save: `hp` on the old scale, no `energy`, no `regenCarry`.
+    const legacySpec = SPECS.pirate.find((s) => s.designId === world.npcs[0].designId)!;
+    const legacy = exact.map((s) => {
+      const { energy, regenCarry, ...rest } = s.state as Record<string, unknown>;
+      void energy; void regenCarry;
+      return { ...s, state: { ...rest, hp: legacySpec.legacyHullPoints * 0.25 } };
+    });
+    world.restoreNpcs(legacy, (n) => specForDesign(n.role as NpcRole, n.designId));
+    const max = world.npcs[0].maxEnergy;
+    check(`a pre-energy save keeps its quarter-hull (${world.npcs[0].state.energy}/${max})`,
+      world.npcs[0].state.energy === Math.max(1, Math.round(max * 0.25))
+      && world.npcs[0].state.regenCarry === 0);
+    check('...and carries no stray `hp` field into the live state',
+      !('hp' in (world.npcs[0].state as unknown as Record<string, unknown>)));
+
+    // A sliver of hull was not death, so it must not round to it.
+    const sliver = legacy.map((s) => ({
+      ...s, state: { ...s.state, hp: legacySpec.legacyHullPoints * 0.0001 },
+    }));
+    world.restoreNpcs(sliver, (n) => specForDesign(n.role as NpcRole, n.designId));
+    check('...and a nearly-dead ship reloads alive rather than destroyed',
+      world.npcs[0].state.energy === 1);
   }
 
   // --- SessionState --------------------------------------------------------

@@ -110,6 +110,7 @@ export interface ScreenTarget {
   size: number;
   hostile: boolean;
   locked: boolean;
+  /** how much of its hull is left, 0..1 — the bar, not a point count */
   hp: number;
   label: string;
   /** where to aim to hit it, if it's worth leading */

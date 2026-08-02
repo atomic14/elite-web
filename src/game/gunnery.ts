@@ -6,21 +6,57 @@
 // The *rules* are here and pure. Finding what the shot hit stays in game.ts,
 // because it is a raycast against the scene graph, and there is no honest way
 // to test "does this ray pass through that hull" without the hulls.
+//
+// One split is worth naming. A mount's CADENCE and HEAT are Harmless's numbers
+// and always were; what one hit is WORTH is the released game's, and it is a
+// property of the hull as much as of the laser — the pack gives each of the 15
+// flyable ships its own byte for each of the four lasers. So `LASER_PACING`
+// holds the first, `playerLaserHit` looks up the second, and neither is a
+// second home for the other. What that hit then COSTS a particular target is
+// not this file's business at all: see game/npc-energy.ts.
 
 import type { Equipment, LaserType } from './commander.ts';
+import { eliteAPlayerLaserHit } from './elite-a/combat-math.ts';
+import type { EliteALaserType } from './elite-a/types.ts';
+import { playerHull, type PlayerHullId } from './ship-identity.ts';
 
-export interface LaserSpec {
-  damage: number;
-  cooldown: number;
-  heat: number;
+/**
+ * How often a mount may fire, and what it costs the gun.
+ *
+ * PACING ONLY, and that is the split this file now keeps: how hard a shot HITS
+ * is the released game's arithmetic, resolved from the hull the commander flies
+ * and the laser fitted to it (`playerLaserHit`), where cadence and heat are
+ * Harmless's and always have been. A `damage` column here would be a second
+ * home for a number the catalogue already owns.
+ */
+export interface GunPacing {
+  readonly cooldown: number;
+  readonly heat: number;
+}
+
+/** A mount that can fire: its cadence, its heat, and what one hit is worth. */
+export interface LaserSpec extends GunPacing {
+  /** Source-scale hit strength BEFORE the target's multiplier and defence. */
+  readonly hit: number;
+  /** Which of the four the shot came out of, for a report that wants to say. */
+  readonly type: EliteALaserType;
 }
 
 export const LASER_RANGE = 3500;
 
-export const LASERS: Record<LaserType, LaserSpec> = {
-  pulse: { damage: 0.16, cooldown: 0.24, heat: 0.055 },
-  beam: { damage: 0.13, cooldown: 0.09, heat: 0.035 },
-  military: { damage: 0.25, cooldown: 0.09, heat: 0.03 },
+/**
+ * The cadence and heat of each fitted laser. Harmless's numbers, unchanged.
+ *
+ * `mining` is absent because Harmless has no mining MOUNT: the mining laser is
+ * a fitting that changes what a destroyed rock yields (see `Combat.destroy`),
+ * not a weapon you select. The equipment redesign that turns it into a real
+ * fourth mount is DEFERRED by the combat plan — `playerLaserHit` below already
+ * answers for it, so when the redesign lands only a pacing row is missing.
+ */
+export const LASER_PACING: Record<LaserType, GunPacing> = {
+  pulse: { cooldown: 0.24, heat: 0.055 },
+  beam: { cooldown: 0.09, heat: 0.035 },
+  military: { cooldown: 0.09, heat: 0.03 },
 };
 
 /** The laser cuts out at this temperature and will not fire again until it cools. */
@@ -78,17 +114,64 @@ export function canisterCone(dist: number): number {
 }
 
 /**
+ * What one hit from `type`, fitted to `shipId`, is worth before the target's
+ * defence — the released `(laserByte & 0x7f) >> 1`.
+ *
+ * The strength is a property of the HULL as much as the laser: the pack gives
+ * each of the 15 flyable ships its own byte for each of the four lasers, so an
+ * Anaconda's military laser is a 63-point hit where a Cobra Mk III's is 12. The
+ * byte comes from the catalogue and the shift from the oracle; there is no
+ * arithmetic here.
+ *
+ * All four types are answered, `mining` included, because the profile API is
+ * required to. Live play cannot ask for it yet — see `LASER_PACING`.
+ */
+export function playerLaserHit(shipId: PlayerHullId, type: EliteALaserType): number {
+  return eliteAPlayerLaserHit(playerHull(shipId).lasers[type].rawByte);
+}
+
+/** Fitted mounts, resolved once each — see `playerLaser`. */
+const fitted = new Map<string, LaserSpec>();
+
+/**
+ * A fitted mount: the hull's hit strength, plus this laser's own cadence.
+ *
+ * Resolved once per (hull, laser) and shared, because `laserForView` is called
+ * on every frame the trigger is held and the answer cannot change — a hull has
+ * no shipyard to leave through yet, and the bytes are catalogue data. Every
+ * field is readonly, so a shared record cannot be edited by a caller.
+ */
+export function playerLaser(shipId: PlayerHullId, type: LaserType): LaserSpec {
+  const key = `${shipId}|${type}`;
+  const known = fitted.get(key);
+  if (known) return known;
+  const spec: LaserSpec = { ...LASER_PACING[type], hit: playerLaserHit(shipId, type), type };
+  fitted.set(key, spec);
+  return spec;
+}
+
+/** The two things a gun is resolved from: what is fitted, and which hull. */
+export interface ArmedCommander {
+  equipment: Equipment;
+  shipId: PlayerHullId;
+}
+
+/**
  * Which laser fires in the current view, or null when that mount is empty.
  *
  * The front mount carries whatever is fitted; rear, left and right are pulse
  * lasers if purchased. A simplification against the original: all mounts share
  * one cooldown and one heat budget.
+ *
+ * It takes the COMMANDER now rather than the equipment, because the hull is
+ * half the answer: which of the 15 flyable ships is being flown decides how
+ * hard the fitted laser hits (`playerLaserHit`). Fitting behaviour is untouched.
  */
-export function laserForView(equipment: Equipment, view: number): LaserSpec | null {
-  if (view === 0) return LASERS[equipment.laser];
-  if (view === 1) return equipment.rearLaser ? LASERS.pulse : null;
-  if (view === 2) return equipment.leftLaser ? LASERS.pulse : null;
-  if (view === 3) return equipment.rightLaser ? LASERS.pulse : null;
+export function laserForView(c: ArmedCommander, view: number): LaserSpec | null {
+  if (view === 0) return playerLaser(c.shipId, c.equipment.laser);
+  if (view === 1) return c.equipment.rearLaser ? playerLaser(c.shipId, 'pulse') : null;
+  if (view === 2) return c.equipment.leftLaser ? playerLaser(c.shipId, 'pulse') : null;
+  if (view === 3) return c.equipment.rightLaser ? playerLaser(c.shipId, 'pulse') : null;
   return null;
 }
 
@@ -112,7 +195,7 @@ export function canFire(sys: GunHeat): boolean {
 }
 
 /** Spend the shot: start the cooldown and add its heat. */
-export function chargeShot(sys: GunHeat, laser: LaserSpec): void {
+export function chargeShot(sys: GunHeat, laser: GunPacing): void {
   sys.laserCooldown = laser.cooldown;
   sys.laserTemp = Math.min(1, sys.laserTemp + laser.heat);
 }

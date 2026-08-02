@@ -15,9 +15,10 @@
 
 import * as THREE from 'three';
 import { NpcShip } from './npc.ts';
-import type { NpcSpec } from './ship-specs.ts';
+import { rosterSpec, type NpcSpec } from './ship-specs.ts';
 import type { NpcRole } from './ship-roles.ts';
 import { savedShipIdentity, type ShipIdentity } from './ship-identity.ts';
+import { LEGACY_ASTEROID_HULL_POINTS, migratedNpcState } from './npc-energy.ts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
 import { CargoField } from './cargo.ts';
 import { Effects } from './effects.ts';
@@ -132,6 +133,11 @@ export class World {
    * hull, which is that design's recommended variant. One deterministic
    * migration, from the role, seed and hull the save already had, with no draw
    * from the rng and nothing rerolled.
+   *
+   * A save written before TODO 26 carries `hp` on the old normalized scale
+   * instead of `energy`, and `migratedNpcState` spends the fraction that was
+   * left against the profile's real bank. Pure, like the identity migration
+   * beside it: restoring never draws.
    */
   restoreNpcs(
     saved: readonly NpcSnapshot[],
@@ -139,9 +145,20 @@ export class World {
   ): void {
     this.clearNpcs();
     for (const n of saved) {
-      const npc = this.spawn(
-        n.role as NpcRole, new THREE.Vector3(), n.seed, specFor(n), savedShipIdentity(n));
-      restoreState(npc.state as unknown as Record<string, unknown>, n.state);
+      const role = n.role as NpcRole;
+      const spec = specFor(n);
+      const npc = this.spawn(role, new THREE.Vector3(), n.seed, spec, savedShipIdentity(n));
+      // Which row the ship ACTUALLY took, not the one the caller offered: a
+      // legacy save may carry no design to look up, and then the constructor
+      // falls back to the roster — so the migration has to ask the same
+      // question (`rosterSpec`) or it divides by the wrong hull. A rock is the
+      // one role with no row at all, so its old hull points come from
+      // npc-energy.ts instead.
+      const legacyHull = role === 'asteroid'
+        ? LEGACY_ASTEROID_HULL_POINTS : rosterSpec(role, n.seed, spec)?.legacyHullPoints;
+      restoreState(
+        npc.state as unknown as Record<string, unknown>,
+        migratedNpcState(n.state, npc.maxEnergy, legacyHull));
     }
     // second pass: the hunting links, now that every ship exists
     saved.forEach((n, i) => {

@@ -49,6 +49,7 @@ import { buildHudFrame } from '../hud/hud-binding.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip } from './npc.ts';
+import { legacyDamageToEnergy, LEGACY_FATAL_DAMAGE } from './npc-energy.ts';
 import { DEFEND_BRAIN } from './brains.ts';
 import { type NpcSpec } from './ship-specs.ts';
 import { type NpcRole } from './ship-roles.ts';
@@ -423,7 +424,10 @@ export class Game {
     if (outcome.reply !== 'bombFired') return;   // no bomb fitted: no flash either
     this.shell.flashBomb();
     for (const npc of outcome.caught) {
-      npc.takeDamage(99, this.state.player.position, true);
+      // The bomb is a secondary source and still speaks the old units: it goes
+      // through the same TODO 28 bridge as a ram or a missile strike.
+      npc.takeDamage(
+        legacyDamageToEnergy(LEGACY_FATAL_DAMAGE), this.state.player.position, true);
       this.destroyNpc(npc);
     }
   }

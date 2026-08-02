@@ -147,7 +147,7 @@ console.log('\nheadless world step');
   /** What the run LOOKED like, to the byte — the determinism fixture. */
   const trace = (r: ReturnType<typeof arrival>) => JSON.stringify({
     npcs: r.state.world.npcs.map((n) => [
-      n.role, n.state.hp,
+      n.role, n.state.energy,
       n.object.position.toArray().map((v) => v.toFixed(6)),
       n.object.quaternion.toArray().map((v) => v.toFixed(6)),
     ]),
@@ -272,7 +272,7 @@ console.log('\nheadless world step');
       state.player.position.set(0, 0, 0);
       state.player.quaternion.identity();          // nose along -Z
       const npc = state.world.spawn('pirate', new THREE.Vector3(0, 0, -400), 1);
-      npc.state.hp = 9;                                  // takes the hit, survives it
+      npc.state.energy = 90;                             // takes the hit, survives it
       // a ship spawned this frame has no world matrix yet, and the raycast
       // reads matrixWorld — without this the shot is tested against the origin
       npc.object.updateMatrixWorld(true);
@@ -293,9 +293,9 @@ console.log('\nheadless world step');
           : e.kind === 'wrecked' ? [e.kind, e.npc.role]
             : e.kind === 'beam' ? [e.kind, e.at ? e.at.toArray() : null]
               : e.kind === 'died' ? [e.kind, e.reason] : [e.kind]));
-    /** what the shot LEFT behind: the target's hp and the ship's systems */
+    /** what the shot LEFT behind: the target's energy and the ship's systems */
     const after = (d: ReturnType<typeof dueller>) =>
-      JSON.stringify([d.npc.state.hp, d.state.sys]);
+      JSON.stringify([d.npc.state.energy, d.state.sys]);
 
     const tmp = new THREE.Vector3();
     const byHand = dueller();
@@ -311,8 +311,8 @@ console.log('\nheadless world step');
     check('the extracted trigger reports what game.ts\'s seven arguments did',
       handEvents === outEvents);
     check('...and it was a hit, so the comparison is not of two empty lists',
-      handEvents.includes('"offence"') && byHand.npc.state.hp < 9);
-    check('...leaving the same hp on the target and the same heat in the gun',
+      handEvents.includes('"offence"') && byHand.npc.state.energy < 90);
+    check('...leaving the same energy on the target and the same heat in the gun',
       after(byHand) === after(extracted));
 
     // The view is read from the state, not assumed to be the nose: a rear-view
@@ -325,7 +325,7 @@ console.log('\nheadless world step');
     rear.state.commander.equipment.rearLaser = true;
     const aft = digest(firePlayerLaser(rear.state, rear.combat, rear.scratch));
     check('a rear-view shot still hits what is behind you',
-      aft.includes('"offence"') && rear.npc.state.hp < 9);
+      aft.includes('"offence"') && rear.npc.state.energy < 90);
     // ...and without the mount there is nothing to fire, which is the other
     // half of the view reaching the gun
     const noMount = dueller();
@@ -334,7 +334,7 @@ console.log('\nheadless world step');
     noMount.state.session.view = 1;
     check('...and with no rear mount fitted, nothing happens at all',
       firePlayerLaser(noMount.state, noMount.combat, noMount.scratch).length === 0
-        && noMount.npc.state.hp === 9);
+        && noMount.npc.state.energy === 90);
 
     // ...and the damage model, the same way. The shield absorbs it, so
     // applyDamage draws no rng and the two calls are directly comparable.

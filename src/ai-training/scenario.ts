@@ -33,9 +33,11 @@ import {
 import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
 import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
 import {
-  LASERS, LASER_RANGE, hitCone, canFire, chargeShot,
+  LASER_RANGE, hitCone, canFire, chargeShot, playerLaser,
   npcHitChance, npcShotDamage, npcTriggerPull,
 } from '../game/gunnery.ts';
+import { legacyDamageToEnergy } from '../game/npc-energy.ts';
+import { COBRA_MK_3_HULL_ID } from '../game/ship-identity.ts';
 import { RAM_DAMAGE, npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
 import { LASER_COOL_RATE } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
@@ -53,6 +55,15 @@ export interface EpisodeShip {
   /** hull name, for the viewer's model choice and the HUD */
   readonly name: string;
   readonly speed: number;
+  /**
+   * How much of this ship is left, 0..1.
+   *
+   * A FRACTION on both sides of the fight, deliberately. A pirate's real bank
+   * is source energy points (TODO 26) and the target's is still normalized hull
+   * (TODO 27 moves it), so the one number both an `EpisodeShip` reader and a
+   * fitness function can compare is the fraction — and it is what the AI's own
+   * health observation uses anyway.
+   */
   hp: number;
   alive: boolean;
   /** telemetry the fitness functions and the tournament read */
@@ -134,7 +145,9 @@ function traderHull(): TargetHull {
   const s = TRADER_COBRA;
   return {
     name: 'Cobra Mk III',
-    hp: s.hp,
+    // Still the normalized hull: the episode's TARGET stands in for the
+    // commander, whose durability moves onto the source scale in TODO 27.
+    hp: s.legacyHullPoints,
     radius: shipTargetRadius(s.designId),
     maxSpeed: s.maxSpeed,
     accel: shipAccel(s),
@@ -222,6 +235,15 @@ const PIRATE_SIDEWINDER: NpcSpec = SPECS.pirate[0];
  */
 const VICTIM_RAM_DAMAGE = 0.12;
 
+/**
+ * The commander's pulse laser, from the commander's hull.
+ *
+ * Resolved once because it is a constant of the world the episode models: the
+ * Cobra Mk III is the ship a fresh career flies (`COBRA_MK_3_HULL_ID`), and
+ * there is no shipyard yet to change it.
+ */
+const PLAYER_PULSE = playerLaser(COBRA_MK_3_HULL_ID, 'pulse');
+
 export interface EpisodeOptions {
   seed: number;
   /** one brain per pirate; scripted pirates use the game's chase AI */
@@ -266,8 +288,9 @@ class PirateShip implements EpisodeShip {
   get pos(): THREE.Vector3 { return this.npc.object.position; }
   get quat(): THREE.Quaternion { return this.npc.object.quaternion; }
   get speed(): number { return this.npc.state.speed; }
-  get hp(): number { return this.npc.state.hp; }
-  set hp(v: number) { this.npc.state.hp = v; }
+  /** Normalized at the boundary — the ship's bank is whole energy points. */
+  get hp(): number { return this.npc.healthFraction; }
+  set hp(v: number) { this.npc.state.energy = Math.round(v * this.npc.maxEnergy); }
   get alive(): boolean { return this.npc.state.alive; }
   set alive(v: boolean) { this.npc.state.alive = v; }
 
@@ -429,6 +452,11 @@ export class Episode {
     for (let i = 0; i < this.pirates.length; i++) {
       const p = this.pirates[i];
       if (!p.alive) continue;
+      // The generator runs whatever the ship is doing. `NpcShip.update` does
+      // this for the live sky; an episode drives `brainFly`/`attack` directly,
+      // so it owes the ship the same call — the trainer flies the real game,
+      // and a world where pirates never heal would be a second one.
+      p.npc.regenerate(dt);
       const ctrl = this.opts.pirates[i];
       const toTarget = this.tmp.copy(this.trader.pos).sub(p.pos);
       const range = toTarget.length();
@@ -555,30 +583,37 @@ export class Episode {
       t.laserCooldown = reload;
       t.shotsFired += 1;
       if (random() >= npcHitChance(dist)) return { from: t, to: threat, hit: false };
-      const damage = npcShotDamage(random());
+      // An NPC's gun has no source byte yet, so it converts through the TODO 28
+      // bridge — the same call world-step.ts makes for NPC-versus-NPC fire.
+      const damage = legacyDamageToEnergy(npcShotDamage(random()));
       t.shotsHit += 1;
       t.damageDealt += damage;
       this.hurtPirate(threat, damage);
       return { from: t, to: threat, hit: true };
     }
 
-    const pulse = LASERS.pulse;
     // the commander's trigger, and the same two calls the game's makes
     if (!canFire(t)) return null;
-    chargeShot(t, pulse);
+    chargeShot(t, PLAYER_PULSE);
     t.shotsFired += 1;
     if (dist > LASER_RANGE || angle >= hitCone(threat.radius, dist)) {
       return { from: t, to: threat, hit: false };
     }
+    // The commander's hull fires the commander's laser, and what a hit is worth
+    // is the TARGET's business — its own defence, immunity and multiplier. The
+    // ship applies it, exactly as `Combat.fire` does in the game.
+    const before = threat.npc.state.energy;
+    threat.npc.takeLaserHit(PLAYER_PULSE.hit, this.trader.pos, true);
+    const damage = before - threat.npc.state.energy;
     t.shotsHit += 1;
-    t.damageDealt += pulse.damage;
-    this.hurtPirate(threat, pulse.damage);
+    t.damageDealt += damage;
+    threat.damageTaken += damage;
     return { from: t, to: threat, hit: true };
   }
 
-  private hurtPirate(p: PirateShip, amount: number): void {
-    p.damageTaken += amount;
-    p.npc.takeDamage(amount, this.trader.pos, true);
+  private hurtPirate(p: PirateShip, points: number): void {
+    p.damageTaken += points;
+    p.npc.takeDamage(points, this.trader.pos, true);
   }
 
   // --- ramming ---------------------------------------------------------------
@@ -588,26 +623,30 @@ export class Episode {
    * world-step.ts makes — and what it costs is decided here, as it is there.
    */
   private resolveCollisions(): void {
+    // The ram is a normalized amount and converts through the TODO 28 bridge,
+    // the same call world-step.ts makes. The TARGET's half stays normalized:
+    // its hull is not on the energy scale until TODO 27.
+    const ramEnergy = legacyDamageToEnergy(RAM_DAMAGE);
     if (this.trader.alive) {
       const pos = this.trader.pos;
       for (const npc of playerVsNpcs(
         pos, (k) => { this.trader.ship.speed *= k; }, this.fleet, this.scratchVecs)) {
         const p = this.pirates.find((x) => x.npc === npc)!;
         this.trader.takeDamage(VICTIM_RAM_DAMAGE);
-        this.hurtSelf(p, RAM_DAMAGE);
+        this.hurtSelf(p, ramEnergy);
       }
     }
     for (const [a, b] of npcVsNpcs(this.fleet, this.scratchVecs)) {
       for (const npc of [a, b]) {
-        this.hurtSelf(this.pirates.find((x) => x.npc === npc)!, RAM_DAMAGE);
+        this.hurtSelf(this.pirates.find((x) => x.npc === npc)!, ramEnergy);
       }
     }
   }
 
   /** Damage with nobody to credit — a ram, which the fitness already punishes. */
-  private hurtSelf(p: PirateShip, amount: number): void {
-    p.damageTaken += amount;
-    p.npc.takeDamage(amount);
+  private hurtSelf(p: PirateShip, points: number): void {
+    p.damageTaken += points;
+    p.npc.takeDamage(points);
   }
 
   // --- the target's pilots ----------------------------------------------------

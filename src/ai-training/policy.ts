@@ -225,6 +225,17 @@ export function observePack(
 export interface ObservableMate {
   pos: V3;
   quat: Q4;
+  /**
+   * Health, over `cls.hp` — the encoder reads the RATIO, so any consistent
+   * pair works and only the fraction is ever observed.
+   *
+   * The game fills it NORMALIZED (`hp` a 0..1 fraction, `cls.hp` 1), because
+   * live combat keeps whole source energy points now and a mate's bank is not
+   * the observer's: two ships of different designs handing over raw points
+   * against their own maxima would be the same fraction only by accident. One
+   * conversion, at this boundary, so the shipped brains keep seeing exactly the
+   * number they were fitted against.
+   */
   hp: number;
   cls: { hp: number };
   alive: boolean;

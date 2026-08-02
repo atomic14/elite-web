@@ -8,6 +8,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { SPECS, CONSTRICTOR_SPEC } from '../src/game/ship-specs.ts';
 import { hasShipDef, shipDisplayName } from '../src/ships/registry.ts';
+import { npcMaxEnergy } from '../src/game/npc-energy.ts';
 import {
   SCENARIOS,
   MODES,
@@ -112,7 +113,7 @@ console.log('\ncombat trainer scenarios');
           if (!brainFileExists(o.brain)) badBrain.push(`${where} ${o.brain}`);
           for (const ship of oppositionShips(o)) {
             ships += 1;
-            if (!hasShipDef(ship.spec.designId) || ship.spec.hp <= 0
+            if (!hasShipDef(ship.spec.designId) || npcMaxEnergy(ship.spec.profileId) <= 0
                 || ship.spec.maxSpeed <= 0) {
               badHull.push(`${where} ${shipDisplayName(ship.spec.designId)}`);
             }

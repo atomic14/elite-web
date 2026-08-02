@@ -124,7 +124,7 @@ export class Combat {
     witchspace: boolean,
     scratch: CombatScratch,
   ): CombatEvent[] {
-    const laser = laserForView(commander.equipment, view);
+    const laser = laserForView(commander, view);
     if (!laser || !canFire(sys)) return [];
     chargeShot(sys, laser);
 
@@ -179,7 +179,11 @@ export class Combat {
       this.world.effects.explosion(shot.ship.object.position.clone(), 0xd8ffcc,
         { count: 8, speed: 70, duration: 0.35 });
       out.push({ kind: 'offence', level: offenceFor(shot.ship.role, false) });
-      if (shot.ship.takeDamage(laser.damage, playerPos, true)) {
+      // The HIT goes across, not the damage: what a hit is worth depends on the
+      // target's own defence, immunity and multiplier, and the ship applies its
+      // own (npc.ts `takeLaserHit`). A station therefore shrugs this off with no
+      // case here, and the Constrictor halves it without the mission knowing.
+      if (shot.ship.takeLaserHit(laser.hit, playerPos, true)) {
         // destroy() reports its explosion before its semantic consequences.
         // Keep all sounds ahead of events the Game could only apply after this
         // call returned, matching the pre-extraction observable order.

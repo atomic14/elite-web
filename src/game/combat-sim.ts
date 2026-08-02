@@ -652,15 +652,19 @@ export class CombatSim {
    * hit is read back out of the target's hull rather than guessed: a DISCHARGE
    * is what the recorder counts, and `firePlayerLaser` is called every frame the
    * trigger is held and refuses internally while the laser is hot.
+   *
+   * What is read back is now SOURCE ENERGY POINTS (TODO 26), so the report's
+   * "damage you dealt" is on a different scale from the "damage you took"
+   * beside it until TODO 27 moves the commander's hull over too.
    */
   private pullTrigger(): void {
-    const before = this.opponents.map((o) => o.ship.state.hp);
+    const before = this.opponents.map((o) => o.ship.state.energy);
     const events = firePlayerLaser(this.state, this.combat, this.scratch);
     if (!events.some((e) => e.kind === 'fired')) return;   // hot gun, or no mount
 
     let landed: { opponent: number; damage: number } | null = null;
     for (let k = 0; k < this.opponents.length; k++) {
-      const dealt = before[k] - this.opponents[k].ship.state.hp;
+      const dealt = before[k] - this.opponents[k].ship.state.energy;
       if (dealt > 0) landed = { opponent: this.opponents[k].index, damage: dealt };
     }
     this.recorder?.playerShot(landed);

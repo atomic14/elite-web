@@ -45,6 +45,7 @@ import './gunnery.test.ts';
 import './instrumentation.test.ts';
 import './elite-a-catalogue.test.ts';
 import './elite-a-oracle.test.ts';
+import './elite-a-live-combat.test.ts';
 import './ship-identity.test.ts';
 import './ship-roles.test.ts';
 

@@ -30,6 +30,7 @@ import {
 import { PlayerShip, PLAYER_FLIGHT, rampFlightRate, rampToward } from '../src/player.ts';
 import { ccRamp, CC_MAX_PITCH, CC_MAX_ROLL } from '../src/game/combat-computer.ts';
 import { shipDesignIdOf } from '../src/game/ship-identity.ts';
+import { npcMaxEnergy } from '../src/game/npc-energy.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { check } from './harness.ts';
 import { shippedPirate } from './fixtures.ts';
@@ -94,10 +95,17 @@ console.log('\none combat model (the trainer flies the game)');
   const sideSpec = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(17))!;
   const cobraR = shipTargetRadius(cobraSpec.designId);
   const sideR = shipTargetRadius(sideSpec.designId);
-  check(`episode pirate 1 is the roster Cobra (hp ${cobraSpec.hp}, r ${cobraR})`,
-    gangEp.pirates[0].hp === cobraSpec.hp && gangEp.pirates[0].radius === cobraR);
-  check(`episode pirate 2 is the roster Sidewinder (hp ${sideSpec.hp}, r ${sideR})`,
-    gangEp.pirates[1].hp === sideSpec.hp && gangEp.pirates[1].radius === sideR);
+  // A fresh pirate is at FULL health — a fraction of 1 — and carries the exact
+  // released bank its profile names. Both, because the fraction alone would
+  // pass for any hull and the bank alone would not say it started whole.
+  const cobraE = npcMaxEnergy(cobraSpec.profileId);
+  const sideE = npcMaxEnergy(sideSpec.profileId);
+  check(`episode pirate 1 is the roster Cobra (energy ${cobraE}, r ${cobraR})`,
+    gangEp.pirates[0].hp === 1 && gangEp.pirates[0].radius === cobraR
+    && (gangEp.pirates[0] as { npc: { maxEnergy: number } }).npc.maxEnergy === cobraE);
+  check(`episode pirate 2 is the roster Sidewinder (energy ${sideE}, r ${sideR})`,
+    gangEp.pirates[1].hp === 1 && gangEp.pirates[1].radius === sideR
+    && (gangEp.pirates[1] as { npc: { maxEnergy: number } }).npc.maxEnergy === sideE);
 
   // 3. Per-hull accel — the omission the merge exposed.
   //

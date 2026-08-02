@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildShip, buildAsteroid } from '../ships/geometry.ts';
 import { registeredHull } from '../ships/registry.ts';
 import {
-  ASTEROID_IDENTITY, SPECS, TURN, shipAccel, type NpcSpec,
+  ASTEROID_IDENTITY, TURN, rosterSpec, shipAccel, type NpcSpec,
 } from './ship-specs.ts';
 import type { NpcRole } from './ship-roles.ts';
 import type {
@@ -19,6 +19,10 @@ import {
   npcPrefersMissile, npcMissileLastStand, npcTriggerPull,
   MISSILE_RELOAD, THARGOID_FIRE_RATE,
 } from './gunnery.ts';
+import {
+  energyAfterDamage, isDestroyed, npcEnergyPolicy, playerLaserDamage,
+  regeneratedEnergy, type NpcEnergyPolicy,
+} from './npc-energy.ts';
 import { rampToward } from '../player.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
@@ -103,7 +107,22 @@ export interface NpcState {
    * of its life, so it is state, not a constant.
    */
   hasEcm: boolean;
-  hp: number;
+  /**
+   * The ship's bank, in SOURCE ENERGY POINTS — a whole number, never a
+   * fraction, because a fraction of a point is not a thing the released game
+   * can express. It was `hp` on a normalized per-hull scale until TODO 26.
+   *
+   * Anything that wants 0..1 asks `healthFraction`; anything that wants to hurt
+   * it passes points. Those are the only two ways in.
+   */
+  energy: number;
+  /**
+   * Regeneration's sub-second remainder, as whole ticks — see
+   * ELITE_A_REGEN_TICKS_PER_SECOND. It is state because the step reads it: a
+   * ship reloaded mid-tick that started its carry again would recover at a
+   * different moment from the run it came from.
+   */
+  regenCarry: number;
   alive: boolean;
   /** Hit by anything at all — police do NOT read this, see isHostileToPlayer. */
   provoked: boolean;
@@ -256,7 +275,18 @@ export class NpcShip {
   readonly radius: number;
   readonly bounty: number;
   readonly cargoDrop: number;
-  readonly maxHp: number;
+  /**
+   * The full bank, in source energy points, from this ship's exact released
+   * build. Not a roster number: two ships of the same design are as tough as
+   * the pack says that design is, and `ship-specs.ts` has no say in it.
+   */
+  readonly maxEnergy: number;
+  /**
+   * How player lasers treat this ship, and whether it recovers — resolved once
+   * from `profileId`. Immunity and the Constrictor's halving live in here, so
+   * nothing that shoots at a ship has to know which ship it is.
+   */
+  readonly energyPolicy: NpcEnergyPolicy;
   readonly armed: boolean;
 
   /**
@@ -358,10 +388,12 @@ export class NpcShip {
     // The roster entry this ship flies, resolved once: the hull branches below
     // read it, and so does its identity. An asteroid has no roster entry —
     // ASTEROID_IDENTITY is the roster's answer for it.
-    const rostered = role === 'asteroid'
-      ? null : specOverride ?? SPECS[role][variantSeed % SPECS[role].length];
+    const rostered = rosterSpec(role, variantSeed, specOverride);
     this.designId = identity?.designId ?? rostered?.designId ?? ASTEROID_IDENTITY.designId;
     this.profileId = identity?.profileId ?? rostered?.profileId ?? ASTEROID_IDENTITY.profileId;
+    // How tough it is comes from what it IS, not from the row that picked it.
+    this.energyPolicy = npcEnergyPolicy(this.profileId);
+    this.maxEnergy = this.energyPolicy.maxEnergy;
     // Built before anything else. `pos` and `quat` are filled in once the mesh
     // exists — they are the
     // mesh's own vectors, so the renderer reads this state rather than being
@@ -378,7 +410,8 @@ export class NpcShip {
       docksHere: random() < 0.5,
       hasEcm: false,   // set from the spec once it is known, below
       tumbleAxis: randomDirection(new THREE.Vector3()),
-      hp: 0, alive: true, provoked: false, provokedByPlayer: false, missiles: 0,
+      energy: this.maxEnergy, regenCarry: 0,
+      alive: true, provoked: false, provokedByPlayer: false, missiles: 0,
       isMissionTarget: false, fleeing: false, inert: false, tradeTimer: 0,
       wantsDespawn: false, docked: false, docking: false, organised: false,
       satisfied: false, threatTier: 0, speed: 0, fireCooldown: 0, missileReload: 0,
@@ -390,7 +423,6 @@ export class NpcShip {
       const hermitRadius = registeredHull(this.designId).targetRadius;
       this.object = buildAsteroid(hermitRadius, variantSeed * 977 + 3, 0xb9b9a5);
       this.radius = hermitRadius;
-      this.state.hp = this.maxHp = 4;
       this.bounty = 0;
       this.cargoDrop = 0;
       this.maxSpeed = 0;
@@ -406,7 +438,6 @@ export class NpcShip {
       const radius = 25 + (variantSeed % 45);
       this.object = buildAsteroid(radius, variantSeed * 131 + 7, 0x9a9a8a);
       this.radius = radius;
-      this.state.hp = this.maxHp = 0.6;
       this.bounty = 4;
       this.cargoDrop = 0;
       this.maxSpeed = 0;
@@ -423,7 +454,6 @@ export class NpcShip {
       const hull = registeredHull(this.designId);
       this.object = buildShip(hull.def!, spec.color);
       this.radius = hull.targetRadius;
-      this.state.hp = this.maxHp = spec.hp;
       this.bounty = spec.bounty;
       this.cargoDrop = spec.cargoDrop ?? 0;
       this.maxSpeed = spec.maxSpeed;
@@ -464,6 +494,10 @@ export class NpcShip {
     view: WorldView,
   ): FireEvent | null {
     if (!this.state.alive) return null;
+    // Before anything decides: a ship's generator does not care what it is
+    // doing, and the roles that return early below are exactly the ones the
+    // contract gives a rate of 0 anyway.
+    this.regenerate(dt);
 
     const { station, fleet, playerLegal, brains } = view;
 
@@ -676,13 +710,17 @@ export class NpcShip {
       if (m === this || m.role !== 'pirate' || !m.state.alive) continue;
       const slot = pool[n] ?? (pool[n] = {
         pos: m.object.position, quat: m.object.quaternion,
-        hp: m.state.hp, cls: { hp: m.maxHp }, alive: true,
+        hp: m.healthFraction, cls: { hp: 1 }, alive: true,
       });
       out[n] = slot;
       slot.pos = m.object.position;
       slot.quat = m.object.quaternion;
-      slot.hp = m.state.hp;
-      slot.cls.hp = m.maxHp;
+      // NORMALIZED at the boundary: the encoder divides `hp` by `cls.hp`, so a
+      // fraction over 1 is the same observation the brains were fitted against
+      // when both were raw hull points. Feeding it energy points would be too —
+      // right up until a mate's max differed from the divisor.
+      slot.hp = m.healthFraction;
+      slot.cls.hp = 1;
       slot.alive = true;
       n += 1;
     }
@@ -862,12 +900,12 @@ export class NpcShip {
     if (this.state.missiles <= 0) return shot;
     this.state.missileReload = Math.max(0, this.state.missileReload - dt);
     if (this.state.missileReload > 0) return shot;
-    // Fall back to 1 (untouched), not 0. A divide-by-zero guard that reports
-    // "nearly dead" would make a hull-less ship empty its rack; unreachable
-    // today, since everything that carries a missile has hp, but it is the
-    // wrong way round.
-    const hull = this.maxHp > 0 ? this.state.hp / this.maxHp : 1;
-    if (npcMissileLastStand(hull, dist, this.facing(targetPos))
+    // A FRACTION, not points: `npcMissileLastStand` asks "how much of this
+    // hull is left", and `healthFraction` is the one place that division
+    // happens. It falls back to 1 (untouched) rather than 0 for a bankless
+    // ship, because a divide-by-zero guard that reported "nearly dead" would
+    // make it empty its rack.
+    if (npcMissileLastStand(this.healthFraction, dist, this.facing(targetPos))
         // ...or the old opportunistic launch, taken instead of a bolt it was
         // about to fire anyway.
         || (shot !== null && shot.at === 'player' && npcPrefersMissile(dist, random()))) {
@@ -929,20 +967,65 @@ export class NpcShip {
       Math.PI);
   }
 
-  /** @returns true if the ship was destroyed. */
-  takeDamage(amount: number, from?: THREE.Vector3, byPlayer = false): boolean {
+  /**
+   * How much of its bank is left, 0..1.
+   *
+   * THE NORMALIZED BOUNDARY, and the only one. Runtime combat stores whole
+   * source energy points; the HUD's target bar, the AI's health observation and
+   * the missile last-stand rule all want a fraction, and every one of them
+   * comes through here rather than dividing by a max it fetched itself.
+   */
+  get healthFraction(): number {
+    return this.maxEnergy > 0 ? this.state.energy / this.maxEnergy : 1;
+  }
+
+  /**
+   * A registered player-laser hit of `hit` strength lands.
+   *
+   * The ship works out what that costs IT — immunity, the Constrictor's
+   * halving and its own per-hit defence are all inside its policy — so the gun
+   * never has to know what it is shooting at. @returns true if it was destroyed.
+   */
+  takeLaserHit(hit: number, from?: THREE.Vector3, byPlayer = true): boolean {
+    return this.takeDamage(playerLaserDamage(this.energyPolicy, hit), from, byPlayer);
+  }
+
+  /**
+   * @param points WHOLE energy points. Everything that is not a player laser
+   * still speaks the old normalized scale and must convert with
+   * `legacyDamageToEnergy` — the TODO 28 bridge — before it gets here.
+   * @returns true if the ship was destroyed.
+   */
+  takeDamage(points: number, from?: THREE.Vector3, byPlayer = false): boolean {
     this.state.provoked = true;
     if (byPlayer) this.state.provokedByPlayer = true;
     if (from && this.role === 'trader') {
       this.state.fleeFrom.copy(from);
       this.state.fleeing = true;
     }
-    this.state.hp -= amount;
-    if (this.state.hp <= 0 && this.state.alive) {
+    this.state.energy = energyAfterDamage(this.state.energy, points);
+    if (isDestroyed(this.state.energy) && this.state.alive) {
       this.state.alive = false;
       return true;
     }
     return false;
+  }
+
+  /**
+   * Recover from elapsed simulation time. Stations, rocks and the derelict get
+   * a rate of 0 and never move.
+   *
+   * PUBLIC and called from two places for the same reason `brainFly` is:
+   * `update()` runs it for the live sky, and a training episode runs it for the
+   * pirates it drives directly (ai-training/scenario.ts). One implementation,
+   * so the trainer cannot fight a world where ships never heal.
+   */
+  regenerate(dt: number): void {
+    const next = regeneratedEnergy(
+      { energy: this.state.energy, carryTicks: this.state.regenCarry },
+      this.energyPolicy, dt);
+    this.state.energy = next.energy;
+    this.state.regenCarry = next.carryTicks;
   }
 }
 

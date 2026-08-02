@@ -9,24 +9,18 @@ import * as THREE from 'three';
 import { World } from '../src/game/world.ts';
 import { newCommander, cargoTonnes } from '../src/game/commander.ts';
 import {
-  dumpCargo,
-  offerBribe,
-  appetiteOf,
-  OPPORTUNIST_FLOOR,
-  GANG_FLOOR,
+  dumpCargo, offerBribe, appetiteOf, OPPORTUNIST_FLOOR, GANG_FLOOR,
 } from '../src/game/jettison.ts';
 import { breachLoss, CARGO_LOSS_CHANCE, freshSystems } from '../src/game/systems.ts';
 import { Combat } from '../src/game/combat.ts';
 import {
-  isContraband,
-  contrabandTonnes,
-  carryingContraband,
-  CLEAN,
-  FUGITIVE,
+  isContraband, contrabandTonnes, carryingContraband, CLEAN, FUGITIVE,
 } from '../src/game/law.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
+import { legacyDamageToEnergy } from '../src/game/npc-energy.ts';
+import { RAM_DAMAGE } from '../src/game/collisions.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { check, eq } from './harness.ts';
@@ -164,7 +158,11 @@ console.log('\ncombat');
 
 console.log('\ncollision rates');
 {
-  const COLLISION_DAMAGE = 0.45;
+  // What ONE ram costs a pirate, in the units its bank is now kept in: the
+  // energy the TODO 28 bridge converts RAM_DAMAGE into (npc-energy.ts). The
+  // ratio below is a count of collisions, so it has to divide by the same
+  // number the episode actually subtracted.
+  const COLLISION_DAMAGE = legacyDamageToEnergy(RAM_DAMAGE);
   const rams = (make: () => { pirates: Controller[]; trader: Controller; traderArmed?: boolean },
                 episodes: number): number => {
     let total = 0;

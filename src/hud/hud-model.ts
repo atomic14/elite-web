@@ -192,7 +192,9 @@ export function screenTargets(
       size: Math.min(0.5, (npc.radius * 2.2) / dist),
       hostile: isHostileToPlayer(npc, legalStatus),
       locked: isLocked,
-      hp: npc.state.hp / npc.maxHp,
+      // NORMALIZED at the boundary: the bracket paints a 0..1 bar, and combat
+      // stores whole source energy points — see NpcShip.healthFraction.
+      hp: npc.healthFraction,
       label: `${(npc.object.name || 'ASTEROID').toUpperCase()}  ${(dist / 1000).toFixed(1)}KM`,
     };
     if (isLocked && npc.role !== 'asteroid') {

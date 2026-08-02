@@ -46,6 +46,7 @@ import { planDocking, dockingOutcome } from './docking.ts';
 import { regenerate, updateCabinTemp, scoopFuel } from './systems.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE } from './gunnery.ts';
+import { legacyDamageToEnergy, LEGACY_FATAL_DAMAGE } from './npc-energy.ts';
 import type { DamageSource } from './combat.ts';
 import { viewDirection } from './views.ts';
 import { Ordnance, ordnanceMessage, type OrdnanceOutcome } from './ordnance.ts';
@@ -317,18 +318,23 @@ export class WorldStep {
     // decided here, because the price is not symmetric — the player's shields
     // absorb a ram, two NPCs bumping must not credit the player with anything,
     // and bouncing off the station is free.
+    //
+    // The RAM is still a normalized amount, so it converts once, here — the
+    // TODO 28 bridge (npc-energy.ts). The PLAYER's half of the same collision
+    // is untouched: their hull is not on the energy scale until TODO 27.
+    const ramEnergy = legacyDamageToEnergy(RAM_DAMAGE);
     for (const npc of playerVsNpcs(
       player.position, (k) => { player.speed *= k; }, world.npcs, this.scratch)) {
       this.host.applyPlayerDamage(RAM_DAMAGE, npc.object.position, 'ram');
       out.push(say('COLLISION', 2));
-      if (npc.takeDamage(RAM_DAMAGE, player.position, true)) this.host.destroyNpc(npc);
+      if (npc.takeDamage(ramEnergy, player.position, true)) this.host.destroyNpc(npc);
     }
 
     const wrecked: NpcShip[] = [];
     for (const [a, b] of npcVsNpcs(world.npcs, this.scratch)) {
       const aPos = a.object.position.clone();
-      if (a.takeDamage(RAM_DAMAGE, b.object.position, false)) wrecked.push(a);
-      if (b.takeDamage(RAM_DAMAGE, aPos, false)) wrecked.push(b);
+      if (a.takeDamage(ramEnergy, b.object.position, false)) wrecked.push(a);
+      if (b.takeDamage(ramEnergy, aPos, false)) wrecked.push(b);
     }
     // wreckNpc, NOT destroyNpc — see npcVsNpcs
     for (const n of wrecked) this.host.wreckNpc(n);
@@ -403,7 +409,9 @@ export class WorldStep {
     const { world, player } = this.state;
     for (const e of this.ordnance.step(dt, player.position)) {
       if (e.kind === 'killed') {
-        e.npc.takeDamage(99, undefined, true);
+        // A missile strike is not a damage figure, it is "that ship is gone" —
+        // and it still says so in the old units, through the TODO 28 bridge.
+        e.npc.takeDamage(legacyDamageToEnergy(LEGACY_FATAL_DAMAGE), undefined, true);
         this.host.destroyNpc(e.npc);
       } else if (e.kind === 'hitPlayer') {
         world.effects.explosion(e.at, 0xff8866);
@@ -632,7 +640,9 @@ export class WorldStep {
     world.effects.tracer(
       npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
     if (random() < NPC_VS_NPC_HIT) {
-      if (target.takeDamage(NPC_VS_NPC_DAMAGE, npc.object.position)) {
+      // An NPC's own gun is not the player's laser and has no source byte yet,
+      // so it converts through the TODO 28 bridge like every other secondary.
+      if (target.takeDamage(legacyDamageToEnergy(NPC_VS_NPC_DAMAGE), npc.object.position)) {
         this.host.wreckNpc(target); // no player credit
       }
     }

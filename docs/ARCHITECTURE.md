@@ -199,6 +199,9 @@ src/
     ship-identity.ts        the three ids — player hull, design, exact variant —
                             what they resolve to, what a save without one
                             becomes, and the two Harmless-only overlays
+    npc-energy.ts           an NPC's bank: the exact released max, immunity, the
+                            Constrictor's halving, regeneration — and the one
+                            named bridge every non-laser source still crosses
     brains.ts               the five trained policies, and who flies which
 
     combat.ts               what happens when something is shot: bounties, kills,
@@ -206,9 +209,10 @@ src/
                             hull taken over a GameState (firePlayerLaser,
                             damagePlayer), and DamageSource, the five things
                             that can hurt the commander
-    gunnery.ts              BOTH guns: the player's mounts, heat and aim assist,
-                            and the NPC's trigger, hit rolls, damage and
-                            missile choice
+    gunnery.ts              BOTH guns: the player's mounts, their cadence and
+                            heat, the exact hit each hull's fitted laser
+                            scores, aim assist — and the NPC's trigger, hit
+                            rolls, damage and missile choice
     shot.ts                 what a shot passed through: ray first, then graze cone
     ordnance.ts             missiles in flight, the E.C.M., the energy bomb
     systems.ts              energy, shields, laser heat, cabin temp, damage model

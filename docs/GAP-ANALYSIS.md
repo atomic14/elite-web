@@ -128,6 +128,19 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   variety is what makes one worth aiming at. The three exact designs stay
   registered, profile-resolvable and viewable — the deviation is which mesh the
   `asteroid` role spawns, not which designs exist.
+- **The two Harmless-only ships carry stated energy, not recovered energy.** The
+  rock hermit and the derelict generation ship have no released design, so they
+  cannot have a released bank. Both are written down in `game/npc-energy.ts`
+  with a reason and are excluded from every claim of source parity: the hermit
+  is a STATION, so it takes the station rule — immune to player lasers, 240
+  points, no regeneration — and the derelict gets 252, the heaviest bank the
+  catalogue holds, and recovers nothing because its reactors are cold. The
+  visible change is that a rock hermit can no longer be shot down.
+- **The mining laser is still a fitting, not a mount.** The pack gives every
+  flyable hull a mining-laser byte and `playerLaserHit()` answers for it, but
+  Harmless has no fourth mount to select: `miningLaser` is equipment that
+  changes what a destroyed rock yields. The equipment redesign that turns it
+  into a real mounted weapon is deferred by the combat plan.
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
   The rate is `FUEL_PRICE` in `src/game/commander.ts` — change it there.
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands

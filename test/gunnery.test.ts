@@ -17,7 +17,9 @@ import {
   assistAt,
   hitCone,
   canisterCone,
-  LASERS,
+  LASER_PACING,
+  playerLaser,
+  playerLaserHit,
   AIM_ASSIST,
   npcPrefersMissile,
   npcMissileLastStand,
@@ -29,6 +31,7 @@ import {
   MISSILE_LAST_STAND_MIN_RANGE,
 } from '../src/game/gunnery.ts';
 import { freshSystems } from '../src/game/systems.ts';
+import { COBRA_MK_3_HULL_ID, PLAYER_HULL_IDS } from '../src/game/ship-identity.ts';
 import { check, eq } from './harness.ts';
 
 // --- the player's guns ------------------------------------------------------
@@ -40,24 +43,47 @@ import { check, eq } from './harness.ts';
 
 console.log('\ngunnery');
 {
+  // A commander now, not an equipment list: which of the 15 flyable hulls is
+  // being flown is half of what a fitted laser hits for (TODO 26).
   const equip = (over: Record<string, unknown> = {}) => ({
-    laser: 'pulse', rearLaser: false, leftLaser: false, rightLaser: false, ...over,
+    shipId: COBRA_MK_3_HULL_ID,
+    equipment: {
+      laser: 'pulse', rearLaser: false, leftLaser: false, rightLaser: false, ...over,
+    },
   }) as Parameters<typeof laserForView>[0];
 
   check('the front mount carries whatever is fitted',
-    laserForView(equip({ laser: 'military' }), 0)?.damage === LASERS.military.damage);
+    laserForView(equip({ laser: 'military' }), 0)?.type === 'military');
   check('an empty rear mount does not fire', laserForView(equip(), 1) === null);
   check('a purchased rear mount fires a PULSE laser, whatever is up front',
-    laserForView(equip({ laser: 'military', rearLaser: true }), 1)?.damage === LASERS.pulse.damage);
+    laserForView(equip({ laser: 'military', rearLaser: true }), 1)?.type === 'pulse');
   check('left and right mounts behave the same way',
     laserForView(equip({ leftLaser: true }), 2) !== null
     && laserForView(equip({ rightLaser: true }), 3) !== null
     && laserForView(equip({ leftLaser: true }), 3) === null);
+  check('...and every mount carries its own cadence and heat, unchanged',
+    laserForView(equip({ laser: 'beam' }), 0)?.cooldown === LASER_PACING.beam.cooldown
+    && laserForView(equip({ laser: 'beam' }), 0)?.heat === LASER_PACING.beam.heat);
+
+  // The exact hit, resolved from (hull, fitted laser) — the pack's own bytes.
+  // A Cobra Mk III's pulse is an 18-byte, so 9; its military is 24, so 12.
+  eq('a Cobra Mk III pulse laser is a 9-point hit',
+    laserForView(equip(), 0)?.hit, 9);
+  eq('...and its military laser a 12-point one',
+    laserForView(equip({ laser: 'military' }), 0)?.hit, 12);
+  eq('the HULL decides too: an Anaconda military laser is a 63-point hit',
+    playerLaserHit(PLAYER_HULL_IDS[14], 'military'), 63);
+  eq('...and all four source laser types answer, mining included',
+    playerLaserHit(COBRA_MK_3_HULL_ID, 'mining'), 25);
+  check('the mining laser has no live MOUNT yet — the redesign is deferred',
+    !Object.prototype.hasOwnProperty.call(LASER_PACING, 'mining'));
+  eq('a fitted mount is its pacing plus its hit', JSON.stringify(playerLaser(COBRA_MK_3_HULL_ID, 'pulse')),
+    JSON.stringify({ ...LASER_PACING.pulse, hit: 9, type: 'pulse' }));
 
   {
     const sys = freshSystems();
     check('a cool, ready laser fires', canFire(sys));
-    chargeShot(sys, LASERS.pulse);
+    chargeShot(sys, LASER_PACING.pulse);
     check('...and then has to cool down', !canFire(sys));
     sys.laserCooldown = 0;
     check('...and fires again once it has', canFire(sys));
@@ -67,7 +93,7 @@ console.log('\ngunnery');
   {
     // all mounts share one heat budget — a documented simplification
     const sys = freshSystems();
-    for (let i = 0; i < 30; i++) { sys.laserCooldown = 0; if (canFire(sys)) chargeShot(sys, LASERS.pulse); }
+    for (let i = 0; i < 30; i++) { sys.laserCooldown = 0; if (canFire(sys)) chargeShot(sys, LASER_PACING.pulse); }
     check('held fire eventually overheats the gun', !canFire(sys));
   }
   {

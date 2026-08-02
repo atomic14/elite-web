@@ -7,6 +7,8 @@
 import * as THREE from 'three';
 import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
+import { playerLaser } from '../src/game/gunnery.ts';
+import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
 import { SHIPPED_BRAINS } from '../src/game/brains.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import {
@@ -36,6 +38,9 @@ console.log('\nNPC flight');
   // its own tests.
   seedWorld(20_260_727);
   const at = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  /** The commander's real gun, and how many 60 Hz frames its reload takes. */
+  const PULSE = playerLaser(COBRA_MK_3_HULL_ID, 'pulse');
+  const PULSE_FRAMES = Math.round(PULSE.cooldown * 60);
   const makePlayer = (pos: THREE.Vector3) =>
     ({ position: pos, quaternion: new THREE.Quaternion(), speed: 100 }) as never;
   const station = new THREE.Object3D();
@@ -150,7 +155,7 @@ console.log('\nNPC flight');
         seedWorld(seedBase + s);
         const npc = new NpcShip('pirate', at(0, 0, dist), 5);
         npc.state.threatTier = 1;
-        npc.state.hp = npc.maxHp * hull;
+        npc.state.energy = Math.round(npc.maxEnergy * hull);
         let any = false;
         for (let i = 0; i < frames; i++) {
           const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([npc]));
@@ -179,9 +184,10 @@ console.log('\nNPC flight');
       hurt.missiles === hurt.launchedAtAll);
 
     // The headline: under sustained fire, does it die holding the missile?
-    // 0.667 damage/second is the player's pulse laser (CLAUDE.md's figure).
-    // Before this change the answer was 0 of 20 — the opportunistic launch
-    // needs 1200+ units of separation, and the fight is not fought there.
+    // The player's real pulse laser, at its real cadence — a Cobra Mk III's
+    // 9-point hit every 0.24s, which the ship turns into damage against its own
+    // defence. Before this change the answer was 0 of 20: the opportunistic
+    // launch needs 1200+ units of separation, and the fight is not fought there.
     {
       let died = 0, armedToTheEnd = 0;
       for (let s = 0; s < 20; s++) {
@@ -194,7 +200,7 @@ console.log('\nNPC flight');
           if (ev && ev.at === 'player' && ev.weapon === 'missile' && npc.state.missiles > 0) {
             npc.state.missiles -= 1;
           }
-          npc.takeDamage(0.667 / 60, at(0, 0, 0), true);
+          if (i % PULSE_FRAMES === 0) npc.takeLaserHit(PULSE.hit, at(0, 0, 0), true);
         }
         if (!npc.state.alive) died += 1;
         if (!npc.state.alive && npc.state.missiles > 0) armedToTheEnd += 1;
