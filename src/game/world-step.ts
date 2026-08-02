@@ -43,9 +43,13 @@ import { stepEncounters, AMBUSH_STANDOFF } from './encounters.ts';
 import { spawnArrivingTrader } from './spawning.ts';
 import { TRADER_ARRIVAL_RANGE } from './world.ts';
 import { planDocking, dockingOutcome } from './docking.ts';
-import { regenerate, updateCabinTemp, scoopFuel } from './systems.ts';
+import {
+  legacyDamageToPlayer, regenerate, updateCabinTemp, scoopFuel, LOW_ENERGY,
+} from './systems.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
-import { npcHitChance, npcShotDamage, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE } from './gunnery.ts';
+import {
+  npcHitChance, npcLaserDamageToPlayer, NPC_VS_NPC_HIT, NPC_VS_NPC_DAMAGE,
+} from './gunnery.ts';
 import { legacyDamageToEnergy, LEGACY_FATAL_DAMAGE } from './npc-energy.ts';
 import type { DamageSource } from './combat.ts';
 import { viewDirection } from './views.ts';
@@ -70,6 +74,18 @@ export const FIXED_DT = 1 / 60;
 
 /** Fly this close to the sun and the ship is gone, temperature or not. */
 export const SUN_KILL_DIST = 21_000;
+
+/**
+ * What a canister breaking on an unscooped hull costs, and what fluffing the
+ * slot costs — both on the OLD normalized scale, both crossing the TODO 28
+ * bridge at their call site.
+ *
+ * They were bare literals in the middle of two phases, which is exactly what
+ * made "which numbers are still in the old units" unanswerable. Naming them is
+ * the audit's shopping list.
+ */
+export const CANISTER_HULL_DAMAGE = 0.06;
+export const STATION_COLLISION_DAMAGE = 0.9;
 
 /** view quaternions: front, rear, left, right (yaw about ship Y) */
 const ZERO = new THREE.Vector3();
@@ -140,11 +156,15 @@ export interface StepHost {
   /**
    * The player took a hit — shields, hull, the damage flash, and maybe death.
    *
+   * `damage` is WHOLE POOL POINTS, finished: a laser has already met the hull's
+   * armour once and every other source has already crossed the TODO 28 bridge,
+   * both at the call sites below, because only they know which it was.
+   *
    * `source` is what did it, and the step is the only place that knows: it is a
    * static fact at each of the five calls below, where downstream it can only
    * be guessed at from the size of the number. See `DamageSource`.
    */
-  applyPlayerDamage(amount: number, from: THREE.Vector3, source: DamageSource): void;
+  applyPlayerDamage(damage: number, from: THREE.Vector3, source: DamageSource): void;
   /** a kill credited to the player: bounty, rating, contracts, the law */
   destroyNpc(npc: NpcShip): void;
   /** a ship out of the sky with no credit to anyone */
@@ -319,13 +339,15 @@ export class WorldStep {
     // absorb a ram, two NPCs bumping must not credit the player with anything,
     // and bouncing off the station is free.
     //
-    // The RAM is still a normalized amount, so it converts once, here — the
-    // TODO 28 bridge (npc-energy.ts). The PLAYER's half of the same collision
-    // is untouched: their hull is not on the energy scale until TODO 27.
+    // The RAM is still a normalized amount on BOTH sides, so it converts once
+    // each — the TODO 28 bridge, whose two halves are `legacyDamageToEnergy`
+    // (npc-energy.ts) for a ship's bank and `legacyDamageToPlayer` (systems.ts)
+    // for the commander's. Neither meets armour: armour is a laser's business.
     const ramEnergy = legacyDamageToEnergy(RAM_DAMAGE);
+    const ramPlayer = legacyDamageToPlayer(RAM_DAMAGE);
     for (const npc of playerVsNpcs(
       player.position, (k) => { player.speed *= k; }, world.npcs, this.scratch)) {
-      this.host.applyPlayerDamage(RAM_DAMAGE, npc.object.position, 'ram');
+      this.host.applyPlayerDamage(ramPlayer, npc.object.position, 'ram');
       out.push(say('COLLISION', 2));
       if (npc.takeDamage(ramEnergy, player.position, true)) this.host.destroyNpc(npc);
     }
@@ -380,7 +402,8 @@ export class WorldStep {
     // ours to decide, because it touches the hold, legal status and damage.
     for (const { canister: c } of world.cargo.update(dt, player.position)) {
       if (!commander.equipment.scoops) {
-        this.host.applyPlayerDamage(0.06, c.object.position, 'cargo');
+        this.host.applyPlayerDamage(
+          legacyDamageToPlayer(CANISTER_HULL_DAMAGE), c.object.position, 'cargo');
         out.push(say('CANISTER DESTROYED ON HULL', 2));
       } else if (cargoTonnes(commander) >= cargoCapacity(commander)) {
         out.push(say(
@@ -416,7 +439,8 @@ export class WorldStep {
       } else if (e.kind === 'hitPlayer') {
         world.effects.explosion(e.at, 0xff8866);
         out.push(heard('explosion'));
-        this.host.applyPlayerDamage(e.damage, e.at, 'missile');
+        // A missile strike is still a normalized amount: the TODO 28 bridge.
+        this.host.applyPlayerDamage(legacyDamageToPlayer(e.damage), e.at, 'missile');
       } else if (e.kind === 'ecmDefeated') {
         world.effects.explosion(e.at, 0xffb444, { count: 12, duration: 0.8 });
         this.state.ecmDetectedTimer = 2;
@@ -439,7 +463,8 @@ export class WorldStep {
     // the hands, the combat computer, or both — and is pulled HERE because
     // this is where the gun's heat and energy live.
     if (demand.fire) this.host.fireLaser();
-    regenerate(sys, dt, { energyUnit: commander.equipment.energyUnit });
+    regenerate(sys, dt,
+      { shipId: commander.shipId, energyUnit: commander.equipment.energyUnit });
 
     const sunDist = player.position.distanceTo(world.sunPos);
     if (updateCabinTemp(sys, dt, sunDist)) {
@@ -474,7 +499,7 @@ export class WorldStep {
     }
 
     // flashing low-energy warning
-    if (sys.energy < 1) {
+    if (sys.energy < LOW_ENERGY) {
       session.energyLowTimer -= dt;
       if (session.energyLowTimer <= 0) {
         session.energyLowTimer = 1.2;
@@ -567,7 +592,8 @@ export class WorldStep {
     const away = this.tmp2.copy(player.position).sub(station.position).normalize();
     player.position.copy(station.position).addScaledVector(away, 420);
     player.speed = 0;
-    this.host.applyPlayerDamage(0.9, station.position, 'station');
+    this.host.applyPlayerDamage(
+      legacyDamageToPlayer(STATION_COLLISION_DAMAGE), station.position, 'station');
     out.push(say(
       outcome === 'slotMiss' ? 'DOCKING FAILURE — MATCH SLOT ROTATION' : 'COLLISION', 3));
   }
@@ -605,7 +631,7 @@ export class WorldStep {
 
   /** An NPC asked to fire. The ship chose the weapon; we roll the dice. */
   private resolveNpcFire(npc: NpcShip, event: FireEvent, out: StepEvent[]): void {
-    const { world, player } = this.state;
+    const { world, player, commander } = this.state;
     // Reported before anything is resolved, and before any draw — the report
     // wants the shot whether or not it lands, and moving a `random()` across a
     // branch would change every seeded outcome after it (game/rng.ts).
@@ -631,7 +657,15 @@ export class WorldStep {
         npc.nosePosition(this.tmp).clone(), to,
         npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
       if (hit) {
-        this.host.applyPlayerDamage(npcShotDamage(random()), npc.object.position, 'laser');
+        // WHETHER it lands is Harmless's dice, above; what it is WORTH is the
+        // released game's, and it is not rolled at all. The firing ship's exact
+        // build supplies the laser power and the commander's hull supplies the
+        // armour it comes off — see gunnery.ts. A build whose power cannot beat
+        // this hull's armour still connects, still flashes and still costs
+        // nothing, which is what the pack's zero rows say.
+        this.host.applyPlayerDamage(
+          npcLaserDamageToPlayer(npc.weaponByte, commander.shipId),
+          npc.object.position, 'laser');
       }
       return;
     }

@@ -47,9 +47,17 @@ export interface HudState {
   speedFrac: number;
   rollFrac: number; // -1..1
   pitchFrac: number; // -1..1
+  /**
+   * The three banks as FRACTIONS, 0..1 — never their point values.
+   *
+   * The painter draws bars and segments, and the number of points behind them
+   * is not its business: they were 1/1/4 before TODO 27 and are 255/255/255
+   * after it, and neither the CSS nor the segment count noticed, because the
+   * normalizing happens once at the boundary in hud-binding.ts.
+   */
   foreShield: number; // 0..1
   aftShield: number; // 0..1
-  energy: number; // 0..4
+  energyFrac: number; // 0..1
   fuelFrac: number;
   laserTemp: number; // 0..1
   altitudeFrac: number;
@@ -183,8 +191,11 @@ export class Hud {
     this.viewEl.textContent = frame.assist ? '◆ COMBAT COMPUTER ◆' : (VIEW_NAMES[frame.view] ?? '');
     this.crosshairEl.style.display = frame.hasLaser ? '' : 'none';
     this.shipIdEl.textContent = frame.shipId;
+    // Four segments across the whole bank, whatever the bank holds: the frame
+    // brings a fraction, and how many lamps it lights is the console's layout.
+    const litSegs = frame.energyFrac * this.energySegs.length;
     this.energySegs.forEach((seg, i) => {
-      seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, frame.energy - i))));
+      seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, litSegs - i))));
     });
     this.missileEls.forEach((m, i) => {
       const active = i === frame.missiles - 1;

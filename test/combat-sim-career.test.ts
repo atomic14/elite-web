@@ -18,6 +18,7 @@ import {
   clearWorld, readWorld, saveCommander, saveWorld, slotKeys, withoutSaving,
 } from '../src/game/storage.ts';
 import { Combat, firePlayerLaser, damagePlayer } from '../src/game/combat.ts';
+import { durability, MAX_ENERGY } from '../src/game/systems.ts';
 import { CONTRABAND, CLEAN, FUGITIVE } from '../src/game/law.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
@@ -386,8 +387,9 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     for (let i = 0; i < 60 && !breached; i++) {
       s.sys.foreShield = 0;
       s.sys.aftShield = 0;
-      s.sys.energy = 4;
-      r.sim.verbs.applyPlayerDamage(0.4, foes[4].object.position, 'laser');
+      s.sys.energy = MAX_ENERGY;
+      // shields flat, so a single point is a hull hit and rolls for a fitting
+      r.sim.verbs.applyPlayerDamage(1, foes[4].object.position, 'laser');
       breached = !r.sim.commander!.equipment.ecm
         || !r.sim.commander!.equipment.scoops
         || !r.sim.commander!.equipment.rearLaser;
@@ -418,8 +420,8 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
     // 6. And a DEATH, which must never reach `Game.die` and its clearWorld().
     const clone = structuredClone(r.sim.commander!);
-    s.sys.energy = 0.2;
-    r.sim.verbs.applyPlayerDamage(9, foes[4].object.position, 'laser');
+    s.sys.energy = 1;
+    r.sim.verbs.applyPlayerDamage(durability(false), foes[4].object.position, 'laser');
     check('a simulated death ends the exercise', !r.sim.fighting);
     const records = r.sim.settle() ?? [];
     check('...and the teardown produced a record', records.length === 1);
@@ -524,7 +526,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
     const flashes = r.flashes;
     const shieldWas = s.sys.foreShield;
-    r.sim.verbs.applyPlayerDamage(0.6, at, 'laser');
+    r.sim.verbs.applyPlayerDamage(10, at, 'laser');
     check('StepHost.applyPlayerDamage — REDIRECTED: real damage, real flash',
       s.sys.foreShield < shieldWas && r.flashes === flashes + 1);
 

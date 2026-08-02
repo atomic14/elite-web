@@ -16,7 +16,7 @@ import {
   pirateBrainFor, defenceBrain, type BrainSelection,
 } from './brains.ts';
 import {
-  npcPrefersMissile, npcMissileLastStand, npcTriggerPull,
+  npcPrefersMissile, npcMissileLastStand, npcTriggerPull, npcWeaponByte,
   MISSILE_RELOAD, THARGOID_FIRE_RATE,
 } from './gunnery.ts';
 import {
@@ -287,6 +287,16 @@ export class NpcShip {
    * nothing that shoots at a ship has to know which ship it is.
    */
   readonly energyPolicy: NpcEnergyPolicy;
+  /**
+   * The packed weapon byte this ship's exact released build carries — what its
+   * gun is worth against the commander, resolved once from `profileId`.
+   *
+   * A number the ship KNOWS, not a rule it applies: an NPC returns a FireEvent
+   * and the Game resolves what the shot costs (world-step.ts), exactly as
+   * `energyPolicy` is what the ship knows about incoming fire rather than
+   * something it does with it.
+   */
+  readonly weaponByte: number;
   readonly armed: boolean;
 
   /**
@@ -394,6 +404,9 @@ export class NpcShip {
     // How tough it is comes from what it IS, not from the row that picked it.
     this.energyPolicy = npcEnergyPolicy(this.profileId);
     this.maxEnergy = this.energyPolicy.maxEnergy;
+    // ...and what its own gun is worth comes from the same place, for the same
+    // reason: two ships of one released build shoot as hard as the pack says.
+    this.weaponByte = npcWeaponByte(this.profileId);
     // Built before anything else. `pos` and `quat` are filled in once the mesh
     // exists — they are the
     // mesh's own vectors, so the renderer reads this state rather than being

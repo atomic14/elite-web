@@ -653,9 +653,10 @@ export class CombatSim {
    * is what the recorder counts, and `firePlayerLaser` is called every frame the
    * trigger is held and refuses internally while the laser is hot.
    *
-   * What is read back is now SOURCE ENERGY POINTS (TODO 26), so the report's
-   * "damage you dealt" is on a different scale from the "damage you took"
-   * beside it until TODO 27 moves the commander's hull over too.
+   * What is read back is SOURCE ENERGY POINTS (TODO 26); "damage you took" is
+   * the commander's own 255-point pool points (TODO 27). Both are whole
+   * source-scale numbers now, but they are not the same unit — see
+   * `OpponentReport.damageFromYou`.
    */
   private pullTrigger(): void {
     const before = this.opponents.map((o) => o.ship.state.energy);

@@ -185,7 +185,7 @@
     async flyToStationAndDock(maxSteps = 20000) {
       const events = [];
       let steps = 0, bounces = 0, finalRun = false, combatTicks = 0;
-      let maxHostiles = 0, hullMin = 6;
+      let maxHostiles = 0, hullMin = 765;
       const killsBefore = g.commander.kills;
       while (g.mode === 'flight' && steps < maxSteps) {
         const st = g.world.station;
@@ -195,6 +195,8 @@
         const hostiles = g.npcs.filter((n) => n.state.alive && (n.role === 'pirate' || n.role === 'thargoid') &&
           n.object.position.distanceTo(g.player.position) < 9000).length;
         maxHostiles = Math.max(maxHostiles, hostiles);
+        // the three banks summed, in 255-point pool points (TODO 27) — it used
+        // to be out of 6 on the old 1/1/4 maxima
         hullMin = Math.min(hullMin, g.foreShield + g.aftShield + g.energy);
 
         // combat: hand the ship to the defence brain when pirates close in
@@ -245,7 +247,7 @@
       if (maxHostiles) events.push(`pirates: ${maxHostiles}`);
       if (combatTicks) events.push(`combat: ${(combatTicks / 30).toFixed(0)}s`);
       if (kills) events.push(`KILLS: ${kills}`);
-      if (hullMin < 5.9) events.push(`hull low: ${hullMin.toFixed(1)}/6`);
+      if (hullMin < 764) events.push(`hull low: ${hullMin.toFixed(0)}/765`);
       if (bounces) events.push(`bounces: ${bounces}`);
       if (g.mode !== 'docked') events.push('FAILED TO DOCK');
       return events;

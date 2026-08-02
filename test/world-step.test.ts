@@ -12,9 +12,13 @@ import { World } from '../src/game/world.ts';
 import {
   WorldStep,
   massLocked,
+  CANISTER_HULL_DAMAGE,
+  STATION_COLLISION_DAMAGE,
   type StepEvent,
   type StepHost,
 } from '../src/game/world-step.ts';
+import { legacyDamageToPlayer, MAX_ENERGY, MAX_SHIELD } from '../src/game/systems.ts';
+import { npcLaserDamageToPlayer } from '../src/game/gunnery.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
 import { clearWorld, readWorld, saveCommander, saveWorld, withoutSaving } from '../src/game/storage.ts';
@@ -385,9 +389,17 @@ console.log('\nheadless world step');
     for (const s of tag(fight)) seen.add(s);
     check('an NPC laser hit is tagged "laser"',
       fight.log.hits.length > 0 && tag(fight).includes('laser'));
-    check('...with the amount npcShotDamage produces, not a name for a number',
-      fight.log.hits.filter((h) => h.source === 'laser')
-        .every((h) => h.amount >= 0.1 && h.amount <= 0.221));
+    // ...and it is worth what the FIRING SHIP'S released build says, against
+    // the commander's own hull armour — not a roll, and not a name for a
+    // number. Every laser hit in the fight must be one of the values the
+    // hostiles actually in the sky can produce.
+    {
+      const possible = new Set(fight.state.world.npcs.map(
+        (n) => npcLaserDamageToPlayer(n.weaponByte, fight.state.commander.shipId)));
+      check(`...at the firing build's exact laser damage (${[...possible].join('/')})`,
+        fight.log.hits.filter((h) => h.source === 'laser')
+          .every((h) => possible.has(h.amount) && Number.isInteger(h.amount)));
+    }
 
     // a canister on the hull, with no scoop fitted
     const canister = arrival(4_247);
@@ -396,7 +408,8 @@ console.log('\nheadless world step');
     fly(canister, 2);
     const onHull = canister.log.hits.filter((h) => h.source === 'cargo');
     check('a canister breaking on the hull is tagged "cargo"', onHull.length === 1);
-    check('...at 0.06', onHull[0]?.amount === 0.06);
+    check(`...at ${CANISTER_HULL_DAMAGE} across the TODO 28 bridge`,
+      onHull[0]?.amount === legacyDamageToPlayer(CANISTER_HULL_DAMAGE));
     for (const s of tag(canister)) seen.add(s);
 
     // a ship flying into you
@@ -405,8 +418,8 @@ console.log('\nheadless world step');
     fly(ram, 1);
     const rammed = ram.log.hits.filter((h) => h.source === 'ram');
     check('a ram is tagged "ram"', rammed.length >= 1);
-    check(`...at RAM_DAMAGE (${RAM_DAMAGE})`,
-      rammed.every((h) => h.amount === RAM_DAMAGE));
+    check(`...at RAM_DAMAGE (${RAM_DAMAGE}) across the TODO 28 bridge`,
+      rammed.every((h) => h.amount === legacyDamageToPlayer(RAM_DAMAGE)));
     for (const s of tag(ram)) seen.add(s);
 
     // the Coriolis wall
@@ -415,7 +428,8 @@ console.log('\nheadless world step');
     fly(wall, 1);
     const scraped = wall.log.hits.filter((h) => h.source === 'station');
     check('flying into the station is tagged "station"', scraped.length === 1);
-    check('...at 0.9', scraped[0]?.amount === 0.9);
+    check(`...at ${STATION_COLLISION_DAMAGE} across the TODO 28 bridge`,
+      scraped[0]?.amount === legacyDamageToPlayer(STATION_COLLISION_DAMAGE));
     for (const s of tag(wall)) seen.add(s);
 
     // a missile that got through
@@ -521,6 +535,13 @@ console.log('\nheadless world step');
     check('...and the ship is where it was',
       b.state.player.position.distanceTo(a.state.player.position) === 0
       && b.state.player.speed === a.state.player.speed);
+    // The banks, exactly. They are whole 255-point pools with integer sub-tick
+    // carries since TODO 27, and a save that rounded either would hand back a
+    // free repair or a dead commander.
+    check('...and so are its banks, to the point and to the sub-tick carry',
+      JSON.stringify(b.state.sys) === JSON.stringify(a.state.sys)
+      && Number.isInteger(b.state.sys.energy)
+      && Number.isInteger(b.state.sys.foreShield));
     check('...including the station\'s own orientation, which lives in the scene',
       b.state.world.station.quaternion.toArray().join()
       === a.state.world.station.quaternion.toArray().join());
@@ -533,6 +554,31 @@ console.log('\nheadless world step');
     fly(b, 200);
     check('a restored world replays the run it came from, byte for byte',
       trace(b) === trace(a));
+
+    // A world written BEFORE the banks grew carries them on the old 1/1/4
+    // maxima and no carries. It must come back at the same FRACTION of the new
+    // pools — never full, never flat — and it must still load at all: an
+    // unreadable world costs a player their flight.
+    {
+      const legacy = JSON.parse(wire) as WorldSnapshot;
+      legacy.systems = {
+        energy: 3, foreShield: 0.5, aftShield: 0,
+        laserTemp: 0.25, laserCooldown: 0.1, cabinTemp: 0.4,
+      } as unknown as WorldSnapshot['systems'];
+      const old = arrival(99);
+      new Persistence(old.state, old.ordnance, new CombatComputer(),
+        stubHost(old.state, []))
+        .restore(JSON.parse(JSON.stringify(legacy)) as WorldSnapshot);
+      const sys = old.state.sys;
+      check(`a pre-255 save keeps its fractions (${sys.foreShield}/${sys.aftShield}`
+        + `/${sys.energy})`,
+        sys.energy === Math.round(0.75 * MAX_ENERGY)
+        && sys.foreShield === Math.round(0.5 * MAX_SHIELD)
+        && sys.aftShield === 0);
+      check('...starts its sub-tick carries clean, and leaves heat alone',
+        sys.energyCarry === 0 && sys.foreShieldCarry === 0 && sys.aftShieldCarry === 0
+        && sys.laserTemp === 0.25 && sys.cabinTemp === 0.4);
+    }
 
     // the negative control: an unrestored world must NOT match
     {

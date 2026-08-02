@@ -21,7 +21,7 @@ import {
 } from './hud-model.ts';
 import { hostilesNear, type NpcShip } from '../game/npc.ts';
 import type { CommanderData } from '../game/commander.ts';
-import type { ShipSystems } from '../game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD, type ShipSystems } from '../game/systems.ts';
 import type { World } from '../game/world.ts';
 import type { Missile } from '../game/ordnance.ts';
 import type { Canister } from '../game/cargo.ts';
@@ -147,9 +147,13 @@ export function buildHudFrame(s: HudSources, scratch: HudScratch): HudFrame {
     speedFrac: s.speedFrac,
     rollFrac: s.rollFrac,
     pitchFrac: s.pitchFrac,
-    foreShield: s.sys.foreShield,
-    aftShield: s.sys.aftShield,
-    energy: s.sys.energy,
+    // NORMALIZED at the boundary, like the target bracket's `hp` in
+    // hud-model.ts: the banks are whole 255-point pools and the console paints
+    // bars, so the division happens once, here, and no painter divides by a
+    // maximum it fetched for itself.
+    foreShield: s.sys.foreShield / MAX_SHIELD,
+    aftShield: s.sys.aftShield / MAX_SHIELD,
+    energyFrac: s.sys.energy / MAX_ENERGY,
     fuelFrac: commander.fuel / MAX_FUEL,
     laserTemp: s.sys.laserTemp,
     altitudeFrac: altitude / (world.planetRadius * 2),

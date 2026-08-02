@@ -241,9 +241,11 @@ export interface OpponentReport {
   missiles: number;
   damageToYou: number;
   /**
-   * ...in SOURCE ENERGY POINTS since TODO 26, where `damageToYou` above is
-   * still on the old normalized hull scale. TODO 27 moves the commander over
-   * and the two become comparable; until then, do not add them.
+   * ...in SOURCE ENERGY POINTS since TODO 26 — and `damageToYou` above is in
+   * the commander's 255-point pool points since TODO 27, so both sides are now
+   * whole source-scale numbers. They are still not the same UNIT (a ship's bank
+   * is 32-253 points, a commander's is 255 plus two shields), so a ratio of the
+   * two is meaningless; each is comparable with itself across fights.
    */
   damageFromYou: number;
   /** the median range it held, and the nearest it ever got */

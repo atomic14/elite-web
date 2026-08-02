@@ -26,6 +26,7 @@ import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
 import type { World } from './world.ts';
 import { random } from './rng.ts';
+import { MAX_ENERGY } from './systems.ts';
 import type { MissileSnapshot } from './snapshot.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 
@@ -46,8 +47,14 @@ const MISSILE_HIT_RANGE = 50;
 const ECM_RANGE = 2800;
 /** ...at this chance per second. */
 const ECM_RATE = 0.45;
-/** Firing the E.C.M. costs this much energy. */
-export const ECM_ENERGY_COST = 1;
+/**
+ * Firing the E.C.M. costs this much energy: a quarter of the bank.
+ *
+ * Exactly what the literal `1` bought when the bank held 4 points — read off
+ * MAX_ENERGY rather than restated, so growing the pools could not quietly make
+ * the E.C.M. free.
+ */
+export const ECM_ENERGY_COST = Math.round(MAX_ENERGY / 4);
 /** The energy bomb reaches this far. */
 export const ENERGY_BOMB_RANGE = 8000;
 /** Lock cone: how near the crosshair a ship must be to be locked. */

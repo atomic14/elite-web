@@ -60,7 +60,7 @@ export interface EpisodeShip {
    *
    * A FRACTION on both sides of the fight, deliberately. A pirate's real bank
    * is source energy points (TODO 26) and the target's is still normalized hull
-   * (TODO 27 moves it), so the one number both an `EpisodeShip` reader and a
+   * (TODO 29 moves it), so the one number both an `EpisodeShip` reader and a
    * fitness function can compare is the fraction — and it is what the AI's own
    * health observation uses anyway.
    */
@@ -146,7 +146,10 @@ function traderHull(): TargetHull {
   return {
     name: 'Cobra Mk III',
     // Still the normalized hull: the episode's TARGET stands in for the
-    // commander, whose durability moves onto the source scale in TODO 27.
+    // commander, whose banks moved onto the 255-point source scale in TODO 27
+    // while this stand-in — and the `npcShotDamage` roll thrown at it below —
+    // stayed where the shipped brains were fitted. TODO 29 rebaselines both
+    // together, because moving one without the other is a different world.
     hp: s.legacyHullPoints,
     radius: shipTargetRadius(s.designId),
     maxSpeed: s.maxSpeed,
@@ -625,7 +628,7 @@ export class Episode {
   private resolveCollisions(): void {
     // The ram is a normalized amount and converts through the TODO 28 bridge,
     // the same call world-step.ts makes. The TARGET's half stays normalized:
-    // its hull is not on the energy scale until TODO 27.
+    // its hull is the pre-TODO-27 stand-in until TODO 29 rebaselines it.
     const ramEnergy = legacyDamageToEnergy(RAM_DAMAGE);
     if (this.trader.alive) {
       const pos = this.trader.pos;

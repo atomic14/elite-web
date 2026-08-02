@@ -31,6 +31,7 @@ import { fineFor, CLEAN } from './law.ts';
 import { generateContractOffers, makeLocalMarket, describeContract } from './contracts.ts';
 import { stepMissionAtDock, missionHeadline } from './missions.ts';
 import type { Ordnance } from './ordnance.ts';
+import { repairAtStation } from './systems.ts';
 import type { GameState } from './state.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 
@@ -122,10 +123,10 @@ export class Station {
     if (!booting) effects.push({ kind: 'persistence', action: 'clearWorld' });
     s.world.clearNpcs();
     this.ordnance.clear();
-    s.sys.foreShield = 1;
-    s.sys.aftShield = 1;
-    s.sys.energy = 4;
-    s.sys.laserTemp = 0;
+    // Full pools and a cold laser, and what "full" is belongs to systems.ts —
+    // this used to say it in three assignments of its own, which is a second
+    // home for the capacities the moment they change.
+    repairAtStation(s.sys);
     s.session.hyperCountdown = -1;
     s.session.torusEngaged = false;
     s.session.ccEngaged = false;

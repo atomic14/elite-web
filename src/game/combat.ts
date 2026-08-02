@@ -274,15 +274,18 @@ export class Combat {
   }
 
   /**
-   * The player takes a hit.
+   * The player takes a hit of `damage` WHOLE POOL POINTS.
    *
    * Only the caller knows which way the ship is pointing, so the direction is
    * resolved here into the one bit the damage model wants: did it come from
-   * ahead?
+   * ahead? And only the caller knows what hit them, which is why the number
+   * arrives already finished: an NPC laser has met the hull's armour once
+   * (`gunnery.ts`), and everything else has crossed the TODO 28 bridge
+   * (`systems.ts` `legacyDamageToPlayer`).
    */
   hitPlayer(
     sys: ShipSystems,
-    amount: number,
+    damage: number,
     from: THREE.Vector3,
     playerPos: THREE.Vector3,
     playerQuat: THREE.Quaternion,
@@ -290,7 +293,7 @@ export class Combat {
   ): CombatEvent[] {
     scratch.a.copy(from).sub(playerPos)
       .applyQuaternion(scratch.q.copy(playerQuat).invert());
-    const result = applyDamage(sys, amount, scratch.a.z < 0);
+    const result = applyDamage(sys, damage, scratch.a.z < 0);
 
     const out: CombatEvent[] = [heard('damage')];
     if (result.wreckedSomething) out.push({ kind: 'breach' });
@@ -328,16 +331,16 @@ export function firePlayerLaser(
 }
 
 /**
- * The player takes a hit of `amount`, from `from`.
+ * The player takes a hit of `damage` pool points, from `from`.
  *
  * The source of the hit is NOT here: `Combat.hitPlayer` only needs to know
  * whether it came from ahead, and who is attributing the damage is the caller's
  * business — see `DamageSource` and `StepHost.applyPlayerDamage`.
  */
 export function damagePlayer(
-  state: GameState, combat: Combat, amount: number, from: THREE.Vector3,
+  state: GameState, combat: Combat, damage: number, from: THREE.Vector3,
   scratch: CombatScratch,
 ): CombatEvent[] {
   const { sys, player } = state;
-  return combat.hitPlayer(sys, amount, from, player.position, player.quaternion, scratch);
+  return combat.hitPlayer(sys, damage, from, player.position, player.quaternion, scratch);
 }

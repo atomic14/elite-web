@@ -86,7 +86,11 @@
       const tonnes = holdTonnes(c);
       const cap = holdCapacity(c);
       if (tonnes > cap) this.fail(`hold overfilled (${tonnes}/${cap})`);
-      if (g.energy < -0.001 || g.energy > 4.001) this.fail(`energy out of range (${g.energy})`);
+      // 255-point banks since TODO 27, and whole points: a fraction in here
+      // means something has started doing arithmetic in the old normalized
+      // units again.
+      if (g.energy < 0 || g.energy > 255) this.fail(`energy out of range (${g.energy})`);
+      if (!Number.isInteger(g.energy)) this.fail(`energy is not a whole point (${g.energy})`);
       // the three base modes plus every ScreenId (ui/screen-host.ts) — the
       // list had not been updated for saves/naming/briefing, so any of them
       // would have been reported as a soft lock rather than a screen

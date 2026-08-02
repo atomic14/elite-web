@@ -40,12 +40,14 @@ import './snapshot.test.ts';
 import './flight.test.ts';
 import './geometry.test.ts';
 import './npc.test.ts';
+import './systems.test.ts';
 import './combat.test.ts';
 import './gunnery.test.ts';
 import './instrumentation.test.ts';
 import './elite-a-catalogue.test.ts';
 import './elite-a-oracle.test.ts';
 import './elite-a-live-combat.test.ts';
+import './elite-a-live-defence.test.ts';
 import './ship-identity.test.ts';
 import './ship-roles.test.ts';
 

@@ -50,6 +50,23 @@ here: brief the player that the mission needs a military laser, adjust the
 mission's reward or availability, or record a deliberate deviation. Do not
 change the oracle — its rows are immutable.
 
+## Carried over from TODO 27 — some attackers cannot hurt you at all
+
+The Cobra Mk III's per-hit armour is 7 and an NPC laser hits for
+`laserPower << 2`, so a laserPower of 1 does 4, which is nothing. Measured
+over the live path: **119 of the 260 released builds do zero laser damage to
+a Cobra Mk III**, and 9 of the 49 builds the roster can actually spawn. The
+worst case is the **Asp Mk II, which flies as both a pirate and a bounty
+hunter and cannot scratch the player** — it will chase, shoot, and never win.
+
+Everything else chips: a typical pirate does 9 points against a 510-point
+front-face pool, so a Cobra Mk III soaks about 57 pirate laser hits where it
+used to take 19. Non-laser damage went the other way and now bites 1.5x
+harder — a station scrape is 45% of that pool, a missile 65%.
+
+Decide here whether threat comes from cadence, numbers, accuracy or a named
+Harmless deviation on armour. Do not change the oracle.
+
 ## Reproducibility
 
 Record commands, seeds, scenario counts, catalogue manifest hash, schema

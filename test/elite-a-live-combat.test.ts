@@ -376,8 +376,8 @@ console.log('\nlive combat — the TODO 28 bridge is the only crossing');
   // old-scale constant going straight into the pool is the failure this
   // catches, and it is the one that would silently re-merge the two unit
   // systems. `this.trader` is excluded because an episode's target is a
-  // `TargetShip` standing in for the commander, whose hull is normalized until
-  // TODO 27 — the exclusion is by RECEIVER, so it cannot hide an NPC.
+  // `TargetShip` standing in for the commander on the pre-TODO-27 normalized
+  // scale until TODO 29 — the exclusion is by RECEIVER, so it cannot hide an NPC.
   const ALLOWED = /^(legacyDamageToEnergy\(|playerLaserDamage\(|ramEnergy\b|points\b|damage\b)/;
   const files = ['game/world-step.ts', 'game/game.ts', 'game/combat.ts', 'game/npc.ts',
     'ai-training/scenario.ts'];

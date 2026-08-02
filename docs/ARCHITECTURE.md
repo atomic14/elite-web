@@ -212,10 +212,15 @@ src/
     gunnery.ts              BOTH guns: the player's mounts, their cadence and
                             heat, the exact hit each hull's fitted laser
                             scores, aim assist — and the NPC's trigger, hit
-                            rolls, damage and missile choice
+                            rolls, missile choice, and what its exact released
+                            build's laser costs the commander's hull
     shot.ts                 what a shot passed through: ray first, then graze cone
     ordnance.ts             missiles in flight, the E.C.M., the energy bomb
-    systems.ts              energy, shields, laser heat, cabin temp, damage model
+    systems.ts              the commander's three 255-point banks, what a hit
+                            costs them, how they recharge (Harmless policy on
+                            the oracle's tick clock), laser heat, cabin temp,
+                            the save migration, and the one named bridge every
+                            non-laser source still crosses
     collisions.ts           who is overlapping whom, and how to separate them
     combat-computer.ts      the defence brain flying the PLAYER's ship
     autopilot.ts            is something else flying, and what does it want?
@@ -301,6 +306,11 @@ test/harness.ts             check(), the counters and the shared fixtures
 test/*.test.ts              invariant + unit tests, one file per subsystem
 test/ship-roles.test.ts     the roster's gate: role bands, the whole catalogue,
                             the tiers, and hulls surviving a reload
+test/systems.test.ts        the commander's banks, the damage model and the
+                            recharge — the numbers every balance claim rests on
+test/elite-a-live-defence.test.ts
+                            the LIVE incoming path over all 3,900 NPC-to-player
+                            rows, and the diagnostic that stays test-only
 test/run.ts                 the index: imports them all, one total (npm test)
 test/harness.ts             check/eq and the counters
 test/fixtures.ts            data two or more test files share

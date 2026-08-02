@@ -239,8 +239,17 @@ export function eliteARegenTicks(dt: number): number {
   return Math.round(dt * ELITE_A_REGEN_TICKS_PER_SECOND);
 }
 
-/** How long one energy point takes, in ticks. A rate of 0 never regenerates. */
-function ticksPerPoint(ratePerSecond: number): number {
+/**
+ * How long one point takes, in ticks. A rate of 0 never regenerates.
+ *
+ * Exported because the player's own banks recharge on the same clock (see
+ * `game/systems.ts`) and must not carry a second opinion about what a rate
+ * MEANS. They cannot share `eliteARegenerate` itself: that refuses to recover a
+ * pool at zero, which is right for a destroyed ship and wrong for a flattened
+ * shield. The tick arithmetic is the part that has to agree, so the tick
+ * arithmetic is what is shared.
+ */
+export function eliteATicksPerPoint(ratePerSecond: number): number {
   if (!(ratePerSecond > 0)) return 0;
   return Math.max(1, Math.round(ELITE_A_REGEN_TICKS_PER_SECOND / ratePerSecond));
 }
@@ -255,7 +264,7 @@ function ticksPerPoint(ratePerSecond: number): number {
 export function eliteARegenerate(
   state: EliteARegenState, maxEnergy: number, ratePerSecond: number, dt: number,
 ): EliteARegenState {
-  const period = ticksPerPoint(ratePerSecond);
+  const period = eliteATicksPerPoint(ratePerSecond);
   if (period === 0 || eliteAIsDestroyed(state.energy)) return state;
   if (state.energy >= maxEnergy) {
     return state.energy === maxEnergy && state.carryTicks === 0
