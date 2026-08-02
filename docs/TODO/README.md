@@ -41,6 +41,7 @@ rest and can go at any point.
 ## Follow-ups
 
 - [x] 41 — [Name the opposition, not the file](41-name-the-opposition-not-the-file.md) — UI/UX · high · medium
+- [ ] 42 — [They stop shooting when you get close](42-they-stop-shooting-when-you-close.md) — combat bug · critical · small
 
 ## Saves
 
