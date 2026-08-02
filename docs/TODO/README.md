@@ -10,7 +10,7 @@ were completed through commit `09278b7`.
 
 ## The combat trainer
 
-Progress: **0 / 8 complete**. `T` at any station is where Chris playtests, so
+Progress: **0 / 9 complete**. `T` at any station is where Chris playtests, so
 this is the room that has to be good. The findings came from a walk through the
 live panel plus the screens' own code, after the Elite-A phase changed what the
 numbers mean.
@@ -27,6 +27,7 @@ rest and can go at any point.
 - [ ] 36 — [Start the exercise where the pilot can see it](36-exercise-opening-geometry.md) — UI/UX · medium · small
 - [ ] 37 — [Do not throw away a tap that arrived in a busy frame](37-input-taps-are-not-lost.md) — correctness · medium · small
 - [ ] 38 — [The console still shows four energy banks](38-energy-reads-as-one-bank.md) — UI/UX · low · small
+- [ ] 39 — [Make the wave ramp keep getting harder](39-waves-keep-getting-harder.md) — gameplay · high · medium
 
 ## Elite-A damage and ship-catalogue alignment
 
