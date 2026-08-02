@@ -201,7 +201,7 @@ console.log('\nrefuelling');
   check('...and needs nothing', fuelNeeded(tank(MAX_FUEL)) === 0);
   check('half a tank is half the price',
     refuelCost(tank(MAX_FUEL / 2)) === Math.round((MAX_FUEL / 2) * FUEL_PRICE));
-  // money is integer tenths (invariant 5), and a sun-skim leaves a fraction
+  // money is integer tenths (invariant 8), and a sun-skim leaves a fraction
   check('a scooped fractional tank still costs a whole number of tenths',
     Number.isInteger(refuelCost(tank(41.3))));
 

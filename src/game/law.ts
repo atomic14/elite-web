@@ -41,7 +41,7 @@ export function carryingContraband(cargo: readonly number[]): boolean {
 
 /**
  * The fine for docking with a record, capped at what you can actually pay.
- * Tenths of a credit (invariant 5), so these are 25 Cr and 75 Cr.
+ * Tenths of a credit (invariant 8), so these are 25 Cr and 75 Cr.
  */
 export const OFFENDER_FINE = 250;
 export const FUGITIVE_FINE = 750;

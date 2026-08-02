@@ -4,8 +4,8 @@
 // the A/B flags that swap them, and the rule for who gets which were spread
 // across three parts of npc.ts a hundred lines apart — the consts at the top,
 // the flag helpers in the middle, and the actual choice buried inside a
-// 60-line branch of update(). Invariant 8 in CLAUDE.md documents which brain
-// ships for whom; this is now the file where that is true.
+// 60-line branch of update(). CLAUDE.md's Training section documents which
+// brain ships for whom; this is now the file where that is true.
 //
 // Loading is defensive on purpose: a brain whose shape does not match the
 // policy code returns null and the ship falls back to the scripted AI, rather
@@ -319,7 +319,7 @@ export interface BrainChoice {
 /**
  * The brain for a pirate of this tier, or null to fly the scripted AI.
  *
- * This is invariant 8's split, stated once: opportunists and professionals fly
+ * This is CLAUDE.md's Training split, stated once: opportunists and professionals fly
  * the solo brain, an organised gang flies the pack policy. Everything `sel`
  * does on top of that is an A/B override for playtesting — see BrainSelection.
  */

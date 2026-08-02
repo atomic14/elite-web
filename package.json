@@ -19,6 +19,7 @@
     "train": "node --experimental-strip-types --no-warnings train/evolve.ts",
     "evaluate": "node --experimental-strip-types --no-warnings train/evaluate.ts",
     "test": "node --experimental-strip-types --no-warnings test/run.ts",
+    "elite-a": "npm run generate:elite-a -- --check && node --experimental-strip-types --no-warnings test/elite-a.ts",
     "campaign": "node --experimental-strip-types --no-warnings test/campaign.ts",
     "survivability": "node --experimental-strip-types --no-warnings train/survivability.ts",
     "portability": "node tools/portability.test.mjs && node tools/portability.mjs",

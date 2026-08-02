@@ -156,7 +156,7 @@ console.log('\nliving galaxy');
 
 // The 1984 distance rule had grown three implementations — ui/screens.ts,
 // game/contracts.ts and a hand-inlined squared copy in game.ts galacticJump —
-// all correct, none the owner, kept in step by nothing. That is invariant 2's
+// all correct, none the owner, kept in step by nothing. That is invariant 5's
 // failure mode, and it bites harder here: test/campaign.ts validates the whole
 // economy against its own copy, so a drift would leave the balance harness
 // measuring a different game from the one that ships.

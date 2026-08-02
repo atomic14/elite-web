@@ -8,8 +8,11 @@ the non-commercial homage framing intact.
 
 This file is the **rules and the north star**. Where code lives is
 `docs/ARCHITECTURE.md`'s 30-second map, a complete one-line-per-file index. How
-we got here is `docs/DEVLOG.md` and `docs/TRAINING-LOG.md`. Nothing here needs
-re-arguing — if a rule looks wrong, say so and we will change it.
+we got here is `docs/DEVLOG.md` and `docs/TRAINING-LOG.md`. Which combat
+numbers are the released game's, which are a clean recreation and which are
+ours is `docs/ELITE-A.md`, and every way anything can be hurt is
+`docs/DAMAGE-PATHS.md`. Nothing here needs re-arguing — if a rule looks wrong,
+say so and we will change it.
 
 ## The north star
 
@@ -53,6 +56,11 @@ npm run sizes      # no file over 400 lines without a stated reason
 npm run coverage   # what the tests touch, and what they never touch
 npm run generate:elite-a   # regenerate src/game/elite-a from the vendored pack
                    # `-- --check` is the non-writing drift gate, part of `check`
+npm run elite-a    # THE ALIGNMENT GATE: the pack's hashes, the generated
+                   # catalogue, the 20,070 oracle rows, the live laser paths,
+                   # the identities, the roster and the geometry — under a
+                   # second. In CI as its own step; NOT in `check`, which
+                   # already runs every one of those assertions via `npm test`
 npm run train -- <attack|evade|pack|defend> [--gens N --pop N --out NAME ...]
 npm run evaluate   # held-out tournament
 npm run survivability # can a shielded commander survive a gang? (a BOT answer)
@@ -246,13 +254,18 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
 
 ## Style
 
-- **Tests are organised like `src/`.** One file per subsystem in `test/`
-  (`galaxy`, `economy`, `contracts`, `combat`, `gunnery`, `npc`, `flight`,
-  `world`, `world-step`, `state`, `snapshot`, `ai`, `combat-model`, `arena`,
-  `ui`, and four for the combat trainer). `test/run.ts` is a 59-line INDEX that
-  imports them and prints one total; `harness.ts` holds `check`, `fixtures.ts`
-  holds data two or more files need. Put a new test beside its subsystem, not in
-  the index.
+- **Tests are organised like `src/`.** One file per subsystem in `test/` —
+  the world (`galaxy`, `economy`, `contracts`, `trade`, `world`, `world-step`,
+  `station`, `game`, `state`, `snapshot`), the ships and being shot at
+  (`flight`, `geometry`, `npc`, `systems`, `combat`, `gunnery`,
+  `instrumentation`, `damage-paths`, four `elite-a-*`, `ship-identity`,
+  `ship-roles`, `role-variants`), the brains (`ai`, `combat-model`, `arena`),
+  the shell (`ui`, `hud-binding`, `audio`) and four for the combat trainer.
+  `test/run.ts` is an INDEX that imports them all and prints one total;
+  `test/elite-a.ts` is a second index over the alignment-critical subset, with
+  no assertions of its own. `harness.ts` holds `check`, `fixtures.ts` holds
+  data two or more files need. Put a new test beside its subsystem, not in an
+  index.
 - **Keep files small, and `npm run sizes` enforces it.** The soft ceiling is
   **400 lines**; anything above it must be named in the allowlist in
   `tools/sizes.mjs` **with a reason**, and the check fails on a new file growing

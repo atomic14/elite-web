@@ -105,7 +105,7 @@ export function spawnPopulation(
       .add(randomDirection(new THREE.Vector3()).multiplyScalar(14_000 + random() * 8000));
     generationShip = world.spawn('generation', pos, 0);
     // steerQuatToward, not lookAt: Object3D.lookAt aims +Z at its target and a
-    // hull's nose is -Z (invariant 4), so `lookAt(home)` pointed the derelict
+    // hull's nose is -Z (invariant 7), so `lookAt(home)` pointed the derelict
     // exactly AWAY from the station — dot(nose, bearing) = -1, measured. It has
     // been cruising away from the system it is drifting into since it shipped.
     steerQuatToward(generationShip.object.quaternion,
@@ -176,7 +176,7 @@ export function arenaCentre(world: World): THREE.Vector3 {
  * Which policy an opponent flies, in the only terms placement can express.
  *
  * `pirateBrainFor` (brains.ts) reads the threat tier and the `organised` flag,
- * and that flag is the one per-ship lever there is — invariant 8's split.
+ * and that flag is the one per-ship lever there is — CLAUDE.md's Training split.
  * Choosing a *named* brain per ship (r2 vs a generation attacker vs the
  * scripted baseline) is a global A/B flag today, so a caller that wants one
  * sets it around the exercise; there is no field on `NpcState` to put it in
@@ -337,7 +337,7 @@ export function spawnOpposition(
       //
       // steerQuatToward, NOT `object.lookAt(origin)`. Object3D.lookAt points
       // +Z at its target for anything that is not a camera, and a hull's nose
-      // is -Z (invariant 4, and `advance()` flies along -Z) — so lookAt spawns
+      // is -Z (invariant 7, and `advance()` flies along -Z) — so lookAt spawns
       // the whole gang flying away from you. Verified: the dot product of the
       // nose against the bearing to the player comes out at exactly -1.
       steerQuatToward(npc.object.quaternion, _face.copy(origin).sub(pos), Math.PI);

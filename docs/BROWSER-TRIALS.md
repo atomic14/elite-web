@@ -134,6 +134,75 @@ legible in the message queue at the moment of docking.
 
 ---
 
+## TODO 30 — what the phase's acceptance list adds
+
+TODO 29's list above covers threat, flight, time-to-kill, warnings, docking,
+old-and-new hulls and the Navy signposting. TODO 30 closes the whole Elite-A
+phase, and its acceptance list names five things the list above does not. Fly
+these as well.
+
+### 8. Every fitted laser against every KIND of target
+
+The outgoing direction, exhaustively — the oracle proves the arithmetic and the
+live suite proves the game runs it, but neither can tell you whether it READS.
+
+**Fly:** with a **pulse**, then a **beam**, then a **military** laser (the
+trainer's fit-out override gives you all three free), against one of each:
+
+| target | what to expect |
+| --- | --- |
+| a weak hull (Sidewinder, Worm) | dies fast; the shots-to-kill should feel like the trainer's count |
+| an armoured hull (Python, Anaconda) | visibly tougher, and the difference is its own defence rather than more hit points |
+| a regenerating hull | leave one alone for a minute and come back: an ordinary AI ship recovers one point a second, so a long fight is a fight it is healing through |
+| the **Constrictor** | a beam laser does **exactly zero**. That is the released rule, and the Navy now says so before you take the job |
+| a **station** (Coriolis, Dodo, rock hermit) | sparks and nothing else — and GalCop notices |
+
+**Report:** whether a laser that does nothing reads as "immune" rather than as
+a bug, and whether the ring sight agrees with what actually connected.
+
+### 9. Armed and unarmed NPCs, on both faces
+
+**Fly:** take hits from ahead and then deliberately from astern.
+
+**Expect:** the fore bar for the first and the aft bar for the second, with the
+energy bank only moving once the facing shield is flat. An **unarmed** trader
+should never take a point off you at all — the Shuttle, the Shuttle Mk II, the
+Transporter, the trader Anaconda and the trader Dragon all fly released builds
+whose laser bits are zero, and that is the source's answer, not a missing
+feature. (A trader **Adder** does 9 a hit, so pick the right one to test with.)
+
+### 10. Cargo, rocks, missiles and the two stations
+
+**Fly:** shoot a cargo canister (one hit, every laser), shoot an escape
+capsule, blast an asteroid, and take a missile without answering it. Dock at a
+Coriolis and at a Dodo.
+
+**Expect:** a canister breaks in one hit; a missile you do not E.C.M. flattens
+the shield it hits almost exactly; the Dodo's slot is upright, like the
+Coriolis's, and the roll you hold to fly it is the same.
+
+### 11. Save and restore, mid-fight
+
+**The one that matters most,** because it is invisible when it goes wrong.
+
+**Fly:** get into a real fight, let the world autosave (20 seconds), reload the
+tab, and carry on.
+
+**Expect:** the same ships, on the same hulls, with the same energy, in the
+same places. A ship that comes back the right SHAPE but the wrong BUILD is the
+failure this is looking for — the hull would look identical and it would take a
+different number of hits to kill.
+
+### 12. HUD, warnings, scanner labels and the report
+
+**Expect:** the shield and energy readouts move in visible steps (a 13-point
+hit on a 255-point face is 5%); CONDITION RED at 9,000 units; scanner labels
+name the recovered hulls correctly (a Bushmaster says Bushmaster); and the
+trainer's exported JSON names each opponent's `designId` and `profileId`
+beside its hull name, so the record still says what was flown.
+
+---
+
 ## What to send back
 
 The trainer's JSON export, plus one sentence per section on whether it was fun.

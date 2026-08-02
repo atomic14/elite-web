@@ -30,6 +30,28 @@ because retraining a phase overwrites its committed brain file.
 > `__game.state`, while old harness reads such as `__game.commander` remain
 > available. See `src/game/game-handles.ts` and `src/game/console.ts`.
 
+> **And one thing everything before 2026-08 predates: the damage scale.**
+> Entries up to and including Run 18 measure health in a normalized "fraction
+> of a Cobra" — a commander with 1.0 per shield and a bank of 4, a ship with
+> `hp`, a ram worth 0.45, an `ENERGY_PER_DAMAGE` of 2. **None of that exists.**
+> The commander now has three 255-point pools (fore shield, aft shield, energy
+> bank), a ship carries its exact released energy bank of 2 to 255 points, and
+> what a laser hit is worth is decoded from the released bytes rather than
+> rolled. See `docs/ELITE-A.md` and `docs/DAMAGE-PATHS.md`.
+>
+> So: **an hp figure, a damage figure or a shots-to-kill figure below is a
+> record of what was measured then, not a statement about the game now.** The
+> SHAPES still transfer — a turret is still a turret, imperfect pursuit is
+> still what the balance rests on — and the numbers do not. Entries are
+> appended and never edited, which is why this note is here instead of a
+> hundred corrections.
+>
+> Which brains ship is likewise not settled by any entry below: it is
+> `src/game/brains.ts`, and `npm test` reads that file rather than a list. As
+> of Run 19 they are `pirate-attack-g3` (pirates), `pirate-pack-r4-selectonly`
+> (organised gangs) and `jameson-defend-g1` (armed traders and the combat
+> computer).
+
 ## Infrastructure
 
 - **Environment**: `src/ai-training/scenario.ts` — episodes built from the
@@ -97,18 +119,20 @@ cone. Accuracy typically 60-80%.
 
 ## Artefacts
 
-- `src/ai-training/brains/*.json` — six brains, each with meta (fitness, date,
-  hyperparams): `pirate-attack`, `pirate-attack-r2` (shipped, pirates),
-  `trader-evade`, `trader-evade-r2`, `pirate-pack`, `jameson-defend`
-  (shipped, armed traders)
+- `src/ai-training/brains/*.json` — every brain ever trained, each with meta
+  (fitness, date, hyperparams). At the time of Run 2 that was six:
+  `pirate-attack`, `pirate-attack-r2`, `trader-evade`, `trader-evade-r2`,
+  `pirate-pack`, `jameson-defend`. **Which of them SHIP is `src/game/brains.ts`
+  and nowhere else** — see the note at the top of this file; the list here is
+  what existed when this entry was written.
 - `train/logs/*.jsonl` — per-generation best/mean/worst fitness curves
 - `train/logs/tournament-final.txt` — the held-out tournament table
 
 ## Watching the results
 
-`npm run dev` → http://localhost:5173/viewer.html — scenarios: shipped
-pirate (r2) vs trader · scripted pirate (old AI) · random policy (untrained
-baseline) · r2 vs trained evader · pack of 3 solo-brains vs armed trader ·
+`npm run dev` → http://localhost:5173/viewer — scenarios: the pirate of the
+day (r2 when this was written) vs trader · scripted pirate (old AI) · random
+policy (untrained baseline) · pirate vs trained evader · pack of 3 solo-brains vs armed trader ·
 pack-trained vs armed trader · Commander Jameson (defence AI) vs 2 pirates.
 Orbit/chase cameras, pause, 0.25×/1×/4× speed, auto-restart with a new seed.
 
@@ -118,14 +142,13 @@ Orbit/chase cameras, pause, 0.25×/1×/4× speed, auto-restart with a new seed.
   brains). **Superseded by Run 7**: that verdict was a trainer bug, not a
   property of pack policies. See the bottom of this file.
 - ✅ **League play** — Run 4 below (r2 pirate: 0% → 98% vs the evader).
-- ✅ **In-game integration** — pirates fly `pirate-attack-r2`, armed traders
-  fly `jameson-defend` (Run 5); toggle with `window.__scriptedPirates`.
-  The pack brain is wired into the game too (`window.__packBrain = true`
-  switches every pirate to the 18-input policy) but is **off by default**.
-  The toggle now loads Run 7's `pirate-pack-r4-selectonly`, which takes 100%
-  against all three test traders — the reason it isn't the default is no
-  longer that it's worse (it isn't), but that it is 4-7x faster to kill,
-  which is a balance decision. See Run 7.
+- ✅ **In-game integration** — pirates fly a trained attack brain and armed
+  traders a trained defence one (Run 5). *Written when that meant
+  `pirate-attack-r2` and `jameson-defend`, switched with
+  `window.__scriptedPirates`; both statements have since moved on twice — see
+  the two notes at the top of this file, and `src/game/brains.ts` for what
+  actually flies.* The pack brain was wired in at the same time and left off
+  by default; Run 8 shipped it to organised gangs.
 
 ## Run 3 — evaluation methodology (how we tell it works)
 
@@ -453,7 +476,7 @@ trained pirate hands back to the scripted break-off. Measured over 80 s of
 unnecessary.** See "Collision round" at the end of this file.
 
 **The original plan was a collision model in `ai-training/core.ts` plus a retrain.** That
-is a sim/game parity issue (CLAUDE.md invariant 2) and the shipped brains
+is a sim/game parity issue (CLAUDE.md invariant 5) and the shipped brains
 were all fitted without it, so every one of them would need re-validating
 through the tournament. Worth doing as its own round: it would let the
 policies learn deflection and break-off themselves rather than having the
@@ -607,7 +630,7 @@ manoeuvring so both shields work soaks **4.0**, against the sim trader's 1.0.
 
 The tournament defender is roughly a third as durable as the commander flying
 it. That is correct for *training* — shields would have to exist in both the
-sim and the game to hold invariant 2, and every brain was fitted without them
+sim and the game to hold invariant 5, and every brain was fitted without them
 — but it is the wrong number to make a balance decision from.
 
 `train/survivability.ts` leaves the sim alone and corrects only the defender's
@@ -1410,7 +1433,7 @@ Two changes, neither of them to the network:
 
 - `ShipClass.minSpeed` — pirate hulls cannot throttle below ~43% of top speed
   (110 of 260, 130 of 300), mirrored in `npc.ts` as `MIN_CRUISE_FRACTION`
-  (invariant 2). The turret is no longer in the search space.
+  (invariant 5). The turret is no longer in the search space.
 - `Episode.tailTime` — fitness pays 0.6 per second spent **on the target's
   six**: astern of it (`forward(target) · dir > 0.35`) and lined up on it
   (`forward(pirate) · dir > 0.9`). Asking for the threatening manoeuvre
@@ -1461,7 +1484,7 @@ and `game/rng.ts`, stepped at the game's own `FIXED_DT`.
 Every entry above is measured in a copy of the game's physics — 450 lines with
 its own vector and quaternion maths, its own PRNG, a `CLASSES` table mirroring
 ship-specs.ts, `LASER`/`NPC_GUN` mirroring gunnery.ts, `COLLISION` mirroring
-collisions.ts and a `stepShip` mirroring player.ts and npc.ts. Invariant 2
+collisions.ts and a `stepShip` mirroring player.ts and npc.ts. Invariant 5
 existed solely to police it, and the record of that policing is in this file:
 
 | drift | cost |

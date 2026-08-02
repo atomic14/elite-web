@@ -67,7 +67,7 @@ export type BrainId =
 /**
  * The brains the live game flies, stated once.
  *
- * CLAUDE.md invariant 8 in id form. These MUST agree with the imports in
+ * CLAUDE.md's Training section in id form. These MUST agree with the imports in
  * brains.ts — that is the pairing, and `npm test` asserts it by reading
  * brains.ts, because a report that says "g3" while the game flew something else
  * is worse than no report.
@@ -270,10 +270,13 @@ export const SCENARIOS: readonly Scenario[] = [
   {
     id: 'lone-hunter',
     name: 'Lone bounty hunter',
-    blurb: 'One Fer-de-Lance or Asp, and it came for you.',
+    blurb: 'One bounty hunter, and it came for you.',
     tiered: false,
-    // The roster's `hunter` list is exactly those two hulls, so the seed picks
-    // which one turned up and no hull is named here.
+    // No hull is named here: the seed picks one out of the roster's `hunter`
+    // list, which TODO 25 widened from two (Fer-de-Lance, Asp Mk II) to nine
+    // when the recovered designs arrived — and TODO 29 dropped the Asp Mk II
+    // from it entirely, because no released build of it can hurt a flyable
+    // hull. Naming the hulls in the blurb is how that went stale once already.
     groups: [{ role: 'hunter', count: 1, tier: 1 }],
   },
   {

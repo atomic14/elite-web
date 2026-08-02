@@ -181,7 +181,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     //
     // The GAME's rule, not a transcription of it. This was a hand-written
     // filter that resembled game.ts's settleContracts and drifted from it in
-    // the details — which is the whole failure mode invariant 7 exists to stop,
+    // the details — which is the whole failure mode invariant 10 exists to stop,
     // in the very harness that is supposed to be checking the shipped balance.
     for (const e of settleContracts(c)) {
       if (e.kind === 'paid') contractsDone += 1;
@@ -294,6 +294,23 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       if (c.contracts.length >= MAX_CONTRACTS) break;
       // a hunter takes bounty work and leaves the freight to traders
       if (strategy === 'hunter' && k.kind !== 'bounty') continue;
+      // ONE BOUNTY JOB AT A TIME, and this is the bot's policy rather than a
+      // rule of the game. A cargo or courier run is settled by ARRIVING, so
+      // three of them to three nearby systems are three jobs a commander can
+      // genuinely service on one circuit. A bounty is not: `settleContracts`
+      // only counts kills made in the job's OWN destination system, so holding
+      // a second one means a second deadline running down in a system the ship
+      // is not in. Taking three meant two of them could not be worked at all.
+      //
+      // Measured on 20 commanders x 60 legs, cohort `hunter`: 5.5 completed
+      // against 9.4 failed. All 188 expirations were bounty jobs — 29 whose
+      // destination was never reached at all, 134 reached but still short of
+      // the count when the deadline passed, and 25 that filled the count only
+      // after it had. With one job at a time it is 6.0 completed to 2.5 failed,
+      // and the trader and privateer cohorts move by less than a job either
+      // way. Nothing in `game/contracts.ts` changed; this is the simulated
+      // commander no longer accepting work she has no way to do.
+      if (k.kind === 'bounty' && c.contracts.some((h) => h.kind === 'bounty')) continue;
       // a privateer takes anything: freight pays, and it doubles as bait
       const reach = chartDistanceTenths(here, systems[k.destination]);
       if (reach > MAX_FUEL) continue; // could never get there

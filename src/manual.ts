@@ -1,7 +1,7 @@
 // The manual page's only script: render the control tables from the game's
 // own keymap.
 //
-// CLAUDE.md invariant 6 lists four places key bindings live and asks for them
+// CLAUDE.md invariant 9 lists four places key bindings live and asks for them
 // to be changed together. A hand-written table here would have made five, and
 // the fifth is the one nobody remembers — a page you read once and never open
 // again while developing. So it is generated from `allLayouts()`: change a

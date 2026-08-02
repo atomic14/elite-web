@@ -141,7 +141,7 @@ console.log('\none combat model (the trainer flies the game)');
 
   // 4. The speed floor, as BEHAVIOUR rather than as two constants agreeing.
   //
-  // It is invariant 8's load-bearing rule — a fighter that can stop dead
+  // It is the load-bearing rule of "threat is not fun" — a fighter that can stop dead
   // becomes a turret — and it used to be checked by comparing a `minSpeed`
   // field in the simulator against MIN_CRUISE_FRACTION here. Now it is checked
   // by asking a ship to stop and watching it refuse.

@@ -1,4 +1,4 @@
-// What do 879 tests actually cover?
+// What do the tests actually cover?
 //
 // Zero dependencies: node dumps raw V8 coverage when NODE_V8_COVERAGE is set, so
 // this runs the suite that way and summarises it. The bespoke `check()` runner

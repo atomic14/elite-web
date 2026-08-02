@@ -32,7 +32,7 @@ import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
  * Hostiles cannot throttle below this fraction of their top speed.
  *
  * A fighter that can stop dead becomes a turret, because standing still is how
- * you hold a firing line — see CLAUDE.md invariant 8. Only hostiles get it;
+ * you hold a firing line — see CLAUDE.md's "threat is not fun". Only hostiles get it;
  * traders and haulers are allowed to come to rest.
  */
 export const MIN_CRUISE_FRACTION = 0.43;
@@ -757,7 +757,7 @@ export class NpcShip {
    * a training episode wants — it is scoring a candidate genome. So the
    * scenario drives this directly with the genome and its own target, and
    * there is exactly one implementation of "how a brain-flown ship moves"
-   * rather than the two that invariant 2 used to police.
+   * rather than the two that invariant 5 used to police.
    */
   brainFly(
     brain: Brain,

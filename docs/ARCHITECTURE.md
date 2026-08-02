@@ -6,14 +6,19 @@ Chris's, and it is better than "is this module leaky?" because it has an
 answer rather than an opinion: **if we wanted a desktop build with the same
 core engine, could we do it?**
 
-`npm run portability` answers it. Today:
+`npm run portability` answers it. Run it — these are the shape, not a
+guarantee, and they move with every file added (2026-08-02):
 
 ```
-ports unchanged     14165 lines   67%   the reusable rules and simulation
-platform             7039 lines   33%   composition root, renderer, HUD,
+ports unchanged     19017 lines   72%   the reusable rules and simulation
+platform             7327 lines   28%   composition root, renderer, HUD,
                                         screens, input, audio and storage
 contaminated            0 lines    0%   no core runtime path reaches platform
 ```
+
+The portable share GREW through the Elite-A phase rather than shrinking: the
+generated catalogue, the combat oracle, the identities and the roster are all
+pure data and pure rules, so they land on the left-hand side.
 
 The third number is the one to drive down. The gate now follows relative
 runtime imports transitively (while ignoring erased type-only edges), so the
@@ -42,7 +47,7 @@ Everything else is a consequence, and each consequence is testable:
 | the world builds without a browser | training against the real step | **done** — `World.build()` runs under node |
 | ...and STEPS without one | the trainer can use the real engine | **done** — `world-step.ts`, stepped headless by `npm test` |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 1293 tests, no browser | done |
+| every rule is unit-testable headless | 1,767 assertions, no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
@@ -88,7 +93,7 @@ an NPC's does not.
 
 ### Known gaps against it
 
-- `game.ts` is 1625 lines, down from 3244. It is the orchestrator, and what
+- `game.ts` is 1722 lines, down from 3244. It is the orchestrator, and what
   is left is mostly orchestration: the fixed-timestep loop, the command
   switch, the docked/flight mode machine, and the consequences the modules
   report. The
@@ -119,7 +124,7 @@ an NPC's does not.
   verbs rather than richer return values — `populateSystem`, the Navy mission
   step and the market roll all draw. Messages draw nothing, so messages are
   events.
-- `npc.ts` is 786 lines and holds behaviour and brain flight. The explosions,
+- `npc.ts` is 1051 lines and holds behaviour and brain flight. The explosions,
   the ship roster and the brain selection have moved to `effects.ts`,
   `ship-specs.ts` and `brains.ts`.
 - State is now `Game.state` (`state.ts`) — one object holding the galaxy, the
@@ -163,9 +168,12 @@ that needs a paragraph here to make sense is a file with the wrong name, and
 the fix belongs there rather than in this document.
 
 ```
-play.html / index.html / viewer.html   the game, the landing page, the AI viewer
+play.html                 the game — and the ? help panel, hand-maintained
+index.html                the landing page: no game bundle
+viewer.html               the AI combat viewer
+manual.html / novella.html   the long-form text pages
 src/
-  main.ts                   boot: new Game(canvas)
+  main.ts                   boot: new Game((scene) => browserShell(canvas, scene))
   player.ts                 the player's flight model — flies a FlightDemand,
                             and has never heard of a keyboard
 
@@ -184,6 +192,16 @@ src/
     persistence.ts          that JSON taken from a running world, and put back
     rng.ts                  THE seeded generator. Math.random is banned in
                             world code and npm test enforces it
+    console.ts              the ONLY file allowed to touch globalThis: it
+                            publishes __game, __policyKit and __simLog and
+                            reads nothing back
+    game-handles.ts         the read-only console view those handles expose
+    views.ts                the four cockpit windows, and which way each faces
+    chart-state.ts          where the chart cursor is, and what is targeted —
+                            saved state, so it is a field of GameState
+    sounds.ts               what a rule module asks to be HEARD, without
+                            knowing how a sound is made
+    instrumentation.ts      optional outside-in observation of a live game
 
     world.ts                the sky: the ships, the cargo, the effects, the scenery
     spawning.ts             putting a population plan into the sky
@@ -238,10 +256,14 @@ src/
                             its own StepHost
     combat-sim-scenarios.ts who it sends at you, and when it stops sending
     combat-sim-report.ts    what happened, counted — and the JSON that exports
+    combat-sim-safety.ts    the three layers of "nothing that happens in the
+                            simulator leaves it"
 
     law.ts                  contraband, fines, and how far your standing falls
     contracts.ts            work on offer, taking it, being paid for it,
-                            market pressure, hermit prices, pirate economics
+                            market pressure and hermit prices
+    threat.ts               who is worth robbing: what a pirate can SEE, the
+                            tier it brings, and whether it organised
     missions.ts             the Navy Constrictor arc (NOT the bulletin board)
     commander.ts            who you are: stats, cargo, rank — PURE, no browser
     shop.ts                 what things cost and what you may fit
@@ -289,6 +311,12 @@ src/
   ui/screens.ts             full-page DOM screens: market, charts, equip, status
   ui/screen-host.ts         the screen stack, and click-to-keystroke routing
 
+  engine/shell.ts           THE PLATFORM SEAM: everything the game needs from
+                            the machine it runs on, in seven members
+  engine/browser-shell.ts   that seam, against a browser — every DOM and
+                            window API the game uses is in this one file
+  engine/inert-dom.ts       a DOM element that accepts every write and does
+                            none of them, so a painter with no DOM is inert
   engine/render-stack.ts    the ONLY file that needs a GPU
   engine/input.ts           keyboard state (held/pressed/counts)
   engine/flight-controls.ts what the hands are asking for: keys -> FlightDemand
@@ -301,7 +329,11 @@ src/
                             not sourceGeometryToWorld — and why
   ships/registry.ts         design id -> hull, name and target radius; the only
                             way in
-  world/                    per-system scenery: shader sun and planet, station
+  world/system-scene.ts     per-system scenery, assembled from the seed
+  world/sun.ts              the shader star; world/planet.ts the shader planet
+  world/corona-texture.ts   the sun's optional corona, the one canvas here
+  world/starfield.ts        distant stars, far enough out to have no parallax
+  world/slot.ts             which way the station's docking slot faces
 
   ai-training/              neural policies + the scenarios they train in
     policy.ts               tiny MLP: observation -> discrete controls
@@ -325,6 +357,9 @@ test/elite-a-live-defence.test.ts
                             the LIVE incoming path over all 3,900 NPC-to-player
                             rows, and the diagnostic that stays test-only
 test/run.ts                 the index: imports them all, one total (npm test)
+test/elite-a.ts             the SECOND index: the Elite-A alignment gate
+                            (npm run elite-a) — the same files, named as one
+                            claim, with no assertion of its own
 test/harness.ts             check/eq and the counters
 test/fixtures.ts            data two or more test files share
 test/combat-sim.test.ts     the training simulator's screen, keys and draft
@@ -334,6 +369,10 @@ test/fixtures/elite-a/      the 15,600 / 3,900 / 570 combat-oracle rows —
                             generated, and never imported by src/
 train/evolve.ts             neuroevolution trainer
 train/evaluate.ts           held-out tournament — the validation gate
+train/flight-probe.ts       is it flying, or is it a turret? the SHAPE of a
+                            brain's fight, not its score
+train/jameson-autopilot.js  the browser-console economy harness behind
+                            docs/JAMESON-TRIALS.md
 train/profile-sweep.ts      the catalogue rather than the policies: all 15
                             flyable hulls as the target, all 38 designs'
                             recommended profiles, non-combat objects excluded
@@ -345,13 +384,27 @@ tools/import-elite-a.mjs    npm run generate:elite-a — reads the vendored pack
                             is the CI drift gate
 tools/elite-a/              build (what the game learns), fixtures (what the
                             tests read), emit (what it looks like on disk)
+tools/portability.mjs       npm run portability — how much of src would move
+tools/sizes.mjs             npm run sizes — the 400-line ceiling and its
+                            allowlist, each entry with a stated reason
+tools/coverage.mjs          npm run coverage — what the tests never touch
 reference/elite-a/          the vendored pack, verbatim, plus its manifest
 docs/                       you are here
+docs/ELITE-A.md             the reference catalogue: its provenance hash, the
+                            three ids, the geometry chain, the save schema,
+                            what is EXACT vs recreated vs ours, what is
+                            deferred, and what a future shipyard must do
 docs/DAMAGE-PATHS.md        EVERY way anything can be hurt: source, target,
                             unit, owner, and whether the number is the released
                             game's or ours. Held to the code by
                             test/damage-paths.test.ts — start there before
                             touching a damage number.
+docs/COMBAT-SIM.md          the docked combat trainer's spec, and the one rule
+                            it exists to keep: nothing that happens in it leaves
+docs/BROWSER-TRIALS.md      the measurements a bot cannot take — what to fly,
+                            and what to send back
+docs/GAP-ANALYSIS.md        feature parity with 1984, and every deliberate
+                            deviation from it
 ```
 
 ## The five ideas that explain most of the code
@@ -454,8 +507,10 @@ Two intentional oddities inside it:
 `game/npc.ts` has a behaviour matrix (traders arrive/trade/depart, pirates
 hunt in packs, police enforce, hunters stalk offenders, Thargons swarm).
 Two roles fly with **trained neural policies** instead of the scripted
-steering: pirates attacking the player (`pirate-attack-r2` brain) and armed
-traders defending themselves (`jameson-defend` brain). `brainFly()` runs the
+steering: pirates attacking the player (`pirate-attack-g3`, and
+`pirate-pack-r4-selectonly` for an organised gang) and armed traders defending
+themselves (`jameson-defend-g1`). `game/brains.ts` is where that pairing is
+stated, and `npm test` reads that file rather than a list. `brainFly()` runs the
 MLP at 10 Hz and integrates its discrete keyboard-style controls with the same
 ramp the player's ship uses. It is public, because a training episode flies a
 candidate genome through it — one flight model, one place. Set
@@ -487,14 +542,15 @@ them position/orientation invariant.
 
 ### 6. Pirates are businesses, not a difficulty slider
 
-`pirateThreat()` in `game/contracts.ts` decides your reception from a **mark**
+`pirateThreat()` in `game/threat.ts` decides your reception from a **mark**
 — what a pirate can observe (cargo value, contraband, hold size, fitted laser,
 kills, regional notoriety). It returns a count, a *tier* and whether they're *organised* (which flies the
 coordinated pack brain). The tier describes the *group*, not every ship in it:
 `memberTier()` gives the first one or two members the full tier and drops the
-rest a rung, so a gang is ringleaders plus hangers-on. npc.ts owns the hulls
-(`pirateSpecForTier`), contracts.ts owns the rule — so the campaign simulator
-resolves each attacker at the strength the game actually spawns. Two rules keep it from rubber-banding: only visible
+rest a rung, so a gang is ringleaders plus hangers-on. `ship-specs.ts` owns the
+hulls (`pirateSpecForTier`), `threat.ts` owns the rule — so the campaign
+simulator resolves each attacker at the strength the game actually spawns. Two
+rules keep it from rubber-banding: only visible
 things count — never credits in the bank — and threat grows sub-linearly with
 the prize, so the player outgrows the galaxy slowly rather than never.
 
@@ -504,7 +560,7 @@ receptions are an organised group who came for the name. Folding fame straight
 into the tier instead made 99% of late-game receptions gangs, which erased the
 ladder — it has to roll, not accumulate.
 
-Because it lives in contracts.ts, `npm run campaign` scores the same function
+Because it lives in threat.ts, `npm run campaign` scores the same function
 the game uses; it reports the tier mix and whether threat actually tracks
 wealth. The escape valve is `jettisonCargo()`: pirates came for cargo, so
 dumping enough of it satisfies them (`NpcShip.satisfied`, which
@@ -558,8 +614,10 @@ ships.
   mutation noise comes from a seeded RNG, so a full training rerun produces
   byte-identical weights on the same CLI args (verified: two runs, same
   generation curve, same brain).
-- The **help panel** (`?` in-game) is hand-maintained in index.html — update
-  it when you touch key bindings, along with the README table.
+- The **help panel** (`?` in-game) is hand-maintained in **play.html** —
+  update it when you touch key bindings, along with the README table,
+  `engine/keymap.ts` and `BINDINGS` in `game/controls.ts`. Four homes, and
+  they change together.
 
 ## Where to start reading, in order
 

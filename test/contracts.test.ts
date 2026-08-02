@@ -33,7 +33,7 @@ import { check, eq } from './harness.ts';
 // the rules that decide whether a job pays had NO tests at all — and
 // test/campaign.ts, the harness the project quotes its balance figures from,
 // carried its own transcription of the settlement rather than calling them.
-// That is the exact arrangement CLAUDE.md's invariant 7 forbids. They are in
+// That is the exact arrangement CLAUDE.md's invariant 10 forbids. They are in
 // contracts.ts now, and this is the coverage that was missing.
 
 console.log('\ncontracts');

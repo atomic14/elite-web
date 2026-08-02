@@ -9,7 +9,7 @@
 //                                           nearest system in the new galaxy
 //
 // Byte-identical today, kept so by nothing. That is the same failure mode as
-// invariant 2, and it matters more here than it looks: `test/campaign.ts`
+// invariant 5, and it matters more here than it looks: `test/campaign.ts`
 // validates the whole economy against its own copy, so a drift would leave the
 // balance harness silently measuring a different game from the one shipped.
 //

@@ -31,6 +31,16 @@ jobs:
       - name: Invariant + simulation tests
         run: npm test
 
+      # The Elite-A alignment gate. Every assertion it runs is already inside
+      # `npm test`, and the pack's hash-and-drift check is already inside
+      # `npm run check` — so this is not extra coverage, it is a NAME. When the
+      # vendored pack, the generated catalogue, the ship identities or the live
+      # damage model drift apart, this check goes red and says which, instead of
+      # a subsystem failure scrolling past inside a 1,700-line test run. Under a
+      # second, so it is cheap to keep.
+      - name: Elite-A alignment gate
+        run: npm run elite-a
+
       # Repeats lint/test via prebuild — cheap, and proves the exact command
       # Cloudflare runs is green, which is what actually gates the deploy.
       - name: Build (as Cloudflare runs it)

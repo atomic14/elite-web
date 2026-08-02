@@ -26,6 +26,10 @@ Each run prints per-generation `best / mean / scripted-ref` fitness, appends
 a JSONL curve to `train/logs/`, and writes the winning brain to
 `src/ai-training/brains/<name>.json` (with its hyperparameters and score in `meta`).
 
+> **Always pass `--validate-select`.** Without it the final brain is chosen by
+> comparing scores across generations that used different episode seeds, which
+> picks the luckiest generation rather than the best genome.
+>
 > **Footgun warning:** training OVERWRITES the committed brain files, and the
 > game imports them at build time — `git checkout src/ai-training/brains` to restore
 > the shipped ones. Which brains the game flies is decided in
@@ -40,7 +44,7 @@ a JSONL curve to `train/logs/`, and writes the winning brain to
 | `evade` | an unarmed trader | trained pirate | `npm run train -- evade --gens 400 --pop 64 --eps 3` |
 | league r2 | pirate v2 | trained evader | `npm run train -- attack --opponent trader-evade --seed-brain pirate-attack --out pirate-attack-r2 --gens 300 --pop 48` |
 | `pack` | 3 shared-brain pirates | armed scripted trader | `npm run train -- pack --gens 300 --pop 48` |
-| `defend` | an ARMED trader ("Jameson") | 2× pirate-attack-r2 | `npm run train -- defend --gens 300 --pop 48` |
+| `defend` | an ARMED trader ("Jameson") | 2× `pirate-attack-r2` (the default; `--opponent` overrides it, and the SHIPPED pirate is `pirate-attack-g3`) | `npm run train -- defend --gens 300 --pop 48` |
 
 Flags: `--gens --pop --eps --elites` (numbers), `--opponent <brain-name>`
 (loads `src/ai-training/brains/<name>.json` as the frozen opponent),
@@ -81,8 +85,12 @@ demanding exact equality there.
    picks the widest encoder the brain has inputs for.
 4. `npm run build` bundles the JSON weights (~40 KB each).
 
-In-game A/B: `window.__scriptedPirates = true` reverts every ship to the
-scripted AI at runtime.
+In-game A/B: brain selection is STATE, not a global — `state.brains`
+(`BrainSelection` in `src/game/brains.ts`). From a console go through the one
+documented handle: `__game.state.brains.scripted = true` reverts every ship to
+the scripted AI, and `legacy` / `sharp` / `engine` / `pack` swap in the
+unshipped candidates. It is in the snapshot, so a reload keeps flying what you
+chose.
 
 ## The Jameson autopilot (end-to-end economy test)
 

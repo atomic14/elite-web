@@ -36,7 +36,7 @@ The satisfying part is that it's *verifiable*. Galaxy 1, system 7 must be
 
 Diso, Leesti, Riedquat, Zaonce, Reorte — all present, all in the right
 places. Forty-two years later, the same three numbers still produce the
-same galaxy. That check became invariant #1 in the project's CLAUDE.md and
+same galaxy. That check became invariant 4 in the project's CLAUDE.md and
 has been re-run after every risky change since.
 
 ## 3. Wireframes that occlude
@@ -53,7 +53,7 @@ own rear surfaces.
 That change had a non-obvious consequence. The renderer had been using a
 logarithmic depth buffer (sensible, given a sun 320,000 units away and
 wireframes 30 units away). Log depth writes `gl_FragDepth`, which
-**disables polygon offset**. So: no log depth buffer. It's invariant #3
+**disables polygon offset**. So: no log depth buffer. It's invariant 6
 now, because it's the kind of thing that silently un-fixes itself.
 
 ## 4. Planets: the deliberate anachronism
@@ -107,7 +107,10 @@ The architecture:
 
 - `src/ai-training/core.ts` — a **render-free copy of the combat physics**, own
   vector/quaternion maths, no three.js. Node runs it flat out; the browser
-  viewer replays identical episodes.
+  viewer replays identical episodes. *(Deleted at Run 17: the copy drifted
+  from the game three times, each costing a training round. Episodes now step
+  the real `NpcShip`, `PlayerShip`, `gunnery.ts` and `collisions.ts` — see
+  chapter 13.)*
 - `src/ai-training/policy.ts` — a **1,899-parameter MLP** (14 → 32 → 32 → 11) whose
   observation is entirely in the ship's own frame, and whose outputs are
   the *same discrete keyboard controls a human gets*: pitch ±/0, roll ±/0,
@@ -160,8 +163,9 @@ This deserves its own note, because it's the part that's easy to skip.
 
 One league round (seeded from the r1 champion, trained against the evader)
 produced a pirate that beats the evader **98%** of the time while still
-taking scripted traders 90%. That brain now flies every pirate in the game,
-because human players fly evasively.
+taking scripted traders 90%. That brain flew every pirate in the game for the
+next several rounds, because human players fly evasively. *(It is
+`pirate-attack-g3` now — `src/game/brains.ts` is where that is stated.)*
 
 The pack phase is the honest failure. Three ships sharing one policy with
 packmate observations and a shared reward hit the training target (25.04,
@@ -208,8 +212,11 @@ two of the shipped pirates.
 | **trained "Jameson" policy** | **10%** | 41.9s / 45s | **1%** |
 
 Evasion-first flying that makes it nearly unhittable, with opportunistic
-return fire. It now flies every armed trader in the game — attack a Python
-and you're fighting a 90%-survival commander.
+return fire. It went on to fly every armed trader in the game — attack a
+Python and you're fighting a commander that fights back. *(The shipped
+defence brain is `jameson-defend-g1` now, and the 90% was measured in the
+deleted simulator on the retired damage scale; `docs/TRAINING-LOG.md`'s
+header says why no figure from before 2026-08 transfers.)*
 
 **MkIV**, running the trade autopilot with that brain at the stick during
 combat: **100 → 461.5 credits in six legs, five kills, two witch-space
@@ -266,6 +273,10 @@ default and a modern WASD alternative one keypress away.
 And both sides of every dogfight run on neural networks that taught
 themselves to fly, in a simulator built from the game's own physics, using
 nothing but the keys you have.
+
+*(Two chapters on, both halves of that paragraph have moved: there are 38
+hulls, not 21, and there is no simulator — the brains train ON the game. See
+chapters 11 and 13.)*
 
 *Right on, Commander.*
 
@@ -482,8 +493,8 @@ self-play collapse: the r2 evader is so good at running away that the
 fitness landscape rewarded closing behaviour that scores points without ever
 landing a shot. The number went up and the ship got worse.
 
-Both r3 brains are committed, unshipped, purely as evidence. The game still
-flies r2. The evaluation harness caught this in one command — which is, for
+Both r3 brains are committed, unshipped, purely as evidence. The game flew r2
+at the time; it flies `pirate-attack-g3` now. The evaluation harness caught this in one command — which is, for
 the third time in this project, the actual lesson: **training fitness is a
 proxy, and proxies lie.** The held-out tournament is the product.
 
@@ -502,3 +513,70 @@ proxy, and proxies lie.** The held-out tournament is the product.
   evidence because it imports the same `contracts.ts` the game does.
 - **Publish the refutations.** Round 3 is two failures and no shipped
   artefact, and it's the most informative run in the log.
+
+## 13. The ships stop being approximations
+
+Everything before this chapter was a *reconstruction*. The hulls were
+hand-written vertex/edge/face tables in the style of the original data, the
+damage model was a normalized "fraction of a Cobra" invented to make fights
+feel right, and both were defensible: neither the ship files nor the combat
+arithmetic were to hand.
+
+Then they were. An analysis pack of the released Elite-A ship data — 15
+flyable player hulls, 38 designs with their exact geometry, 23 blueprint sets,
+260 exact variants, 713 slot assignments, and 20,070 tabulated hit rows —
+became available, and ten commits replaced the reconstruction with it.
+
+The full account is [docs/ELITE-A.md](ELITE-A.md). What is worth recording
+here is the shape of the work, because it is the same shape as the sim-core
+deletion in chapter 6.
+
+**Vendor it, hash it, generate from it.** The pack lives in
+`reference/elite-a/source`, verbatim, with every file's SHA-256 pinned by hand
+in the importer. Nothing in `src/` may read it; `npm run generate:elite-a`
+turns it into six generated modules and three test fixtures, and
+`-- --check` fails the build if any of them has drifted. A pack that hashes
+differently stops the importer rather than quietly becoming the new truth.
+
+**Separate the rule from the data, and then check the rule against every row.**
+`elite-a/combat-math.ts` is pure — it imports *nothing at all* — and holds the
+arithmetic: `(byte & 0x7f) >> 1` for a player laser, `maxEnergy & 7` for a
+target's defence, `laserPower << 2` for an NPC's. `catalogue.ts` holds the
+numbers and no arithmetic. Then the exhaustive part: all 15,600 player-to-NPC
+rows, all 3,900 NPC-to-player rows and all 570 summaries are reproduced by the
+oracle — **and reproduced a second time through the live game**, by a separate
+suite that is forbidden from calling the oracle for a number it is checking.
+Two independent claims, 40,000 rows apart.
+
+**Three ids, because three things move independently.** Which hull the
+commander is in, which design is on screen, and which exact released *build* of
+that design an NPC is. Saves carry the id and never the record. That is what
+makes a future shipyard a state change rather than another data extraction.
+
+**Say which numbers are not theirs.** The pack tabulates registered laser hits
+and nothing else — it is silent on a ram, a canister, a station wall, a missile
+warhead and the energy bomb. Those five are ours, they live in one file
+(`impact-damage.ts`), and `docs/DAMAGE-PATHS.md` is the inventory that says so
+row by row. The two Harmless-only ships, the rock hermit and the derelict
+generation ship, carry `harmless:` ids for the same reason: they must never be
+presented as recovered source data.
+
+### What this chapter taught
+
+- **A provenance hash is a rule, not a comment.** The importer refusing to run
+  is what stops "the same data" degrading into "the file with that name".
+- **An exhaustive check is cheaper than a representative one.** Twenty thousand
+  rows cost less to write than choosing which twenty to trust, and they found
+  the cases nobody would have chosen — the Constrictor halving *before*
+  defence, a Coriolis carrying six missiles and no laser, a Dragon whose seven
+  points of defence eat an Adder's entire pulse hit.
+- **Two units, both real, no adapter.** The project ran three damage scales at
+  once and two conversion functions between them; correct rules sat beside them
+  and looked fine. There are two now — a ship's energy bank and the commander's
+  pools — both whole numbers on the released byte scale, both branded so one
+  cannot be spent as the other, and a test that names every deleted bridge and
+  fails if one comes back.
+- **Exact data invalidates trained brains, on purpose.** One combat model means
+  the trainer flies the real game, so changing what a laser is worth changed
+  the training world too. That is the trade chapter 6 bought, and this is the
+  first time the bill arrived.

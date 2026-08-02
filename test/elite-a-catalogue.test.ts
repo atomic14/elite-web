@@ -120,6 +120,23 @@ eq('the Dragon has no whole-number radius, so it is derived',
   Math.round(eliteATargetRadius(eliteADesign(29)) * 1000) / 1000, 161.839);
 eq('...and the Coriolis station does have one',
   eliteATargetRadius(eliteADesign(1)), 160);
+// The stored whole-number radius and the stored AREA are two columns of the
+// same fact, and only one of them is what the game shoots at. Nothing else
+// compares them, so a re-import that emitted a radius for the wrong design
+// would look fine everywhere: every hull would still build, every ray test
+// would still pass, and the ship would simply be the wrong size.
+{
+  const wrong = ELITE_A_DESIGNS.filter((d) => {
+    const r = eliteATargetRadius(d);
+    return !Number.isFinite(r) || r <= 0 || Math.abs(r * r - d.targetableArea) > 1e-9;
+  });
+  eq('every design\'s target radius is positive and squares back to its area',
+    wrong.map((d) => d.shipName).join(', '), '');
+  eq('...30 of them stored whole, 8 derived',
+    `${ELITE_A_DESIGNS.filter((d) => d.targetableRadiusSourceUnits !== null).length}/`
+    + `${ELITE_A_DESIGNS.filter((d) => d.targetableRadiusSourceUnits === null).length}`,
+    '30/8');
+}
 
 // --- classification, solved from the oracle ---------------------------------
 

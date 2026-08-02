@@ -12,7 +12,7 @@
 // and quaternion maths, its own PRNG, a `CLASSES` table mirroring
 // ship-specs.ts, `LASER`/`NPC_GUN` mirroring gunnery.ts, `COLLISION` mirroring
 // collisions.ts and a `stepShip` mirroring player.ts and npc.ts — about 450
-// lines of the game, written again, kept in step by hand under invariant 2.
+// lines of the game, written again, kept in step by hand under invariant 5.
 // It cost six training rounds to an NPC gun firing 5.4x too fast, a player
 // model accelerating at 120 against the real 220, and a turn decay that
 // differed by 35% between the two at their respective step rates. Every one of

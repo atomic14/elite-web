@@ -479,7 +479,7 @@ export class CombatSim {
       hull: sh.spec,
       tier: sh.tier,
       // The one per-ship lever there is: an organised gang flies the pack
-      // policy, everyone else the solo one (invariant 8, via brains.ts).
+      // policy, everyone else the solo one (CLAUDE.md's Training split, via brains.ts).
       brain: sh.organised ? 'pack' : 'solo',
       // Police and bounty hunters attack a clean commander only if provoked
       // (`isHostileToPlayer`), and an authored interdiction says it was.

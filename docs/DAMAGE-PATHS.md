@@ -3,6 +3,9 @@
 Every way anything in HARMLESS can be hurt, what unit it is spent in, who owns
 the number, and whether the number is the released game's or ours.
 
+Where the released numbers come from, and what the ids and the save schema look
+like, is [ELITE-A.md](ELITE-A.md); this file is the inventory.
+
 It exists because the alternative is unanswerable. Before TODO 28 the project
 ran **three** damage scales at once — a ship's released energy bank, the
 commander's 255-point pools, and a pre-parity normalized "fraction of a Cobra"

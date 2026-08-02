@@ -6,7 +6,7 @@
 > fitness parity with the scripted hunter (18.36 vs 18.34) in 210 s of CPU;
 > the self-play evader survives a pirate that kills the scripted trader
 > almost instantly (≈14 vs ≈1 fitness). Runs, curves and hyperparameters:
-> `docs/TRAINING-LOG.md`. Watch the results at `/viewer.html`.
+> `docs/TRAINING-LOG.md`. Watch the results at `/viewer`.
 
 Chris's questions: can we train ship AI with reinforcement learning, pitting
 AIs against AIs in a simulated environment? And can we simulate a whole
@@ -18,10 +18,12 @@ simulation. Design below.
 
 ## Where we started (the scripted tier — since superseded in two roles)
 
-> As shipped, pirates attacking the player fly the trained `pirate-attack-r2`
-> policy and armed traders defend with `jameson-defend` (TRAINING-LOG Runs
-> 4-5); the scripted logic below remains for every other behaviour and as
-> the `state.brains.scripted = true` fallback.
+> As shipped, pirates attacking the player fly `pirate-attack-g3`, an
+> organised gang flies `pirate-pack-r4-selectonly`, and armed traders (and the
+> combat computer) defend with `jameson-defend-g1`. `src/game/brains.ts` is
+> where that pairing is stated and `npm test` reads that file rather than a
+> list. The scripted logic below remains for every other behaviour and as the
+> `state.brains.scripted = true` fallback.
 
 `src/game/npc.ts` implements the behaviour matrix by hand:
 
@@ -31,8 +33,9 @@ simulation. Design below.
   group attacks from spread directions), and prey on traders when the player
   is out of reach.
 - **Police** attack pirates on sight and fugitive players.
-- **Lone bounty hunters** (Fer-de-Lance/Asp) ignore clean players, hunt
-  offenders and pirates.
+- **Lone bounty hunters** ignore clean players and hunt offenders and
+  pirates. They draw from the released bounty-hunter slot band — nine hulls,
+  led by the Fer-de-Lance (`ship-roles.ts`).
 - **Thargoids** are always hostile and deploy Thargon drones that go inert
   when the mothership dies.
 

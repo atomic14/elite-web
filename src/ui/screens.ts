@@ -816,7 +816,7 @@ export function renderSystemData(
 }
 
 // describeContract lives in game/contracts.ts with the rest of the contract
-// rules (invariant 7) — a job's one-line description is not a property of the
+// rules (invariant 10) — a job's one-line description is not a property of the
 // screen that happens to draw it. Re-exported so the screens' importers, and
 // this file's own two uses below, still read naturally.
 export { describeContract };

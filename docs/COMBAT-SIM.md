@@ -1,5 +1,14 @@
 # Combat training simulator — spec
 
+> **Status: built and shipped** (`T` at any station). This is the spec it was
+> built from, kept because the arguments in it — the one rule, the three
+> enforcement layers, what NOT to do — are still the reasons the code is shaped
+> the way it is. Read it in the past tense where it plans. The three console
+> harnesses it proposes absorbing (`test/arena.js`, `test/gang-trial.js`,
+> `test/combat-recorder.js`) were absorbed and deleted; the enforcement now
+> lives in `src/game/combat-sim-safety.ts` and the scenarios in
+> `src/game/combat-sim-scenarios.ts`.
+
 A station facility, reachable from the docked menu, that puts you in a fight
 against opposition you choose, in a ship you choose, and hands you a report
 afterwards. It is the real game — real flight model, real brains, real guns —
@@ -13,7 +22,7 @@ Three audiences, and the design has to serve all three:
 3. **The trainer.** Every exercise exports a record, and those records are what
    tell us whether a brain that wins in `evolve.ts` also wins against a human.
    That loop has been missing: brains are currently judged only by other brains
-   and by bots, and CLAUDE.md invariant 8 records the cost — generation 1 and 2
+   and by bots, and CLAUDE.md's "threat is not fun" records the cost — generation 1 and 2
    won every measurement and lost the only one that counted.
 
 ## The one rule
@@ -88,13 +97,13 @@ Selectable, named, each a data entry rather than a code path:
 
 | scenario | opposition |
 | --- | --- |
-| Lone bounty hunter | 1 hunter — Fer-de-Lance or Asp |
+| Lone bounty hunter | 1 hunter, drawn from the released bounty-hunter slot band |
 | Single pirate | 1 pirate, tier selectable |
 | Pirate pair | 2 pirates, same tier |
 | Pirate gang | 3-4 organised pirates flying the pack policy |
 | Police interdiction | 2 Vipers — what shooting a trader actually buys you |
 | Thargoid ambush | 2-3 Thargoids plus Thargons, the witch-space fight |
-| As they come | asks `pirateThreat()` what the galaxy would send at your real mark right now, and sends that |
+| As they come | asks `pirateThreat()` (`game/threat.ts`) what the galaxy would send at your real mark right now, and sends that |
 
 "As they come" matters most for balance: it is the only way to sample the fight
 the live game would generate for a commander in your exact state, without flying
@@ -106,9 +115,10 @@ Two levels, because the audiences differ:
 
 - **Scenario picker** (a pilot): pick a scenario and a threat tier, launch.
 - **Custom** (Chris, and the statistics): per opponent, choose the hull from the
-  roster in `ship-specs.ts`, the count, the brain each flies
-  (`pirate-attack-e1`, `g3`, `r2`, the pack policy, or the scripted baseline),
-  and the fit — missiles, E.C.M.
+  roster in `ship-specs.ts`, the count, the brain each flies (the picker's own
+  list is `SIM_BRAINS` in `game/combat-sim-scenarios.ts`, and it must agree with
+  the imports in `game/brains.ts` — `npm test` asserts it), and the fit —
+  missiles, E.C.M.
 
 Your own ship: **fit-out override only, not hull.** Corrected after planning —
 the player's hull is four hard-coded constants in `player.ts` (`MAX_SPEED`,
@@ -207,7 +217,7 @@ one thing that is also a player feature.
    docking computer in flight, `M` is the market docked and launch-missile in
    flight. The tables are per-mode.
 
-   **The four-homes invariant applies** (CLAUDE.md's key-bindings rule — it was invariant 6 and is 9 since that file was rewritten; cite it by name, not number): a key lives in four places that must change
+   **The four-homes invariant applies** (CLAUDE.md's key-bindings rule — cite it by name, not number: the numbering has moved once already): a key lives in four places that must change
    together — `src/engine/keymap.ts`, the binding table in
    `src/game/controls.ts`, the `?` help panel in `play.html`, and the README
    table. An audit found 13 existing disagreements, including `B` for the

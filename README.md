@@ -30,6 +30,10 @@ the [combat viewer](docs/TRAINING-LOG.md).*
 [Training runs & results](docs/TRAINING-LOG.md) ·
 [Reproducing the training](train/README.md) ·
 [Gap analysis vs the 1984 original](docs/GAP-ANALYSIS.md) ·
+[The reference ship catalogue](docs/ELITE-A.md) ·
+[Every damage path](docs/DAMAGE-PATHS.md) ·
+[The combat trainer](docs/COMBAT-SIM.md) ·
+[Browser play trials](docs/BROWSER-TRIALS.md) ·
 [The Jameson Trials](docs/JAMESON-TRIALS.md)
 
 ## Run
@@ -44,6 +48,7 @@ npm run build   # lint + tests (via prebuild), then production build to dist/
 npm run train -- attack --gens 400   # retrain the pirate AI (Node ≥ 22.6; see train/README.md)
 npm run evaluate                     # held-out tournament for the current brains
 npm test                             # invariant + simulation tests (no framework)
+npm run elite-a                      # the reference-catalogue alignment gate (<1s)
 npm run campaign                     # headless balance playtest: 40 careers × 60 legs
 npm run campaign -- 4 45000 all      # three career strategies, all the way to E L I T E
 
@@ -218,10 +223,14 @@ detected — as on the original's dashboard.
 - **Combat** — pulse/beam/military lasers with heat, four mounts, homing
   missiles you arm and then lock by putting the target in your sights,
   on-screen target brackets with a lead marker, hull hits that cost you
-  cargo and fittings,
-  fore/aft shields and 4 energy banks, bounties, kill ratings from Harmless
-  to E L I T E. Pirate numbers scale with the government type; shoot police
-  or traders and you become a fugitive (police attack; fine on docking).
+  cargo and fittings, bounties, kill ratings from Harmless to E L I T E.
+  Damage is the released game's own arithmetic: what a laser is worth is
+  decoded from its byte, what it costs a target is that target's own defence,
+  and your fore shield, aft shield and energy bank are three 255-point pools —
+  see [docs/ELITE-A.md](docs/ELITE-A.md) and
+  [docs/DAMAGE-PATHS.md](docs/DAMAGE-PATHS.md). Pirate numbers scale with the
+  government type; shoot police or traders and you become a fugitive (police
+  attack; fine on docking).
 - **Hyperspace** — 7.0 LY fuel range, per-jump fuel cost by real chart
   distance, 5-second countdown.
 - **Death** — ship destroyed → reload your last save (unless an escape pod
@@ -291,13 +300,14 @@ detected — as on the original's dashboard.
   is Lave.
 - `src/ships/` — all 38 released hulls as explicit vertex/edge/face tables in
   the style of the original BBC data, generated from the vendored reference
-  pack. Thirty-one of them fly (Cobra Mk III and Mk I, Sidewinder, Viper,
-  Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray,
-  Worm, Shuttle and Shuttle Mk II, Transporter, Dragon, Monitor, Ophidian,
-  Ghavial, Bushmaster, Rattler, Iguana, Chameleon, Thargoid, Thargon,
-  Constrictor, missile, canister); the Coriolis and Dodo stations are the same
+  pack and exact to the source rather than drawn by eye. Thirty-one of them
+  turn up in play (Cobra Mk III and Mk I, Sidewinder, Viper, Adder, Krait,
+  Mamba, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle and
+  Shuttle Mk II, Transporter, Dragon, Monitor, Ophidian, Ghavial, Bushmaster,
+  Rattler, Iguana, Chameleon, Thargoid, Thargon, Constrictor, missile,
+  canister, escape capsule); the Coriolis and Dodo stations are the same
   tables at a larger presentation scale. All drawn as wireframe edges over a
-  black occluding hull (classic hidden-line look), and all browsable at
+  black occluding hull (classic hidden-line look), and all 38 browsable at
   `/viewer`.
 - `src/world/` — shader sun (animated fbm surface, limb darkening, corona),
   shader planet (coastline contours, graticule, terminator, atmosphere rim —
@@ -323,9 +333,11 @@ detected — as on the original's dashboard.
 This is a non-commercial fan homage, released under the MIT license (see
 LICENSE). Elite (1984) was created by Ian Bell and David Braben and published
 by Acornsoft; the "Elite" trademark belongs to Frontier Developments plc.
-This project is affiliated with none of them. The galaxy generator follows
-the long-published descriptions of the original algorithm; ship silhouettes
-are freshly-made approximations in the spirit of the originals.
+This project is affiliated with none of them. The galaxy generator and the
+ship tables both follow long-published descriptions of the original data —
+the hulls were hand-made approximations until 2026-08, and are now generated
+from a vendored analysis pack of the released ship files
+([docs/ELITE-A.md](docs/ELITE-A.md)). This repo contains no assets from Elite.
 
 ## Roadmap
 
@@ -335,13 +347,20 @@ things this section used to list as outstanding: side laser mounts, mouse
 flight, the two-level living galaxy, the purchasable combat computer, and pack
 training (now at round 11).
 
-Remaining: gamepad support, the last few hulls, and a decision on two combat
-questions that are measured but not settled — whether organised gangs are too
-weak (0 player deaths in 36 recorded fights), and whether the pack brain should
-become their default.
+Remaining: gamepad support, a player shipyard (all 15 flyable hulls are
+imported and resolve; nothing can yet change which one you fly — see the
+deferred list in [docs/ELITE-A.md](docs/ELITE-A.md)), and a decision on
+whether the coordinated pack brain should be every gang's default.
+
+Combat balance is **not settled**, and this file quotes no figure for it on
+purpose: the damage model moved to the released game's own arithmetic in
+2026-08, so every number measured before that describes a different game.
+Measure it, don't cite it — `npm run campaign`, `npm run survivability`, and
+the docked combat trainer's JSON export.
 
 One finding worth reading before touching combat AI, from
-[docs/TRAINING-LOG.md](docs/TRAINING-LOG.md): pirates line up on a human player
-about 5% of the time, and land 88% of the shots they do take. Doubling that 5%
-kills the player. The balance rests on pursuit being imperfect, so "better"
-pursuit is not automatically better.
+[docs/TRAINING-LOG.md](docs/TRAINING-LOG.md): in a recorded human fight,
+pirates lined up on the player only a small fraction of the time and landed
+most of the shots they did take, so the balance rests on pursuit being
+imperfect — "better" pursuit is not automatically better. That is a shape, and
+it survives the change of units; the percentages in the log entry do not.

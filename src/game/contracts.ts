@@ -118,7 +118,7 @@ export function applyMarketPressure(
  *
  * It lived in screens/trade.ts, which made the rule that decides what a station
  * charges a detail of the screen that draws it — and left station.ts having to
- * import a SCREEN to open a market. Invariant 7 says market rules live here.
+ * import a SCREEN to open a market. Invariant 10 says market rules live here.
  */
 export function makeLocalMarket(
   system: StarSystem,
@@ -188,7 +188,7 @@ export function hermitMarket(
 // --- taking work, and being paid for it -------------------------------------
 //
 // These were `acceptContract` and `settleContracts`, two methods of game.ts —
-// which is exactly what CLAUDE.md's invariant 7 forbids, and it had already
+// which is exactly what CLAUDE.md's invariant 10 forbids, and it had already
 // cost something: test/campaign.ts carried its own transcription of the
 // settlement, so the balance harness was scoring rules that only resembled the
 // shipped ones. It calls these now.

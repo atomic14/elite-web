@@ -133,7 +133,7 @@ for (const name of ['pirate-attack', 'pirate-attack-r2', 'trader-evade',
 
 // --- which brain flies which ship -------------------------------------------
 //
-// Invariant 8 in CLAUDE.md is a paragraph of prose about who flies what. It
+// CLAUDE.md's Training section is a paragraph of prose about who flies what. It
 // used to be spread over three parts of npc.ts; now it is one function, so it
 // can be asserted instead of described.
 

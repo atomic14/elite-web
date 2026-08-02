@@ -1,5 +1,11 @@
 # The Jameson Trials — end-to-end economy simulation (2026-07-26)
 
+> **A dated report, left as written.** Two things in it have since moved: the
+> `hull x/6` figures are the retired normalized damage scale (the commander now
+> has three 255-point pools — `docs/ELITE-A.md`), and the defence brain is
+> `jameson-defend-g1`. The economic findings are unaffected; the combat numbers
+> describe a different damage model.
+
 Question: can an autopiloted Commander Jameson accumulate cash running trade
 legs in the live game? Method: a scripted pilot driving the *real* game in
 the browser through the debug handle — real market rules, real fuel costs,
@@ -92,8 +98,9 @@ The trials' conclusion — *survival is the binding constraint* — led straight
 to training run 5: a *defence policy* for armed traders (see
 TRAINING-LOG.md). Against two shipped pirates on held-out seeds, scripted
 traders die 100% of the time; the trained Jameson dies 10%, holding enemy
-accuracy to 1% and occasionally shooting an attacker down. It now flies
-every armed trader in the game, and can be watched in the viewer
+accuracy to 1% and occasionally shooting an attacker down. Its successor
+(`jameson-defend-g1`) flies every armed trader in the game, and it can be
+watched in the viewer
 ("Commander Jameson (defence AI) vs 2 pirates"). MkI, MkII and MkIII did
 not die in vain.
 
