@@ -42,6 +42,7 @@ import {
   type ThreatContext,
 } from '../src/game/combat-sim-scenarios.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
+import { selectionForBrain } from '../src/game/brain-names.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 import { g1 } from './fixtures.ts';
@@ -143,6 +144,15 @@ console.log('\ncombat trainer scenarios');
     check(`the shipped defence brain is ${SHIPPED_DEFENCE_BRAIN}`,
       src.includes(`${SHIPPED_DEFENCE_BRAIN}.json`));
     check('every listed brain exists', SIM_BRAINS.every(brainFileExists));
+
+    // ...and the picker may only offer what the game can actually be put into.
+    // `pirate-attack-g1` is the deliberate exception: it is offered, it is
+    // refused with a warning on the record, and that is better than a silent
+    // substitution.
+    const unflyable = SIM_BRAINS.filter((b) => !selectionForBrain(b));
+    check('every brain the picker offers has a selection that flies it',
+      unflyable.length === 1 && unflyable[0] === 'pirate-attack-g1',
+      unflyable.join(', '));
   }
 
   // 2 — the individual fights are what the spec says they are

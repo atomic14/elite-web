@@ -16,7 +16,7 @@ import { World } from '../src/game/world.ts';
 import { SPECS, specForDesign } from '../src/game/ship-specs.ts';
 import { migratedNpcState } from '../src/game/npc-energy.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
-import { SHIPPED_BRAINS } from '../src/game/brains.ts';
+import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { showMessage, tickMessage } from '../src/game/session.ts';
 import { check, keys } from './harness.ts';
 import { g1 } from './fixtures.ts';

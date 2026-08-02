@@ -82,9 +82,8 @@ import type { NpcShip } from './npc.ts';
 import type { Ordnance } from './ordnance.ts';
 import type { Persistence } from './persistence.ts';
 import { random, seedWorld } from './rng.ts';
-import {
-  exerciseCommander, exerciseStepHost, selectionForBrain,
-} from './combat-sim-safety.ts';
+import { exerciseCommander, exerciseStepHost } from './combat-sim-safety.ts';
+import { selectionForBrain } from './brain-names.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import { arenaCentre, spawnOpposition, type OppositionUnit } from './spawning.ts';
 import { freshSession, type GameState } from './state.ts';
@@ -406,9 +405,8 @@ export class CombatSim {
    */
   private stepHost(): StepHost {
     // The table itself is in combat-sim-safety.ts, beside the commander clone
-    // and the brain selection — the three layers of "nothing leaves the
-    // exercise" read together there rather than a third of the way down a
-    // 900-line file.
+    // — the three layers of "nothing leaves the exercise" read together there
+    // rather than a third of the way down a 900-line file.
     return exerciseStepHost({
       fighting: () => this.phase === 'fighting',
       takeHit: (amount, from, source) => this.takeHit(amount, from, source),
@@ -525,12 +523,16 @@ export class CombatSim {
   /**
    * Which policy this ship will ACTUALLY fly.
    *
-   * The table's answer unless the A/B override was refused, in which case the
-   * report must say what flew rather than what was asked for.
+   * Asked of the SELECTION rather than of the opposition table, because the
+   * selection is what `NpcShip.update` reads. `begin()` has already applied any
+   * A/B override to `state.brains`, so this answers correctly in all three
+   * cases: an override that took, an override the game cannot fly (the career's
+   * brains flew, and the warning says so), and no override at all — which used
+   * to report the shipped ids while a career with `state.brains.sharp = 'pro'`
+   * flew g2. One rule, one home: brain-names.ts.
    */
   private flownBrain(sh: SimShip): BrainId {
-    if (this.spec?.brain && this.brainWarnings.length === 0) return sh.brain;
-    return liveBrainFor(sh.role, sh.organised);
+    return liveBrainFor(sh.role, sh.organised, sh.tier, this.state.brains);
   }
 
   /** What the commander flew, for the record. Description, not simulation. */
@@ -865,15 +867,13 @@ export class CombatSim {
     if (!brain) return;
     const sel = selectionForBrain(brain);
     if (sel === undefined) {
-      // The shipped solo brain IS the default selection; anything else without
-      // an entry is a brain brains.ts does not load, so the game cannot fly it.
-      if (brain !== 'pirate-attack-g3') {
-        this.brainWarnings.push(`this exercise asked for ${brain}, which the game does `
-          + 'not load — the opposition flew what the live game flies, and the '
-          + 'per-opponent brain names say so.');
-      }
+      // No entry means a brain brains.ts does not import, so the game cannot
+      // fly it. The career's own selection is left alone and the record says so.
+      this.brainWarnings.push(`this exercise asked for ${brain}, which the game does `
+        + 'not load — the opposition flew what the live game flies, and the '
+        + 'per-opponent brain names say so.');
       return;
     }
-    this.state.brains = { ...sel };
+    this.state.brains = sel;
   }
 }

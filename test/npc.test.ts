@@ -9,7 +9,7 @@ import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { playerLaser } from '../src/game/gunnery.ts';
 import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
-import { SHIPPED_BRAINS } from '../src/game/brains.ts';
+import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { check } from './harness.ts';
 

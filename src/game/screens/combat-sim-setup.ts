@@ -19,6 +19,10 @@ import {
   SCENARIOS, SIM_BRAINS, clampTier, liveBrainFor, simHulls,
   type BrainId, type ExerciseSpec, type Opposition, type SimMode,
 } from '../combat-sim-scenarios.ts';
+import {
+  AS_SHIPPED, LIVE_BRAIN_IDS, SHIPPED_BRAINS, liveBrainSelection,
+  type BrainSelection, type LiveBrainId,
+} from '../brain-names.ts';
 
 /**
  * One line on the setup panel, as the renderer needs it.
@@ -93,7 +97,18 @@ export interface SimDraft {
   /** empty: take the opposition from the scenario table */
   groups: CustomGroup[];
   brain: BrainChoice;
+  /**
+   * Which policy the CAREER flies — `state.brains`, not the exercise's. The one
+   * row here that outlives the fight; `null` is a selection only the console
+   * could have made, which the row says rather than mislabelling.
+   */
+  live: LiveBrainId | null;
   fit: FitDraft;
+}
+
+/** The selection the draft's LIVE row means — what the game will actually fly. */
+export function liveSelectionOf(d: SimDraft): BrainSelection {
+  return d.live === null ? { ...SHIPPED_BRAINS } : liveBrainSelection(d.live);
 }
 
 /** A row on the setup panel, and what &larr;&rarr; does to it. */
@@ -112,7 +127,7 @@ const yesNo = (b: boolean): string => (b ? 'YES' : 'NO');
  * fight a pilot came to practise and the one every balance figure this project
  * quotes is about.
  */
-export function freshDraft(c: CommanderData): SimDraft {
+export function freshDraft(c: CommanderData, live: LiveBrainId | null = AS_SHIPPED): SimDraft {
   return {
     mode: 'scenario',
     scenario: Math.max(0, SCENARIOS.findIndex((s) => s.id === 'single-pirate')),
@@ -121,6 +136,7 @@ export function freshDraft(c: CommanderData): SimDraft {
     lastSeed: null,
     groups: [],
     brain: AS_THE_GAME_FLIES,
+    live,
     fit: {
       laser: c.equipment.laser,
       rearLaser: c.equipment.rearLaser,
@@ -171,11 +187,11 @@ export function freshSeed(now = Date.now()): number {
 // --- the draft, as an exercise ----------------------------------------------
 
 /** A picker group, in the terms combat-sim-scenarios.ts states opposition. */
-export function oppositionFor(g: CustomGroup): Opposition {
+export function oppositionFor(g: CustomGroup, sel: BrainSelection = SHIPPED_BRAINS): Opposition {
   const hulls = simHulls();
   const hull = hulls[g.hull % hulls.length];
   const brain = g.brain === AS_THE_GAME_FLIES
-    ? liveBrainFor(hull.role, g.organised) : g.brain;
+    ? liveBrainFor(hull.role, g.organised, g.tier, sel) : g.brain;
   return {
     role: hull.role,
     count: g.count,
@@ -210,7 +226,7 @@ export function brainOverride(d: SimDraft): BrainId | null {
 
 /** The draft as the exercise the session will run. */
 export function specFrom(d: SimDraft, seed: number): ExerciseSpec {
-  const custom = d.groups.map(oppositionFor);
+  const custom = d.groups.map((g) => oppositionFor(g, liveSelectionOf(d)));
   const brain = brainOverride(d);
   return {
     mode: d.mode,
@@ -244,6 +260,13 @@ export function draftNotes(d: SimDraft): string[] {
   }
   const asked = new Set(d.groups
     .filter((g) => g.brain !== AS_THE_GAME_FLIES).map((g) => g.brain));
+  if (d.live === null) {
+    out.push('LIVE BRAINS WERE SET FROM THE CONSOLE TO SOMETHING THIS PICKER CANNOT NAME — '
+      + 'ARROW THE LIVE BRAINS ROW TO TAKE IT BACK.');
+  } else if (d.live !== AS_SHIPPED) {
+    out.push(`LIVE BRAINS: THE WHOLE GALAXY FLIES ${d.live.toUpperCase()} UNTIL YOU SET `
+      + 'THAT ROW BACK TO AS SHIPPED. IT IS SAVED WITH THE COMMANDER.');
+  }
   if (d.brain === AS_THE_GAME_FLIES && asked.size > 1) {
     out.push('MIXED BRAINS CANNOT FLY: THE GAME LOADS ONE POLICY PER ROLE, SO THE '
       + 'LIVE BRAINS WILL. SET THE EXERCISE BRAIN ROW INSTEAD.');
@@ -263,6 +286,7 @@ export function draftNotes(d: SimDraft): string[] {
  */
 export function setupCells(d: SimDraft): SetupCell[] {
   const hulls = simHulls();
+  const live = liveSelectionOf(d);
   const scenario = SCENARIOS[d.scenario];
   const custom = d.groups.length > 0;
   const cells: SetupCell[] = [
@@ -299,6 +323,19 @@ export function setupCells(d: SimDraft): SetupCell[] {
       value: d.brain === AS_THE_GAME_FLIES ? 'AS THE GAME FLIES' : d.brain,
       change: (n) => {
         d.brain = BRAIN_CHOICES[cycle(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length, n)];
+      },
+    },
+    {
+      // Beside the exercise brain because the two are read together: this one
+      // says what "AS THE GAME FLIES" means and outlives the fight, the one
+      // above overrides it for one fight. Set it, leave, and the galaxy flies it.
+      label: 'LIVE BRAINS (CAREER)',
+      value: d.live === null ? 'SET FROM THE CONSOLE'
+        : d.live === AS_SHIPPED ? 'AS SHIPPED' : d.live.toUpperCase(),
+      change: (n) => {
+        const at = d.live === null ? -1 : LIVE_BRAIN_IDS.indexOf(d.live);
+        d.live = at < 0 ? LIVE_BRAIN_IDS[0]
+          : LIVE_BRAIN_IDS[cycle(at, LIVE_BRAIN_IDS.length, n)];
       },
     },
     {
@@ -343,7 +380,8 @@ export function setupCells(d: SimDraft): SetupCell[] {
       {
         label: pad('BRAIN'),
         value: g.brain === AS_THE_GAME_FLIES
-          ? `AS THE GAME FLIES (${liveBrainFor(hull.role, g.organised)})` : g.brain,
+          ? `AS THE GAME FLIES (${liveBrainFor(hull.role, g.organised, g.tier, live)})`
+          : g.brain,
         change: (n) => {
           g.brain = BRAIN_CHOICES[cycle(BRAIN_CHOICES.indexOf(g.brain), BRAIN_CHOICES.length, n)];
         },

@@ -22,7 +22,7 @@
 import type { CommanderData } from './commander.ts';
 import type { ShipSystems } from './systems.ts';
 import type { EncounterTimers } from './encounters.ts';
-import type { BrainSelection } from './brains.ts';
+import type { BrainSelection } from './brain-names.ts';
 
 /** Bump when the shape changes so stale snapshots are refused, not misread. */
 export const SNAPSHOT_VERSION = 1;

@@ -6,7 +6,8 @@
 // the suite went on measuring two brains the game did not fly.
 
 import { readFileSync } from 'node:fs';
-import { pirateBrainFor, defenceBrain, DEFEND_BRAIN, SHIPPED_BRAINS } from '../src/game/brains.ts';
+import { pirateBrainFor, defenceBrain, DEFEND_BRAIN } from '../src/game/brains.ts';
+import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { handle, installPolicyKit } from '../src/game/console.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { randomBrain, type BrainFile } from '../src/ai-training/policy.ts';

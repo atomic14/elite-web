@@ -1835,10 +1835,29 @@ So **the shipped three are unchanged** — `pirate-attack-g3`,
 `pirate-pack-r4-selectonly`, `jameson-defend-g1` — and all three candidates are
 kept as evidence, with the flight probe as the reason. What would change the
 verdict is a fight Chris flies: `T` at any station, same scenario, same seed.
-See docs/BROWSER-TRIALS.md. Flying them needs one wiring change that has not
-been made — a `BrainSelection` flag and a `BrainId` entry each — because
-shipping candidate weights into the game bundle to fly a brain we recommend
-against is a decision for the owner, not for the retrain.
+See docs/BROWSER-TRIALS.md.
+
+### Wired in, still not shipped
+
+Chris asked for them to be pickable, so they are. All three are loaded by
+`game/brains.ts`, named in `game/brain-names.ts` (`t29`, `packT29`,
+`defendT29`), offered by the combat trainer's brain rows, and — the new part —
+selectable for LIVE PLAY from the **LIVE BRAINS (CAREER)** row on the setup
+panel, which writes `state.brains` and is in the save. Console form unchanged:
+`__game.state.brains.t29 = true`.
+
+The bundle cost of the three candidate weight files is **+46 kB raw, +18 kB
+gzipped** on the play chunk. `SHIPPED_BRAINS` is still `{}` and `npm test`
+asserts it, so the galaxy flies g3 / pack-r4 / defend-g1 until somebody changes
+that one line; a seeded `npm run campaign` is byte-identical across the wiring
+change, which is the check that says the default did not move.
+
+The wiring also fixed a drift the review found: `liveBrainFor` — what the
+trainer's report names — hardcoded the shipped ids and ignored `BrainSelection`
+entirely, so a career flying `state.brains.sharp = 'pro'` was told it fought g3
+while `npc.ts` flew g2. Both sides ask `brain-names.ts` now, and
+`test/brain-names.test.ts` takes every selection to both and demands the same
+policy.
 
 ### Balance, after all of it
 

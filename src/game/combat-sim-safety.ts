@@ -27,8 +27,6 @@ import type { DamageSource } from './combat.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import { type CommanderData, MAX_FUEL, MAX_MISSILES } from './commander.ts';
 import { CLEAN } from './law.ts';
-import type { BrainId } from './combat-sim-scenarios.ts';
-import type { BrainSelection } from './brains.ts';
 import type { ExerciseFit } from './combat-sim.ts';
 import * as THREE from 'three';
 
@@ -74,36 +72,19 @@ export function exerciseStepHost(x: ExerciseVerbs): StepHost {
   };
 }
 
-/**
- * The A/B override, in the only terms the game can express it.
- *
- * Which named policy a pirate flies is a GLOBAL flag in brains.ts — there is no
- * per-ship field for it and inventing one is not this file's business
- * (spawning.ts says the same about `OppositionBrain`). So an exercise that names
- * a brain sets the flag for its duration and puts it back on the way out;
- * `teardown()` does that FIRST, because a career quietly flying the exercise's
- * brain is the one leak a player would never notice.
- *
- * The one brain with no entry — `pirate-attack-g1` — is not loaded by brains.ts,
- * so the game cannot fly it. Asking for it is refused rather than silently
- * ignored, because a report that says "g1" when the fight was against g3 is
- * worse than no report. `pirate-attack-e1` WAS in that position: the picker
- * offered it and the game could not load it, so every e1 exercise silently flew
- * g3 and said so in a warning. It is wired now.
- */
-const BRAIN_SELECTION: Partial<Record<BrainId, BrainSelection>> = {
-  'pirate-attack-g2': { sharp: true },
-  'pirate-attack-e1': { engine: true },
-  'pirate-attack-r2': { legacy: true },
-  'pirate-pack-r4-selectonly': { pack: true },
-  scripted: { scripted: true },
-};
-
-
-/** The selection a named brain flies under, or undefined if the game cannot load it. */
-export function selectionForBrain(brain: BrainId): BrainSelection | undefined {
-  return BRAIN_SELECTION[brain];
-}
+// --- the fourth thing, which is no longer here ------------------------------
+//
+// The A/B override used to need a layer of its own. Which named policy a pirate
+// flies is a decision per ROLE and per TIER — `state.brains`, a
+// `BrainSelection` — so an exercise that names a brain sets the selection for
+// its duration, and `teardown()` used to undo five `window.__` flags by hand,
+// FIRST, because a career left flying an exercise's A/B brain is the one leak a
+// player would never notice.
+//
+// Making the selection STATE deleted the hazard instead of guarding it: it is in
+// the entry snapshot, so the ordinary restore puts the career's brains back with
+// its world. The table that turns a name into a selection went to brain-names.ts,
+// beside the rule it inverts, and combat-sim.ts reads it directly.
 
 /**
  * Layer 1. The commander the exercise flies: a clone, with no cargo and no reputation.

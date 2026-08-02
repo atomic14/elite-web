@@ -52,6 +52,7 @@ import { NpcShip } from './npc.ts';
 import { IMPACT, npcImpactDamage } from './impact-damage.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import { DEFEND_BRAIN } from './brains.ts';
+import { liveBrainId, liveBrainSelection } from './brain-names.ts';
 import { type NpcSpec } from './ship-specs.ts';
 import { type NpcRole } from './ship-roles.ts';
 import { spawnPopulation, launchStationDefence } from './spawning.ts';
@@ -343,6 +344,10 @@ export class Game {
     reports: this.simReports,
     begin: (spec, fit) => this.startExercise(spec, fit),
     message: (text, seconds) => this.showMessage(text, seconds),
+    // The picker's LIVE BRAINS row, which is `state.brains` and nothing else —
+    // the rule for what a name means is brain-names.ts, and this is the wire.
+    liveBrain: liveBrainId(this.state.brains),
+    selectLiveBrain: (id) => { this.state.brains = liveBrainSelection(id); },
   } satisfies CombatSimContext));
 
   /**

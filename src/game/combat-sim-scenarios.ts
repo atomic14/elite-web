@@ -22,6 +22,10 @@ import {
   SPECS, pirateSpecForTier, CONSTRICTOR_SPEC, type NpcSpec,
 } from './ship-specs.ts';
 import { markOf, memberTier, pirateThreat, type PirateThreat } from './threat.ts';
+import {
+  SHIPPED_BRAINS, defenceBrainNameFor, pirateBrainNameFor,
+  type BrainName, type BrainSelection,
+} from './brain-names.ts';
 import { hasShipDef, shipDisplayName } from '../ships/registry.ts';
 import { random } from './rng.ts';
 
@@ -54,47 +58,55 @@ export const OPPOSITION_ROLES: readonly OppositionRole[] =
  * a per-opponent choice instead of a global flag. It is the baseline every
  * training run is measured against.
  */
-export type BrainId =
-  | 'pirate-attack-g3'
-  | 'pirate-attack-g2'
-  | 'pirate-attack-g1'
-  | 'pirate-attack-e1'
-  | 'pirate-attack-r2'
-  | 'pirate-pack-r4-selectonly'
-  | 'jameson-defend-g1'
-  | 'scripted';
+export type BrainId = BrainName | 'pirate-attack-g1';
 
 /**
- * The brains the live game flies, stated once.
+ * The brains the live game flies, DERIVED — ask the rule, do not restate it.
  *
- * CLAUDE.md's Training section in id form. These MUST agree with the imports in
- * brains.ts — that is the pairing, and `npm test` asserts it by reading
- * brains.ts, because a report that says "g3" while the game flew something else
- * is worse than no report.
+ * These used to be three literals, and the literals were wrong the moment a
+ * career set `state.brains`. They are what `brain-names.ts` answers for the
+ * shipped selection, so promoting a candidate moves them without an edit here,
+ * and `npm test` still checks that the names brains.ts imports are these.
  */
-export const SHIPPED_SOLO_BRAIN: BrainId = 'pirate-attack-g3';
-export const SHIPPED_PACK_BRAIN: BrainId = 'pirate-pack-r4-selectonly';
-export const SHIPPED_DEFENCE_BRAIN: BrainId = 'jameson-defend-g1';
+export const SHIPPED_SOLO_BRAIN: BrainId = pirateBrainNameFor(0, false, SHIPPED_BRAINS);
+export const SHIPPED_PACK_BRAIN: BrainId = pirateBrainNameFor(0, true, SHIPPED_BRAINS);
+export const SHIPPED_DEFENCE_BRAIN: BrainId = defenceBrainNameFor(SHIPPED_BRAINS);
 
-/** Every brain the picker may choose, in the order it should be listed. */
+/**
+ * Every brain the picker may choose, in the order it should be listed: the
+ * three the game ships, TODO 29's three candidates, then the older controls.
+ *
+ * `pirate-attack-g1` is the one entry with no policy behind it — brains.ts does
+ * not import it — and asking for it is refused with a warning on the record
+ * rather than silently flying something else.
+ */
 export const SIM_BRAINS: readonly BrainId[] = [
-  SHIPPED_SOLO_BRAIN, SHIPPED_PACK_BRAIN, 'pirate-attack-g2', 'pirate-attack-g1',
-  'pirate-attack-e1', 'pirate-attack-r2', SHIPPED_DEFENCE_BRAIN, 'scripted',
+  SHIPPED_SOLO_BRAIN, SHIPPED_PACK_BRAIN, SHIPPED_DEFENCE_BRAIN,
+  'pirate-attack-t29', 'pirate-pack-t29', 'jameson-defend-t29',
+  'pirate-attack-g2', 'pirate-attack-g1', 'pirate-attack-e1', 'pirate-attack-r2',
+  'scripted',
 ];
 
 /**
- * Which brain this role flies in the LIVE game, so an exercise measures the
- * game rather than a game we might have built.
+ * Which brain this role flies in the LIVE game under this selection, so an
+ * exercise measures the game rather than a game we might have built.
  *
- * Mirrors npc.ts: only pirates reach `pirateBrainFor` (organised gangs get the
- * pack policy, everyone else the solo one), an armed trader turns and fights
- * with the defence brain, and police, bounty hunters and Thargoids are still
- * scripted. Overriding it per opponent is what turns the simulator into an A/B
- * rig; defaulting to it is what keeps "as they come" honest.
+ * It does not mirror npc.ts — it asks the same function npc.ts asks
+ * (`brain-names.ts`), which is the difference between agreeing and happening to
+ * agree. This hardcoded the shipped ids and ignored the selection entirely, so a
+ * career flying `state.brains.sharp = 'pro'` was reported as flying g3.
+ *
+ * Only pirates reach the pirate rule (organised gangs get the pack policy,
+ * everyone else the solo one), an armed trader turns and fights with the defence
+ * brain, and police, bounty hunters and Thargoids are scripted whatever is
+ * selected.
  */
-export function liveBrainFor(role: OppositionRole, organised: boolean): BrainId {
-  if (role === 'pirate') return organised ? SHIPPED_PACK_BRAIN : SHIPPED_SOLO_BRAIN;
-  if (role === 'trader') return SHIPPED_DEFENCE_BRAIN;
+export function liveBrainFor(
+  role: OppositionRole, organised: boolean, tier: number,
+  sel: BrainSelection = SHIPPED_BRAINS,
+): BrainId {
+  if (role === 'pirate') return pirateBrainNameFor(tier, organised, sel);
+  if (role === 'trader') return defenceBrainNameFor(sel);
   return 'scripted';
 }
 
@@ -356,7 +368,7 @@ function resolve(t: OppositionTemplate, pickedTier: number, seed: number): Oppos
     count,
     tier,
     organised,
-    brain: t.brain ?? liveBrainFor(t.role, organised),
+    brain: t.brain ?? liveBrainFor(t.role, organised, tier),
     mixed: t.mixed ?? organised,
     seed,
     missiles: t.missiles,
@@ -397,7 +409,7 @@ export function oppositionFromThreat(threat: PirateThreat, seed: number): Opposi
     count: Math.max(1, threat.count),
     tier: threat.tier,
     organised: threat.organised,
-    brain: liveBrainFor('pirate', threat.organised),
+    brain: liveBrainFor('pirate', threat.organised, threat.tier),
     mixed: true,
     seed,
   }];
@@ -463,7 +475,7 @@ export function waveOpposition(n: number, seed = 0): Opposition[] {
     count,
     tier,
     organised,
-    brain: liveBrainFor('pirate', organised),
+    brain: liveBrainFor('pirate', organised, tier),
     mixed: organised,
     seed,
   }];
@@ -602,7 +614,8 @@ function loneOpponent(list: readonly Opposition[], seed: number): Opposition[] {
     count: 1,
     mixed: false,
     organised,
-    brain: first.brain === SHIPPED_PACK_BRAIN ? liveBrainFor(first.role, organised) : first.brain,
+    brain: first.brain === SHIPPED_PACK_BRAIN
+      ? liveBrainFor(first.role, organised, first.tier) : first.brain,
   };
   // resolved against the EXERCISE seed, which is why it does not move
   return [{ ...solo, hull: solo.hull ?? oppositionShips(solo)[0].spec, seed }];

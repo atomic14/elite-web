@@ -173,6 +173,12 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
   traders and anything player-assist), **`pirate-pack-r4-selectonly`**
   (organised gangs). `pirate-attack-r2` is the legacy control behind
   `state.brains.legacy`, not a shipped brain.
+- Six more policies are LOADED and pickable but do not fly until they are
+  picked, including TODO 29's `pirate-attack-t29` / `pirate-pack-t29` /
+  `jameson-defend-t29` — better on damage, worse on feel, kept as evidence
+  (docs/TRAINING-LOG.md, run 19). Which name flies for whom is
+  `game/brain-names.ts`, and `SHIPPED_BRAINS` there is the ONE line that
+  changes a default.
 - Balance is not settled, and a figure quoted in any doc may predate a physics
   change. Measure; don't cite.
 
@@ -226,10 +232,12 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
   Drive the game headlessly by calling `g.update(1/60, t)` in a loop — background
   tabs throttle rAF, so manual stepping is the reliable way.
 - **A/B switches are STATE, not globals.** `state.brains` picks which brains fly
-  (`scripted` disables them all, `legacy`/`sharp`/`pack` swap them — see
-  `BrainSelection`) and `state.cheat` fits anything from the catalogue free. They
-  were five `window.__` flags; a rule read from ambient state is not in the
-  snapshot, so a reload changed the game. From a console go through the handle:
+  (`scripted` disables them all, `legacy`/`sharp`/`pack`/`t29` and friends swap
+  them — see `BrainSelection` in `game/brain-names.ts`) and `state.cheat` fits
+  anything from the catalogue free. They were five `window.__` flags; a rule read
+  from ambient state is not in the snapshot, so a reload changed the game. In
+  game, the **LIVE BRAINS (CAREER)** row on the combat trainer's setup panel (`T`
+  at any station) picks one; from a console go through the handle:
   `__game.state.brains.legacy = 'pro'`. `npm test` bans their return, and
   `src/game/console.ts` is the only file allowed to touch `globalThis` — it
   publishes handles the game WRITES, never flags it reads.

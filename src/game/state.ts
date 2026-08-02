@@ -32,7 +32,7 @@ import { makeDockPlan } from './docking.ts';
 import { freshTimers } from './encounters.ts';
 import { generateGalaxy } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
-import { SHIPPED_BRAINS, type BrainSelection } from './brains.ts';
+import { SHIPPED_BRAINS, type BrainSelection } from './brain-names.ts';
 
 export interface GameState {
   // --- where and who ------------------------------------------------------

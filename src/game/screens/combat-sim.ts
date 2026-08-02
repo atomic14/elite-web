@@ -26,6 +26,7 @@ import {
   defaultGroup, draftNotes, fitFrom, freshDraft, freshSeed, setupCells, specFrom,
   type SimDraft,
 } from './combat-sim-setup.ts';
+import type { LiveBrainId } from '../brain-names.ts';
 import { renderCombatSimSetup, renderCombatSimReport } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import type { Input } from '../../engine/input.ts';
@@ -40,6 +41,20 @@ export interface CombatSimContext {
   /** start one. False when the Game refused — you are dead, or one is running */
   begin(spec: ExerciseSpec, fit: ExerciseFit): boolean;
   message(text: string, seconds: number): void;
+  /**
+   * Which policy the CAREER is flying, as a name the picker can show — or null
+   * when `state.brains` holds a combination only the console can express.
+   */
+  readonly liveBrain: LiveBrainId | null;
+  /**
+   * Point the career's brains at a named policy.
+   *
+   * The one thing this screen changes that outlives the exercise, and it is a
+   * playtest switch rather than a leak: `state.brains` is state, it is in the
+   * save, and the pilot picked it on a row that says so. Before this it was
+   * reachable only from a developer console.
+   */
+  selectLiveBrain(id: LiveBrainId): void;
 }
 
 const cycle = (n: number, len: number, d: number): number => (n + d + len) % len;
@@ -82,7 +97,12 @@ export class CombatSimScreen implements Screen {
   }
 
   open(): void {
-    this.draft ??= freshDraft(this.ctx().commander);
+    this.draft ??= freshDraft(this.ctx().commander, this.ctx().liveBrain);
+    // The LIVE BRAINS row shows the career's actual selection, so it is re-read
+    // on every open: the draft is kept for the session (so an A/B is two
+    // launches of the same setup), and a console or an exercise teardown can
+    // have moved `state.brains` underneath it since.
+    this.draft.live = this.ctx().liveBrain;
     if (this.panel === 'report' && this.ctx().reports.length === 0) this.panel = 'setup';
     this.render();
   }
@@ -138,6 +158,11 @@ export class CombatSimScreen implements Screen {
     const right = i.pressed('ArrowRight');
     if (left || right) {
       cells[clamp(this.row, 0, cells.length - 1)].change?.(right ? 1 : -1);
+      // The LIVE BRAINS row is the one cell whose change has to reach the
+      // career. Pushing it after every change rather than teaching this method
+      // which row it is keeps the screen's ONE input surface: a click is a
+      // keystroke, and both end up here.
+      if (d.live !== null) this.ctx().selectLiveBrain(d.live);
       return this.repaint();
     }
     return 'stay';

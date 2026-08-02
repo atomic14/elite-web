@@ -116,9 +116,16 @@ Two levels, because the audiences differ:
 - **Scenario picker** (a pilot): pick a scenario and a threat tier, launch.
 - **Custom** (Chris, and the statistics): per opponent, choose the hull from the
   roster in `ship-specs.ts`, the count, the brain each flies (the picker's own
-  list is `SIM_BRAINS` in `game/combat-sim-scenarios.ts`, and it must agree with
-  the imports in `game/brains.ts` — `npm test` asserts it), and the fit —
-  missiles, E.C.M.
+  list is `SIM_BRAINS` in `game/combat-sim-scenarios.ts`, derived from
+  `game/brain-names.ts` and checked against the imports in `game/brains.ts` by
+  `npm test`), and the fit — missiles, E.C.M.
+
+There is one row on the panel that is NOT about the exercise: **LIVE BRAINS
+(CAREER)** writes `state.brains`, so the policy you pick there is what the whole
+galaxy flies once you leave the station, until you set it back to AS SHIPPED. It
+is state, so it is in the save; it is a name, so the panel and the report agree
+about it; and it is the reason live-play brain selection no longer needs a
+developer console. Everything else on the panel dies with the exercise.
 
 Your own ship: **fit-out override only, not hull.** Corrected after planning —
 the player's hull is four hard-coded constants in `player.ts` (`MAX_SPEED`,

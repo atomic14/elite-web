@@ -229,7 +229,11 @@ src/
     impact-damage.ts        the ONE Harmless rule for everything that is not a
                             laser: a ram, a canister, the Coriolis wall, a
                             warhead, the energy bomb
-    brains.ts               the five trained policies, and who flies which
+    brains.ts               the nine trained policies, loaded — and the two
+                            flight numbers that come with each
+    brain-names.ts          WHICH policy flies, by name, given a
+                            BrainSelection — the rule the ship, the
+                            trainer's report and both pickers all read
 
     combat.ts               what happens when something is shot: bounties, kills,
                             wrecks, loot — plus the player's own trigger and
@@ -518,12 +522,15 @@ hunt in packs, police enforce, hunters stalk offenders, Thargons swarm).
 Two roles fly with **trained neural policies** instead of the scripted
 steering: pirates attacking the player (`pirate-attack-g3`, and
 `pirate-pack-r4-selectonly` for an organised gang) and armed traders defending
-themselves (`jameson-defend-g1`). `game/brains.ts` is where that pairing is
-stated, and `npm test` reads that file rather than a list. `brainFly()` runs the
-MLP at 10 Hz and integrates its discrete keyboard-style controls with the same
-ramp the player's ship uses. It is public, because a training episode flies a
-candidate genome through it — one flight model, one place. Set
-`__game.state.brains.scripted = true` in the console to A/B the old scripted AI.
+themselves (`jameson-defend-g1`). `game/brain-names.ts` decides which name flies
+for whom and `game/brains.ts` turns that name into weights, so the ship and the
+combat trainer's report cannot disagree; `npm test` reads those files rather than
+a list. `brainFly()` runs the MLP at 10 Hz and integrates its discrete
+keyboard-style controls with the same ramp the player's ship uses. It is public,
+because a training episode flies a candidate genome through it — one flight
+model, one place. Six more policies are in the bundle and none of them fly until
+they are picked: `__game.state.brains.scripted = true` from a console, or the
+LIVE BRAINS row on the combat trainer's setup panel (`T` at any station).
 
 ### 5. Training runs on the game, not on a copy of it
 

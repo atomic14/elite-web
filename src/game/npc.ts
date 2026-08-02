@@ -12,9 +12,8 @@ import {
   observeFor, act, makeScratch, shipView, writeView, PACK_WIDE_OBS_SIZE,
   type Brain, type ObservableMate,
 } from '../ai-training/policy.ts';
-import {
-  pirateBrainFor, defenceBrain, type BrainSelection,
-} from './brains.ts';
+import { pirateBrainFor, defenceBrain } from './brains.ts';
+import type { BrainSelection } from './brain-names.ts';
 import {
   npcPrefersMissile, npcMissileLastStand, npcTriggerPull, npcWeaponByte,
   MISSILE_RELOAD, THARGOID_FIRE_RATE,

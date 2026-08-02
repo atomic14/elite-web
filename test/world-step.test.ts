@@ -582,6 +582,33 @@ console.log('\nheadless world step');
         && sys.laserTemp === 0.25 && sys.cabinTemp === 0.4);
     }
 
+    // A/B brain selection is STATE, so it is in the save — the whole reason it
+    // stopped being five `window.__` flags. A save made while flying an
+    // experimental brain, restored in a fresh tab, must still be flying it:
+    // with the flags, it silently went back to the shipped brains and the run
+    // stopped being the run it came from.
+    {
+      const t = arrival(31_337);
+      t.state.brains = { t29: true };
+      const wire29 = JSON.stringify(
+        new Persistence(t.state, t.ordnance, new CombatComputer(), stubHost(t.state, []))
+          .capture());
+      const back = arrival(99);
+      new Persistence(back.state, back.ordnance, new CombatComputer(),
+        stubHost(back.state, []))
+        .restore(JSON.parse(wire29) as WorldSnapshot);
+      check('an A/B brain selection survives the save',
+        JSON.stringify(back.state.brains) === '{"t29":true}');
+      check('...as a copy the step can move, not the snapshot\'s own object',
+        back.state.brains !== (JSON.parse(wire29) as WorldSnapshot).brains);
+      const plain = arrival(99);
+      new Persistence(plain.state, plain.ordnance, new CombatComputer(),
+        stubHost(plain.state, []))
+        .restore(JSON.parse(wire) as WorldSnapshot);
+      check('...and a save made with none comes back with none (the control)',
+        JSON.stringify(plain.state.brains) === '{}');
+    }
+
     // the negative control: an unrestored world must NOT match
     {
       const c = arrival(99);

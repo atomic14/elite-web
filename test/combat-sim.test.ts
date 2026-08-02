@@ -249,11 +249,17 @@ console.log('\ncombat simulator — the setup draft');
 console.log('\ncombat simulator — the custom picker');
 {
   const d = freshDraft(newCommander());
+  // By LABEL, not by row index — setupCells' own comment is that a cell owns
+  // its label, its reading and what an arrow does to it, so nothing switches on
+  // a position. A test that counts rows breaks the moment one is inserted, and
+  // says nothing true when it does.
+  const cell = (label: string) =>
+    setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
   const rows = setupCells(d).length;
-  setupCells(d)[5].change!(1);
+  cell('OPPOSITION').change!(1);
   eq('the opposition row builds a group', d.groups.length, 1);
   eq('...seven rows of it', setupCells(d).length - rows, 7);
-  setupCells(d)[5].change!(-1);
+  cell('OPPOSITION').change!(-1);
   eq('...and drops the lot again', d.groups.length, 0);
 
   d.groups.push(defaultGroup(2));
@@ -262,34 +268,33 @@ console.log('\ncombat simulator — the custom picker');
     hulls.length > 8 && hulls.every((h) => hasShipDef(h.spec.designId)));
   check('...including the Constrictor, which a career meets once',
     hulls.some((h) => h.name === 'Constrictor'));
-  const hullRow = setupCells(d)[6];
   check('the group row names its hull and its role',
-    /\(pirate\)$/.test(hullRow.value));
-  for (let n = 0; n < hulls.length; n++) setupCells(d)[6].change!(1);
+    /\(pirate\)$/.test(cell('GROUP 1 HULL').value));
+  for (let n = 0; n < hulls.length; n++) cell('GROUP 1 HULL').change!(1);
   eq('every hull is reachable and the list wraps', d.groups[0].hull, defaultGroup(2).hull);
 
-  setupCells(d)[7].change!(3);
+  cell('COUNT').change!(3);
   eq('the count goes up', d.groups[0].count, 4);
-  setupCells(d)[7].change!(-99);
+  cell('COUNT').change!(-99);
   eq('...and never below one ship, which would be no fight', d.groups[0].count, 1);
 
-  setupCells(d)[9].change!(1);
+  cell('ORGANISED (PACK POLICY)').change!(1);
   eq('a group can be made organised, which is the pack-policy lever',
     d.groups[0].organised, true);
 
   // fit: "whatever the hull carries" is a real value, not a zero
   const g = d.groups[0];
   eq('a group carries the hull\'s own missiles until told otherwise', g.missiles, null);
-  check('...and says so', setupCells(d)[11].value.startsWith('HULL'));
-  setupCells(d)[11].change!(1);
+  check('...and says so', cell('MISSILES').value.startsWith('HULL'));
+  cell('MISSILES').change!(1);
   eq('...then takes a number', g.missiles, 0);
-  setupCells(d)[11].change!(-1);
+  cell('MISSILES').change!(-1);
   eq('...and goes back to the hull past the end of the range', g.missiles, null);
   eq('nudgeOrHull walks off the top back to the hull', nudgeOrHull(8, 1, 0, 8), null);
   eq('...and off the bottom too', nudgeOrHull(0, -1, 0, 8), null);
   eq('...and enters the range from the right end', nudgeOrHull(null, -1, 0, 8), 8);
 
-  setupCells(d)[12].change!(1);
+  cell('E.C.M.').change!(1);
   eq('E.C.M. is a chance, entered as a percentage', g.ecm, 0);
 
   const spec = specFrom(d, 7);
@@ -337,7 +342,7 @@ console.log('\ncombat simulator — the brain override');
   eq('a group left on "as the game flies" asks for nothing',
     brainOverride(one), null);
   eq('...which for a lone pirate is the shipped solo brain',
-    liveBrainFor('pirate', false) as BrainId, 'pirate-attack-g3');
+    liveBrainFor('pirate', false, 1) as BrainId, 'pirate-attack-g3');
   check('the notes always describe the mode', draftNotes(one).length >= 1);
 }
 

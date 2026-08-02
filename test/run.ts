@@ -55,6 +55,7 @@ import './role-variants.test.ts';
 
 // --- the trained brains -----------------------------------------------------
 import './ai.test.ts';
+import './brain-names.test.ts';
 import './combat-model.test.ts';
 import './arena.test.ts';
 

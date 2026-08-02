@@ -78,19 +78,24 @@ demanding exact equality there.
 
 1. Train it (`--out my-brain`).
 2. Evaluate it — beat the incumbent's tournament row before shipping.
-3. Import it where the incumbent is imported: `src/game/brains.ts`
-   (`pirateBrainFile` for pirates, `defendBrainFile` for armed traders and the
-   combat computer, `packBrainFile` for gangs), viewer scenarios →
+3. Import it where the incumbents are imported: `src/game/brains.ts` (one
+   `brainFromFile` block and one line in `LOADED`), viewer scenarios →
    `src/viewer/main.ts`. Any observation width works — 14, 18 or 26; `npc.ts`
    picks the widest encoder the brain has inputs for.
-4. `npm run build` bundles the JSON weights (~40 KB each).
+4. Name it in `src/game/brain-names.ts`: one `BrainName`, one `BrainSelection`
+   flag, one line in the rule, one row in `SELECTIONS`. That is what makes it
+   pickable in both places and reportable by name — the combat trainer's
+   `SIM_BRAINS` list is derived from it.
+5. `npm run build` bundles the JSON weights (~15 KB gzipped each).
 
 In-game A/B: brain selection is STATE, not a global — `state.brains`
-(`BrainSelection` in `src/game/brains.ts`). From a console go through the one
-documented handle: `__game.state.brains.scripted = true` reverts every ship to
-the scripted AI, and `legacy` / `sharp` / `engine` / `pack` swap in the
-unshipped candidates. It is in the snapshot, so a reload keeps flying what you
-chose.
+(`BrainSelection` in `src/game/brain-names.ts`). Two ways in, and neither is a
+flag: the **LIVE BRAINS (CAREER)** row on the combat trainer's setup panel (`T`
+at any station) picks one policy for the whole galaxy, and from a console the
+one documented handle does the same — `__game.state.brains.scripted = true`
+reverts every ship to the scripted AI, and `legacy` / `sharp` / `engine` /
+`pack` / `t29` / `packT29` / `defendT29` swap in the unshipped candidates. It is
+in the snapshot, so a reload keeps flying what you chose.
 
 ## The Jameson autopilot (end-to-end economy test)
 
