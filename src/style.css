@@ -276,6 +276,11 @@ body.screen-open #message {
   background: var(--hud-amber);
   box-shadow: 0 0 8px var(--hud-amber);
 }
+/* into the last bank: the same moment the console says ENERGY LOW */
+.segs.low i::after {
+  background: var(--hud-red);
+  box-shadow: 0 0 8px var(--hud-red);
+}
 
 .missiles span.spent { background: transparent; }
 .missiles span.locked { background: var(--hud-red); box-shadow: 0 0 8px var(--hud-red); }

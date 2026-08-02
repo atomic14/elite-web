@@ -34,7 +34,7 @@ one table in [ELITE-A.md](ELITE-A.md).
 | Living galaxy | A level-1 simulation runs trade between all 256 systems while you play: convoys depart on productivity, are lost to piracy in lawless space, and arrive as real traders in whatever system you're in. Prices drift ±25% from the 1984 baseline with supply, pirate hotspots emerge along lawless routes, and system news reports it. |
 | Encounters | Escape capsules from destroyed ships (scoopable, with consequences), station defence Vipers, rock hermits that trade ore and ask no questions, derelict generation ships, and Trumbles. |
 | Progression | Kills → Harmless … E L I T E; save-on-dock; save export/import. |
-| Console | Elliptical 3D scanner, compass, gauges, missile pylons, S (station in range) and E (ECM detected) indicator lights. |
+| Console | Elliptical 3D scanner, compass, gauges, missile pylons, the energy readout in four banks (see deviations), S (station in range) and E (ECM detected) indicator lights. |
 | Presentation | Wireframe hidden-line ships, shader sun and planets, phosphor HUD, WebAudio synth, in-game controls guide. Mouse throughout: pointer-lock flight, clickable menus/markets/equipment, click-to-target on the charts. |
 | Ship AI | Pirates and armed traders fly neural policies trained by self-play (see [TRAINING-LOG.md](TRAINING-LOG.md)); scripted AI remains as a runtime toggle. |
 
@@ -146,6 +146,21 @@ one table in [ELITE-A.md](ELITE-A.md).
   points, no regeneration — and the derelict gets 252, the heaviest bank the
   catalogue holds, and recovers nothing because its reactors are cold. The
   visible change is that a rock hermit can no longer be shot down.
+- **The console reads energy in four banks, and the ship has one pool.** The
+  original's dashboard showed four energy banks and a pilot flew by how many
+  were left; TODO 27 replaced this project's four-point bank with a single
+  255-point pool, and for a while the console went on drawing four segments of
+  nothing in particular. Keeping the four-bank READING was the deliberate
+  choice over drawing energy as a bar like the shields it is now the same size
+  as, because "two banks left, break off" is a decision a player makes at a
+  glance and "0.43" is a number they have to think about — and because the
+  four-bank console is one of the most recognisable things about the 1984
+  screen. So the segments are quarters of one pool, and nothing about the pool
+  changed. `ENERGY_BANKS` in `src/game/systems.ts` is the single place that
+  says four: `LOW_ENERGY` is derived from it, so the segment the gauge turns
+  red, the ENERGY LOW the step announces and the point at which shields stop
+  recharging are one number seen three ways, and the gauge's own segments are
+  built from it rather than written into `play.html`.
 - **The mining laser is still a fitting, not a mount.** The pack gives every
   flyable hull a mining-laser byte and `playerLaserHit()` answers for it, but
   Harmless has no fourth mount to select: `miningLaser` is equipment that

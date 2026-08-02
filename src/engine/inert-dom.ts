@@ -15,6 +15,9 @@
 // This is emphatically not a DOM implementation. If a rule ever depends on what
 // one of these returns, that rule is in the wrong file.
 
+/** The `style` members that are functions, so the sink returns one. */
+const STYLE_METHODS = new Set(['setProperty', 'removeProperty', 'getPropertyValue']);
+
 /** An element-shaped sink. Reads give empty values; writes go nowhere. */
 export function inertElement(): HTMLElement {
   const el = {
@@ -22,7 +25,14 @@ export function inertElement(): HTMLElement {
     innerHTML: '',
     width: 0,
     height: 0,
-    style: new Proxy({}, { get: () => '', set: () => true }),
+    // Reads give '', writes go nowhere — and `style.setProperty()` is a WRITE
+    // that happens to be a call (the energy gauge sets a custom property), so
+    // the three CSSStyleDeclaration methods have to be callable sinks rather
+    // than the empty string.
+    style: new Proxy({}, {
+      get: (_t, prop) => (STYLE_METHODS.has(prop as string) ? () => '' : ''),
+      set: () => true,
+    }),
     classList: {
       add: () => {}, remove: () => {}, toggle: () => false, contains: () => false,
     },
@@ -45,6 +55,31 @@ export function inertElement(): HTMLElement {
 export function elementById(id: string): HTMLElement {
   if (typeof document === 'undefined') return inertElement();
   return document.getElementById(id) ?? inertElement();
+}
+
+/**
+ * Replace an element's children with `count` fresh ones of `tag`, and hand them
+ * back — or hand back that many sinks when there is no document.
+ *
+ * For a gauge whose SHAPE is a rule rather than a layout: the energy gauge is
+ * drawn in as many segments as the pool reads as banks (systems.ts's
+ * `ENERGY_BANKS`), so the markup cannot be the place that says four. Writing
+ * the count into play.html would be the same number in two files, kept in step
+ * by hope.
+ */
+export function fillWith(parent: HTMLElement, tag: string, count: number): HTMLElement[] {
+  if (typeof document === 'undefined') {
+    return Array.from({ length: count }, () => inertElement());
+  }
+  parent.innerHTML = '';
+  return Array.from({ length: count }, () => {
+    const child = document.createElement(tag);
+    // `parent` may itself be a sink (a missing id in a real document), whose
+    // appendChild returns nothing — so the child is what we hand back, never
+    // what appendChild gives us.
+    parent.appendChild(child);
+    return child;
+  });
 }
 
 /**

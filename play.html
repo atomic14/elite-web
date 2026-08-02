@@ -39,7 +39,9 @@
           <div class="gauge"><label>PITCH</label><div class="bar centered"><div id="g-pitch" class="marker"></div></div></div>
           <div class="gauge"><label>FORE SHLD</label><div class="bar"><div id="g-fore" class="fill"></div></div></div>
           <div class="gauge"><label>AFT SHLD</label><div class="bar"><div id="g-aft" class="fill"></div></div></div>
-          <div class="gauge"><label>ENERGY</label><div class="segs" id="g-energy"><i></i><i></i><i></i><i></i></div></div>
+          <!-- the segments are filled in by the painter, one per energy bank: how
+               many banks there are is systems.ts's ENERGY_BANKS, not markup -->
+          <div class="gauge"><label>ENERGY</label><div class="segs" id="g-energy"></div></div>
         </div>
         <div class="hud-panel hud-center">
           <canvas id="scanner" width="300" height="176"></canvas>

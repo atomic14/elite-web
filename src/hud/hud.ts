@@ -1,4 +1,4 @@
-import { elementById } from '../engine/inert-dom.ts';
+import { elementById, fillWith } from '../engine/inert-dom.ts';
 import * as THREE from 'three';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { describeSystem } from '../galaxy/galaxy.ts';
@@ -59,6 +59,18 @@ export interface HudState {
   foreShield: number; // 0..1
   aftShield: number; // 0..1
   energyFrac: number; // 0..1
+  /**
+   * How many BANKS the energy pool reads as, and the fraction at which it reads
+   * LOW — both from systems.ts (`ENERGY_BANKS`, `LOW_ENERGY`), normalized at
+   * the boundary like every other bank value.
+   *
+   * The console draws one segment per bank and turns the last one red at
+   * exactly the moment the world step says ENERGY LOW. It arrives as data
+   * because the painter must not be the second place that knows a quarter is a
+   * quarter: it is one constant in the rules, and the gauge is a reading of it.
+   */
+  energyBanks: number;
+  energyLowFrac: number; // 0..1
   fuelFrac: number;
   laserTemp: number; // 0..1
   altitudeFrac: number;
@@ -163,7 +175,9 @@ export class Hud {
   private readonly shipIdEl = byId('shipid');
   private readonly crosshairEl = byId('crosshair');
   private readonly reticle: CanvasRenderingContext2D;
-  private readonly energySegs: HTMLElement[];
+  private readonly energyEl = byId('g-energy');
+  /** built on the first frame, from the bank count the frame brings */
+  private energySegs: HTMLElement[] = [];
   private readonly missileEls: HTMLElement[];
   private readonly lockEl = byId('lock');
   private readonly indS = byId('ind-s');
@@ -185,7 +199,6 @@ export class Hud {
     this.scanner = (byId('scanner') as HTMLCanvasElement).getContext('2d')!;
     this.reticle = (byId('reticle') as HTMLCanvasElement).getContext('2d')!;
     this.compass = (byId('compass') as HTMLCanvasElement).getContext('2d')!;
-    this.energySegs = Array.from(byId('g-energy').querySelectorAll('i'));
     this.missileEls = Array.from(byId('missiles').querySelectorAll('span'));
   }
 
@@ -216,12 +229,7 @@ export class Hud {
     this.viewEl.textContent = frame.assist ? '◆ COMBAT COMPUTER ◆' : (VIEW_NAMES[frame.view] ?? '');
     this.crosshairEl.style.display = frame.hasLaser ? '' : 'none';
     this.shipIdEl.textContent = frame.shipId;
-    // Four segments across the whole bank, whatever the bank holds: the frame
-    // brings a fraction, and how many lamps it lights is the console's layout.
-    const litSegs = frame.energyFrac * this.energySegs.length;
-    this.energySegs.forEach((seg, i) => {
-      seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, litSegs - i))));
-    });
+    this.drawEnergy(frame);
     this.missileEls.forEach((m, i) => {
       const active = i === frame.missiles - 1;
       m.classList.toggle('spent', i >= frame.missiles);
@@ -246,6 +254,28 @@ export class Hud {
     this.drawThreatMarker(frame.threatMarker);
     this.drawScanner(frame.playerPos, frame.playerQuat, frame.contacts);
     this.drawCompass(frame.playerPos, frame.playerQuat, frame.compassTarget);
+  }
+
+  /**
+   * The energy gauge: one bank per segment, and red once you are into the last.
+   *
+   * The pool behind it is a single 255-point bank (TODO 27) and the frame
+   * brings it as a fraction — but a player reads energy the way the original's
+   * console showed it, in banks, and "three banks left" is a decision where
+   * "0.74" is a number. So the segments are a READING of one pool: how many of
+   * them there are and where the last one starts both arrive in the frame from
+   * systems.ts, which is why the red can never come on at a different moment
+   * from the ENERGY LOW the world step announces.
+   */
+  private drawEnergy(frame: HudState): void {
+    if (this.energySegs.length !== frame.energyBanks) {
+      this.energySegs = fillWith(this.energyEl, 'i', frame.energyBanks);
+    }
+    this.energyEl.classList.toggle('low', frame.energyFrac < frame.energyLowFrac);
+    const lit = frame.energyFrac * frame.energyBanks;
+    this.energySegs.forEach((seg, i) => {
+      seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, lit - i))));
+    });
   }
 
   /**

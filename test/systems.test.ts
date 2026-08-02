@@ -22,6 +22,7 @@ import {
   repairAtStation,
   scoopFuel,
   updateCabinTemp,
+  ENERGY_BANKS,
   ENERGY_UNIT_MULTIPLIER,
   LEGACY_MAX_ENERGY,
   LEGACY_MAX_SHIELD,
@@ -38,6 +39,18 @@ const COBRA: RegenOptions = { shipId: COBRA_MK_3_HULL_ID, energyUnit: false };
 
 console.log('\nship systems');
 {
+  // The warning, the shield cut-off and the console's segments are the same
+  // reading of one pool (TODO 38): ENERGY_BANKS says how many banks a pilot
+  // sees, and LOW_ENERGY is the last of them. They were equal by coincidence
+  // while the console drew a four-point bank's worth of segments over a
+  // 255-point pool; now one is defined from the other.
+  check('the pool reads as four banks, as the original console showed',
+    ENERGY_BANKS === 4);
+  check('ENERGY LOW is exactly the last of those banks',
+    LOW_ENERGY === Math.round(MAX_ENERGY / ENERGY_BANKS));
+  check('...so a full pool is that many banks and no more',
+    Math.round(MAX_ENERGY / LOW_ENERGY) === ENERGY_BANKS);
+
   check('durability from the front is one 255 shield plus a 255 bank',
     durability(false) === MAX_SHIELD + MAX_ENERGY);
   check('manoeuvring so both faces take hits is worth a second shield',

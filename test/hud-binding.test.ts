@@ -4,9 +4,11 @@
 // inside a 100-line render method, so it had never been asserted.
 
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { buildHudFrame, compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
+import { ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY } from '../src/game/systems.ts';
 import { check } from './harness.ts';
 
 console.log('\nhud binding');
@@ -137,5 +139,45 @@ console.log('\nhud binding');
     });
     check('...and an exercise\'s own strip reaches the painter unchanged',
       flown.exercise === strip);
+
+    // THE ENERGY GAUGE AND THE WARNING ARE ONE NUMBER SEEN TWICE (TODO 38).
+    // The console draws the pool in banks and turns the last one red when
+    // `energyFrac < energyLowFrac`; the world step says ENERGY LOW when
+    // `sys.energy < LOW_ENERGY`. Both fractions are made here by dividing by
+    // the same MAX_ENERGY, so the red and the warning cannot arrive a frame —
+    // or a rounding — apart. Before this, the console drew four segments of a
+    // model that no longer had four of anything.
+    const gauge = (energy: number) => buildHudFrame({
+      commander: state.commander, sys: { ...state.sys, energy }, world,
+      camera: new THREE.PerspectiveCamera(), playerPos, playerQuat,
+      playerForward: V(0, 0, -1), viewDir: V(0, 0, -1),
+      missiles: [], canisters: [], targetLock: null, inFlight: false,
+      exercise: null,
+    } as unknown as Parameters<typeof buildHudFrame>[0], {
+      a: V(0, 0, 0), b: V(0, 0, 0), c: V(0, 0, 0), q: new THREE.Quaternion(),
+    });
+    const full = gauge(MAX_ENERGY);
+    check('the console is told how many banks the pool reads as',
+      full.energyBanks === ENERGY_BANKS);
+    check('a full pool lights every bank and reads nothing low',
+      full.energyFrac === 1 && !(full.energyFrac < full.energyLowFrac));
+    check('the threshold reaches the painter as the same point count the step uses',
+      Math.round(full.energyLowFrac * MAX_ENERGY) === LOW_ENERGY);
+    const at = gauge(LOW_ENERGY);
+    const under = gauge(LOW_ENERGY - 1);
+    check('the gauge goes low at exactly the point ENERGY LOW fires',
+      !(at.energyFrac < at.energyLowFrac) && under.energyFrac < under.energyLowFrac);
+    check('...and that point is one bank, not a number the painter was told twice',
+      at.energyFrac <= 1 / ENERGY_BANKS + 0.5 / MAX_ENERGY
+      && at.energyFrac >= 1 / ENERGY_BANKS - 0.5 / MAX_ENERGY);
+  }
+
+  {
+    // The segments are the gauge's SHAPE, and the shape is a rule: the painter
+    // builds one per bank from the frame. Markup that declared its own would be
+    // the second home for a number systems.ts owns.
+    const play = readFileSync(new URL('../play.html', import.meta.url), 'utf8');
+    check('play.html leaves the energy segments to the painter',
+      /id="g-energy"><\/div>/.test(play));
   }
 }

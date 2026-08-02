@@ -68,11 +68,25 @@ export const LEGACY_MAX_ENERGY = 4;
 export const LEGACY_MAX_SHIELD = 1;
 
 /**
- * Below this the console flashes ENERGY LOW and the shields stop recovering: a
- * quarter of the bank, exactly what the literal `1` meant when it held 4. Two
- * rules shared that literal across two files; they share this instead.
+ * How many BANKS the console reads the energy pool as — four, as the original's
+ * console did, and the reason `LOW_ENERGY` is a quarter.
+ *
+ * TODO 27 made energy one 255-point pool, but the console still divides it into
+ * four and a player still flies by "how many banks left". So the reading and
+ * the warning are one constant apart rather than two numbers that happen to
+ * agree: the console draws this many segments (hud.ts, via the frame) and the
+ * warning fires as the LAST of them empties. Change this and the gauge, the
+ * warning and the shield cut-off all move together.
  */
-export const LOW_ENERGY = Math.round(MAX_ENERGY / 4);
+export const ENERGY_BANKS = 4;
+
+/**
+ * Below this the console flashes ENERGY LOW and the shields stop recovering:
+ * the last bank of ENERGY_BANKS, exactly what the literal `1` meant when the
+ * pool held 4. Two rules shared that literal across two files; they share this
+ * instead, and the gauge shares it too.
+ */
+export const LOW_ENERGY = Math.round(MAX_ENERGY / ENERGY_BANKS);
 
 /**
  * The fraction of a full pool the Cobra Mk III recovers each second — HARMLESS
@@ -249,8 +263,9 @@ export function regenerate(sys: ShipSystems, dt: number, opts: RegenOptions): vo
   const ticks = eliteARegenTicks(dt);
   [sys.energy, sys.energyCarry] = recharge(sys.energy, sys.energyCarry, MAX_ENERGY,
     energyRegenPerSecond(opts.shipId, opts.energyUnit), ticks);
-  // shields only recover once energy is above a quarter of the bank — a beaten
-  // ship has to disengage before it gets its shields back
+  // shields only recover once energy is out of its last bank — a beaten ship
+  // has to disengage before it gets its shields back, and that is the same
+  // moment the console reads ENERGY LOW
   if (sys.energy > LOW_ENERGY) {
     [sys.foreShield, sys.foreShieldCarry] =
       recharge(sys.foreShield, sys.foreShieldCarry, MAX_SHIELD, SHIELD_REGEN, ticks);

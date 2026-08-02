@@ -21,7 +21,9 @@ import {
 } from './hud-model.ts';
 import { hostilesNear, type NpcShip } from '../game/npc.ts';
 import type { CommanderData } from '../game/commander.ts';
-import { MAX_ENERGY, MAX_SHIELD, type ShipSystems } from '../game/systems.ts';
+import {
+  ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY, MAX_SHIELD, type ShipSystems,
+} from '../game/systems.ts';
 import type { World } from '../game/world.ts';
 import type { Missile } from '../game/ordnance.ts';
 import type { Canister } from '../game/cargo.ts';
@@ -163,6 +165,12 @@ export function buildHudFrame(s: HudSources, scratch: HudScratch): HudFrame {
     foreShield: s.sys.foreShield / MAX_SHIELD,
     aftShield: s.sys.aftShield / MAX_SHIELD,
     energyFrac: s.sys.energy / MAX_ENERGY,
+    // The gauge's shape, from the rules that own it: how many banks the pool
+    // reads as, and the fraction below which the step says ENERGY LOW. Divided
+    // here by the same MAX_ENERGY as the value itself, so "the last bank is
+    // lit" and "the warning is up" are the same comparison and cannot drift.
+    energyBanks: ENERGY_BANKS,
+    energyLowFrac: LOW_ENERGY / MAX_ENERGY,
     fuelFrac: commander.fuel / MAX_FUEL,
     laserTemp: s.sys.laserTemp,
     altitudeFrac: altitude / (world.planetRadius * 2),
