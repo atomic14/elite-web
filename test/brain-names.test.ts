@@ -12,8 +12,9 @@ import {
   pirateBrainFor, defenceBrain, brainByName,
 } from '../src/game/brains.ts';
 import {
-  AS_SHIPPED, BRAIN_CHARACTER, LIVE_BRAIN_IDS, brainCharacter, defenceBrainNameFor,
-  liveBrainId, liveBrainSelection, pirateBrainNameFor, selectionForBrain, type BrainName,
+  AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, LIVE_BRAIN_IDS, brainCharacter, brainName,
+  defenceBrainNameFor, liveBrainId, liveBrainSelection, pirateBrainNameFor, selectionForBrain,
+  type BrainName,
 } from '../src/game/brain-names.ts';
 import { liveBrainFor } from '../src/game/combat-sim-scenarios.ts';
 import {
@@ -98,25 +99,39 @@ console.log('\nwhich brain flies, by name');
     && !Object.isFrozen(liveBrainSelection(AS_SHIPPED)));
 }
 
-// --- and every name it offers says what it DOES ------------------------------
+// --- and every name it offers is a NAME, and says what it DOES ---------------
 //
 // The pickers used to answer "which brain" with a filename, and PIRATE-ATTACK-T29
-// tells a playtester nothing about what he is about to fly against. Every value
-// either picker offers now has a one-line character beside the name, and this is
-// the check that makes adding a brain without describing it fail the build.
+// tells a playtester nothing about what he is about to fly against. TODO 32 put a
+// character line under the selected row and it was not enough — the row's VALUE
+// was still the file, so the thing being chosen between still read as build
+// artefacts. Every value either picker offers now has BOTH: two or three words
+// saying how it flies, and the measured line the words were compressed from.
+// They live in one table, so neither can be added without the other.
 
-console.log('\nevery brain the pickers offer has a character');
+console.log('\nevery brain the pickers offer has a name and a character');
 {
   const offered = [...new Set<string>([...BRAIN_CHOICES, ...LIVE_BRAIN_IDS])];
   const silent = offered.filter((id) => !brainNote(id));
   check(`every value on both brain rows says what it does (${offered.length})`,
     silent.length === 0, silent.join(', '));
+  const unnamed = offered.filter((id) => !brainName(id));
+  check(`...and every one of them has a name to be picked BY (${offered.length})`,
+    unnamed.length === 0, unnamed.join(', '));
   check('...and the character table covers the picker exactly, with nothing spare',
-    Object.keys(BRAIN_CHARACTER).every((id) => offered.includes(id)));
+    Object.keys(BRAINS).every((id) => offered.includes(id)));
+
+  // A name is the character line compressed, not a second way of writing the
+  // file: no stem, no generation, and short enough to read at a glance.
+  const bad = Object.entries(BRAINS).filter(([id, b]) =>
+    !b.name || b.name !== b.name.toUpperCase() || b.name.length > 24
+    || b.name.toLowerCase().includes(id) || /[a-z]/.test(b.name));
+  check(`a name is words, never a file stem (${Object.keys(BRAINS).length})`,
+    bad.length === 0, bad.map(([id]) => id).join(', '));
 
   // Behaviour, not provenance: a line is there to be read before a fight, and
   // "run 19's solo candidate" is not something a pilot can fly against.
-  const noNumber = Object.entries(BRAIN_CHARACTER)
+  const noNumber = Object.entries(BRAINS).map(([id, b]) => [id, b.character] as const)
     .filter(([, line]) => !/\d/.test(line)).map(([id]) => id);
   check('...and each carries the measured number that shows it',
     noNumber.length === 0, noNumber.join(', '));
@@ -124,7 +139,10 @@ console.log('\nevery brain the pickers offer has a character');
   // The two sentinels are not brains, so they are answered by the panel's own
   // prose — and the shipped one is DERIVED, so promoting a candidate moves it.
   check('"as the game flies" says where the answer comes from instead',
-    /NO OVERRIDE/.test(brainNote('live') ?? ''));
+    /NOTHING IS SWAPPED OUT FOR THIS FIGHT/.test(brainNote(AS_THE_GAME_FLIES) ?? '')
+    // in a pilot's words: not one of ours, and not a word that presupposes the
+    // thing it is explaining
+    && !/OVERRIDE|\bROLE\b|\bTIER\b/.test(brainNote(AS_THE_GAME_FLIES) ?? ''));
   check('...and "as shipped" names the three the shipped rule actually returns',
     LIVE_BRAIN_IDS.filter((id) => id !== AS_SHIPPED)
       .every((id) => !brainNote(AS_SHIPPED)!.includes(id.toUpperCase())
@@ -199,13 +217,14 @@ check('...so no exercise setting sits below it',
 
 // step to a named policy: one arrow key, and it is the whole galaxy
 d.live = 'pirate-attack-t29';
-eq('a picked policy reads back on the row', row().value,
+eq('a picked policy reads back on the row — how it flies, then which file', row().value,
   `${LIVE_BRAIN_IDS.indexOf('pirate-attack-t29') + 1}/${LIVE_BRAIN_IDS.length}`
-  + ' PIRATE-ATTACK-T29');
+  + ' HANGS BACK <span class="stem">(pirate-attack-t29)</span>');
 eq('...and is the selection the game would fly',
   JSON.stringify(liveSelectionOf(d)), '{"t29":true}');
 check('...and the fenced note says it outlives the exercise',
-  /LIVE BRAINS: THE WHOLE GALAXY FLIES PIRATE-ATTACK-T29/.test(careerNote(d).text));
+  /LIVE BRAINS: THE WHOLE GALAXY FLIES HANGS BACK \(PIRATE-ATTACK-T29\)/
+    .test(careerNote(d).text));
 eq('...as a warning this time, painted apart from the calm case',
   careerNote(d).warning, true);
 check('...in words the contextual help does not use, because it is forgettable',
@@ -218,7 +237,7 @@ check('...and the space it takes is reserved whether it is there or not',
 // hint's whole job is to say what the opposition will actually be flying
 d.groups.push(defaultGroup(1));
 const hint = setupCells(d)
-  .find((c) => c.label.replace(/&nbsp;/g, '') === 'BRAIN');
+  .find((c) => c.label.replace(/&nbsp;/g, '') === 'THIS GROUP FLIES');
 check('a group left on "as the game flies" names the LIVE brain, not the shipped one',
   !!hint && hint.value.includes('pirate-attack-t29'));
 eq('...and that is the brain the spec carries',

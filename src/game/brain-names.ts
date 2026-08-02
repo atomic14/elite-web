@@ -19,6 +19,14 @@
 // character is one line of BEHAVIOUR with the number that shows it, it belongs
 // beside the name rather than beside the weights, and `npm test` refuses a name
 // the pickers offer with no line to go with it.
+//
+// And so is what each one is CALLED on the row, which is the half a sentence
+// under the panel could not fix: a row whose value is `pirate-attack-t29` is
+// asking a pilot to choose between build artefacts, however well the artefacts
+// are explained underneath. The name is the character line compressed to two or
+// three words — `HANGS BACK`, `CLOSES IN` — so it is never a separate claim that
+// could go stale on its own, and it lives in the same table as the line it came
+// from, so a brain cannot have one without the other.
 
 /**
  * Every policy the game LOADS, by the stem of its weights file, plus the
@@ -52,8 +60,35 @@ export type BrainName =
 export type NamedBrain = BrainName | 'pirate-attack-g1';
 
 /**
- * What each policy is LIKE in a fight — one line, behaviour first, with the one
- * measured number that shows it.
+ * The two values a picker offers that are not policies at all.
+ *
+ * "As shipped" is the career picker's way of saying no override at all; "as the
+ * game flies" is the exercise picker's — leave every ship on whatever it would
+ * be flying out there. They are here beside the names for one reason: a picker
+ * offers them in the same list as the brains, so "every value on this row has a
+ * name" has to be answerable for them too.
+ */
+export const AS_SHIPPED = 'as-shipped';
+export const AS_THE_GAME_FLIES = 'live';
+
+/** What a policy is called on a row, and what it is like to fight. */
+export interface BrainProfile {
+  /**
+   * Two or three words saying how it FLIES — the row's value.
+   *
+   * The character line below, compressed: "hangs back and snipes" is `HANGS
+   * BACK`. Never a version, a generation or a file stem, because those are the
+   * thing this replaces. The weights file is still shown beside it, quieter, for
+   * anyone cross-referencing docs/TRAINING-LOG.md.
+   */
+  name: string;
+  /** the one line of behaviour, with the measured number that shows it */
+  character: string;
+}
+
+/**
+ * What each policy is CALLED and what it is LIKE in a fight — one line,
+ * behaviour first, with the one measured number that shows it.
  *
  * **Every figure here is traceable and none of it is invented.** The flight
  * shapes (speed, median engagement range, attack runs, collisions per episode)
@@ -74,70 +109,121 @@ export type NamedBrain = BrainName | 'pirate-attack-g1';
  * AS SHIPPED — which are not brains but sentinels; their lines live with the
  * rest of the panel's prose in `screens/combat-sim-notes.ts`.
  */
-export const BRAIN_CHARACTER: Readonly<Record<NamedBrain, string>> = Object.freeze({
+export const BRAINS: Readonly<Record<NamedBrain, BrainProfile>> = Object.freeze({
   // probe: speed 216, range 85/234/964, 0.20 rams · tournament: 12.0% of her
   // pools against a hauler, 5.3% against a commander who fights back
-  'pirate-attack-g3':
-    'CLOSES AND STAYS THERE — SPEED 216, MEDIAN RANGE 234, 0.20 COLLISIONS AN EPISODE. '
-    + 'THE FIGHT THE GAME SHIPS.',
+  'pirate-attack-g3': {
+    name: 'CLOSES IN',
+    character: 'CLOSES AND STAYS THERE — SPEED 216, MEDIAN RANGE 234, 0.20 COLLISIONS AN EPISODE. '
+      + 'THE FIGHT THE GAME SHIPS.',
+  },
   // probe: speed 144, range 393/1447/2905, 0.83 passes · tournament: a gang of
   // three takes 23.7% of her pools and kills her in 0% of episodes
-  'pirate-pack-r4-selectonly':
-    'A GANG THAT WATCHES ITS FLEET AND HOLDS OFF — MEDIAN RANGE 1447 AT SPEED 144. '
-    + 'THREE OF THEM TAKE 23.7% OF YOUR POOLS AND KILL NOBODY.',
+  'pirate-pack-r4-selectonly': {
+    name: 'HOLDS OFF',
+    character: 'A GANG THAT WATCHES ITS FLEET AND HOLDS OFF — MEDIAN RANGE 1447 AT SPEED 144. '
+      + 'THREE OF THEM TAKE 23.7% OF YOUR POOLS AND KILL NOBODY.',
+  },
   // tournament, two shipped pirates on her tail: they hold her six 2.3s and she
   // shoots down 0.42 of them an episode
-  'jameson-defend-g1':
-    'AN ARMED TRADER THAT TURNS AND FIGHTS — SHAKES TWO PIRATES OFF HER SIX IN 2.3s '
-    + 'AND SHOOTS DOWN 0.42 OF THEM AN EPISODE.',
+  'jameson-defend-g1': {
+    name: 'TURNS AND FIGHTS',
+    character: 'AN ARMED TRADER THAT TURNS AND FIGHTS — SHAKES TWO PIRATES OFF HER SIX IN 2.3s '
+      + 'AND SHOOTS DOWN 0.42 OF THEM AN EPISODE.',
+  },
   // probe: speed 104, range 102/754/1952, 2.23 rams · tournament: 25.3% of her
   // pools against a commander who fights back, to g3's 5.3%
-  'pirate-attack-t29':
-    'HANGS BACK AND SNIPES — SPEED 104, MEDIAN RANGE 754, 2.23 COLLISIONS AN EPISODE. '
-    + 'TAKES 25.3% OF YOUR POOLS TO G3\'S 5.3%, AND READS AS A TURRET.',
+  'pirate-attack-t29': {
+    name: 'HANGS BACK',
+    character: 'HANGS BACK AND SNIPES — SPEED 104, MEDIAN RANGE 754, 2.23 COLLISIONS AN EPISODE. '
+      + 'TAKES 25.3% OF YOUR POOLS TO G3\'S 5.3%, AND READS AS A TURRET.',
+  },
   // probe: range 198/1340/4505 · tournament: 53.1% and 18% kills, against the
   // shipped pack's 23.7% and none
-  'pirate-pack-t29':
-    'A GANG THAT SNIPES FROM 1340 AND CONNECTS — 53.1% OF YOUR POOLS AND 18% KILLS, '
-    + 'AGAINST THE SHIPPED PACK\'S 23.7% AND NONE.',
+  'pirate-pack-t29': {
+    name: 'SNIPES AND CONNECTS',
+    character: 'A GANG THAT SNIPES FROM 1340 AND CONNECTS — 53.1% OF YOUR POOLS AND 18% KILLS, '
+      + 'AGAINST THE SHIPPED PACK\'S 23.7% AND NONE.',
+  },
   // tournament, two shipped pirates on her tail: 13.5s on her six against
   // defend-g1's 2.3s, and 0.12 attackers downed against 0.42
-  'jameson-defend-t29':
-    'EVADES WELL, SHOOTS BADLY — LETS AN ATTACKER SIT ON HER SIX 13.5s TO DEFEND-G1\'S 2.3s, '
-    + 'AND DOWNS 0.12 AN EPISODE TO ITS 0.42.',
+  'jameson-defend-t29': {
+    name: 'EVADES, SHOOTS BADLY',
+    character: 'EVADES WELL, SHOOTS BADLY — LETS AN ATTACKER SIT ON HER SIX 13.5s TO '
+      + 'DEFEND-G1\'S 2.3s, AND DOWNS 0.12 AN EPISODE TO ITS 0.42.',
+  },
   // probe: speed 117, range 113/628/1762, 2.27 rams, 42.1% of her pools — the
   // same 42.1% t29 takes, which is why the two lines rhyme
-  'pirate-attack-g2':
-    'THE TURRET THAT WAS ROLLED BACK — SPEED 117, MEDIAN RANGE 628, 2.27 COLLISIONS AN '
-    + 'EPISODE. T29 IS THIS BRAIN AGAIN, TO THE DECIMAL.',
+  'pirate-attack-g2': {
+    name: 'THE TURRET',
+    character: 'THE TURRET THAT WAS ROLLED BACK — SPEED 117, MEDIAN RANGE 628, 2.27 COLLISIONS AN '
+      + 'EPISODE. T29 IS THIS BRAIN AGAIN, TO THE DECIMAL.',
+  },
   // probed for this table: speed 117, range 103/868/1994, 0.13 passes, 1.97 rams
-  'pirate-attack-g1':
-    'GENERATION 1, AND THE GAME CANNOT FLY IT — NOT IN THE BUNDLE, SO AN EXERCISE REFUSES IT '
-    + 'ON THE RECORD. PROBED: SPEED 117, MEDIAN RANGE 868.',
+  //
+  // The one name that is not a flight shape, and deliberately: it flies like g2
+  // (117, median 868), but what a pilot needs off the row is that picking it
+  // gets him no fight at all.
+  'pirate-attack-g1': {
+    name: 'CANNOT BE FLOWN',
+    character: 'GENERATION 1, AND THE GAME CANNOT FLY IT — NOT IN THE BUNDLE, SO AN EXERCISE '
+      + 'REFUSES IT ON THE RECORD. PROBED: SPEED 117, MEDIAN RANGE 868.',
+  },
   // probe: 0.93 completed close-and-break cycles an episode, the highest of any
   // brain measured (the shipped pack is next at 0.83); speed 182, range
   // 222/706/1740
-  'pirate-attack-e1':
-    'BREAKS OFF AND COMES BACK MORE THAN ANY OTHER — 0.93 ATTACK RUNS AN EPISODE AT SPEED 182, '
-    + 'MEDIAN RANGE 706.',
+  'pirate-attack-e1': {
+    name: 'MAKES ATTACK RUNS',
+    character: 'BREAKS OFF AND COMES BACK MORE THAN ANY OTHER — 0.93 ATTACK RUNS AN EPISODE AT '
+      + 'SPEED 182, MEDIAN RANGE 706.',
+  },
   // probe: speed 262, range 185/254/1166 · the 220-unit dead zone is RAM_GUARD
   // in brains.ts, and 220 is inside the range a human fights at (median 260)
-  'pirate-attack-r2':
-    'THE GAME BEFORE ANY OF THIS — FASTEST AT SPEED 262 AND CLOSES TO 254, BUT ITS GUNS CUT '
-    + 'OUT INSIDE 220 UNITS, WHICH IS WHERE A HUMAN FIGHTS.',
+  'pirate-attack-r2': {
+    name: 'FAST, GUNS CUT OUT',
+    character: 'THE GAME BEFORE ANY OF THIS — FASTEST AT SPEED 262 AND CLOSES TO 254, BUT ITS '
+      + 'GUNS CUT OUT INSIDE 220 UNITS, WHICH IS WHERE A HUMAN FIGHTS.',
+  },
   // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
   // ships an episode to a commander who fights back
-  scripted:
-    'THE PRE-NEUROEVOLUTION AIMBOT — 58% ACCURACY AND 31.8s ON A HAULER\'S SIX, BUT IT LOSES '
-    + '0.93 SHIPS AN EPISODE TO A COMMANDER WHO SHOOTS BACK.',
+  scripted: {
+    name: 'THE OLD AIMBOT',
+    character: 'THE PRE-NEUROEVOLUTION AIMBOT — 58% ACCURACY AND 31.8s ON A HAULER\'S SIX, BUT IT '
+      + 'LOSES 0.93 SHIPS AN EPISODE TO A COMMANDER WHO SHOOTS BACK.',
+  },
 });
+
+/**
+ * What the two sentinels read as. What they MEAN is still the panel's own prose
+ * (`screens/combat-sim-notes.ts`); neither has a character to state.
+ */
+const SENTINEL_NAMES: Readonly<Record<string, string>> = Object.freeze({
+  [AS_THE_GAME_FLIES]: 'AS THE GAME FLIES',
+  [AS_SHIPPED]: 'AS SHIPPED',
+});
+
+/**
+ * What a picker VALUE reads as: two or three words about how it flies, or the
+ * sentinel's own words. Undefined for a value no picker offers.
+ *
+ * Takes a plain string for the same reason `selectionForBrain` does — the two
+ * pickers speak different unions and both ask this.
+ */
+export function brainName(brain: string): string | undefined {
+  return BRAINS[brain as NamedBrain]?.name ?? SENTINEL_NAMES[brain];
+}
 
 /**
  * What a named brain is like in a fight, or undefined for a name no picker
  * offers. Takes a plain string for the same reason `selectionForBrain` does.
  */
 export function brainCharacter(brain: string): string | undefined {
-  return BRAIN_CHARACTER[brain as NamedBrain];
+  return BRAINS[brain as NamedBrain]?.character;
+}
+
+/** Is this a policy with a weights file behind it, rather than a sentinel? */
+export function isNamedBrain(brain: string): brain is NamedBrain {
+  return brain in BRAINS;
 }
 
 /**
@@ -297,9 +383,6 @@ export function selectionForBrain(brain: string): BrainSelection | undefined {
   const sel = SELECTIONS[brain as BrainName];
   return sel ? { ...sel } : undefined;
 }
-
-/** "As shipped" — the pickable way to say "no override at all". */
-export const AS_SHIPPED = 'as-shipped';
 
 /** What the live picker offers: the shipped set, or one named policy for everybody. */
 export type LiveBrainId = BrainName | typeof AS_SHIPPED;

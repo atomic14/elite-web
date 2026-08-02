@@ -24,8 +24,8 @@ import {
   type BrainId, type ExerciseSpec, type Opposition, type SimMode,
 } from '../combat-sim-scenarios.ts';
 import {
-  AS_SHIPPED, LIVE_BRAIN_IDS, SHIPPED_BRAINS, liveBrainSelection,
-  type BrainSelection, type LiveBrainId,
+  AS_SHIPPED, AS_THE_GAME_FLIES, LIVE_BRAIN_IDS, SHIPPED_BRAINS, brainName, isNamedBrain,
+  liveBrainSelection, type BrainSelection, type LiveBrainId,
 } from '../brain-names.ts';
 
 /**
@@ -93,8 +93,11 @@ export const MODES: readonly SimMode[] = ['scenario', 'sparring', 'waves'];
 const TIERS = ['0 OPPORTUNISTS', '1 PROFESSIONALS', '2 ORGANISED GANG'];
 const LASERS: readonly LaserType[] = ['pulse', 'beam', 'military'];
 
-/** `liveBrainFor`'s answer, offered as a choice so "no override" is pickable. */
-export const AS_THE_GAME_FLIES = 'live';
+/**
+ * The exercise picker's vocabulary: any named policy, or `AS_THE_GAME_FLIES` —
+ * `liveBrainFor`'s answer, offered as a choice so "leave it alone" is pickable.
+ * The sentinel itself lives in `brain-names.ts`, with every other name.
+ */
 export type BrainChoice = BrainId | typeof AS_THE_GAME_FLIES;
 export const BRAIN_CHOICES: readonly BrainChoice[] = [AS_THE_GAME_FLIES, ...SIM_BRAINS];
 
@@ -207,6 +210,20 @@ const endOf = <T>(xs: readonly T[], d: number): T => (d > 0 ? xs[xs.length - 1] 
  * brain rows are a dozen values long they carry one too.
  */
 const position = (at: number, len: number): string => `${at + 1}/${len}`;
+
+/**
+ * `HANGS BACK (pirate-attack-t29)` — how it flies, and only then which file.
+ *
+ * The row's value used to BE the file stem, and a sentence underneath could not
+ * fix that: a pilot choosing between `pirate-attack-g3` and `jameson-defend-t29`
+ * is choosing between build artefacts. The name is `brain-names.ts`'s, beside the
+ * character line it was compressed from; the stem stays for anyone
+ * cross-referencing docs/TRAINING-LOG.md, in a quieter face (`.stem`) and second,
+ * so it is not what you read first.
+ */
+const flies = (id: BrainChoice | LiveBrainId): string =>
+  (brainName(id) ?? id.toUpperCase())
+  + (isNamedBrain(id) ? ` <span class="stem">(${id})</span>` : '');
 
 /**
  * A draft to start from: a single professional pirate, in the ship you own.
@@ -395,9 +412,13 @@ export function setupCells(d: SimDraft): SetupCell[] {
     },
     {
       heading: 'WHO FLIES WHAT',
-      label: 'EXERCISE BRAIN',
+      // What the row DECIDES, in a pilot's words, finishing the heading's
+      // sentence — and it says WHICH FIGHT, because the row at the foot of the
+      // panel decides the same thing for the career and the two were told apart
+      // only by a fence.
+      label: 'THE OPPOSITION FLIES (THIS FIGHT)',
       value: `${position(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length)} `
-        + (d.brain === AS_THE_GAME_FLIES ? 'AS THE GAME FLIES' : d.brain),
+        + flies(d.brain),
       brain: d.brain,
       change: (n) => { d.brain = step(BRAIN_CHOICES, d.brain, n); },
       jump: (n) => { d.brain = endOf(BRAIN_CHOICES, n); },
@@ -443,11 +464,11 @@ export function setupCells(d: SimDraft): SetupCell[] {
         change: () => { g.organised = !g.organised; },
       },
       {
-        label: pad('BRAIN'),
+        label: pad('THIS GROUP FLIES'),
         value: `${position(BRAIN_CHOICES.indexOf(g.brain), BRAIN_CHOICES.length)} `
           + (g.brain === AS_THE_GAME_FLIES
-            ? `AS THE GAME FLIES (${liveBrainFor(hull.role, g.organised, g.tier, live)})`
-            : g.brain),
+            ? `AS THE GAME FLIES — ${flies(liveBrainFor(hull.role, g.organised, g.tier, live))}`
+            : flies(g.brain)),
         // Resolved, not the sentinel: a group left on AS THE GAME FLIES will fly
         // a real policy and the line under the panel should describe THAT one.
         brain: g.brain === AS_THE_GAME_FLIES
@@ -517,7 +538,7 @@ export function setupCells(d: SimDraft): SetupCell[] {
     // the picker cannot name is not one of the eleven it offers.
     value: d.live === null ? 'SET FROM THE CONSOLE'
       : `${position(LIVE_BRAIN_IDS.indexOf(d.live), LIVE_BRAIN_IDS.length)} `
-        + (d.live === AS_SHIPPED ? 'AS SHIPPED' : d.live.toUpperCase()),
+        + flies(d.live),
     brain: d.live ?? undefined,
     change: (n) => {
       const at = d.live === null ? -1 : LIVE_BRAIN_IDS.indexOf(d.live);

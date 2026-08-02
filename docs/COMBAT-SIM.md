@@ -159,12 +159,22 @@ Two levels, because the audiences differ:
   `game/brain-names.ts` and checked against the imports in `game/brains.ts` by
   `npm test`), and the fit — missiles, E.C.M.
 
-Every brain row says where in its list it is (`5/12`), HOME and END go to either
-end of a long list without walking there, and selecting a brain row prints what
-that brain DOES in a fight — one line of behaviour with the measured number that
-shows it, stated in `game/brain-names.ts` beside the name. The figures are the
-flight probe and the evaluation tournament, archived under `train/logs/`; a name
-the picker offers with no line to go with it fails `npm test`.
+**A brain row is named, not filed.** Its value is how the policy FLIES — `CLOSES
+IN`, `HANGS BACK`, `HOLDS OFF`, `THE OLD AIMBOT` — with the weights file behind
+it in a quieter face for anyone cross-referencing docs/TRAINING-LOG.md. The row
+itself says which fight it changes: **THE OPPOSITION FLIES (THIS FIGHT)** at the
+top of WHO FLIES WHAT, **THIS GROUP FLIES** on a hand-built group, and the fenced
+**LIVE BRAINS (CAREER)** at the foot. The names live in `game/brain-names.ts`
+beside the one-line CHARACTER they were compressed from, which is what the panel
+prints under the selected row — behaviour with the measured number that shows it.
+The figures are the flight probe and the evaluation tournament, archived under
+`train/logs/`; a value the picker offers with no name AND no line fails
+`npm test`. Every brain row also says where in its list it is (`5/12`), and HOME
+and END go to either end of a long list without walking there.
+
+Leaving a row on its first value swaps nothing: **AS THE GAME FLIES** means every
+ship flies the way it would out there — a pirate like a pirate, a gang like a
+gang, an armed trader like an armed trader.
 
 There is one row on the panel that is NOT about the exercise, and it is fenced
 off at the foot of it, under a heading saying so: **LIVE BRAINS

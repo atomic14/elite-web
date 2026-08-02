@@ -26,9 +26,10 @@ import {
   SCENARIOS, SIM_BRAINS, clampTier, liveBrainFor, simHulls, type BrainId,
 } from '../src/game/combat-sim-scenarios.ts';
 import {
-  MODES, AS_THE_GAME_FLIES, brainOverride, defaultGroup, fitFrom,
+  MODES, brainOverride, defaultGroup, fitFrom,
   freshDraft, freshSeed, nudgeOrHull, setupCells, specFrom,
 } from '../src/game/screens/combat-sim-setup.ts';
+import { AS_THE_GAME_FLIES } from '../src/game/brain-names.ts';
 import { draftNotes } from '../src/game/screens/combat-sim-notes.ts';
 import { renderDockedMenu } from '../src/ui/screens.ts';
 

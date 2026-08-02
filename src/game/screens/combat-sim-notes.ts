@@ -21,9 +21,10 @@ import {
   WAVE_SATURATION, WAVE_STEPS, waveOfStage, type SimMode,
 } from '../combat-sim-scenarios.ts';
 import {
-  AS_SHIPPED, BRAIN_CHARACTER, LIVE_BRAIN_IDS, brainCharacter, type LiveBrainId,
+  AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, LIVE_BRAIN_IDS, brainCharacter, brainName,
+  type LiveBrainId,
 } from '../brain-names.ts';
-import { AS_THE_GAME_FLIES, type SimDraft } from './combat-sim-setup.ts';
+import type { SimDraft } from './combat-sim-setup.ts';
 
 const MODE_BLURB: Record<SimMode, string> = {
   scenario: 'ONE NAMED FIGHT, SCORED, ENDS BY ITSELF',
@@ -32,7 +33,7 @@ const MODE_BLURB: Record<SimMode, string> = {
 };
 
 const MIXED_BRAINS = 'MIXED BRAINS CANNOT FLY: THE GAME LOADS ONE POLICY PER ROLE, '
-  + 'SO THE LIVE BRAINS WILL. SET THE EXERCISE BRAIN ROW INSTEAD.';
+  + 'SO THE LIVE BRAINS WILL. SET THE OPPOSITION FLIES (THIS FIGHT) ROW INSTEAD.';
 
 /**
  * What the waves mode escalates, and where it stops — DERIVED from the ramp.
@@ -109,13 +110,17 @@ export function draftNotesReserve(): string[] {
 // bound.
 
 /**
- * The exercise picker's "no override" value, described the way a brain is.
+ * The exercise picker's "leave it alone" value, described the way a brain is.
  *
- * It is not a policy, so it has no character; what a pilot needs to know is
- * that the answer comes from somewhere else, and where.
+ * It is not a policy, so it has no character; what a pilot needs to know is that
+ * nothing is being swapped, and what that leaves him fighting. In plain words —
+ * the line it replaced said "NO OVERRIDE … BY ITS ROLE AND ITS TIER", which
+ * presupposes you know there is an override and uses two words that are ours
+ * rather than a pilot's.
  */
-const NO_OVERRIDE = 'NO OVERRIDE — EVERY SHIP FLIES WHAT THE LIVE GAME WOULD GIVE IT, '
-  + 'BY ITS ROLE AND ITS TIER.';
+const NO_OVERRIDE = 'NOTHING IS SWAPPED OUT FOR THIS FIGHT — EVERY SHIP FLIES THE WAY IT '
+  + 'WOULD OUT THERE: A PIRATE LIKE A PIRATE, A GANG LIKE A GANG, AN ARMED TRADER LIKE AN '
+  + 'ARMED TRADER.';
 
 /**
  * The career picker's "no override" value, DERIVED from the shipped rule.
@@ -123,10 +128,14 @@ const NO_OVERRIDE = 'NO OVERRIDE — EVERY SHIP FLIES WHAT THE LIVE GAME WOULD G
  * Three names that must not be typed out here: `SHIPPED_BRAINS` is the one line
  * that changes the default, and a hand-written list of what it currently means
  * would be a second home for it, wrong on the day somebody promotes a candidate.
+ * The NAMES come from the same table for the same reason, and they are what a
+ * pilot reads — the file stems follow, for the training log.
  */
 const shippedSet = (): string =>
-  (`AS SHIPPED — ${SHIPPED_SOLO_BRAIN} SOLO, ${SHIPPED_PACK_BRAIN} FOR ORGANISED GANGS, `
-    + `${SHIPPED_DEFENCE_BRAIN} FOR ARMED TRADERS.`).toUpperCase();
+  ('AS SHIPPED — SOLO PIRATE: ' + brainName(SHIPPED_SOLO_BRAIN)
+    + ' · ORGANISED GANG: ' + brainName(SHIPPED_PACK_BRAIN)
+    + ' · ARMED TRADER: ' + brainName(SHIPPED_DEFENCE_BRAIN)
+    + ` (${SHIPPED_SOLO_BRAIN}, ${SHIPPED_PACK_BRAIN}, ${SHIPPED_DEFENCE_BRAIN}).`).toUpperCase();
 
 /**
  * What the brain named on the selected row DOES — or null when the row names
@@ -144,7 +153,9 @@ export function brainNote(id: string | null | undefined): string | null {
 
 /** The tallest `brainNote` can ever be: the longest line any brain has. */
 export function brainNoteReserve(): string {
-  return longest([...Object.values(BRAIN_CHARACTER), NO_OVERRIDE, shippedSet()]);
+  return longest([
+    ...Object.values(BRAINS).map((b) => b.character), NO_OVERRIDE, shippedSet(),
+  ]);
 }
 
 // --- the one note that is not about this exercise ---------------------------
@@ -161,8 +172,8 @@ const FROM_THE_CONSOLE = 'LIVE BRAINS WERE SET FROM THE CONSOLE TO SOMETHING THI
  * than what it does.
  */
 const galaxyFlies = (id: LiveBrainId): string =>
-  `LIVE BRAINS: THE WHOLE GALAXY FLIES ${id.toUpperCase()} — IN YOUR CAREER, OUT THERE, `
-  + 'AND SAVED WITH THE COMMANDER. SET THIS ROW BACK TO AS SHIPPED TO UNDO IT.';
+  `LIVE BRAINS: THE WHOLE GALAXY FLIES ${brainName(id)} (${id.toUpperCase()}) — IN YOUR `
+  + 'CAREER, OUT THERE, AND SAVED WITH THE COMMANDER. SET THIS ROW BACK TO AS SHIPPED TO UNDO IT.';
 
 /**
  * What the fence says when there is nothing to warn about.
@@ -189,7 +200,13 @@ export function careerNote(d: SimDraft): CareerNote {
     : { text: galaxyFlies(d.live), warning: true };
 }
 
-/** The tallest `careerNote` can ever be — the longest policy name included. */
+/**
+ * The tallest `careerNote` can ever be.
+ *
+ * Every id the row can hold, put through the sentence — not the longest ID put
+ * through it, which stopped being the longest SENTENCE the moment the name went
+ * in front of the stem.
+ */
 export function careerNoteReserve(): string {
-  return longest([FROM_THE_CONSOLE, galaxyFlies(longest(LIVE_BRAIN_IDS) as LiveBrainId)]);
+  return longest([FROM_THE_CONSOLE, ...LIVE_BRAIN_IDS.map(galaxyFlies)]);
 }

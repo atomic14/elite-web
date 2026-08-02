@@ -463,6 +463,17 @@ body.screen-open #exercise { display: none; }
  * so a row you are merely passing over does not read as loudly as the fight you
  * have chosen.
  */
+/*
+ * The weights file behind a brain's name, on the combat trainer's three brain
+ * rows. It is there for anyone cross-referencing docs/TRAINING-LOG.md and it is
+ * NOT what the row is about: half the brightness and none of the letter-spacing,
+ * so `pirate-attack-t29` reads as a footnote to HANGS BACK rather than as the
+ * choice being offered. A row whose value was the stem is exactly what this
+ * replaced.
+ */
+#screen .stem { opacity: 0.45; letter-spacing: 0; }
+#screen tr.sel .stem { opacity: 0.75; }
+
 #screen .note-help { color: var(--hud-amber); }
 #screen .note-warn { color: var(--hud-red); }
 #screen .note-calm { color: var(--hud-green); opacity: 0.5; letter-spacing: 1px; }

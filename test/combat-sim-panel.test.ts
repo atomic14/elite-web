@@ -25,7 +25,9 @@ import {
 import {
   brainNote, brainNoteReserve, careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
 } from '../src/game/screens/combat-sim-notes.ts';
-import { AS_SHIPPED, BRAIN_CHARACTER } from '../src/game/brain-names.ts';
+import {
+  AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, brainName, isNamedBrain,
+} from '../src/game/brain-names.ts';
 
 const read = (path: string): string =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -48,8 +50,11 @@ console.log('\ncombat simulator — the panel has a shape');
   const opens = (h: string): string =>
     setupCells(d).find((c) => c.heading === h)!.label;
   eq('the fight group opens on the mode', opens('THE FIGHT'), 'MODE');
-  eq('...who flies what opens on the exercise brain',
-    opens('WHO FLIES WHAT'), 'EXERCISE BRAIN');
+  // The label says what the row DECIDES, and for which fight: "EXERCISE BRAIN"
+  // named our concept, and read beside the fenced career row it was one of two
+  // rows about brains with nothing saying which fight either one changed.
+  eq('...who flies what opens on the row that says who the opposition flies like',
+    opens('WHO FLIES WHAT'), 'THE OPPOSITION FLIES (THIS FIGHT)');
   eq('...and your ship on the laser', opens('YOUR SHIP'), 'YOUR LASER');
 
   // The order inside a group is unchanged, so muscle memory survives.
@@ -58,7 +63,7 @@ console.log('\ncombat simulator — the panel has a shape');
     'MODE,FIGHT,THREAT TIER,SEED');
   eq('...and the exercise brain is followed by the opposition, as it was',
     setupCells(d).map((c) => c.label).join(',')
-      .includes('EXERCISE BRAIN,OPPOSITION'), true);
+      .includes('THE OPPOSITION FLIES (THIS FIGHT),OPPOSITION'), true);
 
   // A heading is not a row. Every entry in the list is something the cursor can
   // land on and change — which is what makes `this.row` and `data-row` the same
@@ -157,27 +162,45 @@ console.log('\ncombat simulator — a brain row says what it does');
   const named = cells.filter((c) => c.brain !== undefined).map((c) => c.label.trim());
   eq('the three brain rows carry a brain, and nothing else does',
     named.map((l) => l.replace(/&nbsp;/g, '')).join(' / '),
-    'EXERCISE BRAIN / BRAIN / LIVE BRAINS (CAREER)');
+    'THE OPPOSITION FLIES (THIS FIGHT) / THIS GROUP FLIES / LIVE BRAINS (CAREER)');
   check('...and each of them has something to say about it',
     cells.filter((c) => c.brain !== undefined).every((c) => !!brainNote(c.brain)));
 
   // A group left on "as the game flies" will fly a real policy, so the line
   // describes THAT one rather than the sentinel.
   check('a group on "as the game flies" describes the brain it resolves to',
-    brainNote(cell('BRAIN').brain) === brainNote('pirate-attack-g3'));
-  cell('BRAIN').change!(1);
-  check('...and a picked one describes itself',
-    brainNote(setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === 'BRAIN')!.brain)
-      === brainNote(setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === 'BRAIN')!
-        .value.replace(/^\d+\/\d+ /, '')));
+    brainNote(cell('THIS GROUP FLIES').brain) === brainNote('pirate-attack-g3'));
+  cell('THIS GROUP FLIES').change!(1);
+  const picked = setupCells(d)
+    .find((c) => c.label.replace(/&nbsp;/g, '') === 'THIS GROUP FLIES')!;
+  check('...and a picked one describes itself', brainNote(picked.brain) === brainNote(
+    (picked.value.match(/\(([a-z0-9-]+)\)/) ?? [])[1] ?? ''));
+
+  // THE row's value is the NAME, not the file. A sentence under the row could
+  // not fix a row whose value was `pirate-attack-t29`: the thing being chosen
+  // between still read as build artefacts. The stem is still there — second, and
+  // in a face the stylesheet quietens — for anyone reading the training log.
+  const primary = (v: string): string => v.replace(/<span class="stem">.*?<\/span>/, '').trim();
+  const filenames = setupCells(d).filter((c) => c.brain !== undefined)
+    .filter((c) => /[a-z]/.test(primary(c.value)));
+  check('no brain row reads as a filename first', filenames.length === 0,
+    filenames.map((c) => c.value).join(', '));
+  check('...it reads as the name the brain was given',
+    setupCells(d).filter((c) => c.brain !== undefined)
+      .every((c) => primary(c.value).includes(brainName(c.brain!)!)));
+  check('...and the file is still there, behind it',
+    setupCells(d).filter((c) => c.brain !== undefined && isNamedBrain(c.brain))
+      .every((c) => c.value.includes(`<span class="stem">(${c.brain})</span>`)));
+  check('...quietened by the stylesheet rather than by being left out',
+    /#screen \.stem \{ opacity: 0\.45;/.test(read('src/style.css')));
 
   // Held open whether or not there is a line in it, like every other note block.
-  const over = [...Object.keys(BRAIN_CHARACTER), 'live', AS_SHIPPED]
+  const over = [...Object.keys(BRAINS), AS_THE_GAME_FLIES, AS_SHIPPED]
     .filter((id) => (brainNote(id) ?? '').length > brainNoteReserve().length);
   check('the reserve is an upper bound on every line it can hold',
     over.length === 0, over.join(', '));
   check('...and it is one of them, not padding',
-    [...Object.keys(BRAIN_CHARACTER), 'live', AS_SHIPPED]
+    [...Object.keys(BRAINS), AS_THE_GAME_FLIES, AS_SHIPPED]
       .some((id) => brainNote(id) === brainNoteReserve()));
   const screens = read('src/ui/screens.ts');
   check('the renderer holds that space whether the line is there or not',
@@ -197,13 +220,15 @@ console.log('\ncombat simulator — a long list is navigable');
   const cell = (label: string) =>
     setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
 
-  for (const label of ['EXERCISE BRAIN', 'BRAIN', 'GROUP 1 HULL', 'LIVE BRAINS (CAREER)']) {
+  const rows = ['THE OPPOSITION FLIES (THIS FIGHT)', 'THIS GROUP FLIES',
+    'GROUP 1 HULL', 'LIVE BRAINS (CAREER)'];
+  for (const label of rows) {
     check(`${label} says where in the list it is`, /^\d+\/\d+ /.test(cell(label).value));
   }
 
   // Stepping through a full list and back returns to where it started — the
   // acceptance criterion, and the thing a wrapping list has to do.
-  for (const label of ['EXERCISE BRAIN', 'BRAIN', 'GROUP 1 HULL', 'LIVE BRAINS (CAREER)']) {
+  for (const label of rows) {
     const was = cell(label).value;
     const len = Number(was.split('/')[1].split(' ')[0]);
     for (let n = 0; n < len; n++) cell(label).change!(1);
@@ -213,7 +238,7 @@ console.log('\ncombat simulator — a long list is navigable');
   }
 
   // ...and both ends are one key away.
-  for (const label of ['EXERCISE BRAIN', 'BRAIN', 'GROUP 1 HULL', 'LIVE BRAINS (CAREER)']) {
+  for (const label of rows) {
     cell(label).jump!(1);
     const len = Number(cell(label).value.split('/')[1].split(' ')[0]);
     eq(`END is the last value of ${label}`, cell(label).value.split(' ')[0], `${len}/${len}`);

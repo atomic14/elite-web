@@ -38,6 +38,10 @@ rest and can go at any point.
 - [x] 38 — [The console still shows four energy banks](38-energy-reads-as-one-bank.md) — UI/UX · low · small
 - [x] 39 — [Make the wave ramp keep getting harder](39-waves-keep-getting-harder.md) — gameplay · high · medium
 
+## Follow-ups
+
+- [x] 41 — [Name the opposition, not the file](41-name-the-opposition-not-the-file.md) — UI/UX · high · medium
+
 ## Saves
 
 Progress: **1 / 1 complete**. The model is Chris's and is decided: S prompts

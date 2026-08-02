@@ -235,7 +235,9 @@ src/
     brain-names.ts          WHICH policy flies, by name, given a
                             BrainSelection — the rule the ship, the
                             trainer's report and both pickers all read,
-                            plus the one-line CHARACTER of each
+                            plus what each one is CALLED on a row
+                            (HANGS BACK) and the measured CHARACTER
+                            line that name was compressed from
 
     combat.ts               what happens when something is shot: bounties, kills,
                             wrecks, loot — plus the player's own trigger and

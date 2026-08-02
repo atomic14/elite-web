@@ -83,9 +83,13 @@ demanding exact equality there.
    `src/viewer/main.ts`. Any observation width works — 14, 18 or 26; `npc.ts`
    picks the widest encoder the brain has inputs for.
 4. Name it in `src/game/brain-names.ts`: one `BrainName`, one `BrainSelection`
-   flag, one line in the rule, one row in `SELECTIONS`. That is what makes it
-   pickable in both places and reportable by name — the combat trainer's
-   `SIM_BRAINS` list is derived from it.
+   flag, one line in the rule, one row in `SELECTIONS`, and one entry in
+   `BRAINS` — the two or three words a pilot picks it by (`HANGS BACK`) beside
+   the measured line they compress (`HANGS BACK AND SNIPES — SPEED 104, MEDIAN
+   RANGE 754 …`). Both, or `npm test` fails: a brain the picker offers with no
+   name is a filename on the row, and one with no line is a claim with no probe
+   behind it. That is what makes it pickable in both places and reportable by
+   name — the combat trainer's `SIM_BRAINS` list is derived from it.
 5. `npm run build` bundles the JSON weights (~15 KB gzipped each).
 
 In-game A/B: brain selection is STATE, not a global — `state.brains`
