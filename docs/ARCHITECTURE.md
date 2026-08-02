@@ -204,7 +204,8 @@ src/
     instrumentation.ts      optional outside-in observation of a live game
 
     world.ts                the sky: the ships, the cargo, the effects, the scenery
-    spawning.ts             putting a population plan into the sky
+    spawning.ts             putting a population plan into the sky, and
+                            authored opposition into an arena
     population.ts           how busy a system is when you arrive
     encounters.ts           what turns up later: traders, pirate waves, drones
     npc.ts                  NPC ships: scripted behaviour + trained-brain flight
@@ -260,6 +261,9 @@ src/
                             nothing — the commander swap, the entry snapshot,
                             its own StepHost
     combat-sim-scenarios.ts who it sends at you, and when it stops sending
+    combat-sim-opening.ts   where an exercise is fought and where the two sides
+                            start it: the arena centre, the per-scenario arc,
+                            range and cone, and the geometry the record quotes
     combat-sim-report.ts    what happened, counted — how you flew, how THEY
                             flew, and the JSON that exports
     combat-sim-strip.ts     how it is going, WHILE it is going: the cockpit

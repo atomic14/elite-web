@@ -129,48 +129,10 @@ export function spawnPopulation(
 
 // --- the training arena ------------------------------------------------------
 //
-// An exercise needs somewhere to happen and someone to fight, and both are
-// placement — so both live here rather than in the simulator that runs them.
-// What the fight IS (which scenario, which tier, which hull) is a rule, and
-// stays with the scenario table.
-
-/**
- * Where the arena sits, as a multiple of the planet's radius.
- *
- * 16 is witchpoint distance — the same number `game.ts` arrives you at, though
- * deliberately NOT imported from there: game.ts cannot be loaded without a
- * browser and this file is in the purity block. It is anti-SUNWARD, which is
- * what makes one rule work in all 256 systems of every galaxy: the station
- * orbits at 2.4 radii on the sunward side (system-scene.ts leans `stationDir`
- * 35% into the sun direction), so putting the arena on the far side maximises
- * the distance to the only two things that can end an exercise by themselves.
- *
- * Measured across galaxies 1, 2 and 8 — 768 systems — the worst case is
- * 67,500 units of altitude (mass-lock wants 4,000, the ground is at 80),
- * 392,000 from the sun (SUN_KILL_DIST is 21,000 and SUN_HEAT_START 110,000, so
- * the cabin never warms at all) and 77,704 from the station, whose mass-lock
- * radius is 5,000 and whose docking box is 205 across. It scales with the
- * planet, so there is no system where the margins are thinner in proportion.
- *
- * The mistake to avoid is `test/gang-trial.js`'s hardcoded (90000, 40000,
- * 90000): a fixed offset is an absolute point in a system whose furniture
- * moves with the seed, and it only happens to be empty in the systems it was
- * tried in.
- */
-const ARENA_RADII = 16;
-
-/**
- * Somewhere an exercise can be fought without the world interrupting it.
- *
- * Every property that matters is a distance to something the seed placed, so
- * this reads the world rather than assuming a coordinate. See ARENA_RADII for
- * what is guaranteed and what it was measured against.
- */
-export function arenaCentre(world: World): THREE.Vector3 {
-  return world.sunPos.clone().sub(world.planetPos).normalize()
-    .multiplyScalar(-world.planetRadius * ARENA_RADII)
-    .add(world.planetPos);
-}
+// Authored opposition is placement like any other, so it lives here beside the
+// population it is not. WHERE an exercise happens and where the two sides start
+// is the exercise's own geometry and lives in combat-sim-opening.ts; WHICH fight
+// it is stays with the scenario table.
 
 /**
  * Which policy an opponent flies, in the only terms placement can express.
@@ -233,11 +195,24 @@ export interface OppositionPlacement {
   /** ring radius from the origin, in units */
   range?: number;
   /**
-   * Where the player is looking. Given, the ring is a cone around it so
-   * everything starts in front of you; omitted, it is a great circle and they
-   * come from everywhere.
+   * The cone's AXIS — where the player is looking. Given, the ring is a cone
+   * around it so everything starts in front of you; omitted, it is a great
+   * circle and they come from everywhere.
+   *
+   * It is an axis and not a promise about the canopy: hand it the nose
+   * reversed and the cone is behind you, which is how an ambush asks.
    */
   facing?: THREE.Vector3;
+  /**
+   * Half-angle of that cone, in radians — ignored without a `facing`.
+   *
+   * The scatter spreads WITHIN it rather than on it: a ship lands between 0.55
+   * and 1.45 of this off the axis, so the widest one is 1.45 times what was
+   * asked for. A caller that needs every ship inside an arc — a trainer, whose
+   * whole point is that the pilot can see them — sizes it against that product.
+   * combat-sim-opening.ts owns that argument.
+   */
+  cone?: number;
 }
 
 /**
@@ -254,7 +229,7 @@ const OPPOSITION_RANGE = 3200;
  * however the numbers are passed in.
  */
 const OPPOSITION_RANGE_MAX = 20_000;
-/** Half-angle of the cone when the player's facing is known, radians. */
+/** Half-angle of the cone when a facing is known and the caller says no more. */
 const OPPOSITION_CONE = 0.5;
 
 const _axis = new THREE.Vector3();
@@ -309,7 +284,7 @@ export function spawnOpposition(
   const axis = placement.facing
     ? _axis.copy(placement.facing).normalize()
     : randomDirection(_axis);
-  const spread = placement.facing ? OPPOSITION_CONE : Math.PI / 2;
+  const spread = placement.facing ? (placement.cone ?? OPPOSITION_CONE) : Math.PI / 2;
   ringBasis(axis, _u, _v);
   // The ring's rotation, so two exercises with one opponent do not both put it
   // in the same corner of the canopy.

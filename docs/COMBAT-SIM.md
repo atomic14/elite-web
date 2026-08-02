@@ -109,6 +109,45 @@ Selectable, named, each a data entry rather than a code path:
 the live game would generate for a commander in your exact state, without flying
 until one happens.
 
+### Where the fight opens
+
+TODO 36. An exercise used to open wherever the spawner's defaults put the ships
+— a cone the scatter widened to 41 degrees, at 3,200 units — so the opponent was
+off-screen, inside its own gun range, and shooting before the pilot had found
+it. The approach is the most informative part of a fight, because it is where a
+brain shows whether it commits or loiters, and it was over before it was seen.
+
+So the opening is authored per scenario in `game/combat-sim-opening.ts`, which
+also owns `arenaCentre` (where the fight happens at all):
+
+| | opening |
+| --- | --- |
+| six of the seven, and the custom picker | **ahead**, ring at **4,500**, cone 8 degrees half-angle |
+| Thargoid ambush | **astern**, ring at **2,400**, cone 30 degrees |
+
+4,500 is not a preference. It is outside `NPC_LASER_RANGE` (3,500) even after
+the spawner's -15% scatter, so nobody shoots before the approach; inside
+`CONDITION_RED_RANGE` (9,000), where an NPC starts caring about you at all, so
+it is an approach and not a stare; and far outside `PASS_FAR` (900), which
+matters because TODO 34's attack-run count starts a fight "outside" — a ship
+that STARTS inside `PASS_CLOSE` would score a completed run the first time it
+left, and one starting in the 400-900 dead band would have its first approach
+half-measured. The ambush is deliberately inside their gun, which is what an
+ambush is, and still clears `PASS_FAR` by more than double.
+
+The cone is 8 degrees because the scatter spreads a ship between 0.55 and 1.45
+of it off the axis: 4.4 to 11.6 degrees, comfortably inside a 60-degree
+field of view and off-centre enough that a gang is a spread rather than a stack.
+
+The record carries `opening` — the arc, the range and cone asked for, the
+nearest and furthest ship as they actually landed, the widest bearing off your
+nose, and whether every one of them was in view. That is what makes a fight
+reproducible from its seed, and it is how the one scenario that opens behind you
+reads as deliberate (`ASTERN … NOT IN VIEW`) rather than as the bug above.
+Career spawning is untouched: being jumped on the corridor to the station is the
+game working, and `spawning.ts`'s `spawnPopulation` knows nothing about any of
+this.
+
 ## Opponent selection and fit-out
 
 Two levels, because the audiences differ:

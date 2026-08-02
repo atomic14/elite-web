@@ -272,6 +272,35 @@ export interface PlayerLoadout {
   extra?: Record<string, string | number | boolean>;
 }
 
+/**
+ * Where the fight started, as it actually came out.
+ *
+ * The intent is combat-sim-opening.ts's — the arc, the range and the cone a
+ * scenario asked for — and the three measured figures are what the seeded
+ * scatter made of it. Both, because the pair is what makes a fight reproducible
+ * AND checkable: the plan alone cannot say whether the opening happened, and the
+ * measurement alone cannot say whether it was meant.
+ *
+ * `arc: 'astern'` with `inView: false` is a scenario that is ABOUT being jumped
+ * saying so out loud. Without this on the record, a fight that opened behind the
+ * pilot and one that opened behind them by accident read identically.
+ */
+export interface OpeningGeometry {
+  /** which arc of the sky they were put in — see `OpeningArc` */
+  arc: 'ahead' | 'astern';
+  /** the ring radius asked for, in units */
+  range: number;
+  /** half-angle of the cone asked for, degrees */
+  coneDeg: number;
+  /** the nearest and furthest of them at t=0, as they landed */
+  nearest: number | null;
+  furthest: number | null;
+  /** the widest any of them was off YOUR nose, degrees — 180 is dead astern */
+  widestBearingDeg: number | null;
+  /** every one of them inside the arc a pilot can see (`IN_VIEW_DEG`) */
+  inView: boolean;
+}
+
 /** Everything fixed about an exercise before it starts. */
 export interface ExerciseSetup {
   /** the seed the exercise ran on, so the same fight can be flown again */
@@ -280,6 +309,8 @@ export interface ExerciseSetup {
   mode: SimMode;
   player: PlayerLoadout;
   opponents: OpponentSetup[];
+  /** where they were when it started — see `OpeningGeometry` */
+  opening: OpeningGeometry;
   /** which wave this record covers, in the waves mode */
   wave?: number;
   /** override the sampling rate; every derived duration follows it */
@@ -414,6 +445,8 @@ export interface CombatSimReport {
   /** seconds with at least one hostile in the sky */
   engagedSeconds: number;
   player: PlayerLoadout;
+  /** where they were at t=0 — carried through from the setup */
+  opening: OpeningGeometry;
   you: {
     shots: number;
     hits: number;
@@ -857,6 +890,7 @@ export class CombatSimRecorder {
       seconds: p.seconds,
       engagedSeconds: secs(engagedFrames),
       player: this.setup.player,
+      opening: this.setup.opening,
       you: {
         shots: p.shots,
         hits: p.hits,

@@ -21,6 +21,7 @@ import {
   CombatSimRecorder, countPasses, PASS_CLOSE, PASS_FAR,
   type ContactSample, type ExerciseSetup, type FrameSample,
 } from '../src/game/combat-sim-report.ts';
+import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { check, eq } from './harness.ts';
 
 console.log('\ncombat simulator report — how they flew');
@@ -30,6 +31,7 @@ console.log('\ncombat simulator report — how they flew');
     scenario: 'Pirate pair',
     mode: 'scenario',
     sampleHz: 10,
+    opening: NO_OPENING,
     player: {
       shipId: 'elite-a:player:7',
       laser: 'beam', missiles: 0, ecm: false, energyUnit: false, energyBomb: false,

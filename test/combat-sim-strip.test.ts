@@ -28,6 +28,7 @@ import {
   CombatSimRecorder, makeSimLog,
   type CombatSimReport, type ExerciseSetup, type SimProgress,
 } from '../src/game/combat-sim-report.ts';
+import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import {
   MODES, SCENARIO_TIMEOUT, exerciseTimeout, type ExerciseSpec,
 } from '../src/game/combat-sim-scenarios.ts';
@@ -57,6 +58,7 @@ console.log('\ncombat simulator — the exercise strip');
     player: { shipId: 'elite-a:player:7', laser: 'pulse', missiles: 3, ecm: false,
       energyUnit: false, energyBomb: false },
     opponents: [],
+    opening: NO_OPENING,
     ...over,
   });
   const spec = (over: Partial<ExerciseSpec> = {}): ExerciseSpec => ({

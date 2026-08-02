@@ -15,7 +15,7 @@ import type { SlotSummary } from '../game/storage.ts';
 import { describeContract } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import {
-  PASS_CLOSE, PASS_FAR, type CombatSimReport,
+  PASS_CLOSE, PASS_FAR, type CombatSimReport, type OpeningGeometry,
 } from '../game/combat-sim-report.ts';
 import type {
   CompareGroup, SimComparePanel,
@@ -952,6 +952,22 @@ const num = (x: number | null | undefined, dp = 0): string =>
 const pct = (x: number | null | undefined): string =>
   (x === null || x === undefined ? '-' : `${(x * 100).toFixed(0)}%`);
 
+/**
+ * `OPENED AHEAD 4500 · 3900-5100 OUT · WIDEST 9° OFF YOUR NOSE · IN VIEW`.
+ *
+ * On the report because where a fight starts decides what the rest of it means:
+ * it is the difference between a brain that came at you and one that was already
+ * there, it is what makes a record reproducible from its seed, and NOT IN VIEW
+ * is how a scenario that deliberately opens behind the pilot says so rather than
+ * reading as the bug it used to be (combat-sim-opening.ts).
+ */
+function opening(o: OpeningGeometry): string {
+  return `OPENED ${o.arc.toUpperCase()} ${o.range}`
+    + ` &middot; ${num(o.nearest)}&ndash;${num(o.furthest)} OUT`
+    + ` &middot; WIDEST ${num(o.widestBearingDeg)}&deg; OFF YOUR NOSE`
+    + ` &middot; ${o.inView ? 'IN VIEW' : 'NOT IN VIEW'}`;
+}
+
 /** `laser 41.0 (12) · ram 8.0 (1)` — what hurt, and how often. */
 function bySource(
   tallies: Partial<Record<string, { damage: number; count: number }>>,
@@ -995,6 +1011,7 @@ export function renderCombatSimReport(
       ${r.scenario.toUpperCase()} &middot; ${r.mode.toUpperCase()}
       ${r.wave === undefined ? '' : `&middot; WAVE ${r.wave}`}
       &middot; ${r.seconds.toFixed(1)}s &middot; SEED ${r.seed}<br/>
+      ${opening(r.opening)}<br/>
       YOUR SHIP: ${r.player.laser.toUpperCase()} LASER${r.player.rearLaser ? ' + REAR' : ''}
       &middot; ${r.player.missiles} MISSILES
       ${r.player.ecm ? '&middot; E.C.M.' : ''}

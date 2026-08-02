@@ -70,6 +70,7 @@ import './combat-sim-scenarios.test.ts';
 import './combat-sim-report.test.ts';
 import './combat-sim-compare.test.ts';
 import './combat-sim-flight.test.ts';
+import './combat-sim-opening.test.ts';
 import './combat-sim-strip.test.ts';
 import './combat-sim-career.test.ts';
 

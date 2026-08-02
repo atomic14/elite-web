@@ -2,7 +2,8 @@
 //
 // The third and last piece of the combat trainer (docs/COMBAT-SIM.md).
 // combat-sim-scenarios.ts says WHO you fight and when it stops,
-// combat-sim-report.ts counts what happened, spawning.ts puts the arena in the
+// combat-sim-opening.ts says WHERE the fight happens and where it starts,
+// combat-sim-report.ts counts what happened, spawning.ts puts the ships in the
 // sky — and this runs the thing: the commander swap, the entry snapshot, its own
 // `StepHost`, and the round loop that drives the two.
 //
@@ -69,8 +70,12 @@ import {
 import {
   CombatSimRecorder, aimAngle, makeSimLog,
   type CombatSimReport, type ContactSample, type ExerciseSetup, type FrameSample,
-  type OpponentSetup, type PlayerLoadout, type SimLog, type SimOutcome,
+  type OpeningGeometry, type OpponentSetup, type PlayerLoadout, type SimLog,
+  type SimOutcome,
 } from './combat-sim-report.ts';
+import {
+  arenaCentre, describeOpening, measureOpening, openingFor, openingPlacement,
+} from './combat-sim-opening.ts';
 import { exerciseStrip, type ExerciseStrip } from './combat-sim-strip.ts';
 import {
   MODES, allShips, describeOpposition, liveBrainFor, nextOpposition, roundOutcome,
@@ -86,7 +91,7 @@ import { random, seedWorld } from './rng.ts';
 import { exerciseCommander, exerciseStepHost } from './combat-sim-safety.ts';
 import { selectionForBrain } from './brain-names.ts';
 import type { WorldSnapshot } from './snapshot.ts';
-import { arenaCentre, spawnOpposition, type OppositionUnit } from './spawning.ts';
+import { spawnOpposition, type OppositionUnit } from './spawning.ts';
 import { freshSession, type GameState } from './state.ts';
 import { breachLoss, freshSystems } from './systems.ts';
 import { type PilotInput, type StepEvent, type StepHost, WorldStep } from './world-step.ts';
@@ -476,17 +481,24 @@ export class CombatSim {
     const ships = allShips(list);
     if (ships.length === 0) return false;
 
-    this.opponents = this.spawn(ships);
+    const { opponents, opening } = this.spawn(ships);
+    this.opponents = opponents;
     this.spawned = this.opponents.length;
     this.roundElapsed = 0;
-    this.recorder = new CombatSimRecorder(this.setupFor(list, ships));
+    this.recorder = new CombatSimRecorder(this.setupFor(list, ships, opening));
     this.recorder.event(describeOpposition(list));
+    // At t=0, beside who turned up: the two facts a reader needs to know whether
+    // the fight they are reading started where it meant to.
+    this.recorder.event(`opening: ${describeOpening(opening)}`);
     for (const w of this.brainWarnings) this.recorder.warn(w);
     return true;
   }
 
-  /** Put the round in the sky, pointed at the commander. */
-  private spawn(ships: readonly SimShip[]): Opponent[] {
+  /**
+   * Put the round in the sky, pointed at the commander — and where the scenario
+   * says, which for six of the seven is in front of you (combat-sim-opening.ts).
+   */
+  private spawn(ships: readonly SimShip[]): { opponents: Opponent[]; opening: OpeningGeometry } {
     const units: OppositionUnit[] = ships.map((sh) => ({
       role: sh.role,
       count: 1,
@@ -499,19 +511,29 @@ export class CombatSim {
       // (`isHostileToPlayer`), and an authored interdiction says it was.
       hostile: true,
     }));
+    const { player } = this.state;
+    const plan = openingFor(this.spec!);
     const spawned = spawnOpposition(
-      this.state.world, units, this.state.player.position,
-      { facing: this.state.player.getForward(this.tmp) });
+      this.state.world, units, player.position,
+      openingPlacement(plan, player.getForward(this.tmp)));
     // A ship spawned this frame has no world matrix yet, and `traceShot`
     // raycasts against `matrixWorld` — without this the commander's first shot
     // is tested against the origin. The renderer does it every frame after
     // this one.
     for (const npc of spawned) npc.object.updateMatrixWorld(true);
-    return spawned.map((ship, index) => ({ index, ship, down: false }));
+    return {
+      opponents: spawned.map((ship, index) => ({ index, ship, down: false })),
+      // Measured from where they landed rather than restated from the plan, so
+      // the record can be held against the intent instead of repeating it.
+      opening: measureOpening(plan, player.position, player.quaternion,
+        spawned.map((npc) => npc.object.position)),
+    };
   }
 
   /** Everything fixed about the round, as the report will quote it. */
-  private setupFor(list: readonly Opposition[], ships: readonly SimShip[]): ExerciseSetup {
+  private setupFor(
+    list: readonly Opposition[], ships: readonly SimShip[], opening: OpeningGeometry,
+  ): ExerciseSetup {
     const spec = this.spec!;
     const endless = MODES[spec.mode].endless;
     const opponents: OpponentSetup[] = ships.map((sh) => ({
@@ -532,6 +554,7 @@ export class CombatSim {
       mode: spec.mode,
       player: this.loadout(),
       opponents,
+      opening,
       ...(endless ? { wave: this.round + 1 } : {}),
     };
   }

@@ -63,6 +63,7 @@ import {
   CombatSimRecorder, aimAngle, mean, quantile, PASS_CLOSE, PASS_FAR,
   type CombatSimReport, type FrameSample, type SimOutcome,
 } from '../src/game/combat-sim-report.ts';
+import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { IMPACT } from '../src/game/impact-damage.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 
@@ -170,6 +171,9 @@ export function probeEpisode(
       brain: name,
       role: 'pirate',
     })),
+    // An episode is not a trainer exercise: where its ships start is
+    // ai-training/scenario.ts's business, so this record does not claim one.
+    opening: NO_OPENING,
   });
 
   const target = ep.trader;

@@ -20,6 +20,7 @@ import {
   CombatSimRecorder, COMBAT_SIM_SCHEMA,
   type CombatSimReport, type ExerciseSetup, type FrameSample,
 } from '../src/game/combat-sim-report.ts';
+import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { CombatSimScreen } from '../src/game/screens/combat-sim.ts';
 import { AS_SHIPPED } from '../src/game/brain-names.ts';
 import { newCommander } from '../src/game/commander.ts';
@@ -36,6 +37,7 @@ const setup = (over: Partial<ExerciseSetup> = {}): ExerciseSetup => ({
   scenario: 'Pirate pair',
   mode: 'scenario',
   sampleHz: 10,
+  opening: NO_OPENING,
   player: {
     shipId: 'elite-a:player:7',
     laser: 'beam', missiles: 4, ecm: true, energyUnit: true, energyBomb: false,

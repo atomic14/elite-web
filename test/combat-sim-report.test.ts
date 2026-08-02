@@ -25,6 +25,7 @@ import {
   type PlayerLoadout,
   type CombatSimReport,
 } from '../src/game/combat-sim-report.ts';
+import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { installSimLog } from '../src/game/console.ts';
 import { check, eq } from './harness.ts';
 
@@ -58,6 +59,7 @@ console.log('\ncombat simulator report');
     scenario: 'Pirate pair',
     mode: 'scenario',
     sampleHz: 10,
+    opening: NO_OPENING,
     player: loadout,
     opponents: [
       {
