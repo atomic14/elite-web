@@ -38,6 +38,27 @@ rest and can go at any point.
 - [x] 38 — [The console still shows four energy banks](38-energy-reads-as-one-bank.md) — UI/UX · low · small
 - [x] 39 — [Make the wave ramp keep getting harder](39-waves-keep-getting-harder.md) — gameplay · high · medium
 
+## From the code review (2026-08-02)
+
+Progress: **0 / 10 complete**. Five reviewers with separate lenses; every
+finding below was verified against the code before it was written down. Two
+reviewers found item 43 independently, by different routes.
+
+Order: 43, 44 and 46 lose or corrupt player data. 45 makes the save model
+usable. 47 and 48 are wrong numbers a player or a playtest will act on. 49 is
+why several of these survived, so it is worth doing early rather than last.
+
+- [ ] 43 — [Loading or importing a save eats a career's checkpoint](43-career-identity-has-two-homes.md) — data loss · critical · medium
+- [ ] 44 — [A full store deletes a pre-slots commander](44-a-full-store-deletes-a-legacy-commander.md) — data loss · critical · small
+- [ ] 45 — ["NEW COMMANDER" does nothing](45-new-commander-does-nothing.md) — save model · high · small
+- [ ] 46 — [Docking rerolls the board a restore just loaded](46-docking-rerolls-the-board-a-restore-just-loaded.md) — save integrity · high · medium
+- [ ] 47 — [The trainer credits no damage for ordnance](47-the-trainer-credits-no-damage-for-ordnance.md) — trainer · high · medium
+- [ ] 48 — [The energy dead band, and dying at full shields](48-the-energy-dead-band.md) — combat · high · small
+- [ ] 49 — [Guards that do not guard](49-guards-that-do-not-guard.md) — test integrity · high · medium
+- [ ] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium
+- [ ] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
+- [ ] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium
+
 ## Follow-ups
 
 - [x] 41 — [Name the opposition, not the file](41-name-the-opposition-not-the-file.md) — UI/UX · high · medium
