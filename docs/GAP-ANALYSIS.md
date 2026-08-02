@@ -23,7 +23,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Equipment | The manual's price/tech-level table: cargo bay, ECM, four laser mounts, beam/military lasers with old-laser refund, fuel scoops, escape pod, energy bomb, extra energy unit, docking computer, mining laser, galactic hyperdrive — plus a Combat Computer (see deviations). |
 | Mining & scooping | Mining laser fragments asteroids into ore canisters; fuel scoops collect cargo canisters and sun-skim for fuel. |
 | Legal system | CLEAN → OFFENDER → FUGITIVE; police contraband scans; bounty hunters stalk offenders; fines on docking; escape pod launders your record. |
-| Ship roster | 21 hulls: Cobra Mk III, Sidewinder, Viper, Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle, Transporter, Thargoid, Thargon, Constrictor, missile, cargo canister. |
+| Ship roster | 21 hulls: Cobra Mk III, Sidewinder, Viper, Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle, Transporter, Thargoid, Thargon, Constrictor, missile, cargo canister — every one of them the released vertex/edge/face table rather than an approximation, at one scale, with the released targetable radius driving hit registration. All 38 source designs are built and viewable (`/viewer`, `G`); bringing the ten missing named ships into the roster is still to come. |
 | NPC ecosystem | Traders arrive from deep space, work the station lane and jump out; pirates hunt the player and prey on traders; police hunt pirates; lone bounty hunters; NPC-vs-NPC combat. Piracy scales with government type, traffic with productivity. |
 | Missions | Station bulletin board (cargo, courier and bounty contracts with day-based deadlines) available from the first landing, plus the Constrictor hunt and the classified courier run (16+ kills, galaxy 1). |
 | Living galaxy | A level-1 simulation runs trade between all 256 systems while you play: convoys depart on productivity, are lost to piracy in lawless space, and arrive as real traders in whatever system you're in. Prices drift ±25% from the 1984 baseline with supply, pirate hotspots emerge along lawless routes, and system news reports it. |
@@ -100,6 +100,19 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   rate is the same at any refresh. Only the ramp toward it was frame-rate
   dependent, and now it is not. Constants recalibrated so 60Hz is bit-identical
   to what shipped.
+- **Stations are drawn four times larger, relative to ships, than the source
+  tables place them.** In the released data a Coriolis is 160 units and a Cobra
+  is 95 — 1.7 Cobras wide; here the station is 160 world units against the
+  Cobra's 23.75, or 4.7. Everything about docking is built on the wider one
+  (`src/game/docking.ts` gates at five station half-widths and tests a 124x52
+  slot channel), and the released slot is a *vertical* 20x60 letterbox where
+  ours is a horizontal 96x20. The hulls are in `src/ships/harmless-hulls.ts`
+  and the exact source stations are in the viewer for comparison.
+- **Asteroids are generated, not tabulated.** The released Asteroid is one
+  fixed 80-unit lump; rocks here are jittered icosahedra with a size drawn from
+  their seed (`buildAsteroid`), because a field where every rock is identical
+  is worse to fly through. The Boulder, Splinter and exact Asteroid designs are
+  all built and viewable.
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
   The rate is `FUEL_PRICE` in `src/game/commander.ts` — change it there.
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands

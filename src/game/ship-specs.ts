@@ -9,11 +9,8 @@
 // Nothing here decides anything: population.ts chooses how many, contracts.ts
 // chooses the threat tier, spawning.ts puts them in the sky.
 
-import {
-  type ShipDef, COBRA_MK3, PYTHON, ANACONDA, ADDER, WORM, BOA, SHUTTLE,
-  TRANSPORTER, SIDEWINDER, KRAIT, MAMBA, GECKO, MORAY, VIPER, FER_DE_LANCE,
-  ASP, THARGOID, THARGON, GENERATION_SHIP, CONSTRICTOR,
-} from '../ships/geometry.ts';
+import type { ShipDef } from '../ships/geometry.ts';
+import { registeredHull } from '../ships/registry.ts';
 import {
   eliteAShipIdentity, HARMLESS_OVERLAYS,
   type HarmlessOverlay, type NpcCombatProfileId, type ShipDesignId, type ShipIdentity,
@@ -39,23 +36,51 @@ const SOURCE_DESIGN = {
   worm: 14, viper: 16, sidewinder: 17, mamba: 18, krait: 19, adder: 20,
   gecko: 21, asp: 23, ferDeLance: 24, moray: 25, thargoid: 26, thargon: 27,
   constrictor: 28,
-  /** The source roster's own rock — Harmless generates the mesh, TODO 24 owns the geometry. */
+  /** The source roster's own rock — the one design whose mesh Harmless generates. */
   asteroid: 6,
 } as const;
 
-/** `{ designId, profileId }` for a roster hull, spread into its spec below. */
-const flying = (sourceDesignId: number): ShipIdentity => eliteAShipIdentity(sourceDesignId);
+/**
+ * Everything about a roster hull that the CATALOGUE decides, spread into its
+ * spec below: which design it is, which released build it flies as, the mesh
+ * and the target radius.
+ *
+ * Not a copy of a rule — one expression, evaluated once per row as the table is
+ * built, reading `ships/registry.ts`. What the rows still state for themselves
+ * is what Harmless chose: colour, hull points, speed, turn rate, bounty, racks.
+ * The radius used to be one of those, hand-tuned per row; it is the pack's own
+ * targetable radius through `sourceGeometryToWorld` now, and there is nowhere
+ * left to override it.
+ */
+interface CataloguedHull extends ShipIdentity {
+  def: ShipDef | null;
+  radius: number;
+}
+
+const hullOf = (identity: ShipIdentity): CataloguedHull => {
+  const hull = registeredHull(identity.designId);
+  return { ...identity, def: hull.def, radius: hull.targetRadius };
+};
+
+const flying = (sourceDesignId: number): CataloguedHull =>
+  hullOf(eliteAShipIdentity(sourceDesignId));
 
 /** The same, for one of the two Harmless inventions — the ids alone, not the note. */
-const own = (o: HarmlessOverlay): ShipIdentity =>
-  ({ designId: o.designId, profileId: o.profileId });
+const own = (o: HarmlessOverlay): CataloguedHull =>
+  hullOf({ designId: o.designId, profileId: o.profileId });
 
 /**
  * What an asteroid is. The `asteroid` role has no `NpcSpec` — its size is
  * rolled from the seed rather than rostered — so its identity lives here beside
  * the roster instead of being invented in the NpcShip constructor.
+ *
+ * The IDS only, deliberately: a rock is generated (`buildAsteroid`) at a size
+ * drawn from its seed, so it is the one design whose mesh and radius do not
+ * come from the registry. That is a Harmless deviation — the released asteroid
+ * is one fixed 20-unit lump and rocks that all match are worse to fly among —
+ * and it is stated here rather than being a silent difference.
  */
-export const ASTEROID_IDENTITY: ShipIdentity = flying(SOURCE_DESIGN.asteroid);
+export const ASTEROID_IDENTITY: ShipIdentity = eliteAShipIdentity(SOURCE_DESIGN.asteroid);
 
 /**
  * A hull's `turnRate` is one number; pitch and roll caps are multiples of it.
@@ -97,7 +122,15 @@ export const TURN = { pitch: 1.4, roll: 2.4 };
 export const ACCEL_FRACTION = 0.46;
 
 export interface NpcSpec {
-  def: ShipDef | null; // null → asteroid
+  /**
+   * The released hull, from `ships/registry.ts`. null only for the rock hermit,
+   * whose mesh is generated.
+   *
+   * NEVER compare it to decide what a ship is — that is `designId`'s job, and
+   * the reason it is beside it. Two roster rows of the same design share this
+   * object, exactly as they share the design.
+   */
+  def: ShipDef | null;
   /** which catalogue design this hull is — see ship-identity.ts, never inferred from `def` */
   designId: ShipDesignId;
   /** the exact released build it flies as, resolved from the recommended default */
@@ -107,6 +140,11 @@ export interface NpcSpec {
   maxSpeed: number;
   turnRate: number;
   bounty: number; // tenths of a credit
+  /**
+   * World units, from the catalogue's targetable area — `shipTargetRadius`.
+   * Ray tests, the hit cone and collision separation all read it, so it is a
+   * gameplay number and not a drawing one; it is not settable per row.
+   */
   radius: number;
   /**
    * Units/s of thrust. Omitted means ACCEL_FRACTION of top speed, which is
@@ -127,44 +165,44 @@ export function shipAccel(spec: NpcSpec): number {
 
 export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
   trader: [
-    { def: COBRA_MK3, ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffffff, hp: 1.0, maxSpeed: 220, turnRate: 0.5, bounty: 0, radius: 34, ecmChance: 0.4, cargoDrop: 3, armed: true },
-    { def: PYTHON, ...flying(SOURCE_DESIGN.python), color: 0xd9e8ff, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 0, radius: 40, ecmChance: 0.5, cargoDrop: 5, armed: true },
-    { def: ANACONDA, ...flying(SOURCE_DESIGN.anaconda), color: 0xcfe0d8, hp: 2.6, maxSpeed: 120, turnRate: 0.25, bounty: 0, radius: 55, ecmChance: 0.7, cargoDrop: 6, armed: true },
-    { def: ADDER, ...flying(SOURCE_DESIGN.adder), color: 0xffe28a, hp: 0.5, maxSpeed: 260, turnRate: 0.8, bounty: 0, radius: 18, cargoDrop: 1 },
-    { def: WORM, ...flying(SOURCE_DESIGN.worm), color: 0xbfd8bf, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 0, radius: 14, cargoDrop: 1 },
-    { def: BOA, ...flying(SOURCE_DESIGN.boa), color: 0xd8d8c0, hp: 2.2, maxSpeed: 140, turnRate: 0.3, bounty: 0, radius: 44, ecmChance: 0.6, cargoDrop: 5, armed: true },
-    { def: SHUTTLE, ...flying(SOURCE_DESIGN.shuttle), color: 0xc8e8c8, hp: 0.45, maxSpeed: 180, turnRate: 0.7, bounty: 0, radius: 14, cargoDrop: 1 },
-    { def: TRANSPORTER, ...flying(SOURCE_DESIGN.transporter), color: 0xc0d0e0, hp: 0.6, maxSpeed: 160, turnRate: 0.5, bounty: 0, radius: 20, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffffff, hp: 1.0, maxSpeed: 220, turnRate: 0.5, bounty: 0, ecmChance: 0.4, cargoDrop: 3, armed: true },
+    { ...flying(SOURCE_DESIGN.python), color: 0xd9e8ff, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 0, ecmChance: 0.5, cargoDrop: 5, armed: true },
+    { ...flying(SOURCE_DESIGN.anaconda), color: 0xcfe0d8, hp: 2.6, maxSpeed: 120, turnRate: 0.25, bounty: 0, ecmChance: 0.7, cargoDrop: 6, armed: true },
+    { ...flying(SOURCE_DESIGN.adder), color: 0xffe28a, hp: 0.5, maxSpeed: 260, turnRate: 0.8, bounty: 0, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.worm), color: 0xbfd8bf, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 0, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.boa), color: 0xd8d8c0, hp: 2.2, maxSpeed: 140, turnRate: 0.3, bounty: 0, ecmChance: 0.6, cargoDrop: 5, armed: true },
+    { ...flying(SOURCE_DESIGN.shuttle), color: 0xc8e8c8, hp: 0.45, maxSpeed: 180, turnRate: 0.7, bounty: 0, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.transporter), color: 0xc0d0e0, hp: 0.6, maxSpeed: 160, turnRate: 0.5, bounty: 0, cargoDrop: 2 },
   ],
   pirate: [
-    { def: SIDEWINDER, ...flying(SOURCE_DESIGN.sidewinder), color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
-    { def: KRAIT, ...flying(SOURCE_DESIGN.krait), color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
-    { def: MAMBA, ...flying(SOURCE_DESIGN.mamba), color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
-    { def: GECKO, ...flying(SOURCE_DESIGN.gecko), color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
-    { def: MORAY, ...flying(SOURCE_DESIGN.moray), color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
-    { def: COBRA_MK3, ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.sidewinder), color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50 },
+    { ...flying(SOURCE_DESIGN.krait), color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80 },
+    { ...flying(SOURCE_DESIGN.mamba), color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70 },
+    { ...flying(SOURCE_DESIGN.gecko), color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60 },
+    { ...flying(SOURCE_DESIGN.moray), color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65 },
+    { ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, missiles: 1, cargoDrop: 2 },
   ],
   police: [
-    { def: VIPER, ...flying(SOURCE_DESIGN.viper), color: 0x9ad9ff, hp: 0.9, maxSpeed: 320, turnRate: 1.3, bounty: 0, radius: 20, ecmChance: 1 },
+    { ...flying(SOURCE_DESIGN.viper), color: 0x9ad9ff, hp: 0.9, maxSpeed: 320, turnRate: 1.3, bounty: 0, ecmChance: 1 },
   ],
   hunter: [
-    { def: FER_DE_LANCE, ...flying(SOURCE_DESIGN.ferDeLance), color: 0xd8c8ff, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 0, radius: 26, ecmChance: 0.6 },
-    { def: ASP, ...flying(SOURCE_DESIGN.asp), color: 0xc8d8ff, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 0, radius: 22, ecmChance: 0.4 },
+    { ...flying(SOURCE_DESIGN.ferDeLance), color: 0xd8c8ff, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 0, ecmChance: 0.6 },
+    { ...flying(SOURCE_DESIGN.asp), color: 0xc8d8ff, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 0, ecmChance: 0.4 },
   ],
   thargoid: [
-    { def: THARGOID, ...flying(SOURCE_DESIGN.thargoid), color: 0x7cff9a, hp: 2.6, maxSpeed: 300, turnRate: 0.7, bounty: 500, radius: 60, ecmChance: 1 },
+    { ...flying(SOURCE_DESIGN.thargoid), color: 0x7cff9a, hp: 2.6, maxSpeed: 300, turnRate: 0.7, bounty: 500, ecmChance: 1 },
   ],
   thargon: [
-    { def: THARGON, ...flying(SOURCE_DESIGN.thargon), color: 0x9cffb0, hp: 0.2, maxSpeed: 350, turnRate: 1.8, bounty: 50, radius: 12 },
+    { ...flying(SOURCE_DESIGN.thargon), color: 0x9cffb0, hp: 0.2, maxSpeed: 350, turnRate: 1.8, bounty: 50 },
   ],
   // a hollowed asteroid trading post — inert, but you can dock with it. OURS,
   // not a source station, and its `harmless:` ids say so.
   hermit: [
-    { def: null, ...own(HARMLESS_OVERLAYS.rockHermit), color: 0x9a9a8a, hp: 4, maxSpeed: 0, turnRate: 0, bounty: 0, radius: 120 },
+    { ...own(HARMLESS_OVERLAYS.rockHermit), color: 0x9a9a8a, hp: 4, maxSpeed: 0, turnRate: 0, bounty: 0 },
   ],
   // derelict colony vessel: vast, slow, defenceless — also ours
   generation: [
-    { def: GENERATION_SHIP, ...own(HARMLESS_OVERLAYS.generationShip), color: 0xbfc8d8, hp: 8, maxSpeed: 25, turnRate: 0.05, bounty: 0, radius: 340, cargoDrop: 8 },
+    { ...own(HARMLESS_OVERLAYS.generationShip), color: 0xbfc8d8, hp: 8, maxSpeed: 25, turnRate: 0.05, bounty: 0, cargoDrop: 8 },
   ],
 };
 
@@ -178,22 +216,22 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
 const PIRATE_TIERS: NpcSpec[][] = [
   // 0 — opportunists: cheap, fast, easily discouraged
   [
-    { def: SIDEWINDER, ...flying(SOURCE_DESIGN.sidewinder), color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50, radius: 18 },
-    { def: GECKO, ...flying(SOURCE_DESIGN.gecko), color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60, radius: 20 },
-    { def: WORM, ...flying(SOURCE_DESIGN.worm), color: 0xffbb80, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40, radius: 14 },
+    { ...flying(SOURCE_DESIGN.sidewinder), color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50 },
+    { ...flying(SOURCE_DESIGN.gecko), color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60 },
+    { ...flying(SOURCE_DESIGN.worm), color: 0xffbb80, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40 },
   ],
   // 1 — professionals: the existing pirate mix
   [
-    { def: KRAIT, ...flying(SOURCE_DESIGN.krait), color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80, radius: 22 },
-    { def: MAMBA, ...flying(SOURCE_DESIGN.mamba), color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70, radius: 24 },
-    { def: MORAY, ...flying(SOURCE_DESIGN.moray), color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65, radius: 18 },
-    { def: COBRA_MK3, ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, radius: 34, missiles: 1, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.krait), color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80 },
+    { ...flying(SOURCE_DESIGN.mamba), color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70 },
+    { ...flying(SOURCE_DESIGN.moray), color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65 },
+    { ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, missiles: 1, cargoDrop: 2 },
   ],
   // 2 — an organised gang: they brought the good ships, and missiles
   [
-    { def: FER_DE_LANCE, ...flying(SOURCE_DESIGN.ferDeLance), color: 0xff7a4c, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, radius: 26, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
-    { def: ASP, ...flying(SOURCE_DESIGN.asp), color: 0xff8f5c, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 150, radius: 22, missiles: 1, ecmChance: 0.3, cargoDrop: 1 },
-    { def: PYTHON, ...flying(SOURCE_DESIGN.python), color: 0xffa878, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, radius: 40, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
+    { ...flying(SOURCE_DESIGN.ferDeLance), color: 0xff7a4c, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.asp), color: 0xff8f5c, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 150, missiles: 1, ecmChance: 0.3, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.python), color: 0xffa878, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
   ],
 ];
 
@@ -204,6 +242,6 @@ export function pirateSpecForTier(tier: number, variantSeed: number): NpcSpec {
 }
 
 export const CONSTRICTOR_SPEC: NpcSpec = {
-  def: CONSTRICTOR, ...flying(SOURCE_DESIGN.constrictor), color: 0xffd24d, hp: 3.2, maxSpeed: 370, turnRate: 1.2,
-  bounty: 2500, radius: 24, missiles: 2, ecmChance: 1,
+  ...flying(SOURCE_DESIGN.constrictor), color: 0xffd24d, hp: 3.2, maxSpeed: 370, turnRate: 1.2,
+  bounty: 2500, missiles: 2, ecmChance: 1,
 };

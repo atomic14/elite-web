@@ -271,7 +271,11 @@ src/
   engine/input.ts           keyboard state (held/pressed/counts)
   engine/flight-controls.ts what the hands are asking for: keys -> FlightDemand
   engine/keymap.ts          flight bindings, both layouts
-  ships/geometry.ts         every hull as vertex/edge/face tables
+  ships/geometry.ts         the ShipDef contract and the two mesh builders
+  ships/elite-a-hulls.ts    the 38 released hulls, at the one world scale
+  ships/elite-a-faces.ts    closed polygons, rebuilt from source face adjacency
+  ships/harmless-hulls.ts   the shapes that are OURS: generation ship, stations
+  ships/registry.ts         design id -> hull and target radius; the only way in
   world/                    per-system scenery: shader sun and planet, station
 
   ai-training/              neural policies + the scenarios they train in
@@ -280,6 +284,7 @@ src/
                             shared by trainer, tournament and viewer
     brains/*.json           trained weights, committed
   viewer/main.ts            three.js viewer for episodes
+  viewer/gallery.ts         all 38 released designs, labelled, with radii
 
 test/harness.ts             check(), the counters and the shared fixtures
 test/*.test.ts              invariant + unit tests, one file per subsystem
@@ -316,21 +321,39 @@ downstream derives from the seeds.** Per-system visuals (planet colour,
 coastlines, sun bearing, station orbit) also derive from the seed, in
 `world/system-scene.ts` and the planet shader.
 
-### 2. Ships are 1984-style data tables with a Z-flip
+### 2. Ships are 1984-style data tables, turned to face −Z
 
-`ships/geometry.ts` defines each hull as explicit `vertices`, `edges`, and
-`faces` — the same style as the original BBC data, and **the same
-convention: +Z is the nose** in the tables. three.js flies down **−Z**, so
-`buildShip()` negates Z when building geometry. Hulls are symmetric, so this
-mirror is invisible. Each ship is two overlapping objects: `LineSegments`
-for the glowing edges, plus a matte-black `Mesh` of the faces with
-`polygonOffset` pushing it just behind the lines — that's the classic
-"hidden line" look, and it's why the renderer must **not** use a
-logarithmic depth buffer (log-depth writes gl_FragDepth, which disables
-polygon offset).
+A hull is explicit `vertices`, `edges` and `faces`, the same style as the
+original BBC data and **the same convention: +Z is the nose**. three.js flies
+down **−Z**, so `buildShip()` turns the def by a **half turn about Y** —
+negating x and z. That used to be a Z mirror alone, which is identical for a
+left/right symmetric hull and a mirror image for anything else; eight of the
+38 released designs are asymmetric, so it is a rotation now.
 
-One scale rule: 1 unit ≈ 1 original Elite unit. The station is 320 across;
-planets are ~4,500-6,500 radius; the sun sits ~320,000 out.
+The hulls themselves are **generated, not written**. `ships/elite-a-hulls.ts`
+converts the released tables in `game/elite-a/geometry.generated.ts`, and
+`sourceGeometryToWorld()` is the one conversion: **one world unit is four
+source units**, anchored so the Cobra Mk III keeps the size it always had.
+The same conversion produces the **target radius** every ray test and
+collision uses, so hit registration matches the released ships rather than a
+hand-tuned guess. `ships/registry.ts` is how anything asks for either.
+
+The source stores no polygons — a face is a normal, and an edge says which
+two faces it lies between — so `ships/elite-a-faces.ts` reconstructs closed
+loops for the black fill and reports what it could not resolve.
+`test/geometry.test.ts` pins those reports.
+
+Each ship is two overlapping objects: `LineSegments` for the glowing edges,
+plus a matte-black `Mesh` of the faces with `polygonOffset` pushing it just
+behind the lines — that's the classic "hidden line" look, and it's why the
+renderer must **not** use a logarithmic depth buffer (log-depth writes
+gl_FragDepth, which disables polygon offset).
+
+Scale: planets are ~4,500-6,500 radius and the sun sits ~320,000 out. The
+**stations** are the one thing still at 1 unit ≈ 1 source unit (320 across)
+rather than at the ship scale: `game/docking.ts` is built on that width and on
+a horizontal slot, and the released Coriolis is 40 world units with a vertical
+one. `ships/harmless-hulls.ts` says so at the top.
 
 ### 3. One orchestrator, many dumb parts — and one rule, one home
 
@@ -491,7 +514,7 @@ ships.
 ## Where to start reading, in order
 
 1. `galaxy/galaxy.ts` — self-contained, delightful, 250 lines.
-2. `ships/geometry.ts` — the data-as-art bit.
+2. `ships/elite-a-hulls.ts` → `ships/elite-a-faces.ts` — the data-as-art bit.
 3. `player.ts` then `game/npc.ts` — flight, then behaviours.
 4. `game/game.ts` — top to bottom once, with the mode machine in mind.
 5. `ai-training/policy.ts` → `ai-training/scenario.ts` → `train/evolve.ts` — the AI stack

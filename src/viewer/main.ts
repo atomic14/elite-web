@@ -3,7 +3,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-import { buildShip, COBRA_MK3, SIDEWINDER } from '../ships/geometry.ts';
+import { buildShip } from '../ships/geometry.ts';
+import { requireShipDef } from '../ships/registry.ts';
+import { shipDesignIdOf } from '../game/ship-identity.ts';
+import { createGallery, type GalleryScale, type GalleryView } from './gallery.ts';
 import { createStarfield } from '../world/starfield.ts';
 import { Episode, type ShotEvent, type EpisodeShip } from '../ai-training/scenario.ts';
 import { brainFromFile, randomBrain, type BrainFile } from '../ai-training/policy.ts';
@@ -16,7 +19,12 @@ import packBrainFile from '../ai-training/brains/pirate-pack.json' with { type: 
 import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
 
 // Combat viewer: replays the training environment with the real wireframe
-// ships, so trained behaviour can be watched (and compared to baselines).
+// ships, so trained behaviour can be watched (and compared to baselines) —
+// and, on `G`, a gallery of all 38 released designs (viewer/gallery.ts).
+
+/** The two hulls the combat scenarios fly, resolved through the registry. */
+const COBRA_MK3 = requireShipDef(shipDesignIdOf(10));
+const SIDEWINDER = requireShipDef(shipDesignIdOf(17));
 
 // 'trained pirate' scenarios use the SHIPPED r2 league brain (what the game
 // flies); the pack trio uses r1 solo brains to match the tournament rows.
@@ -98,6 +106,32 @@ function resize(): void {
 window.addEventListener('resize', resize);
 resize();
 scene.add(createStarfield(2200, 90000));
+
+// --- the design gallery ------------------------------------------------------
+
+const gallery = createGallery();
+scene.add(gallery.root);
+let mode: 'combat' | 'gallery' = 'gallery';
+
+const SCALES: GalleryScale[] = ['common', 'relative'];
+const VIEWS: GalleryView[] = ['spin', 'front', 'rear', 'top', 'side'];
+const cycle = <T,>(list: T[], current: T): T =>
+  list[(list.indexOf(current) + 1) % list.length];
+
+window.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  if (key === 'g') mode = mode === 'gallery' ? 'combat' : 'gallery';
+  if (mode !== 'gallery') return;
+  if (key === 's') gallery.scale = cycle(SCALES, gallery.scale);
+  if (key === 'v') gallery.view = cycle(VIEWS, gallery.view);
+  if (key === '0' || key === 'escape') gallery.focus = null;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    const step = e.key === 'ArrowRight' ? 1 : -1;
+    gallery.focus = gallery.focus === null
+      ? (step > 0 ? 0 : gallery.count - 1)
+      : (gallery.focus + step + gallery.count) % gallery.count;
+  }
+});
 
 // --- episode visualisation ---------------------------------------------------
 
@@ -206,7 +240,14 @@ function updateCamera(dt: number): void {
 
 const hud = document.getElementById('viewer-hud')!;
 
+const title = document.getElementById('viewer-title')!;
+
 function renderHud(): void {
+  title.textContent = mode === 'gallery' ? 'DESIGN GALLERY' : 'COMBAT VIEWER';
+  if (mode === 'gallery') {
+    hud.textContent = gallery.hudLines().join('\n');
+    return;
+  }
   const p = episode.pirates[0];
   const lines = [
     `SCENARIO   ${scenario}`,
@@ -258,6 +299,16 @@ function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
   elapsed += dt;
+
+  gallery.root.visible = mode === 'gallery';
+  for (const v of views) v.object.visible = mode === 'combat' && v.sim.alive;
+  if (mode === 'gallery') {
+    gallery.update(dt, camera);
+    composer.render();
+    renderHud();
+    requestAnimationFrame(frame);
+    return;
+  }
 
   if (!paused) {
     if (!episode.done) {

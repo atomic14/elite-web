@@ -44,6 +44,22 @@ Ghavial, Bushmaster, Rattler, Iguana, Shuttle Mk II and Chameleon.
   tables hold only deliberate Harmless presentation/motion/selection policy.
 - Custom ships cannot accidentally enter an Elite-A parity matrix.
 
+## Carried over from TODO 24
+
+Two exact designs are built, registered and viewable but are NOT what the game
+puts on screen, because swapping them is a behaviour change rather than a
+geometry one:
+
+- **The stations.** Through the one conversion the source Coriolis is 40 world
+  units against the 160 the scene has always used, and `game/docking.ts` is
+  built on the wider one — gate at 5 half-widths, a 124x52 slot channel,
+  `HULL_BOX_MARGIN` 45. The released slot is also a vertical 20x60 letterbox
+  where ours is a horizontal 96x20, so the roll test and the NPC docking
+  up-hint both invert. Decide here whether docking moves with the geometry.
+- **Asteroids.** The exact Asteroid, Boulder and Splinter designs fix every
+  rock at radius 20; ours are procedural with a seed-drawn 25-70. Using the
+  exact hull loses the size variety, which is a spawning change.
+
 ## Carried over from TODO 23
 
 `persistence.ts` restores every pirate through `pirateSpecForTier`, so a pirate

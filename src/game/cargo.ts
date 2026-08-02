@@ -13,7 +13,8 @@
 // change belongs, and the `kind` field is the seam.
 
 import * as THREE from 'three';
-import { buildShip, CANISTER } from '../ships/geometry.ts';
+import { buildShip } from '../ships/geometry.ts';
+import { OBJECT_DESIGNS, requireShipDef } from '../ships/registry.ts';
 import { random, randomDirection, randomInt } from './rng.ts';
 import type { CanisterSnapshot } from './snapshot.ts';
 
@@ -25,6 +26,9 @@ export interface Canister {
   spinAxis: THREE.Vector3;
   kind: 'cargo' | 'capsule';
 }
+
+/** The released cargo canister — one hull, resolved once. */
+const CANISTER_HULL = requireShipDef(OBJECT_DESIGNS.cargoCanister);
 
 /** How close the player must get to scoop. */
 export const SCOOP_RANGE = 45;
@@ -47,7 +51,7 @@ export class CargoField {
   /** Scatter `count` canisters of the given commodities from a wreck. */
   spawn(at: THREE.Vector3, count: number, commodities: number[]): void {
     for (let i = 0; i < count; i++) {
-      const object = buildShip(CANISTER, 0x8ad0ff);
+      const object = buildShip(CANISTER_HULL, 0x8ad0ff);
       object.position.copy(at)
         .add(randomDirection(new THREE.Vector3()).multiplyScalar(20 + i * 15));
       this.add(object, {
@@ -64,7 +68,7 @@ export class CargoField {
    * destroyed ship may eject its crew.
    */
   spawnCapsule(at: THREE.Vector3): void {
-    const object = buildShip(CANISTER, 0xffd24d);
+    const object = buildShip(CANISTER_HULL, 0xffd24d);
     object.scale.setScalar(0.8);
     object.position.copy(at);
     this.add(object, {
@@ -80,7 +84,7 @@ export class CargoField {
     pos: THREE.Vector3, velocity: THREE.Vector3, spinAxis: THREE.Vector3,
     kind: 'cargo' | 'capsule', commodity: number,
   ): void {
-    const object = buildShip(CANISTER, kind === 'capsule' ? 0xffd24d : 0x8ad0ff);
+    const object = buildShip(CANISTER_HULL, kind === 'capsule' ? 0xffd24d : 0x8ad0ff);
     if (kind === 'capsule') object.scale.setScalar(0.8);
     object.position.copy(pos);
     this.add(object, { commodity, velocity, spinAxis, kind });

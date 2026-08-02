@@ -95,8 +95,10 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
    deliberately.
 6. **No `logarithmicDepthBuffer`** on the renderer: it disables polygonOffset,
    which is what keeps black hull fills behind wireframe edges.
-7. **Ship defs use +Z nose**; `buildShip()` mirrors Z. Hulls must stay
-   left/right symmetric or the mirror becomes visible.
+7. **Ship defs use +Z nose**; `buildShip()` turns them a half turn about Y to
+   fly along three.js's forward. It used to MIRROR Z, which is the same picture
+   for a left/right symmetric hull and a different ship for an asymmetric one —
+   and eight released designs are asymmetric, so the mirror had to go.
 8. **Money is integer tenths of a credit; fuel is tenths of a LY (max 70).**
 9. **Key bindings live in four places** and change together:
    `engine/keymap.ts` (flight keys, classic and modern layouts), `BINDINGS` in

@@ -3,7 +3,8 @@ import { slotNormal } from './slot.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { createSun, type Sun } from './sun.ts';
 import { createPlanet, type Planet } from './planet.ts';
-import { buildShip, buildDodoStation, CORIOLIS } from '../ships/geometry.ts';
+import { buildShip } from '../ships/geometry.ts';
+import { buildDodoStation, CORIOLIS, CORIOLIS_DOCK_Z } from '../ships/harmless-hulls.ts';
 
 // Assembles the static in-system world deterministically from the system
 // seed: sun, planet, station. Ships and rocks are NPCs, owned by the game.
@@ -60,7 +61,7 @@ export function buildSystemScene(sys: StarSystem): SystemScene {
     stationDockZ = dodo.dockZ;
   } else {
     station = buildShip(CORIOLIS, 0xd8ffe0);
-    stationDockZ = 160;
+    stationDockZ = CORIOLIS_DOCK_Z;
   }
   station.position.copy(stationDir).multiplyScalar(planetRadius * 2.4);
   // The builder mirrors Z (slot on local -Z); lookAt leaves that pointing away

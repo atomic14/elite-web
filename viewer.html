@@ -36,6 +36,12 @@
         cursor: pointer;
       }
       #viewer-controls button:hover { border-color: var(--hud-green); }
+      #viewer-keys {
+        color: var(--hud-dim);
+        font-size: 11px;
+        letter-spacing: 1px;
+        padding-left: 6px;
+      }
       #viewer-title {
         position: absolute;
         top: 10px; right: 16px;
@@ -65,6 +71,7 @@
         <button id="btn-pause">PAUSE</button>
         <button id="btn-speed">SPEED 1x</button>
         <button id="btn-cam">CAM: ORBIT</button>
+        <span id="viewer-keys">G GALLERY · S SCALE · V VIEW · ←/→ FOCUS · 0 ALL</span>
       </div>
       <div id="scanlines"></div>
     </div>

@@ -20,13 +20,17 @@
 // deciding.
 
 import * as THREE from 'three';
-import { buildShip, MISSILE } from '../ships/geometry.ts';
+import { buildShip } from '../ships/geometry.ts';
+import { OBJECT_DESIGNS, requireShipDef } from '../ships/registry.ts';
 import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
 import type { World } from './world.ts';
 import { random } from './rng.ts';
 import type { MissileSnapshot } from './snapshot.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
+
+/** The released missile — one hull, resolved once. */
+const MISSILE_HULL = requireShipDef(OBJECT_DESIGNS.missile);
 
 /** Missile flight speed, world units per second. */
 export const MISSILE_SPEED = 700;
@@ -202,7 +206,7 @@ export class Ordnance {
   }
 
   private spawn(from: THREE.Vector3, target: NpcShip | null): void {
-    const object = buildShip(MISSILE, target ? 0xffd0b0 : 0xff9a8a);
+    const object = buildShip(MISSILE_HULL, target ? 0xffd0b0 : 0xff9a8a);
     object.position.copy(from);
     this.world.attach(object);
     this.missiles.push({ object, target, life: target ? MISSILE_LIFE : HOSTILE_MISSILE_LIFE });
@@ -312,7 +316,7 @@ export class Ordnance {
 
   /** Rebuild a missile from a snapshot. */
   restore(pos: THREE.Vector3, quat: THREE.Quaternion, target: NpcShip | null, life: number): void {
-    const object = buildShip(MISSILE, target ? 0xffd0b0 : 0xff9a8a);
+    const object = buildShip(MISSILE_HULL, target ? 0xffd0b0 : 0xff9a8a);
     object.position.copy(pos);
     object.quaternion.copy(quat);
     this.world.attach(object);

@@ -28,7 +28,7 @@ import {
 } from '../src/game/ship-specs.ts';
 import { PlayerShip, PLAYER_FLIGHT, rampFlightRate, rampToward } from '../src/player.ts';
 import { ccRamp, CC_MAX_PITCH, CC_MAX_ROLL } from '../src/game/combat-computer.ts';
-import { COBRA_MK3, SIDEWINDER } from '../src/ships/geometry.ts';
+import { shipDesignIdOf } from '../src/game/ship-identity.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { check } from './harness.ts';
 import { shippedPirate } from './fixtures.ts';
@@ -87,8 +87,10 @@ console.log('\none combat model (the trainer flies the game)');
     pirates: [{ kind: 'scripted' }, { kind: 'scripted' }],
     trader: { kind: 'scripted' },
   });
-  const cobraSpec = SPECS.pirate.find((s) => s.def === COBRA_MK3)!;
-  const sideSpec = SPECS.pirate.find((s) => s.def === SIDEWINDER)!;
+  // By DESIGN ID, never by comparing hulls: two roster rows can share a mesh,
+  // and ship-identity.ts is the only thing that says what a ship is.
+  const cobraSpec = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(10))!;
+  const sideSpec = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(17))!;
   check(`episode pirate 1 is the roster Cobra (hp ${cobraSpec.hp}, r ${cobraSpec.radius})`,
     gangEp.pirates[0].hp === cobraSpec.hp && gangEp.pirates[0].radius === cobraSpec.radius);
   check(`episode pirate 2 is the roster Sidewinder (hp ${sideSpec.hp}, r ${sideSpec.radius})`,
