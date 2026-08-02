@@ -277,6 +277,15 @@ src/
     docking.ts              the slot approach, for traders and your computer
     effects.ts              explosions and tracers — seen, never simulated
     screens/                one file per overlay, behind the Screen contract
+      trade.ts              the market and the outfitters: buy, sell, fit
+      chart.ts              the galactic chart and the short-range chart
+      contracts.ts          work on offer here: pick one and sign for it
+      status.ts             what you are flying, carrying and wanted for
+      data.ts               the 1984 manual entry, plus today's local news
+      saves.ts              commander files, and the saves/naming screens
+      briefing.ts           a mission, several pages, read with left and right
+      combat-sim.ts         the trainer's front of house: pick a fight, read it
+      combat-sim-setup.ts   what the pilot picked, and the rows that show it
 
     elite-a/                the released-Elite-A reference catalogue, and the
                             rules that read it. Everything ending .generated.ts
