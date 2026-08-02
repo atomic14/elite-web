@@ -169,6 +169,17 @@ Per exercise: the seed, the scenario, both loadouts, then —
   opponent's `designId`/`profileId` (`src/game/ship-identity.ts`), so a record
   still says what was flown after a shipyard or a re-hulling exists
 
+- and how the OPPOSITION flew (TODO 34): their speed, the SPREAD of the ranges
+  they held — p10, median, p90, because a brain that commits sweeps through the
+  band and a turret collapses it onto one number the median alone cannot tell
+  apart — and their completed attack runs, a closure inside `PASS_CLOSE` and a
+  break back out past `PASS_FAR`. Those two thresholds live in
+  `combat-sim-report.ts` beside `SIX_CONE`, with the same justification, and
+  `train/flight-probe.ts` reads them from there rather than keeping its own.
+  There is deliberately NO verdict, score or turret index attached: the report
+  presents, the pilot judges, and inventing that metric is how this went wrong
+  twice
+
 Also absorb `test/arena.js`'s `envelope()` — the spec first omitted it and
 should not have. It is the only measurement of the PLAYER's flight envelope
 (speed, pitch, roll and engagement-range distributions), and

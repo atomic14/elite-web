@@ -14,7 +14,9 @@ import {
 import type { SlotSummary } from '../game/storage.ts';
 import { describeContract } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
-import type { CombatSimReport } from '../game/combat-sim-report.ts';
+import {
+  PASS_CLOSE, PASS_FAR, type CombatSimReport,
+} from '../game/combat-sim-report.ts';
 import type { SimSetupPanel, SimSetupRow } from '../game/screens/combat-sim-setup.ts';
 import { elementById, inertElement } from '../engine/inert-dom.ts';
 
@@ -976,10 +978,13 @@ export function renderCombatSimReport(
         <td class="num">${o.hits}/${o.shots}</td>
         <td class="num">${o.damageToYou.toFixed(1)}</td>
         <td class="num">${num(o.closestRange)}</td>
+        <td class="num">${num(o.medianSpeed)}</td>
+        <td class="num">${o.passes}</td>
       </tr>`).join('');
   const stat = (label: string, you: string, them: string): string =>
     `<tr><td>${label}</td><td class="num">${you}</td><td class="num">${them}</td></tr>`;
   const e = r.envelope;
+  const opp = r.opposition;
   show(`
     <h2>SIMULATION REPORT &mdash; ${r.outcome.toUpperCase()}</h2>
     <div class="rule"></div>
@@ -1018,20 +1023,28 @@ export function renderCombatSimReport(
         <tr><td>SHIELDS LOW (FORE / AFT)</td>
           <td class="num">${num(r.lowWater.foreShield, 1)} / ${num(r.lowWater.aftShield, 1)}</td></tr>
         <tr><td>ENERGY LOW</td><td class="num">${num(r.lowWater.energy, 1)}</td></tr>
-        <tr><td>YOUR SPEED (MED / P90)</td>
-          <td class="num">${num(e.speed?.median)} / ${num(e.speed?.p90)}</td></tr>
-        <tr><td>YOUR PITCH / ROLL (P90)</td>
-          <td class="num">${num(e.pitchRate?.p90, 2)} / ${num(e.rollRate?.p90, 2)}</td></tr>
         <tr><td>DAMAGE TO YOU, BY SOURCE</td>
           <td class="num">${bySource(r.them.damageBySource)}</td></tr>
         <tr><td>DAMAGE BY YOU, BY SOURCE</td>
           <td class="num">${bySource(r.you.damageBySource)}</td></tr>
+        <tr><td>YOUR SPEED (MED / P90)</td>
+          <td class="num">${num(e.speed?.median)} / ${num(e.speed?.p90)}</td></tr>
+        <tr><td>YOUR PITCH / ROLL (P90)</td>
+          <td class="num">${num(e.pitchRate?.p90, 2)} / ${num(e.rollRate?.p90, 2)}</td></tr>
+        <tr><th colspan="2">HOW THEY FLEW</th></tr>
+        <tr><td>THEIR SPEED (MED / P90)</td>
+          <td class="num">${num(opp.speed?.median)} / ${num(opp.speed?.p90)}</td></tr>
+        <tr><td>RANGE THEY HELD (P10 / MED / P90)</td>
+          <td class="num">${num(opp.range?.p10)} / ${num(opp.range?.median)}
+            / ${num(opp.range?.p90)}</td></tr>
+        <tr><td>ATTACK RUNS (IN ${PASS_CLOSE}, OUT ${PASS_FAR})</td>
+          <td class="num">${opp.passes}</td></tr>
       </table>
     </div>
     <table>
       <tr><th>HULL</th><th>BRAIN</th><th class="num">TIER</th><th class="num">LIVED</th>
         <th>FATE</th><th class="num">HITS/SHOTS</th><th class="num">DAMAGE</th>
-        <th class="num">CLOSEST</th></tr>
+        <th class="num">CLOSEST</th><th class="num">SPEED</th><th class="num">RUNS</th></tr>
       ${opponents}
     </table>
     ${r.warnings.map((w) => `<div class="keyline" style="color:var(--hud-amber)">${w}</div>`).join('')}

@@ -79,6 +79,34 @@ export const SAMPLE_HZ = 10;
  */
 export const SIX_CONE = Math.PI / 3;
 
+/**
+ * What an attack run is, in ranges: a ship counts as INSIDE once it closes past
+ * `PASS_CLOSE`, and has completed a PASS once it opens back out past
+ * `PASS_FAR`.
+ *
+ * Like `SIX_CONE` these are the measurement's own numbers rather than a rule
+ * read from the game, and for the same reason: the game has no notion of an
+ * attack run. It has a firing gate and two laser ranges, and `NPC_LASER_RANGE`
+ * is 3500 — a ship that hangs at 3000 and snipes never leaves its own reach, so
+ * a threshold taken from the gun would count a turret as engaged and count no
+ * passes at all.
+ *
+ * TWO numbers, not one, because one threshold counts jitter: a ship holding
+ * station at 400 crosses back and forth over a single line all fight and scores
+ * a pass every time. With a gap it has to actually go somewhere — in past 400,
+ * which is knife-fighting range for a human, and back out past 900, which is
+ * far enough that it has plainly broken off rather than wobbled. A brain that
+ * loiters at 600 scores none, however long it stays there.
+ *
+ * The values are `train/flight-probe.ts`'s originals, MOVED here rather than
+ * re-picked, so every archived probe row (train/logs/todo32/flight-probe.txt)
+ * still means what it says. The probe imports them from here now; when it kept
+ * its own copy, the tool and the report could disagree about what a pass is,
+ * which is this project's named failure — one rule with two homes.
+ */
+export const PASS_CLOSE = 400;
+export const PASS_FAR = 900;
+
 /** How many exercise records the in-memory ring keeps. */
 export const SIM_LOG_LIMIT = 20;
 
@@ -165,6 +193,14 @@ export interface ContactSample {
   /** index into `ExerciseSetup.opponents` */
   opponent: number;
   dist: number;
+  /**
+   * How fast it was going, in the same units as `FrameSample.speed`.
+   *
+   * The one thing a turret cannot hide. A brain that hangs in space and pivots
+   * reads slow here whatever its damage says, and until this field existed the
+   * report measured the player's speed and not theirs.
+   */
+  speed: number;
   /** radians off THEIR nose to you — the angle `NPC_FIRE_GATE` gates their gun on */
   theirAim: number;
   /** radians off YOUR nose to them */
@@ -287,6 +323,10 @@ export interface OpponentReport {
   /** the median range it held, and the nearest it ever got */
   medianRange: number | null;
   closestRange: number | null;
+  /** the median speed it flew at — see `OppositionReport.speed` */
+  medianSpeed: number | null;
+  /** its own completed attack runs — see `countPasses` */
+  passes: number;
   /** share of ITS sampled frames spent lined up on you, inside its own range */
   linedUpShare: number | null;
 }
@@ -309,6 +349,58 @@ export interface EnvelopeReport {
    * counts once however many ships are in it.
    */
   engagementRange: { median: number; p10: number; p90: number } | null;
+}
+
+/**
+ * How the OPPOSITION flew — `EnvelopeReport`'s missing half.
+ *
+ * The report measured the player's envelope and the range BOTH sides were at,
+ * and nothing about how the other side chose to fly. So the one judgement the
+ * trainer exists to support was the one it did not evidence: CLAUDE.md's
+ * warning is that a well-optimised pirate becomes a turret that hangs in space
+ * and snipes, and three brains now — g1, g2 and t29 — have won on damage and
+ * been rejected on FEEL. The evidence that settled each of them was
+ * `train/flight-probe.ts`'s: how fast they flew, the spread of the ranges they
+ * held, and how often they actually came in. Those three numbers are here, and
+ * the probe now derives its own from this same code.
+ *
+ * A DESCRIPTION, and deliberately not a verdict. There is no turret index and
+ * no score: inventing that metric is how this went wrong twice, and a pilot who
+ * can see 0.2 attack runs at speed 104 does not need one. The report presents;
+ * the pilot judges.
+ *
+ * The population is SHIP-FRAMES, the same one `range` uses — one ship in one
+ * sampled frame, so a gang of three contributes three rows a frame. A duration
+ * would want frames; a distribution of how they were flying wants every ship
+ * that was flying.
+ */
+export interface OppositionReport {
+  /** ship-frames behind these figures */
+  samples: number;
+  /**
+   * Their speed, over every ship-frame.
+   *
+   * MEDIAN and p90 rather than a mean, as the player's envelope is: one ship
+   * sprinting in from the horizon while two hold station is a mean nobody flew.
+   */
+  speed: { median: number; p90: number; max: number } | null;
+  /**
+   * The spread of ranges they held — p10, median, p90.
+   *
+   * The spread is the measurement, not the median. An attack run sweeps through
+   * the whole band, so p10 and p90 sit far apart; a brain that loiters holds one
+   * range and the spread collapses onto it. `range.median` alone cannot tell
+   * those two apart, and that is exactly the pair this project keeps confusing.
+   */
+  range: { p10: number; median: number; p90: number } | null;
+  /**
+   * Completed attack runs, summed over every opponent — `countPasses`, at
+   * `PASS_CLOSE` and `PASS_FAR`.
+   *
+   * The per-opponent lines break it down; a gang of three that each made one
+   * run reads 3 here.
+   */
+  passes: number;
 }
 
 export interface CombatSimReport {
@@ -388,7 +480,10 @@ export interface CombatSimReport {
     energy: number | null;
   };
   opponents: OpponentReport[];
+  /** how the commander flew */
   envelope: EnvelopeReport;
+  /** how the opposition flew — the other half of the same question */
+  opposition: OppositionReport;
   events: SimEvent[];
   /**
    * Anything the report knows it does not know. A harness that admits it has
@@ -436,6 +531,29 @@ export function quantile(xs: readonly number[], p: number): number | null {
   return s[Math.min(s.length - 1, Math.floor(s.length * p))];
 }
 
+/**
+ * Completed attack runs in a series of ranges, in the order they were sampled.
+ *
+ * A hysteresis crossing on `PASS_CLOSE` / `PASS_FAR`: out until it closes past
+ * CLOSE, in until it opens back out past FAR, and the pass is counted on the
+ * way OUT — a run that closed and never left is not a completed pass, it is a
+ * ship that is still in there.
+ *
+ * Pure and total: any series, any length, no state kept between calls. That is
+ * what lets `train/flight-probe.ts` count its episodes with the same function
+ * the exercise counts its opponents with, instead of a second copy of the same
+ * three lines that would drift the first time one of the thresholds moved.
+ */
+export function countPasses(dists: readonly number[]): number {
+  let inside = false;
+  let passes = 0;
+  for (const d of dists) {
+    if (!inside && d < PASS_CLOSE) inside = true;
+    else if (inside && d > PASS_FAR) { inside = false; passes += 1; }
+  }
+  return passes;
+}
+
 /** Arithmetic mean, or null when there is nothing to average. */
 export function mean(xs: readonly number[]): number | null {
   if (!xs.length) return null;
@@ -464,7 +582,9 @@ interface OppTally {
   missiles: number;
   damageToYou: number;
   damageFromYou: number;
+  /** its range, in the order it was sampled — the order is what `countPasses` reads */
   dists: number[];
+  speeds: number[];
   linedUp: number;
   frames: number;
   diedAt: number | null;
@@ -473,7 +593,7 @@ interface OppTally {
 
 const newTally = (): OppTally => ({
   shots: 0, hits: 0, missiles: 0, damageToYou: 0, damageFromYou: 0,
-  dists: [], linedUp: 0, frames: 0, diedAt: null, killedByYou: false,
+  dists: [], speeds: [], linedUp: 0, frames: 0, diedAt: null, killedByYou: false,
 });
 
 /**
@@ -582,6 +702,7 @@ export class CombatSimRecorder {
       if (!o) { this.unknownOpponent(c.opponent); continue; }
       o.frames += 1;
       o.dists.push(c.dist);
+      o.speeds.push(c.speed);
       if (c.dist < NPC_LASER_RANGE && c.theirAim < NPC_FIRE_GATE) o.linedUp += 1;
     }
   }
@@ -788,6 +909,7 @@ export class CombatSimRecorder {
       },
       opponents: this.setup.opponents.map((o, i) => this.opponentLine(o, i)),
       envelope: this.envelope(nearest),
+      opposition: this.opposition(rows),
       events: [...this.log],
       warnings: [...this.warnings],
     };
@@ -813,7 +935,38 @@ export class CombatSimRecorder {
       damageFromYou: round(o.damageFromYou, 2),
       medianRange: roundOrNull(quantile(o.dists, 0.5), 0),
       closestRange: o.dists.length ? round(Math.min(...o.dists), 0) : null,
+      medianSpeed: roundOrNull(quantile(o.speeds, 0.5), 0),
+      passes: countPasses(o.dists),
       linedUpShare: o.frames ? round(o.linedUp / o.frames, 3) : null,
+    };
+  }
+
+  /**
+   * How they flew — see `OppositionReport`.
+   *
+   * Over the SHIP-FRAMES the report has already collected, so nothing is
+   * sampled twice and there is no second cadence: a figure here covers exactly
+   * the frames `range` and `linedUpShare` cover. The passes are per opponent
+   * and then summed, because a pass is one ship's run at you — pooling three
+   * ships' ranges into one series would count a crossing every time the nearest
+   * of them changed.
+   */
+  private opposition(rows: readonly ContactSample[]): OppositionReport {
+    const speeds = rows.map((r) => r.speed);
+    const dists = rows.map((r) => r.dist);
+    return {
+      samples: rows.length,
+      speed: speeds.length ? {
+        median: round(quantile(speeds, 0.5) ?? 0, 0),
+        p90: round(quantile(speeds, 0.9) ?? 0, 0),
+        max: Math.round(Math.max(...speeds)),
+      } : null,
+      range: dists.length ? {
+        p10: round(quantile(dists, 0.1) ?? 0, 0),
+        median: round(quantile(dists, 0.5) ?? 0, 0),
+        p90: round(quantile(dists, 0.9) ?? 0, 0),
+      } : null,
+      passes: this.tally.reduce((n, o) => n + countPasses(o.dists), 0),
     };
   }
 

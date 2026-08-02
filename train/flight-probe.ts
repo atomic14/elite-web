@@ -19,8 +19,9 @@
 //                (MIN_CRUISE_FRACTION) so it cannot stop dead any more, but it
 //                can still sit at the floor and pivot.
 //   passes       an attack run is a closure and a break. Counted as a
-//                hysteresis crossing — in past CLOSE, out past FAR — so a ship
-//                loitering at 600 units scores none however long it stays.
+//                hysteresis crossing — in past PASS_CLOSE, out past PASS_FAR —
+//                so a ship loitering at 600 units scores none however long it
+//                stays.
 //   range spread the p10-to-p90 gap. An attack run sweeps through it; a turret
 //                holds one range and the spread collapses.
 //   on-six       time spent astern of the target AND pointed at it, which is
@@ -32,22 +33,52 @@
 // NONE OF THESE IS A GATE. They are a description, for a human deciding whether
 // to promote a brain, and the decision is made by flying it — `T` at any
 // station, see docs/BROWSER-TRIALS.md.
+//
+// ## It does not do its own arithmetic any more (TODO 34)
+//
+// The three measurements above that a pilot also sees in the game — their
+// speed, the range spread they held and the passes they made — are now taken by
+// `CombatSimRecorder` itself: this file builds a recorder per episode, feeds it
+// the fight, and reads `report().opposition`. So the tool and the combat
+// trainer's report cannot disagree about what a pass is, because there is one
+// `countPasses` and one `PASS_CLOSE`/`PASS_FAR` and they live in
+// `src/game/combat-sim-report.ts` beside `SIX_CONE` and `SAMPLE_HZ`, each with
+// the reason it is the measurement's own number. This file used to hold a
+// second copy of all three, which is one rule with two homes — the failure
+// CLAUDE.md is organised against — waiting for somebody to move one of them.
+//
+// The one thing that IS this file's own is the CADENCE. The trainer samples at
+// SAMPLE_HZ because a twenty-minute sparring session at 60 Hz is a lot of
+// arithmetic nobody reads; a batch of 45-second episodes can afford every step,
+// and sampling every step is what the archived probe rows
+// (train/logs/todo32/flight-probe.txt) were taken at. It is declared through
+// the recorder's own `sampleHz`, so every duration the recorder derives still
+// agrees with the clock — not a second cadence bolted on the side.
 
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { Episode, type Controller, type TargetHullId } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
+import {
+  CombatSimRecorder, aimAngle, mean, quantile, PASS_CLOSE, PASS_FAR,
+  type CombatSimReport, type FrameSample, type SimOutcome,
+} from '../src/game/combat-sim-report.ts';
 import { IMPACT } from '../src/game/impact-damage.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
 
-/** Held-out, and distinct from every other base in the project. */
-const PROBE_BASE = 30_000_007;
+/**
+ * Held-out, and distinct from every other base in the project.
+ *
+ * Exported so episode `n` of a table can be flown again on its own — which is
+ * how the figures here are checked against the ones the game prints, rather
+ * than assumed to agree.
+ */
+export const PROBE_BASE = 30_000_007;
 
-/** An attack run is a closure past CLOSE and a break back out past FAR. */
-const CLOSE = 400;
-const FAR = 900;
+/** How long one probe episode runs. */
+const EPISODE_SECONDS = 45;
 
 export interface FlightShape {
   brain: string;
@@ -66,11 +97,121 @@ export interface FlightShape {
   poolShare: number;
 }
 
-const quantile = (xs: number[], p: number): number => {
-  if (!xs.length) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  return s[Math.min(s.length - 1, Math.floor(s.length * p))];
-};
+/**
+ * One episode, measured by the game's own recorder.
+ *
+ * `report.opposition` is the block the combat trainer shows a pilot after an
+ * exercise — their speed, the range spread they held, and their completed
+ * attack runs — so a figure printed by this tool and the same figure printed in
+ * the game are the same code over the same rule. The three extras beside it are
+ * the episode's own and have no counterpart in a real fight: `onSix` comes from
+ * the scenario's tail timer, and `rams` and `hurt` need an unarmed target.
+ */
+export interface EpisodeShape {
+  report: CombatSimReport;
+  /** the pirate's range and speed at every sampled step, in order */
+  ranges: number[];
+  speeds: number[];
+  onSix: number;
+  rams: number;
+  hurt: number;
+}
+
+/** The episode's ending, in the terms a report states it — from the TARGET's seat. */
+function outcomeOf(ep: Episode): SimOutcome {
+  const how = ep.report().outcome;
+  // The target stands in for the commander, so "the target was destroyed" is
+  // `destroyed` and "the pirates all died" is `cleared`. An escape has no
+  // equivalent — nobody quit, but the fight stopped being one.
+  return how === 'escaped' ? 'quit' : how;
+}
+
+/**
+ * Fly one episode and measure it.
+ *
+ * Exported so the agreement between this tool and the in-game report can be
+ * checked directly rather than asserted: the same episode, one recorder, and
+ * both sets of figures out of it.
+ */
+export function probeEpisode(
+  name: string, brain: Brain, seed: number, hull: TargetHullId = 'playerCobra',
+): EpisodeShape {
+  const ep = new Episode({
+    seed,
+    pirates: [{ kind: 'policy', brain } as Controller],
+    // A target that stops and turns — how a human knife-fights, and the one
+    // opponent that separates a pursuer from a turret.
+    //
+    // UNARMED, deliberately: with the target shooting back, a pirate's
+    // `damageTaken` is laser damage plus contact and the ram count below
+    // becomes a guess. Against an unarmed target every point it loses is
+    // something it flew into, which is the number this table wants.
+    trader: { kind: 'holding' },
+    traderArmed: false,
+    traderClass: hull,
+    maxTime: EPISODE_SECONDS,
+  });
+  const setup = ep.setup();
+  const rec = new CombatSimRecorder({
+    seed,
+    scenario: `flight probe: ${hull}, target holds`,
+    mode: 'scenario',
+    // Every step, declared: see the header. The recorder's durations follow it.
+    sampleHz: 1 / FIXED_DT,
+    player: {
+      shipId: setup.target.shipId,
+      laser: setup.target.laser,
+      missiles: 0, ecm: false, energyUnit: false, energyBomb: false,
+    },
+    opponents: setup.pirates.map((p) => ({
+      hull: p.name,
+      designId: p.designId,
+      profileId: p.profileId,
+      brain: name,
+      role: 'pirate',
+    })),
+  });
+
+  const target = ep.trader;
+  const gap = new THREE.Vector3();
+  const sample = (): FrameSample => ({
+    speed: target.speed,
+    pitch: target.pitchRate,
+    roll: target.rollRate,
+    foreShield: target.sys.foreShield,
+    aftShield: target.sys.aftShield,
+    energy: target.sys.energy,
+    contacts: ep.pirates.flatMap((p, i) => (p.alive ? [{
+      opponent: i,
+      dist: gap.copy(target.pos).sub(p.pos).length(),
+      speed: p.speed,
+      theirAim: aimAngle(p.pos, p.quat, target.pos),
+      yourAim: aimAngle(target.pos, target.quat, p.pos),
+    }] : [])),
+  });
+
+  while (!ep.done) {
+    ep.step(FIXED_DT);
+    // A dead pirate has no flight to describe, and the episode is over for this
+    // tool's purposes — the same stopping point the probe has always used.
+    if (!ep.pirates[0].alive) break;
+    rec.tick(FIXED_DT, sample);
+  }
+
+  const ranges: number[] = [];
+  const speeds: number[] = [];
+  for (const f of rec.raw) {
+    for (const c of f.contacts) { ranges.push(c.dist); speeds.push(c.speed); }
+  }
+  return {
+    report: rec.report(outcomeOf(ep)),
+    ranges,
+    speeds,
+    onSix: ep.tailTime.reduce((a, b) => a + b, 0),
+    rams: ep.pirates.reduce((a, p) => a + p.damageTaken, 0) / IMPACT.ram.ship,
+    hurt: ep.targetDamageShare(),
+  };
+}
 
 export function probe(
   name: string, episodes: number, hull: TargetHullId = 'playerCobra',
@@ -79,59 +220,32 @@ export function probe(
     JSON.parse(readFileSync(new URL(`${name}.json`, BRAINS), 'utf8')) as BrainFile);
   const ranges: number[] = [];
   const speeds: number[] = [];
-  let forward = 0;
-  let frames = 0;
   let passes = 0;
   let onSix = 0;
   let rams = 0;
   let hurt = 0;
-  let closest = Infinity;
-  const gap = new THREE.Vector3();
 
   for (let e = 0; e < episodes; e++) {
-    const ep = new Episode({
-      seed: PROBE_BASE + e * 7919,
-      pirates: [{ kind: 'policy', brain } as Controller],
-      // A target that stops and turns — how a human knife-fights, and the one
-      // opponent that separates a pursuer from a turret.
-      //
-      // UNARMED, deliberately: with the target shooting back, a pirate's
-      // `damageTaken` is laser damage plus contact and the ram count below
-      // becomes a guess. Against an unarmed target every point it loses is
-      // something it flew into, which is the number this table wants.
-      trader: { kind: 'holding' },
-      traderArmed: false,
-      traderClass: hull,
-      maxTime: 45,
-    });
-    // Hysteresis, per episode: 'out' until it closes, 'in' until it breaks.
-    let inside = false;
-    while (!ep.done) {
-      ep.step(FIXED_DT);
-      const p = ep.pirates[0];
-      if (!p.alive) break;
-      const d = gap.copy(ep.trader.pos).sub(p.pos).length();
-      ranges.push(d);
-      speeds.push(p.speed);
-      frames += 1;
-      if (p.speed > 0) forward += 1;
-      closest = Math.min(closest, d);
-      if (!inside && d < CLOSE) inside = true;
-      else if (inside && d > FAR) { inside = false; passes += 1; }
-    }
-    onSix += ep.tailTime.reduce((a, b) => a + b, 0);
-    rams += ep.pirates.reduce((a, p) => a + p.damageTaken, 0) / IMPACT.ram.ship;
-    hurt += ep.targetDamageShare();
+    const shape = probeEpisode(name, brain, PROBE_BASE + e * 7919, hull);
+    // Pooled, so the quantiles below describe the whole batch rather than
+    // averaging thirty medians — but the PASSES are summed per episode, because
+    // the hysteresis has to start over when the fight does.
+    for (const d of shape.ranges) ranges.push(d);
+    for (const s of shape.speeds) speeds.push(s);
+    passes += shape.report.opposition.passes;
+    onSix += shape.onSix;
+    rams += shape.rams;
+    hurt += shape.hurt;
   }
   return {
     brain: name,
     episodes,
-    meanSpeed: speeds.reduce((a, b) => a + b, 0) / Math.max(1, speeds.length),
-    forwardShare: forward / Math.max(1, frames),
-    rangeP10: quantile(ranges, 0.1),
-    rangeMedian: quantile(ranges, 0.5),
-    rangeP90: quantile(ranges, 0.9),
-    closest: closest === Infinity ? 0 : closest,
+    meanSpeed: mean(speeds) ?? 0,
+    forwardShare: speeds.filter((s) => s > 0).length / Math.max(1, speeds.length),
+    rangeP10: quantile(ranges, 0.1) ?? 0,
+    rangeMedian: quantile(ranges, 0.5) ?? 0,
+    rangeP90: quantile(ranges, 0.9) ?? 0,
+    closest: ranges.reduce((m, d) => Math.min(m, d), Infinity) || 0,
     passesPerEpisode: passes / episodes,
     onSixSeconds: onSix / episodes,
     ramsPerEpisode: rams / episodes,
@@ -154,7 +268,7 @@ export function printFlightShapes(names: string[], episodes: number): void {
       + `${s.onSixSeconds.toFixed(1).padStart(5)}s | ${s.ramsPerEpisode.toFixed(2).padStart(4)} | `
       + `${(s.poolShare * 100).toFixed(1).padStart(4)}% |`);
   }
-  console.log('\npasses = closed inside ' + CLOSE + ' and broke back out past ' + FAR
+  console.log('\npasses = closed inside ' + PASS_CLOSE + ' and broke back out past ' + PASS_FAR
     + ', per episode — a loiter scores none');
   console.log('a TURRET reads: low speed, few passes, a collapsed range spread, low on-six');
 }

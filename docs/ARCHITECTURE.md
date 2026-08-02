@@ -260,7 +260,8 @@ src/
                             nothing — the commander swap, the entry snapshot,
                             its own StepHost
     combat-sim-scenarios.ts who it sends at you, and when it stops sending
-    combat-sim-report.ts    what happened, counted — and the JSON that exports
+    combat-sim-report.ts    what happened, counted — how you flew, how THEY
+                            flew, and the JSON that exports
     combat-sim-strip.ts     how it is going, WHILE it is going: the cockpit
                             strip's model, read off the round's own recorder
     combat-sim-safety.ts    the three layers of "nothing that happens in the
@@ -389,7 +390,9 @@ test/fixtures/elite-a/      the 15,600 / 3,900 / 570 combat-oracle rows —
 train/evolve.ts             neuroevolution trainer
 train/evaluate.ts           held-out tournament — the validation gate
 train/flight-probe.ts       is it flying, or is it a turret? the SHAPE of a
-                            brain's fight, not its score
+                            brain's fight, not its score — measured by the
+                            game's own CombatSimRecorder, so the tool and the
+                            in-game report cannot disagree about what a pass is
 train/jameson-autopilot.js  the browser-console economy harness behind
                             docs/JAMESON-TRIALS.md
 train/profile-sweep.ts      the catalogue rather than the policies: all 15

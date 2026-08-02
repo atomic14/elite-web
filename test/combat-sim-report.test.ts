@@ -73,9 +73,12 @@ console.log('\ncombat simulator report');
     ],
     ...over,
   });
+  // `speed` is theirs, and it defaults to 0 here because every case below is
+  // about the geometry rather than about how they flew. What the opposition's
+  // envelope makes of it is combat-sim-flight.test.ts's question.
   const contact = (
-    opponent: number, dist: number, theirAim: number, yourAim: number,
-  ): ContactSample => ({ opponent, dist, theirAim, yourAim });
+    opponent: number, dist: number, theirAim: number, yourAim: number, speed = 0,
+  ): ContactSample => ({ opponent, dist, speed, theirAim, yourAim });
   const frame = (over: Partial<FrameSample> = {}): FrameSample => ({
     speed: 60, pitch: 0, roll: 0, foreShield: 1, aftShield: 1, energy: 4,
     contacts: [], ...over,

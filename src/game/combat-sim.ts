@@ -800,6 +800,10 @@ export class CombatSim {
       contacts.push({
         opponent: o.index,
         dist: at.distanceTo(player.position),
+        // Its OWN speed, which is the one thing a turret cannot hide — and the
+        // ship's state vector, not a difference between two frames, so it is
+        // the same number the brain chose.
+        speed: o.ship.state.speed,
         theirAim: aimAngle(at, o.ship.object.quaternion, player.position),
         yourAim: aimAngle(player.position, player.quaternion, at),
       });
