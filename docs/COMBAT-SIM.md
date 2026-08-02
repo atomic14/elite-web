@@ -86,9 +86,9 @@ almost every simulated kill. So the layering is:
    restore does that last.
 
 **`die()` must never be reached, and this one is data loss rather than a leak.**
-`game.ts:815` calls `clearWorld()` — deliberately, so "death is not optional if
-you refresh". A simulated death reaching it would delete the player's real saved
-world blob. That is the bug class that already cost a real commander during this
+`Game.die` drops the career's in-flight autosaves — deliberately, so "death is
+not optional if you refresh". A simulated death reaching it would delete real
+ones. That is the bug class that already cost a real commander during this
 refactor.
 
 ## Scenarios

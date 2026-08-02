@@ -44,9 +44,9 @@
 // the entry snapshot has been restored — before it, the restore would put it
 // back — and it is reported to the orchestrator rather than written here.
 //
-// `die()` is the one that is data loss rather than a leak: `Game.die` calls
-// `clearWorld()` on purpose, so death is not optional if you refresh, and a
-// simulated death reaching it would delete the player's real saved world. It is
+// `die()` is the one that is data loss rather than a leak: `Game.die` drops the
+// career's in-flight autosaves on purpose, so death is not optional if you
+// refresh, and a simulated death reaching it would delete real ones. It is
 // redirected here and can never be reached.
 //
 // ## Where the session state lives, and why not in `GameState`
@@ -680,7 +680,7 @@ export class CombatSim {
     // 1. The world, the commander, the brain selection and the rng stream, all
     //    out of the entry
     //    snapshot — with saving SUSPENDED by Persistence, because the restore path ends at
-    //    `Station.dock`, which calls `saveCommander`. In the happy path those
+    //    `Station.dock`, which writes the career's checkpoint. In the happy path those
     //    bytes are identical to what is already on disk; if `restore()` were
     //    ever subtly wrong, that write would persist the corruption OVER a good
     //    save. Fail safe first.

@@ -284,7 +284,10 @@ src/
     missions.ts             the Navy Constrictor arc (NOT the bulletin board)
     commander.ts            who you are: stats, cargo, rank — PURE, no browser
     shop.ts                 what things cost and what you may fit
-    storage.ts              the ONLY file that touches localStorage
+    storage.ts              the ONLY file that touches localStorage: the save
+                            shelf, the namespace, and the slot migration
+    save-file.ts            what a save IS — its name, its id, and the one line
+                            a player tells two of them apart by. PURE
     cargo.ts                canisters and capsules adrift, scooping them, and
                             what a laser hit does to one (their released banks)
     jettison.ts             dumping cargo, and whether it buys off the gang
@@ -299,7 +302,10 @@ src/
       contracts.ts          work on offer here: pick one and sign for it
       status.ts             what you are flying, carrying and wanted for
       data.ts               the 1984 manual entry, plus today's local news
-      saves.ts              commander files, and the saves/naming screens
+      saves.ts              the commander file: the list, the save prompt and
+                            renaming a commander
+      save-transfer.ts      a save leaving the browser as a JSON file, and
+                            coming back without landing on an existing one
       briefing.ts           a mission, several pages, read with left and right
       combat-sim.ts         the trainer's front of house: pick a fight, read the
                             report, hold two records against each other
@@ -628,13 +634,15 @@ ships.
   analogue" steering (see `player.ts`).
 - **Distances on the chart**: `4·sqrt(dx² + (dy/2)²)` in tenths of a LY —
   the original's asymmetric formula; chart Y is drawn half-scale.
-- **Saves**: TWO JSON blobs in localStorage, and confusing them is a real bug
-  class. `elite-web-commander:<slot>` is who you are — written on every
-  successful dock and on equipment purchase. `elite-web-world:<slot>` is the
-  whole sky — a `WorldSnapshot` written by `autoSave()` every 20 seconds of
-  flight and replayed by `resumeSavedWorld()` at boot, which is what lets you
-  close the tab mid-fight. Docking and dying clear the world blob. Delete both
-  for a fresh commander.
+- **Saves**: one record, one key, one `setItem` — a `WorldSnapshot` plus the
+  name it was saved under (`save-file.ts`). Three kinds, and the id shape is
+  what keeps them apart: `save:file:<NAME>` is a save the player named,
+  `save:auto:<CAREER>:dock` is the checkpoint written on docking and again
+  immediately before launch, and `save:auto:<CAREER>:fly:<0..2>` is the ring
+  `autoSave()` fills every 20 seconds of flight. An autosave cannot overwrite a
+  named save because a typed name cannot produce an `auto:` id. `<ns>boot` says
+  which record the next boot resumes; docking and dying drop the ring, never the
+  checkpoint. CLAUDE.md invariant 3 is the whole rule.
 - **Debug handles** (deliberate, documented): `window.__game` (a
   `legacyHandles(Game)` console view — used by the autopilot test harness, see
   docs/JAMESON-TRIALS.md), `window.__policyKit` (trained brains + inference

@@ -21,7 +21,9 @@ import { playerPoolPoints, type PlayerPoolPoints } from '../src/game/damage-unit
 import { npcLaserDamageToPlayer } from '../src/game/gunnery.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
-import { clearWorld, readWorld, saveCommander, saveWorld, withoutSaving } from '../src/game/storage.ts';
+import {
+  clearFlightSaves, withoutSaving, writeDockSave, writeFlightSave, writeNamedSave,
+} from '../src/game/storage.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
 import { newCommander } from '../src/game/commander.ts';
 import {
@@ -479,10 +481,11 @@ console.log('\nheadless world step');
       enterWitchspace: () => { log.push('witchspace'); },
       isDead: () => false,
       message: (text) => { log.push(`say:${text}`); },
-      saveCommander,
-      saveWorld,
-      readWorld,
-      clearWorld,
+      writeDockSave,
+      writeFlightSave,
+      writeNamedSave: (name, career, world) => (writeNamedSave(name, career, world, 20)),
+      bootWorld: () => null,
+      clearFlightSaves,
       withoutSaving,
     });
 

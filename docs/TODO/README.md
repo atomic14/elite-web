@@ -40,13 +40,13 @@ rest and can go at any point.
 
 ## Saves
 
-Progress: **0 / 1 complete**. The model is Chris's and is decided: S prompts
+Progress: **1 / 1 complete**. The model is Chris's and is decided: S prompts
 for a name and the same name overwrites, autosaves happen on their own and are
 kept as a set, and you can load either. One question in the spec is a
 game-design call rather than an implementation one — whether the death screen
 may offer an autosave — and it is marked ask, do not decide silently.
 
-- [ ] 40 — [Named save files, and an autosave that cannot eat one](40-named-save-files.md) — save model/UI · high · large
+- [x] 40 — [Named save files, and an autosave that cannot eat one](40-named-save-files.md) — save model/UI · high · large
 
 ## Elite-A damage and ship-catalogue alignment
 

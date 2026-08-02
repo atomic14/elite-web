@@ -89,10 +89,44 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
    308-redirects `/play.html` → `/play`, so a canonical or sitemap entry ending
    in `.html` points at a redirect, which is an SEO error rather than a cosmetic
    one.
-3. **The `elite-web-*` localStorage keys are never renamed** —
-   `elite-web-commander:<slot>`, `elite-web-world:<slot>`, `elite-web-slot`,
-   `elite-web-keymap`. They are where every existing player's commander lives.
-   `storage.ts` is the only file that may touch localStorage.
+3. **A save is one key, and a harness cannot address one.** `storage.ts` is the
+   only file that may touch localStorage, and every key in the program is built
+   there as `namespace + id`:
+
+   ```
+   <ns>save:file:<NAME>            a save the player named
+   <ns>save:auto:<CAREER>:dock     the docked checkpoint
+   <ns>save:auto:<CAREER>:fly:<n>  the in-flight ring
+   <ns>boot                        which of them the next boot resumes
+   ```
+
+   Three properties, and each is structural rather than a rule to remember:
+
+   - **An autosave cannot overwrite a named save**, because it cannot ADDRESS
+     one — a name goes through `save-file.ts`'s alphabet (`A-Z 0-9 space`, 16
+     max), which has no `:`, so a typed name can never reach past its own
+     segment. This replaced four numbered slots where every write, deliberate
+     or automatic, went to the same pair of keys.
+   - **A save either lands or does not.** One record, one `setItem`: there is no
+     half-written save, and a quota failure leaves every existing save byte-
+     identical.
+   - **`useHarnessSaves()` is one way.** It moves `<ns>` from `elite-web-` to
+     `elite-web-harness-` for the life of the page or process, and nothing puts
+     it back — reload to play your career. `test/harness.ts` calls it before any
+     test runs, and `test/playtest.js` and `train/jameson-autopilot.js` call it
+     first. This is what replaced "never write slots 1-3": an agent switched the
+     slot pointer with a game still running, and twenty seconds later the
+     autosave wrote a scratch commander over the real one. A one-way switch
+     cannot be forgotten, cannot be undone by a missing `finally`, and covers
+     the running game as well as the harness.
+
+   **The old keys** — `elite-web-commander[:slot]`, `elite-web-world:<slot>`,
+   `elite-web-slot` — are still spelled out in `storage.ts` because migration
+   reads them, and are removed only per slot, only after the new record has been
+   written AND read back. A crash, a refused write or a full store therefore
+   leaves them exactly where they were and the next boot tries again;
+   `test/saves.test.ts` proves it against a fixture of the old shape.
+   `elite-web-keymap` is `engine/keymap.ts`'s and is not a save.
 4. **Galaxy fidelity**: `generateGalaxy(1)[7]` is LAVE, TL:5, Rich Agricultural
    Dictatorship. Never "fix" `galaxy.ts` maths; it is byte-matched to the 1984
    algorithm. `npm test` asserts it.
@@ -243,10 +277,14 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
   publishes handles the game WRITES, never flags it reads.
 - `npm run campaign` after touching prices, rewards, equipment or the living
   galaxy. `test/playtest.js` plays the real game and asserts invariants.
-- **Never write save slots 1-3.** Harnesses run in slot 4 (`SAVE_SLOTS`) and
-  restore the pointer; do the same in console work. Backing up and restoring is
-  NOT enough, because the world autosaves every 20 seconds and a tab left
-  running will overwrite the restore.
+- **Call `useHarnessSaves()` before console work that flies the game.** It is
+  the first thing `test/playtest.js` and `train/jameson-autopilot.js` do, and
+  after it nothing on the page can compute a player's save key — including the
+  running game's own autosave. It does not come back; reload the tab to play
+  your career. There is nothing to back up and nothing to restore, which is the
+  point: backing up and restoring was NOT enough, because the world autosaves
+  every 20 seconds and a tab left running overwrote the restore. That is how a
+  commander was actually lost.
 - **Prefer a fight a human flew to a bot-flown measurement.** Bots mislead in
   both directions: flying straight flatters freighter-trained brains, and the
   defence policy evades superbly while shooting badly. That is what the docked

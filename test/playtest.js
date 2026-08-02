@@ -33,7 +33,7 @@
   //   contracts.ts  the living galaxy's price pressure on top of it
   //   law.ts        CONTRABAND — the ONE definition
   //   commander.ts  what counts against the hold, and how big it is
-  //   storage.ts    which localStorage keys this commander occupies
+  //   storage.ts    the one-way switch into the harness save namespace
   //   player.ts     the ship's real pitch, roll, acceleration and rate ramp
   const [galaxyMod, navMod, contractsMod, lawMod, commanderMod, storageMod, playerMod] =
     await Promise.all([
@@ -50,7 +50,7 @@
   const { applyMarketPressure } = contractsMod;
   const { isContraband } = lawMod;
   const { cargoTonnes: holdTonnes, cargoCapacity: holdCapacity } = commanderMod;
-  const { slotKeys, currentSlot, setCurrentSlot, SAVE_SLOTS } = storageMod;
+  const { useHarnessSaves, clearHarnessSaves, saveNamespace } = storageMod;
   const { PLAYER_FLIGHT, rampFlightRate } = playerMod;
 
   const V = g.player.position.clone().constructor;
@@ -466,32 +466,26 @@
     // ---- the main loop --------------------------------------------------
 
     async run({ legs = 20, log = false } = {}) {
-      // The commander lives in a SLOT — `elite-web-commander:<slot>`, and the
-      // mid-flight world in `elite-web-world:<slot>` beside it (storage.ts).
-      // This used to back up and clear the unslotted `elite-web-commander`,
-      // which nothing has read since slots arrived: respawn() reloaded the
-      // player's OWN commander instead of a fresh Jameson, every dock
-      // overwrote the real save, docking cleared the real saved world, and the
-      // restore at the end put the backup somewhere no loader looks.
-      // Run in the LAST slot, never the player's.
+      // NOTHING THIS HARNESS DOES CAN REACH YOUR SAVES, and it is not a
+      // convention any more.
       //
-      // Backing up the player's slot and restoring it in a finally was still
-      // not safe: the game autosaves the whole world every 20 seconds of
-      // flight, so a tab left running after the harness finishes writes over
-      // the restore. That is how a real commander was lost. Switching slots
-      // means the player's save is never opened, never written, and there is
-      // nothing to restore — the harness cannot reach it even if it crashes.
-      const playerSlot = currentSlot();
-      const keys = Object.values(slotKeys(SAVE_SLOTS));
-      const backup = keys.map((k) => localStorage.getItem(k));
-      setCurrentSlot(SAVE_SLOTS);
+      // It used to run in the last numbered slot and put the pointer back in a
+      // `finally`. That was still not safe: the game autosaves the whole world
+      // every 20 seconds, so a tab left running after the harness finished
+      // wrote over the restore — which is exactly how a real commander was
+      // lost. `useHarnessSaves()` switches the whole page, the running game
+      // included, into the `elite-web-harness-` namespace, ONE WAY. There is no
+      // call that undoes it and nothing to put back: a crash, a forgotten
+      // `finally` or a tab left open cannot leak, because from this line on the
+      // program cannot compute a player's key. Reload to play your career.
+      useHarnessSaves();
+      clearHarnessSaves();
       this.violations = [];
       this.seen = new Set();
       const history = [];
       const start = performance.now();
 
       try {
-        for (const k of keys) localStorage.removeItem(k);
         g.respawn();
         let deaths = 0;
 
@@ -577,13 +571,9 @@
         }
         return this.report;
       } finally {
-        keys.forEach((k, i) => {
-          if (backup[i] === null) localStorage.removeItem(k);
-          else localStorage.setItem(k, backup[i]);
-        });
-        setCurrentSlot(playerSlot);
-        console.log(`ran in slot ${SAVE_SLOTS}; your slot ${playerSlot} was never touched`
-          + ' — reload the page');
+        clearHarnessSaves();
+        console.log(`ran entirely in ${saveNamespace()}*; your saves were never`
+          + ' addressable from this page — reload it to play your career');
       }
     },
   };

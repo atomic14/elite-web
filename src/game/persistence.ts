@@ -29,7 +29,7 @@
 
 import { generateGalaxy, type MarketEntry } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
-import type { CommanderData, Contract } from './commander.ts';
+import type { Contract } from './commander.ts';
 import type { PirateThreat } from './threat.ts';
 import { CONSTRICTOR_SPEC, pirateSpecForTier, specForDesign } from './ship-specs.ts';
 import type { NpcRole } from './ship-roles.ts';
@@ -69,13 +69,21 @@ export interface PersistenceHost {
   isDead(): boolean;
   /** something to say out loud */
   message(text: string, seconds: number): void;
-  /** Store the station-level part of a career. */
-  saveCommander(commander: CommanderData): void;
-  /** Store or retrieve the mid-flight part of a career. */
-  saveWorld(json: string): void;
-  readWorld(): string | null;
-  /** Forget a corrupt, stale, or no-longer-needed mid-flight save. */
-  clearWorld(): void;
+  /**
+   * The three writes, and they are three because a save says what it IS.
+   *
+   * `dock` is the checkpoint (docking, and immediately before launch), `flight`
+   * is the ring that must never evict it, and `named` is the one the player
+   * asked for and which no automatic write can address. storage.ts owns the
+   * key shapes that make the last sentence true.
+   */
+  writeDockSave(career: string, world: WorldSnapshot): boolean;
+  writeFlightSave(career: string, world: WorldSnapshot): boolean;
+  writeNamedSave(name: string, career: string, world: WorldSnapshot): 'ok' | 'full' | 'failed';
+  /** The world this session resumes, if the save it booted from carries one. */
+  bootWorld(): WorldSnapshot | null;
+  /** Drop a career's in-flight ring — on docking, and on death. */
+  clearFlightSaves(career: string): void;
   /**
    * Refuse save writes for a span, returning the keys that would have changed.
    *
@@ -114,6 +122,7 @@ export class Persistence {
       version: SNAPSHOT_VERSION,
       mode: this.host.baseMode() === 'flight' ? 'flight' : 'docked',
       commander: structuredClone(s.commander),
+      career: s.career,
       galaxyState: s.living.save(),
       player: {
         pos: v3(s.player.position),
@@ -173,6 +182,9 @@ export class Persistence {
     // Same rule as the station save (storage.ts): missing or unresolvable means
     // the Cobra Mk III every legacy career flew, never a failure to load.
     s.commander.shipId = migratedPlayerHullId(s.commander.shipId);
+    // A world written before named saves carries no career; the one the boot
+    // record gave us is the answer for those, and it is already in place.
+    if (snap.career) s.career = snap.career;
     s.systems = generateGalaxy(s.commander.galaxy);
     s.living = new LivingGalaxy(s.systems);
     s.living.load(snap.galaxyState as Parameters<LivingGalaxy['load']>[0]);
@@ -248,19 +260,56 @@ export class Persistence {
     return this.host.withoutSaving(() => this.restore(snap)).refused;
   }
 
+  /** Which career's autosaves this session writes. One home for the read. */
+  private get career(): string {
+    return this.state.career;
+  }
+
   /**
-   * Write the world down. Cheap enough to do on a timer, because the whole
-   * point is that closing the tab mid-fight is not punished.
+   * The docked checkpoint: written on docking and immediately before launch,
+   * and again whenever something at the station moves the career (a purchase).
+   *
+   * It is by construction the state you left the station in, which is what the
+   * death rule leans on — see `Game.die`.
+   */
+  checkpoint(): boolean {
+    if (this.host.isDead()) return false;
+    try {
+      return this.host.writeDockSave(this.career, this.capture());
+    } catch {
+      return false;   // a world that will not serialise must not take the tab down
+    }
+  }
+
+  /**
+   * Write the world down mid-flight. Cheap enough to do on a timer, because the
+   * whole point is that closing the tab mid-fight is not punished.
+   *
+   * Into the RING, never over the docked checkpoint (decision 2): a quiet three
+   * minutes of flying must not evict the station you came from.
    */
   autoSave(): void {
     if (this.host.isDead()) return;
-    this.host.saveCommander(this.state.commander);
     try {
-      this.host.saveWorld(JSON.stringify(this.capture()));
+      this.host.writeFlightSave(this.career, this.capture());
+    } catch { /* see checkpoint() */ }
+  }
+
+  /**
+   * Save under a name the player typed. Carries the world like every other
+   * save, so loading one never puts you somewhere you have never been.
+   */
+  saveNamed(name: string): 'ok' | 'full' | 'failed' {
+    try {
+      return this.host.writeNamedSave(name, this.career, this.capture());
     } catch {
-      // a world that will not serialise is a bug, but it must never take the
-      // session down — the commander save above is already safe
+      return 'failed';
     }
+  }
+
+  /** The run just ended: the last twenty seconds of it are not a save. */
+  forgetFlight(): void {
+    this.host.clearFlightSaves(this.career);
   }
 
   /**
@@ -271,18 +320,16 @@ export class Persistence {
    * normally at the station.
    */
   resume(): boolean {
-    const json = this.host.readWorld();
-    if (!json) return false;
+    const snap = this.host.bootWorld();
+    if (!snap) return false;
     try {
-      const snap = JSON.parse(json) as WorldSnapshot;
       if (snap.version !== SNAPSHOT_VERSION) return false;
-      if (snap.commander.name !== this.state.commander.name) return false; // different career
       this.restore(snap);
       if (snap.mode === 'flight') this.host.message('RESUMING FLIGHT', 3);
       return true;
     } catch {
-      // a corrupt or stale world must never cost you the commander
-      this.host.clearWorld();
+      // a world that will not come back must never cost you the commander, and
+      // it is NOT deleted for it: the save is still the player's to look at.
       return false;
     }
   }

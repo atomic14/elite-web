@@ -184,10 +184,11 @@ console.log('\ncombat simulator — the strip is the record, early');
       enterWitchspace: () => { state.world.banishScenery(); },
       isDead: () => false,
       message: () => {},
-      saveCommander: () => {},
-      saveWorld: () => {},
-      readWorld: () => null,
-      clearWorld: () => {},
+      writeDockSave: () => true,
+      writeFlightSave: () => true,
+      writeNamedSave: () => 'ok',
+      bootWorld: () => null,
+      clearFlightSaves: () => {},
       withoutSaving: (fn) => ({ value: fn(), refused: [] }),
     };
     const persistence = new Persistence(state, ordnance, new CombatComputer(), pHost);

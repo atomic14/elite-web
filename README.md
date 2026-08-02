@@ -96,9 +96,15 @@ lint or tests fails the deploy build rather than shipping.
 > that the game imports — `git checkout src/ai-training/brains` restores them.
 
 You start docked at Lave Station with 100.0 Cr, a full tank and 3 missiles.
-Progress saves automatically when you dock, and the whole world — your ship,
-your cargo, every NPC in the sky — autosaves every 20 seconds in flight. Close
-the tab mid-fight and you resume where you left off.
+
+**Saving** is a deliberate act and an automatic safety net, and the two can
+never overwrite each other. **S** at a station opens the commander file: name a
+save and it is yours to keep — the same name again replaces it, and it asks
+first. Alongside it the game keeps its own: a **station checkpoint** written
+when you dock and again as you launch, and the last three **in-flight
+autosaves**, taken every 20 seconds. Close the tab mid-fight and you resume
+where you left off; die, and the station checkpoint puts you back where you
+launched from.
 
 ## New to Elite?
 
@@ -167,8 +173,8 @@ because browsers claim the function keys.
 | **T** | **combat training simulator** — practise a fight; nothing in it reaches your career |
 | H | new pilot's briefing |
 | B | switch keyboard layout |
-| S | commander file (4 save slots · rename) |
-| X / Z | export · import save |
+| S | commander file — named saves and autosaves (S saves · ENTER loads · D deletes · R renames the commander) |
+| X / Z | export · import a save file |
 | Q | start a new commander (confirms first) |
 
 ↑↓ and ENTER work on the menu as well as the letter keys.
@@ -184,6 +190,19 @@ exercise. The panel is grouped — the fight, who flies what, your ship — with
 **LIVE BRAINS (CAREER)** fenced off at the foot, because that one is still set
 when you undock.
 
+**Waves** escalates twice. First the numbers — one ship becomes six, an
+opportunist becomes an organised gang — and at wave 11 they stop, deliberately,
+because a ramp that keeps adding ships makes the score a fact about arithmetic
+rather than about flying. Then the *fight* keeps changing: they carry missiles
+at 12, E.C.M. at 14, one of them is a bounty hunter at 16, and at 18 two of the
+pirates stand down for a Thargoid and its Thargon — the toughest hull in the
+game, whose drone goes inert the moment it dies. From 18 on every wave is the
+same, so surviving three of them is a fact about flying. The cockpit strip
+carries what is out there, the banner names each new thing as it arrives, and
+the report quotes both with the reason. The furthest wave you ever reach is
+kept with the commander and shown on the panel; it is the one number a run
+leaves behind, and nothing in the career reads it.
+
 A row over a list says where in it you are (`5/12`) and **HOME/END** go to
 either end without walking there. Selecting a brain row prints what that brain
 does in a fight, with the measured number that shows it — the shipped pirate
@@ -195,7 +214,8 @@ both archived under `train/logs/`.
 It is the real game: real flight model, real trained brains, real guns. But
 **nothing that happens in it leaves it** — no kills, no combat rating, no
 credits, no legal status, no save write, and death ends the exercise rather
-than the career. Afterwards you get a report (accuracy both ways, damage by
+than the career. The single exception is stated as one: the furthest wave a
+waves run reached, which is saved with the commander and read by nothing else. Afterwards you get a report (accuracy both ways, damage by
 source, engagement ranges, time on each other's six, your own flight
 envelope) which exports as JSON to the clipboard or a file, and lands on
 `window.__simLog` for a console session or an agent to read.
@@ -253,9 +273,10 @@ detected — as on the original's dashboard.
   attack; fine on docking).
 - **Hyperspace** — 7.0 LY fuel range, per-jump fuel cost by real chart
   distance, 5-second countdown.
-- **Death** — ship destroyed → reload your last save (unless an escape pod
-  saves you, at the cost of your cargo). Because the world autosaves in
-  flight, that is at most ~20 seconds back, not the last station.
+- **Death** — ship destroyed → ENTER takes you back to the station checkpoint
+  you launched from, with what you left with (unless an escape pod saves you,
+  at the cost of your cargo), or S opens the commander file to pick a save of
+  your own. The in-flight autosaves are dropped: dying costs you the run.
 - **Legal system** — CLEAN → OFFENDER → FUGITIVE; police scan for contraband
   (slaves, narcotics, firearms), bounty hunters stalk offenders, fines on
   docking.

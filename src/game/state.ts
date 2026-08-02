@@ -39,6 +39,20 @@ export interface GameState {
   /** the 256 systems of the current galaxy, generated not stored */
   systems: StarSystem[];
   commander: CommanderData;
+  /**
+   * Which career's autosaves this session writes — see save-file.ts.
+   *
+   * STATE and not a module variable, for invariant 12's reason: it decides
+   * where an automatic write LANDS, and a copy of that living outside the
+   * snapshot is exactly how a reload ends up autosaving into a career it is not
+   * playing. Set at boot from the save that was resumed, carried in the
+   * snapshot, restored with everything else.
+   *
+   * It is deliberately not the commander's name: two careers can be called
+   * JAMESON, and then a global — or a name-keyed — autosave group would belong
+   * to whichever of them flew last.
+   */
+  career: string;
   /** level-1 simulation: trade flowing between all 256 systems */
   living: LivingGalaxy;
 
@@ -140,6 +154,9 @@ export function freshState(commander: CommanderData): GameState {
   return {
     systems,
     commander,
+    // The orchestrator sets this from the save it booted; a state built for a
+    // test or the campaign has no shelf to read one off, and writes nothing.
+    career: '',
     living: new LivingGalaxy(systems),
     world: new World(),
     player: new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1)),

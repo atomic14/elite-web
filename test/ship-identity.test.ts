@@ -38,7 +38,8 @@ import type { NpcRole } from '../src/game/ship-roles.ts';
 import { roleCombatProfileId } from '../src/game/role-variants.ts';
 import { newCommander, type CommanderData } from '../src/game/commander.ts';
 import { exerciseCommander } from '../src/game/combat-sim-safety.ts';
-import { loadCommander, saveCommander, slotKeys } from '../src/game/storage.ts';
+import { makeRecord, readSave, saveNamespace, writeSave } from '../src/game/storage.ts';
+import { commanderOf, fileId } from '../src/game/save-file.ts';
 import { World } from '../src/game/world.ts';
 import { Game } from '../src/game/game.ts';
 import { headlessShell } from '../src/engine/shell.ts';
@@ -210,8 +211,8 @@ console.log('\nthe roster states its identity');
 
 console.log('\nlegacy commanders load as a Cobra Mk III');
 {
-  // The real save path, on a fake store in slot 4 — CLAUDE.md: harnesses never
-  // touch slots 1-3, and this one cannot reach a browser's storage at all.
+  // The real save path, on a fake store, in the harness namespace
+  // `test/harness.ts` switched this process into (CLAUDE.md invariant 3).
   const held = new Map<string, string>();
   const fakeStorage = {
     get length() { return held.size; },
@@ -219,40 +220,39 @@ console.log('\nlegacy commanders load as a Cobra Mk III');
     getItem: (k: string) => held.get(k) ?? null,
     setItem: (k: string, v: string) => { held.set(k, v); },
     removeItem: (k: string) => { held.delete(k); },
-    clear: () => { held.clear(); },
   };
   const globals = globalThis as unknown as { localStorage?: unknown };
   const hadStorage = 'localStorage' in globals;
   const previousStorage = globals.localStorage;
   globals.localStorage = fakeStorage;
-  const KEYS = slotKeys(4);
+  const ID = fileId('H');                 // an id; the key is namespace + id
+  const put = (c: unknown) => held.set(saveNamespace() + ID,
+    JSON.stringify({ ...makeRecord('H', 'H', 'file', null), commander: c }));
+  const read = (): CommanderData => commanderOf(readSave(ID)!)!;
 
   try {
     // A commander exactly as it was written before this phase: no shipId at all.
     const legacy: Record<string, unknown> = { ...newCommander(), credits: 4321, kills: 9 };
     delete legacy.shipId;
     legacy.cargo = [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    held.set(KEYS.commander, JSON.stringify(legacy));
+    put(legacy);
 
-    const loaded = loadCommander(4);
-    eq('a save with no hull loads as the Cobra Mk III every one of them flew',
+    const loaded = read();
+    eq('a save with no hull loads as the Cobra Mk III they all flew',
       loaded.shipId, COBRA_MK_3_HULL_ID);
     check('...and loses nothing else on the way',
       loaded.credits === 4321 && loaded.kills === 9 && loaded.name === 'JAMESON'
       && loaded.cargo[1] === 2 && loaded.fuel === newCommander().fuel);
-
-    held.set(KEYS.commander, JSON.stringify({ ...legacy, shipId: 'elite-a:player:99' }));
-    eq('a hull id that resolves to nothing migrates too, rather than failing the load',
-      loadCommander(4).shipId, COBRA_MK_3_HULL_ID);
-    check('...still without losing the career', loadCommander(4).credits === 4321);
-
+    put({ ...legacy, shipId: 'elite-a:player:99' });
+    eq('an unresolvable hull id migrates too, rather than failing the load',
+      read().shipId, COBRA_MK_3_HULL_ID);
+    check('...still without losing the career', read().credits === 4321);
     // Every one of the 15, through the real bytes.
     const survived = PLAYER_HULL_IDS.filter((id) => {
-      saveCommander({ ...newCommander(), shipId: id }, 4);
-      return loadCommander(4).shipId === id;
+      writeSave(ID, makeRecord('H', 'H', 'file', null, { ...newCommander(), shipId: id }));
+      return read().shipId === id;
     });
-    eq('all 15 flyable hulls round-trip through the commander save',
-      survived.length, PLAYER_HULL_IDS.length);
+    eq('all 15 hulls round-trip through the save', survived.length, PLAYER_HULL_IDS.length);
   } finally {
     if (hadStorage) globals.localStorage = previousStorage;
     else delete globals.localStorage;

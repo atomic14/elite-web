@@ -52,7 +52,7 @@ const LAUNCH_SPEED = 120;
 export type StationEvent =
   | SoundEvent
   | { kind: 'message'; text: string; seconds: number }
-  | { kind: 'persistence'; action: 'clearWorld' | 'saveCommander' }
+  | { kind: 'persistence'; action: 'checkpoint' | 'forgetFlight' }
   | { kind: 'presentation'; action: 'releaseMouseFlight' }
   | { kind: 'presentation'; action: 'screen'; screen: 'docked' | 'hidden' }
   | { kind: 'presentation'; action: 'tunnel'; way: 'in' | 'out' };
@@ -77,6 +77,12 @@ export interface StationHost {
   lookAlong(dir: THREE.Vector3): void;
   /** the traffic you meet on the way out — DRAWS, so a call and not an event */
   populateSystem(situation: 'launch'): void;
+  /**
+   * Write the docked checkpoint NOW, before this method changes anything.
+   *
+   * A call and not an event because the ordering is the content: see `launch`.
+   */
+  checkpoint(): void;
   /** pay out and expire the work you were carrying, and say what it paid */
   settleContracts(): StationEvent[];
   /** the bulletin board's cursor lives on the contracts screen */
@@ -116,11 +122,13 @@ export class Station {
     // whatever flew us in, we're down: drop the autopilot and cut the music
     s.session.dcEngaged = false;
     this.host.setBaseMode('docked');
-    // Docking supersedes the mid-flight world. Leaving it behind meant a
-    // reload resumed the snapshot from BEFORE the dock: the cargo you had
-    // just sold was back in the hold, the equipment you bought was gone, and
-    // the next dock wrote that rolled-back commander over the good one.
-    if (!booting) effects.push({ kind: 'persistence', action: 'clearWorld' });
+    // Docking supersedes the flight it ended. Leaving the in-flight ring
+    // behind meant a reload resumed a snapshot from BEFORE the dock: the cargo
+    // you had just sold was back in the hold, the equipment you bought was
+    // gone, and the next dock wrote that rolled-back commander over the good
+    // one. It cannot touch the docked checkpoint or a named save — different
+    // ids, see save-file.ts.
+    if (!booting) effects.push({ kind: 'persistence', action: 'forgetFlight' });
     s.world.clearNpcs();
     this.ordnance.clear();
     // Full pools and a cold laser, and what "full" is belongs to systems.ts —
@@ -187,7 +195,9 @@ export class Station {
     s.contractOffers = generateContractOffers(this.system, s.systems, c.day);
     this.host.resetContractSelection();
     c.galaxyState = s.living.save();
-    effects.push({ kind: 'persistence', action: 'saveCommander' });
+    // HALF of decision 1: the docked autosave is written on docking. The other
+    // half is in `launch()`, and between them they are the checkpoint.
+    effects.push({ kind: 'persistence', action: 'checkpoint' });
     if (!booting) {
       effects.push(
         { kind: 'dockingMusic', on: false },
@@ -207,6 +217,13 @@ export class Station {
   /** Out of the slot, into policed traffic. */
   launch(): StationEvent[] {
     const s = this.state;
+    // The OTHER half of decision 1, and it is a host call rather than a
+    // returned event for one reason: it must observe the state you are leaving
+    // in, and every event this method returns is applied after the ship has
+    // already been put 450 units outside the slot at speed. This checkpoint is
+    // what the death rule leans on, so it has to be the station and not the
+    // first second of the flight.
+    this.host.checkpoint();
     const n = slotNormal(s.world.station);
     s.player.position.copy(s.world.station.position).addScaledVector(n, LAUNCH_STANDOFF);
     this.host.lookAlong(n);

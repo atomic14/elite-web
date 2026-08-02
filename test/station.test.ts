@@ -28,6 +28,7 @@ function setup() {
   state.world.build(state.systems[state.commander.systemIndex]);
   let mode: 'docked' | 'flight' | 'dead' = 'flight';
   let populated = 0;
+  let checkpoints = 0;
   const host: StationHost = {
     baseMode: () => mode,
     setBaseMode: (next) => { mode = next; },
@@ -37,6 +38,7 @@ function setup() {
       state.player.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir.normalize());
     },
     populateSystem: () => { populated += 1; },
+    checkpoint: () => { checkpoints += 1; },
     settleContracts: () => [
       { kind: 'sound', name: 'contractPaid' },
       { kind: 'message', text: 'CONTRACT SETTLED', seconds: 4 },
@@ -48,6 +50,7 @@ function setup() {
     station: new Station(state, new Ordnance(state.world), host),
     mode: () => mode,
     populated: () => populated,
+    checkpoints: () => checkpoints,
   };
 }
 
@@ -58,10 +61,10 @@ function setup() {
   eq('dock reports platform consequences in their former applied order',
     events.map(label).join('|'), [
       'music:false',
-      'persistence:clearWorld',
+      'persistence:forgetFlight',
       'presentation:releaseMouseFlight',
       'sound:contractPaid',
-      'persistence:saveCommander',
+      'persistence:checkpoint',
       'music:false',
       'sound:dock',
       'sound:tunnel',
@@ -88,6 +91,11 @@ function setup() {
     ].join('|'));
   check('launch population remains a synchronous seeded host operation',
     x.populated() === 1 && x.mode() === 'flight');
+  // Decision 1: the docked checkpoint is written on docking AND immediately
+  // before launch, and the second one is a CALL rather than an event precisely
+  // so that it observes the station rather than the first second of the flight.
+  check('launch writes the docked checkpoint before it moves the ship',
+    x.checkpoints() === 1);
 }
 
 {

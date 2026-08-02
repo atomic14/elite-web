@@ -17,7 +17,6 @@ import {
   type CommanderData,
 } from '../commander.ts';
 import { fuelQuote } from '../shop.ts';
-import { saveCommander } from '../storage.ts';
 import { renderMarket, renderEquip, equipRows } from '../../ui/screens.ts';
 import { COMMODITIES, type MarketEntry, type StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
@@ -40,6 +39,13 @@ export interface TradeContext {
   message(text: string, seconds: number): void;
   /** word gets around: see sell() */
   addNotoriety(amount: number): void;
+  /**
+   * Write the career's docked checkpoint — the outfitter just moved money.
+   *
+   * A capability rather than a storage import, because WHERE a save goes is
+   * storage.ts's business and this file's business is what things cost.
+   */
+  checkpoint(): void;
 }
 
 /** The commodity market. */
@@ -262,8 +268,8 @@ export function buyEquipment(id: string, ctx: TradeContext): void {
       break;
     case 'galacticDrive': c.equipment.galacticDrive = true; break;
   }
-  // one of only two places a save happens (the other is docking)
-  saveCommander(c);
+  // Money moved at the station, so the station's checkpoint moves with it.
+  ctx.checkpoint();
   sfx.equipmentBought();
 }
 

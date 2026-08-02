@@ -17,8 +17,10 @@ import {
   newCommander, recordFurthestWave, MAX_FUEL, defaultEquipment,
 } from '../src/game/commander.ts';
 import {
-  clearWorld, readWorld, saveCommander, saveWorld, slotKeys, withoutSaving,
+  clearFlightSaves, makeRecord, saveNamespace, withoutSaving,
+  writeDockSave, writeFlightSave, writeNamedSave,
 } from '../src/game/storage.ts';
+import { commanderOf, dockId, flightIds, type SaveRecord } from '../src/game/save-file.ts';
 import { Combat, firePlayerLaser, damagePlayer } from '../src/game/combat.ts';
 import { durability, MAX_ENERGY } from '../src/game/systems.ts';
 import { CONTRABAND, CLEAN, FUGITIVE } from '../src/game/law.ts';
@@ -120,13 +122,24 @@ console.log('\ncombat simulator: nothing leaves the exercise');
   const hadStorage = 'localStorage' in globals;
   const previousStorage = globals.localStorage;
   globals.localStorage = fakeStorage;
-  held.set('elite-web-slot', '4');
-  const KEYS = slotKeys(4);
+  /**
+   * The career under test, and every key it occupies: the docked checkpoint and
+   * the in-flight ring (save-file.ts). `test/harness.ts` has already put this
+   * process in the HARNESS namespace, so none of these can be a player's key.
+   */
+  const CAREER = 'TEST CAREER';
+  const DOCK_KEY = saveNamespace() + dockId(CAREER);
+  const FLY_KEYS = flightIds(CAREER).map((id) => saveNamespace() + id);
+  const CAREER_KEYS = [DOCK_KEY, ...FLY_KEYS];
   // a good save already on disk — the thing a wrong restore would overwrite
-  held.set(KEYS.commander, JSON.stringify(career()));
+  held.set(DOCK_KEY, JSON.stringify(
+    makeRecord(CAREER, CAREER, 'dock', null, career())));
 
   const careerKeyTouched = (log: string[], from: number) =>
-    log.slice(from).filter((k) => k === KEYS.commander || k === KEYS.world);
+    log.slice(from).filter((k) => CAREER_KEYS.includes(k));
+  /** Whichever ring slot the career's own flying last wrote. */
+  const flightBlob = (): string | undefined =>
+    FLY_KEYS.map((k) => held.get(k)).find((v) => v !== undefined);
 
   // --- a career, and an exercise it can start -------------------------------
 
@@ -148,6 +161,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
   const rig = (seed: number, mode: 'docked' | 'flight' = 'docked'): Rig => {
     seedWorld(seed);
     const state = freshState(career());
+    state.career = CAREER;
     state.world.build(state.systems[state.commander.systemIndex]);
     const ordnance = new Ordnance(state.world);
     const combat = new Combat(state.world);
@@ -168,16 +182,20 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       baseMode: () => r.baseMode,
       enterMode: (m) => {
         r.baseMode = m;
-        if (m === 'docked') saveCommander(state.commander, 4);
+        // What the Game does: docking writes the career's checkpoint, through
+        // the real storage path. That write is the whole reason the restore is
+        // suspended, so a stub that quietly left it out would test nothing.
+        if (m === 'docked') r.persistence.checkpoint();
       },
       buildWorld: () => { state.world.build(state.systems[state.commander.systemIndex]); },
       enterWitchspace: () => { state.world.banishScenery(); },
       isDead: () => r.baseMode === 'dead',
       message: (text) => r.said.push(text),
-      saveCommander: (commander) => saveCommander(commander, 4),
-      saveWorld: (json) => saveWorld(json, 4),
-      readWorld: () => readWorld(4),
-      clearWorld: () => clearWorld(4),
+      writeDockSave,
+      writeFlightSave,
+      writeNamedSave: (name, c, world) => writeNamedSave(name, c, world, 20),
+      bootWorld: () => null,
+      clearFlightSaves,
       withoutSaving,
     };
     r.persistence = new Persistence(state, ordnance, new CombatComputer(), pHost);
@@ -192,7 +210,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       // run may leave behind is only worth asserting against a host that
       // actually applies it. The rule is commander.ts's, so this is a wire.
       recordFurthestWave: (wave) => {
-        if (recordFurthestWave(state.commander, wave)) saveCommander(state.commander, 4);
+        if (recordFurthestWave(state.commander, wave)) r.persistence.checkpoint();
       },
       finished: () => {},
     };
@@ -287,8 +305,13 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     s.session.autoSaveTimer = 0.5;
     flyCareer(r, 120, CRUISE);
     r.baseMode = 'docked';
+    // ...and then docks, which is what writes the checkpoint. Both halves of
+    // the career's own saving are exercised before the excursion, so "nothing
+    // was written during it" cannot be true for the wrong reason.
+    const flewBlob = flightBlob();
+    r.persistence.checkpoint();
     check('the career writes its own save, so the storage spy is not vacuous',
-      careerKeyTouched(writes, 0).length >= 2 && !!held.get(KEYS.world));
+      careerKeyTouched(writes, 0).length >= 2 && !!flewBlob && !!held.get(DOCK_KEY));
     // …and traffic in the sky, so "the sky came back" has something to come back
     for (let i = 0; i < 3; i++) {
       const t = s.world.spawn('trader',
@@ -307,8 +330,8 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       n.object.position.toArray().join()].join('|'));
     const writeMark = writes.length;
     const removeMark = removes.length;
-    const worldBlob = held.get(KEYS.world);
-    const savedCommander = held.get(KEYS.commander);
+    const worldBlob = flightBlob();
+    const savedCommander = held.get(DOCK_KEY);
 
     // Five pirates, so there is still opposition alive when the commander dies.
     const custom: Opposition[] = [{
@@ -466,14 +489,14 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
     check('nothing was WRITTEN to the commander or the world during the exercise',
       careerKeyTouched(writes, writeMark).length === 0);
-    check('...and nothing was REMOVED either — die() calls clearWorld()',
+    check('...and nothing was REMOVED either — die() drops the in-flight ring',
       careerKeyTouched(removes, removeMark).length === 0
-      && held.get(KEYS.world) === worldBlob);
+      && flightBlob() === worldBlob);
     check('...so the save on disk is the one that was there before',
-      held.get(KEYS.commander) === savedCommander);
+      held.get(DOCK_KEY) === savedCommander);
     check('...and the write the restore path DOES attempt was refused, '
       + 'which is what makes the suppression load-bearing',
-      r.sim.refusedWrites.includes(KEYS.commander));
+      r.sim.refusedWrites.includes(DOCK_KEY));
 
     check('the rng stream is exactly where the career left it',
       JSON.stringify(rngState()) === JSON.stringify(rngBefore));
@@ -658,7 +681,8 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       check('...and a career that never flew one has none',
         control.state.commander.furthestWave === 0);
       check('...and it is SAVED, not just held — a best that dies with the tab is not one',
-        JSON.parse(held.get(KEYS.commander) ?? '{}').furthestWave === best);
+        commanderOf(JSON.parse(held.get(DOCK_KEY) ?? '{}') as SaveRecord)
+          ?.furthestWave === best);
       check('...while the two fields the whole rule is about did not move',
         excursion.state.commander.kills === 137
         && excursion.state.commander.combatScore === 642);

@@ -9,14 +9,18 @@
 // It writes the save on success, which is the whole reason this is careful:
 // every case here runs inside `withoutSaving`, which refuses the write and
 // hands back the keys it refused, so the tests assert the save WOULD have
-// happened without ever touching a real commander (CLAUDE.md: never write
-// slots 1-3).
+// happened without ever touching a real commander. `test/harness.ts` has
+// already put this whole process in the harness namespace, so there is no
+// player key to reach in the first place (CLAUDE.md invariant 3).
 
 import { buyEquipment, type TradeContext } from '../src/game/screens/trade.ts';
 import { equipRows, type EquipRow } from '../src/ui/screens.ts';
-import { newCommander, MAX_FUEL, MAX_MISSILES } from '../src/game/commander.ts';
+import {
+  newCommander, MAX_FUEL, MAX_MISSILES, type CommanderData,
+} from '../src/game/commander.ts';
 import { generateMarket } from '../src/galaxy/galaxy.ts';
-import { withoutSaving } from '../src/game/storage.ts';
+import { withoutSaving, writeDockSave } from '../src/game/storage.ts';
+import type { WorldSnapshot } from '../src/game/snapshot.ts';
 import { check, eq } from './harness.ts';
 import { g1 } from './fixtures.ts';
 
@@ -25,6 +29,16 @@ console.log('\noutfitting');
   const LAVE = g1[7];
   /** A rich system, so the tech level does not gate what we are testing. */
   const RICH = g1.find((s) => s.techLevel >= 10) ?? LAVE;
+
+  /**
+   * The write the outfitter triggers, as the Game wires it: a docked
+   * checkpoint. It goes through the real storage write so `withoutSaving` has
+   * something to refuse — a stub that wrote nothing would make every "the save
+   * was suppressed" assertion below true for the wrong reason.
+   */
+  const saveCheckpoint = (c: CommanderData): void => {
+    writeDockSave('TEST CAREER', { commander: c } as unknown as WorldSnapshot);
+  };
 
   const ctxFor = (system = RICH, cheat = false) => {
     const commander = newCommander();
@@ -38,6 +52,7 @@ console.log('\noutfitting');
       leaveHermit: () => {},
       message: (t) => { said.push(t); },
       addNotoriety: () => {},
+      checkpoint: () => { saveCheckpoint(ctx.commander); },
     };
     return { ctx, commander, said };
   };

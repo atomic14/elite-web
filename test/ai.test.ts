@@ -280,8 +280,14 @@ console.log('\npurity');
 
   const store = readFileSync(new URL('../src/game/storage.ts', import.meta.url), 'utf8');
   check('storage.ts is where localStorage lives', /localStorage/.test(store));
-  // the keys are load-bearing: renaming one orphans every existing save
-  check('...and the save keys are unchanged',
-    store.includes("'elite-web-commander'") && store.includes("'elite-web-world'")
-    && store.includes("'elite-web-slot'"));
+  // The namespace is the whole harness-safety argument (CLAUDE.md invariant 3):
+  // every key in the program is `ns + id`, applied in this one file, and `ns`
+  // moves one way. A second literal key would be a way round both.
+  check('...and every key is built from the namespace',
+    store.includes("'elite-web-'") && store.includes("'elite-web-harness-'"));
+  check('...and the legacy keys migration reads are still spelled out',
+    /\$\{ns\}commander/.test(store) && /\$\{ns\}world:/.test(store)
+    && /\$\{ns\}slot/.test(store));
+  check('...with no way back out of the harness namespace',
+    !/ns\s*=\s*PLAYER_NS/.test(store.split('let ns = PLAYER_NS;')[1] ?? ''));
 }

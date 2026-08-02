@@ -39,7 +39,7 @@
   const { applyMarketPressure } = contractsMod;
   const { isContraband } = lawMod;
   const { CC_MAX_PITCH, CC_MAX_ROLL, CC_MAX_SPEED, CC_ACCEL, ccRamp } = ccMod;
-  const { slotKeys, currentSlot, setCurrentSlot, SAVE_SLOTS } = storageMod;
+  const { useHarnessSaves, clearHarnessSaves, saveNamespace } = storageMod;
 
   const isTonne = (i) => COMMODITIES[i].unit === 't';
 
@@ -299,22 +299,15 @@
       const a = g.systems.findIndex((s) => s.name === systemA);
       const b = g.systems.findIndex((s) => s.name === systemB);
       if (a < 0 || b < 0) { console.error('unknown system name'); return; }
-      // The commander lives in a SLOT (storage.ts) — `elite-web-commander:1`
-      // by default, with the mid-flight world beside it. This backed up and
-      // cleared the pre-slots `elite-web-commander`, which no loader has read
-      // since slots arrived, so `respawn()` reloaded the player's OWN
-      // commander rather than a fresh Jameson, every dock overwrote the real
-      // save, and the restore put it somewhere nothing looks.
-      // Run in the LAST slot, never the player's — the game autosaves the
-      // whole world every 20 seconds of flight, so backing up their slot and
-      // restoring it in a finally still loses to a tab left running. Switching
-      // slots means their save is never opened at all.
-      const playerSlot = currentSlot();
-      const keys = Object.values(slotKeys(SAVE_SLOTS));
-      const backup = keys.map((k) => localStorage.getItem(k));
-      setCurrentSlot(SAVE_SLOTS);
+      // NOTHING HERE CAN REACH YOUR SAVES. `useHarnessSaves()` moves the whole
+      // page — the running game included — into the `elite-web-harness-`
+      // namespace, one way, for the life of the tab. Backing a slot up and
+      // restoring it in a `finally` was not enough: the world autosaves every
+      // 20 seconds, so a tab left running wrote over the restore. Reload the
+      // page to play your career again.
+      useHarnessSaves();
+      clearHarnessSaves();
       try {
-        for (const k of keys) localStorage.removeItem(k);
         g.respawn(); // fresh 100.0 Cr Jameson at Lave
         this.log = [];
         console.log(`Commander Jameson reporting. ${legs} legs, ${systemA} <-> ${systemB}.`);
@@ -332,12 +325,8 @@
           `${g.commander.kills} kills, legal ${g.commander.legalStatus}, ${g.mode}`);
         return this.log;
       } finally {
-        keys.forEach((k, i) => {
-          if (backup[i] === null) localStorage.removeItem(k);
-          else localStorage.setItem(k, backup[i]);
-        });
-        setCurrentSlot(playerSlot);
-        console.log('your commander save is restored — reload the page');
+        clearHarnessSaves();
+        console.log(`ran entirely in ${saveNamespace()}* — reload the page`);
       }
     },
   };

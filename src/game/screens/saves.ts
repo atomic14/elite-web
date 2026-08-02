@@ -1,23 +1,27 @@
-// Commander files and the saves/naming screens.
+// The commander file: the saves you made, the saves the game made, and the
+// three screens over them.
 //
-// The first block lifted out of game.ts, and chosen first because it is the
-// most genuinely independent thing in there: it touches no flight, no NPCs, no
-// physics, no market and no contracts. It reads and writes commanders, and it
-// runs two small screens.
+// `storage.ts` owns where a save lives and `save-file.ts` owns what one is.
+// What lives here is the half above both: the list, the deliberate act of
+// naming a save, and renaming a commander — plus the keyboard state machine for
+// each, behind the Screen contract (invariant 13). Saves that leave the browser
+// as a file are `save-transfer.ts`.
 //
-// `commander.ts` already owns the storage itself (slots, keys, migration).
-// What lived in game.ts was the half above it — file import/export, and the
-// keyboard state machine for the slot list and the name entry.
-//
-// Following the same discipline as NpcShip: this module decides nothing about
-// game state. It returns an OUTCOME and the Game applies it, so the mode
+// Following the same discipline as NpcShip: these screens decide nothing about
+// game state. They return an OUTCOME and the host applies it, so the mode
 // machine stays in one place instead of being poked at from two.
 
-import { formatCredits, DEFAULT_NAME, type CommanderData } from '../commander.ts';
+import { generateGalaxy } from '../../galaxy/galaxy.ts';
+import { DEFAULT_NAME, type CommanderData } from '../commander.ts';
 import {
-  saveCommander, deleteSlot, currentSlot, setCurrentSlot, readSlot, SAVE_SLOTS,
+  clearBootId, deleteSave, listSaves, namedSaveExists, setBootId,
 } from '../storage.ts';
-import { renderSaves, renderNaming } from '../../ui/screens.ts';
+import {
+  MAX_SAVE_NAME, newestFirst, normaliseSaveName, summariseSave,
+  type SaveSummary,
+} from '../save-file.ts';
+import type { WorldSnapshot } from '../snapshot.ts';
+import { renderSaves, renderNaming, renderSavePrompt } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import type { StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
@@ -27,82 +31,80 @@ import { sfx } from '../../audio.ts';
 export interface SavesContext {
   readonly commander: CommanderData;
   readonly systems: StarSystem[];
+  /** which career's autosaves this session writes — see state.ts */
+  readonly career: string;
   message(text: string, seconds: number): void;
+  /** the whole world right now, for a save that is about to be written */
+  capture(): WorldSnapshot;
+  /** write the career's docked checkpoint before we leave it */
+  checkpoint(): void;
+  /** write a save the player named. The result is the reply, not an exception. */
+  saveNamed(name: string): 'ok' | 'full' | 'failed';
 }
 
 /**
- * Write the current commander out as a JSON file.
- *
- * Named for the ship rather than the player so a folder of backups is
- * readable at a glance.
+ * Which galaxy a save is in need not be the one being played, so the system
+ * name is resolved per galaxy and cached for the length of one render.
  */
-export function exportCommanderFile(
-  commander: CommanderData,
-  systemName: string,
-  message: (text: string, seconds: number) => void,
-): void {
-  const blob = new Blob([JSON.stringify(commander, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download =
-    `elite-commander-${systemName.toLowerCase()}-${formatCredits(commander.credits).replace(' ', '')}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  message('COMMANDER EXPORTED', 3);
-}
-
-/**
- * Load a commander from a JSON file, replacing the current save.
- *
- * Writes through `saveCommander(..., currentSlot())`. It once wrote to the
- * bare 'elite-web-commander' key, which is where saves lived BEFORE slots
- * existed, and the result was silent data loss twice over: slot 1 already
- * exists so the migration skipped the import, and then the next boot cleared
- * that legacy key. The imported commander vanished without a word. The keys
- * are load-bearing — see CLAUDE.md.
- */
-export function importCommanderFile(onFailure: () => void): void {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'application/json';
-  input.onchange = async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(await file.text()) as Partial<CommanderData>;
-      if (typeof parsed.credits !== 'number' || typeof parsed.systemIndex !== 'number') {
-        throw new Error('not a commander file');
-      }
-      saveCommander(parsed as CommanderData, currentSlot());
-      location.reload(); // boot cleanly from the imported save
-    } catch {
-      onFailure();
+function systemNamer(ctx: SavesContext): (galaxy: number, index: number) => string {
+  const cache = new Map<number, StarSystem[]>([[ctx.commander.galaxy, ctx.systems]]);
+  return (galaxy, index) => {
+    let systems = cache.get(galaxy);
+    if (!systems) {
+      systems = generateGalaxy(galaxy);
+      cache.set(galaxy, systems);
     }
+    return systems[index]?.name.toUpperCase() ?? '?';
   };
-  input.click();
+}
+
+/** Every save on the shelf, as rows: named saves first, then autosaves. */
+export function saveRows(ctx: SavesContext): SaveSummary[] {
+  const name = systemNamer(ctx);
+  const now = Date.now();
+  const rows = listSaves()
+    .map(({ id, record }) => summariseSave(id, record, now, name))
+    .filter((s): s is SaveSummary => s !== null);
+  const named = rows.filter((r) => r.kind === 'file').sort(newestFirst);
+  // The docked checkpoint leads the autosaves because it is the one that is
+  // always safe to take — decision 3.
+  const auto = rows.filter((r) => r.kind !== 'file')
+    .sort((a, b) => (a.kind === b.kind ? newestFirst(a, b) : a.kind === 'dock' ? -1 : 1));
+  return [...named, ...auto];
 }
 
 /**
- * Throw the current commander away and boot a fresh one at Lave.
+ * The way back after a death: this career's docked checkpoint.
  *
- * Reloads rather than resetting in place: a career leaves state in the living
- * galaxy, contract offers, chart target and mission progress, and a clean boot
- * is far more trustworthy than trying to zero all of it by hand.
+ * By construction the state you left the station in, because it is written on
+ * docking AND immediately before launch (station.ts).
+ */
+export function checkpointSummary(ctx: SavesContext): SaveSummary | null {
+  const rows = saveRows(ctx);
+  return rows.find((r) => r.kind === 'dock' && r.career === ctx.career) ?? null;
+}
+
+/**
+ * Start a fresh commander at Lave, WITHOUT erasing anything.
  *
- * `deleteSlot(currentSlot())`, NOT `removeItem('elite-web-commander')` — that
- * is the pre-slots key, so the old version deleted nothing and the reload
- * loaded the same commander straight back. You asked to start again and got
- * your old ship, cargo and equipment.
+ * Under numbered slots this deleted the slot you were in, because a slot was
+ * the only place a career could be. It is not any more: clearing the boot
+ * pointer starts a new career beside the saves you already have, and none of
+ * them is touched. Reloads rather than resetting in place, for the reason
+ * above.
  */
 export function startNewCommander(): void {
-  deleteSlot(currentSlot());
+  clearBootId();
   location.reload();
 }
 
-/** The slot list. Name entry is a separate screen pushed on top of it. */
+/** The commander file: everything on the shelf, and what you can do to it. */
 export class SavesScreen implements Screen {
   readonly id = 'saves' as const;
   private selected = 0;
+  private rows: SaveSummary[] = [];
+  /** a delete waiting on a Y — deleting a save is not undoable */
+  private pendingDelete: SaveSummary | null = null;
 
   private readonly ctx: () => SavesContext;
 
@@ -110,69 +112,186 @@ export class SavesScreen implements Screen {
     this.ctx = ctx;
   }
 
-  /** Save where we are, then show the list with the current slot highlighted. */
+  /** Write where we are, so the list includes the run you are looking at. */
   open(): void {
-    saveCommander(this.ctx().commander); // so the slot you're on is up to date
-    this.selected = currentSlot() - 1;
+    this.ctx().checkpoint();
+    this.selected = 0;
+    this.pendingDelete = null;
     this.render();
   }
 
   render(): void {
-    const slots = Array.from({ length: SAVE_SLOTS }, (_, i) => readSlot(i + 1));
-    renderSaves(this.ctx().systems, slots, this.selected, currentSlot());
+    const ctx = this.ctx();
+    this.rows = saveRows(ctx);
+    if (this.selected >= this.rows.length) this.selected = Math.max(0, this.rows.length - 1);
+    renderSaves(this.rows, this.selected, ctx.career, this.pendingDelete?.name ?? null);
   }
 
   select(row: number): void {
-    this.selected = Math.max(0, Math.min(SAVE_SLOTS - 1, row));
+    this.selected = Math.max(0, Math.min(this.rows.length - 1, row));
     this.render();
   }
 
   input(i: Input): ScreenOutcome {
     const ctx = this.ctx();
-    if (i.pressed('ArrowUp') || i.pressed('KeyW')) {
-      this.selected = (this.selected + SAVE_SLOTS - 1) % SAVE_SLOTS;
+    if (this.pendingDelete) return this.confirmDelete(i, ctx);
+    const n = this.rows.length;
+    // Arrows only. Every other list screen also takes W/S, and this is the one
+    // screen where S means something else — it SAVES.
+    if (n > 0 && i.pressed('ArrowUp')) {
+      this.selected = (this.selected + n - 1) % n;
       this.render();
     }
-    if (i.pressed('ArrowDown') || i.pressed('KeyS')) {
-      this.selected = (this.selected + 1) % SAVE_SLOTS;
+    if (n > 0 && i.pressed('ArrowDown')) {
+      this.selected = (this.selected + 1) % n;
       this.render();
     }
+    if (i.pressed('KeyS')) return { open: 'save-name' };
     if (i.pressed('KeyR')) return { open: 'naming' };
     if (i.pressed('KeyD')) {
-      const slot = this.selected + 1;
-      if (slot === currentSlot()) {
-        ctx.message('CANNOT DELETE THE COMMANDER YOU ARE FLYING', 3);
+      const row = this.rows[this.selected];
+      if (!row) return 'stay';
+      if (row.kind === 'dock' && row.career === ctx.career) {
+        ctx.message('THAT IS THE STATION YOU CAN ALWAYS GET BACK TO', 4);
         sfx.refused();
-      } else {
-        deleteSlot(slot);
-        this.render();
-        sfx.commanderDeleted();
+        return 'stay';
       }
+      this.pendingDelete = row;
+      this.render();
       return 'stay';
     }
     if (i.pressed('Enter')) {
-      const slot = this.selected + 1;
-      if (slot === currentSlot()) return 'back';
-      // Switch commanders by reloading: a career leaves state across the
-      // living galaxy, contracts, chart target and mission progress, and a
-      // clean boot is far more trustworthy than zeroing all of it by hand.
-      saveCommander(ctx.commander);
-      setCurrentSlot(slot);
+      const row = this.rows[this.selected];
+      if (!row) return 'back';
+      // Write the career we are leaving before we leave it, then boot the one
+      // that was picked. Every load in this file is a reload.
+      ctx.checkpoint();
+      setBootId(row.id);
       location.reload();
       return 'stay';
     }
     if (i.pressed('Escape')) return 'back';
     return 'stay';
   }
+
+  private confirmDelete(i: Input, ctx: SavesContext): ScreenOutcome {
+    if (i.pressed('KeyY')) {
+      deleteSave(this.pendingDelete!.id);
+      ctx.message(`DELETED ${this.pendingDelete!.name}`, 3);
+      sfx.commanderDeleted();
+      this.pendingDelete = null;
+      this.render();
+      return 'stay';
+    }
+    if (i.pressed('Escape') || i.pressed('KeyN')) {
+      this.pendingDelete = null;
+      this.render();
+    }
+    return 'stay';
+  }
 }
 
 /**
- * Elite-style name entry: letters straight in, no DOM focus to fight.
+ * Typing a name for a save. Elite-style: letters straight in, no DOM focus to
+ * fight.
  *
- * Pushed on top of the slot list rather than sitting beside it as a peer
- * mode, so cancelling is just `back` and the list underneath re-paints
- * itself. It owns its own buffer — nothing else has any business reading a
- * half-typed name.
+ * The name IS the identity of a manual save, so typing one that exists REPLACES
+ * it — and because the default offered is the commander's own name, a second
+ * career would otherwise overwrite the first by pressing Enter twice. It asks
+ * first (decision 4).
+ */
+export class SavePromptScreen implements Screen {
+  readonly id = 'save-name' as const;
+  private buffer = '';
+  /** true until the player types: the offered default is replaced, not appended */
+  private pristine = true;
+  private confirming = false;
+
+  private readonly ctx: () => SavesContext;
+
+  constructor(ctx: () => SavesContext) {
+    this.ctx = ctx;
+  }
+
+  open(): void {
+    this.buffer = normaliseSaveName(this.ctx().commander.name) || DEFAULT_NAME;
+    this.pristine = true;
+    this.confirming = false;
+    this.render();
+  }
+
+  render(): void {
+    renderSavePrompt(this.buffer, this.confirming);
+  }
+
+  input(i: Input): ScreenOutcome {
+    const ctx = this.ctx();
+    if (i.pressed('Escape')) {
+      if (!this.confirming) return 'back';
+      this.confirming = false;
+      this.render();
+      return 'stay';
+    }
+    if (this.confirming) {
+      if (i.pressed('KeyY') || i.pressed('Enter')) return this.write(ctx);
+      if (i.pressed('KeyN')) { this.confirming = false; this.render(); }
+      return 'stay';
+    }
+    if (i.pressed('Enter')) {
+      const name = normaliseSaveName(this.buffer);
+      if (!name) {
+        ctx.message('A SAVE NEEDS A NAME', 3);
+        sfx.refused();
+        return 'stay';
+      }
+      if (namedSaveExists(name)) {
+        this.confirming = true;
+        this.render();
+        return 'stay';
+      }
+      return this.write(ctx);
+    }
+    let changed = false;
+    if (i.pressed('Backspace')) {
+      if (this.pristine) { this.buffer = ''; this.pristine = false; }
+      else this.buffer = this.buffer.slice(0, -1);
+      changed = true;
+    }
+    for (const code of i.drainPresses()) {
+      const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
+      if (!m) continue;
+      if (this.pristine) { this.buffer = ''; this.pristine = false; }
+      if (this.buffer.length >= MAX_SAVE_NAME) break;
+      this.buffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
+      changed = true;
+    }
+    if (changed) this.render();
+    return 'stay';
+  }
+
+  private write(ctx: SavesContext): ScreenOutcome {
+    const name = normaliseSaveName(this.buffer);
+    const result = ctx.saveNamed(name);
+    if (result === 'ok') {
+      ctx.message(`SAVED AS ${name}`, 3);
+      sfx.commanderNamed();
+      return 'back';
+    }
+    ctx.message(result === 'full'
+      ? 'NO ROOM FOR ANOTHER SAVE — DELETE ONE FIRST'
+      : 'SAVE FAILED — STORAGE FULL. NOTHING WAS CHANGED', 5);
+    sfx.refused();
+    return 'back';
+  }
+}
+
+/**
+ * Renaming the COMMANDER, which is not the same act as naming a save.
+ *
+ * Pushed on top of the file list rather than sitting beside it as a peer mode,
+ * so cancelling is just `back` and the list underneath re-paints itself. It
+ * owns its own buffer — nothing else has any business reading a half-typed
+ * name.
  */
 export class NamingScreen implements Screen {
   readonly id = 'naming' as const;
@@ -199,9 +318,9 @@ export class NamingScreen implements Screen {
     const ctx = this.ctx();
     if (i.pressed('Escape')) return 'back';
     if (i.pressed('Enter')) {
-      const name = this.buffer.trim() || DEFAULT_NAME;
+      const name = normaliseSaveName(this.buffer) || DEFAULT_NAME;
       ctx.commander.name = name;
-      saveCommander(ctx.commander);
+      ctx.checkpoint();
       ctx.message(`COMMANDER ${name}`, 3);
       sfx.commanderNamed();
       return 'back';
@@ -214,7 +333,7 @@ export class NamingScreen implements Screen {
     for (const code of i.drainPresses()) {
       const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
       if (!m) continue;
-      if (this.buffer.length >= 12) break;
+      if (this.buffer.length >= MAX_SAVE_NAME) break;
       this.buffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
       changed = true;
     }

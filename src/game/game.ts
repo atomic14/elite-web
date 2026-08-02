@@ -75,8 +75,10 @@ import {
 } from './world-step.ts';
 import { random, randomDirection, seedWorld } from './rng.ts';
 import {
-  clearWorld, loadCommander, readWorld, saveCommander, saveWorld, withoutSaving,
+  bootCareer, bootCommander, bootSave, clearFlightSaves, withoutSaving,
+  writeDockSave, writeFlightSave, writeNamedSave,
 } from './storage.ts';
+import { MAX_NAMED_SAVES } from './save-file.ts';
 import { type WorldSnapshot } from './snapshot.ts';
 import { showMessage as setMessage, tickBeam, tickMessage } from './session.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
@@ -99,9 +101,10 @@ import { hitCone, LASER_RANGE, AIM_ASSIST } from './gunnery.ts';
 import { freshTimers } from './encounters.ts';
 import { breachLoss } from './systems.ts';
 import {
-  SavesScreen, NamingScreen, exportCommanderFile, importCommanderFile, startNewCommander,
-  type SavesContext,
+  SavesScreen, SavePromptScreen, NamingScreen, checkpointSummary,
+  startNewCommander, type SavesContext,
 } from './screens/saves.ts';
+import { exportSaveFile, importSaveFile } from './screens/save-transfer.ts';
 import {
   MarketScreen, EquipScreen, buyEquipment, type TradeContext,
 } from './screens/trade.ts';
@@ -130,7 +133,7 @@ import { freshState, type GameState } from './state.ts';
 
 
 
-type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'naming' | 'briefing' | 'dead';
+type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'save-name' | 'naming' | 'briefing' | 'dead';
 
 /**
  * The world advances in slices of exactly this — re-exported from
@@ -190,7 +193,7 @@ export class Game {
    * need bespoke handling. A test fails if either side misses a GameState
    * field.
    */
-  readonly state: GameState = freshState(loadCommander());
+  readonly state: GameState = freshState(bootCommander());
 
   readonly input = new Input();
   private readonly hud = new Hud();
@@ -329,9 +332,7 @@ export class Game {
       // rather than left for the next autosave, because a pilot who reads their
       // best wave off the panel and closes the tab has earned it.
       recordFurthestWave: (wave) => {
-        if (recordFurthestWave(this.state.commander, wave)) {
-          saveCommander(this.state.commander);
-        }
+        if (recordFurthestWave(this.state.commander, wave)) this.persistence.checkpoint();
       },
       // The exercise has torn down and the career is back: hold the records and
       // put the report on screen. Ordering is not incidental — teardown restores
@@ -478,6 +479,10 @@ export class Game {
     this.shell.onResize(() => this.resize());
     this.resize();
 
+    // Which career's autosaves this session writes. It comes off the shelf
+    // before anything can write, and `restore()` may replace it with the one
+    // the resumed snapshot was made under — see state.ts, `career`.
+    this.state.career = bootCareer(this.state.commander);
     this.state.living.load(this.state.commander.galaxyState);
     // catch the galaxy up if this save has been away a while
     if (this.state.living.day < this.state.commander.day) {
@@ -534,6 +539,7 @@ export class Game {
       this.market_,
       new EquipScreen(() => this.tradeContext()),
       new SavesScreen(() => this.savesContext()),
+      new SavePromptScreen(() => this.savesContext()),
       new NamingScreen(() => this.savesContext()),
       new StatusScreen(() => ({
         commander: this.state.commander,
@@ -607,6 +613,7 @@ export class Game {
       cheat: this.state.cheat,
       message: (text, seconds) => this.showMessage(text, seconds),
       addNotoriety: (amount) => this.state.living.addNotoriety(this.state.commander.systemIndex, amount),
+      checkpoint: () => { this.persistence.checkpoint(); },
       leaveHermit: () => {
         this.state.session.hermitTrading = false;
         this.state.session.hermitCooldown = true;
@@ -722,6 +729,7 @@ export class Game {
       setBaseMode: (mode) => { this.baseMode = mode; },
       lookAlong: (dir) => this.lookAlong(dir),
       populateSystem: (situation) => this.populateSystem(situation),
+      checkpoint: () => { this.persistence.checkpoint(); },
       settleContracts: () => this.settleContracts(),
       resetContractSelection: () => { this.contracts_.selected = 0; },
     };
@@ -737,8 +745,8 @@ export class Game {
       switch (e.kind) {
         case 'message': this.showMessage(e.text, e.seconds); break;
         case 'persistence':
-          if (e.action === 'clearWorld') clearWorld();
-          else saveCommander(this.state.commander);
+          if (e.action === 'forgetFlight') this.persistence.forgetFlight();
+          else this.persistence.checkpoint();
           break;
         case 'presentation':
           if (e.action === 'releaseMouseFlight') this.input.releaseMouseFlight();
@@ -758,7 +766,6 @@ export class Game {
     this.applyStation(this.station.dock(booting));
   }
 
-  /** Download the commander as a JSON file (portable saves, bug reports). */
   /** @internal — driven by test/playtest.js */
   newCommanderGame(): void {
     startNewCommander();
@@ -768,15 +775,14 @@ export class Game {
     this.screens.open('saves');
   }
 
-  /** The only slice of the Game the saves screens are allowed to see. */
+  /** Download the current career as a JSON file (portable saves, bug reports). */
   private exportSave(): void {
-    exportCommanderFile(this.state.commander, this.system.name,
-      (text, seconds) => this.showMessage(text, seconds));
+    exportSaveFile(this.savesContext());
   }
 
   private importSave(): void {
-    importCommanderFile(() => {
-      this.showMessage('IMPORT FAILED — NOT A COMMANDER FILE', 4);
+    importSaveFile(this.savesContext(), () => {
+      this.showMessage('IMPORT FAILED — NOT A SAVE FILE', 4);
       sfx.refused();
     });
   }
@@ -786,7 +792,11 @@ export class Game {
     return {
       commander: this.state.commander,
       systems: this.state.systems,
+      career: this.state.career,
       message: (text, seconds) => this.showMessage(text, seconds),
+      capture: () => this.persistence.capture(),
+      checkpoint: () => { this.persistence.checkpoint(); },
+      saveNamed: (name) => this.persistence.saveNamed(name),
     };
   }
 
@@ -809,12 +819,20 @@ export class Game {
       },
       buildWorld: () => this.buildWorld(),
       enterWitchspace: () => this.enterWitchspace(),
-      isDead: () => this.mode === 'dead',
+      // `baseMode`, NOT `mode`. They are the same while the sky is showing and
+      // different the moment a screen is open — and after a death a screen CAN
+      // be open, because the game-over panel offers the commander file. Read
+      // through `mode`, opening it would have found `'saves'`, decided the run
+      // was still alive, and written a checkpoint of the wreck over the station
+      // the player was about to go back to.
+      isDead: () => this.baseMode === 'dead',
       message: (text, seconds) => this.showMessage(text, seconds),
-      saveCommander,
-      saveWorld,
-      readWorld,
-      clearWorld,
+      writeDockSave,
+      writeFlightSave,
+      writeNamedSave: (name, career, world) =>
+        writeNamedSave(name, career, world, MAX_NAMED_SAVES),
+      bootWorld: () => bootSave()?.record.world ?? null,
+      clearFlightSaves,
       withoutSaving,
     };
   }
@@ -846,13 +864,14 @@ export class Game {
     if (this.mode === 'dead' || this.mode === 'docked') return;
     // A death in the simulator ends the SIMULATION. The exercise's own StepHost
     // already redirects this, so no path reaches here with one running — but the
-    // next line deletes the player's saved world, and that is data loss rather
-    // than a leak, so it is worth being unreachable twice over.
+    // next line deletes the in-flight ring, and that is data loss rather than a
+    // leak, so it is worth being unreachable twice over.
     if (this.combatSim.active) { this.combatSim.quit(); return; }
-    // The mid-flight world must not outlive the ship. Without this a reload
+    // The in-flight autosaves must not outlive the ship. Without this a reload
     // resumed the snapshot taken seconds BEFORE the death, cargo and all —
-    // death was optional if you refreshed.
-    clearWorld();
+    // death was optional if you refreshed. The DOCKED checkpoint survives: it
+    // is the way back, and it is what the game-over screen offers.
+    this.persistence.forgetFlight();
     sfx.explosion();
     this.state.world.effects.explosion(this.state.player.position.clone(), 0xff8866);
     if (this.state.commander.equipment.escapePod) {
@@ -865,12 +884,26 @@ export class Game {
     }
     this.baseMode = 'dead';
     this.showMessage(reason, 6);
-    renderGameOver(this.state.commander);
+    renderGameOver(this.state.commander, checkpointSummary(this.savesContext()));
   }
 
-  /** @internal — driven by test/playtest.js */
+  /**
+   * Take the way back: this career's docked checkpoint, whole.
+   *
+   * A full world restore rather than a commander reload, because the checkpoint
+   * IS a world — written on docking and again immediately before launch, so it
+   * puts the ship back at the station it left with what it left with.
+   *
+   * @internal — driven by test/playtest.js
+   */
   respawn(): void {
-    this.state.commander = loadCommander();
+    this.combatComputer.reset();
+    this.state.chart.targetIndex = null;
+    this.state.session.witchspace = false;
+    if (this.persistence.resume()) return;
+    // Nothing to come back to — a career that has never docked. Boot as the
+    // first launch did.
+    this.state.commander = bootCommander();
     // The loaded commander may name a DIFFERENT galaxy than the one we died
     // in — jump to galaxy 2, die before docking, and the last save is still
     // galaxy 1. Without these, `systems` stayed galaxy 2's and every lookup
@@ -879,9 +912,6 @@ export class Game {
     this.state.systems = generateGalaxy(this.state.commander.galaxy);
     this.state.living = new LivingGalaxy(this.state.systems);
     this.state.living.load(this.state.commander.galaxyState);
-    this.combatComputer.reset();
-    this.state.chart.targetIndex = null;
-    this.state.session.witchspace = false;
     this.buildWorld();
     this.enterDocked(true);
   }
@@ -1609,8 +1639,23 @@ export class Game {
     this.screens.open('status');
   }
 
-  /** Nothing on the stack: show the docked menu, or clear back to flight. */
-  private showBaseScreen(): void { this.applyStation(this.station.showBaseScreen()); }
+  /**
+   * Nothing on the stack: show the docked menu, or clear back to flight — or
+   * put the game-over panel back.
+   *
+   * The dead case is here rather than in station.ts because a death is not one
+   * of the station's two transitions. It exists at all because the panel now
+   * offers the commander file, so Escape out of that screen has somewhere to
+   * come back TO; without it the stack popped to a hidden screen and left the
+   * player looking at empty space with one key that did anything.
+   */
+  private showBaseScreen(): void {
+    if (this.baseMode === 'dead') {
+      renderGameOver(this.state.commander, checkpointSummary(this.savesContext()));
+      return;
+    }
+    this.applyStation(this.station.showBaseScreen());
+  }
 
 
 

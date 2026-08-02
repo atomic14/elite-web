@@ -154,6 +154,13 @@ export interface WorldSnapshot {
   mode: 'flight' | 'docked';
   /** the persistent commander, exactly as a station save holds it */
   commander: CommanderData;
+  /**
+   * Which career's autosaves the run was writing (state.ts, `career`).
+   *
+   * Optional because a world written before named saves existed has none; a
+   * migrated save falls back to the career its record was given.
+   */
+  career?: string;
   /** the level-1 galaxy sim, so prices and danger resume too */
   galaxyState: unknown;
   player: ShipSnapshot;

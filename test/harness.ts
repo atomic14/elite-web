@@ -29,6 +29,18 @@
 // share. A helper used by one file lives in that file.
 
 import { commandsFor, type Command, type CommandInput, type ControlMode } from '../src/game/controls.ts';
+import { useHarnessSaves } from '../src/game/storage.ts';
+
+// NO TEST CAN WRITE A PLAYER'S SAVE, and this is where that stops being a rule
+// somebody has to remember. Every test file imports this one — that is the
+// contract at the top — so calling it here puts the whole run in the harness
+// namespace before a single assertion has been made, including a file run on
+// its own. It is one way for the life of the process: there is no call that
+// undoes it, so a test cannot leak by forgetting a `finally`. Several tests
+// install a fake `localStorage` and drive the real save path through it; under
+// this switch every key they touch is `elite-web-harness-*`, and the keys a
+// player's career lives under are not addressable from here at all.
+useHarnessSaves();
 
 /** Assertions that passed, and failed, across every imported test file. */
 export let passed = 0;

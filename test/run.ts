@@ -35,6 +35,7 @@ import './station.test.ts';
 import './game.test.ts';
 import './state.test.ts';
 import './snapshot.test.ts';
+import './saves.test.ts';
 
 // --- ships, and being shot at ----------------------------------------------
 import './flight.test.ts';

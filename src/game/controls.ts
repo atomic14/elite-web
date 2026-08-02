@@ -254,9 +254,17 @@ export const BINDINGS: Record<ControlMode, readonly Binding[]> = {
     { key: 'KeyQ', command: 'endExercise' },
   ],
 
-  /** The only key that matters after you have been destroyed. */
+  /**
+   * After you have been destroyed: take the way back, or go and pick one.
+   *
+   * Enter is the guarantee — this career's docked checkpoint, which is by
+   * construction the station you launched from. S is the same key that opens
+   * the commander file at the station, because it is the same screen and a hand
+   * should not have to learn a second one for it.
+   */
   dead: [
     { key: 'Enter', command: 'respawn' },
+    { key: 'KeyS', command: 'openSaves' },
   ],
 };
 

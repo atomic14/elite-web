@@ -11,7 +11,7 @@ import {
 import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';
-import type { SlotSummary } from '../game/storage.ts';
+import { kindLabel, type SaveSummary } from '../game/save-file.ts';
 import { describeContract } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import {
@@ -186,18 +186,20 @@ export function renderNewGameConfirm(sys: StarSystem, c: CommanderData): void {
     <h2>NEW COMMANDER</h2>
     <div class="rule"></div>
     <div class="info" style="text-align:center; line-height:2">
-      This will erase your current commander:<br/>
+      This will put the commander you are flying aside:<br/>
       <span style="color:var(--hud-amber)">
         ${sys.name.toUpperCase()} &middot; ${formatCredits(c.credits)} &middot;
         ${c.kills} KILLS &middot; ${rating(c.combatScore ?? c.kills).toUpperCase()}
       </span><br/>
       and start again at Lave with 100.0 Cr.<br/>
       <span style="opacity:0.8; font-size:11px">
+        NOTHING IS DELETED &mdash; every save on the commander file (S) stays
+        where it is, this one included.<br/>
         Press ESC or Q to cancel, X to export a backup first.
       </span>
     </div>
     <div class="buttons">
-      <button data-key="KeyY">Y — ERASE AND START AGAIN</button>
+      <button data-key="KeyY">Y — START A NEW COMMANDER</button>
       <button data-key="Escape">ESC — CANCEL</button>
     </div>
   `);
@@ -321,46 +323,86 @@ export function renderEquip(
 }
 
 /**
- * The commander file: every save slot, which one you're flying, and what is
- * in the others.
+ * The commander file: the saves you named, the saves the game made, and which
+ * career you are flying.
+ *
+ * One line shape for both halves — WHEN, WHAT, WHERE, and what you were worth —
+ * because a player choosing "one of the autosaves" has to tell them apart at a
+ * glance, and two different line shapes make that a reading exercise.
  */
 export function renderSaves(
-  systems: StarSystem[],
-  slots: (SlotSummary | null)[],
+  rows: SaveSummary[],
   selected: number,
-  active: number,
+  career: string,
+  confirmDelete: string | null,
 ): void {
-  const rows = slots.map((slot, i) => {
-    const n = i + 1;
-    const here = n === active;
-    const cells = slot
-      ? `<td>${slot.name}</td>
-         <td>${systems[slot.systemIndex]?.name.toUpperCase() ?? '?'}</td>
-         <td class="num">${formatCredits(slot.credits)}</td>
-         <td>${rating(slot.combatScore).toUpperCase()}</td>
-         <td class="num">DAY ${slot.day}</td>`
-      : '<td colspan="5" style="opacity:0.5">&mdash; EMPTY &mdash;</td>';
-    return `
+  const body = rows.map((r, i) => `
       <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}">
-        <td>${here ? '&#9654;' : ''}${n}</td>
-        ${cells}
-      </tr>`;
-  }).join('');
+        <td>${r.career === career ? '&#9654;' : ''}${r.name}</td>
+        <td>${kindLabel(r.kind)}${r.safe ? ' &#9679;' : ''}</td>
+        <td>${r.when}</td>
+        <td>${r.where}</td>
+        <td class="num">${formatCredits(r.credits)}</td>
+        <td>${r.rating}</td>
+        <td class="num">DAY ${r.day}</td>
+      </tr>`).join('')
+    || '<tr><td colspan="7" style="opacity:0.5">&mdash; NOTHING SAVED YET &mdash;</td></tr>';
+  const buttons = confirmDelete
+    ? `<div class="buttons">
+         <button data-key="KeyY">Y &mdash; DELETE ${confirmDelete}</button>
+         <button data-key="Escape">ESC &mdash; KEEP IT</button>
+       </div>
+       <div class="keyline note-warn">DELETE ${confirmDelete}? THIS CANNOT BE UNDONE.</div>`
+    : `<div class="buttons">
+         <button data-key="KeyS">S &mdash; SAVE</button>
+         <button data-key="Enter">ENTER &mdash; LOAD</button>
+         <button data-key="KeyD">D &mdash; DELETE</button>
+         <button data-key="KeyR">R &mdash; RENAME COMMANDER</button>
+         <button data-key="Escape">ESC &mdash; DONE</button>
+       </div>
+       <div class="keyline">
+         &#9654; IS THE CAREER YOU ARE FLYING &middot; &#9679; IS THE STATION YOU CAN
+         ALWAYS GET BACK TO &middot; AUTOSAVES CANNOT OVERWRITE A SAVE YOU NAMED
+       </div>`;
   show(`
     <h2>COMMANDER FILE</h2>
     <div class="rule"></div>
     <table>
-      <tr><th></th><th>NAME</th><th>SYSTEM</th><th class="num">CASH</th><th>RATING</th><th class="num">DAY</th></tr>
-      ${rows}
+      <tr><th>NAME</th><th>KIND</th><th>WHEN</th><th>WHERE</th>
+        <th class="num">CASH</th><th>RATING</th><th class="num">DAY</th></tr>
+      ${body}
     </table>
-    <div class="buttons">
-      <button data-key="Enter">ENTER &mdash; LOAD</button>
-      <button data-key="KeyR">R &mdash; RENAME</button>
-      <button data-key="KeyD">D &mdash; DELETE</button>
-      <button data-key="Escape">ESC &mdash; DONE</button>
+    ${buttons}
+  `);
+}
+
+/**
+ * Naming a save. The default offered is the commander's own name, and typing
+ * REPLACES it rather than appending — there is no way to select text here.
+ */
+export function renderSavePrompt(buffer: string, confirming: boolean): void {
+  show(`
+    <h2>SAVE COMMANDER</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center; line-height:2.2">
+      <span style="font-size:26px; letter-spacing:6px; color:var(--hud-amber)">
+        ${buffer.length ? buffer : '&nbsp;'}<span style="opacity:0.6">_</span>
+      </span><br/>
+      ${confirming
+        ? `<span class="note-warn">${buffer} ALREADY EXISTS &mdash; REPLACE IT?</span><br/>
+           <span style="font-size:11px; opacity:0.8">Y REPLACE &middot; ESC BACK</span>`
+        : `<span style="font-size:11px; opacity:0.7">
+             A NAME THAT ALREADY EXISTS REPLACES IT &mdash; IT ASKS FIRST
+           </span><br/>
+           <span style="font-size:11px; opacity:0.8">
+             LETTERS AND NUMBERS &middot; BACKSPACE &middot; ENTER TO SAVE &middot; ESC TO CANCEL
+           </span>`}
     </div>
-    <div class="keyline">
-      &#9654; IS THE COMMANDER YOU ARE FLYING &middot; PROGRESS SAVES ON EVERY DOCK
+    <div class="buttons">
+      ${confirming
+        ? '<button data-key="KeyY">Y &mdash; REPLACE</button>'
+        : '<button data-key="Enter">ENTER &mdash; SAVE</button>'}
+      <button data-key="Escape">ESC &mdash; BACK</button>
     </div>
   `);
 }
@@ -1180,13 +1222,33 @@ export function renderCombatSimCompare(p: SimComparePanel): void {
   `);
 }
 
-export function renderGameOver(c: CommanderData): void {
+/**
+ * The end of a run, and the way back out of it.
+ *
+ * `offer` is this career's docked checkpoint — by construction the state you
+ * left the station in, because it is written on docking AND immediately before
+ * launch. The in-flight autosaves are deliberately NOT offered: they are the
+ * twenty seconds you just lost, and offering them would make dying optional.
+ */
+export function renderGameOver(c: CommanderData, offer: SaveSummary | null): void {
   show(`
     <h2>GAME OVER</h2>
     <div class="big">SHIP DESTROYED</div>
     <div class="info" style="text-align:center">
       Final rating: ${rating(c.combatScore ?? c.kills).toUpperCase()} &middot; ${c.kills} kills
     </div>
-    <div class="buttons"><button data-key="Enter">RELOAD LAST STATION SAVE</button></div>
+    <div class="info" style="text-align:center">
+      ${offer
+        ? `Back to <b>${offer.place} STATION</b> as you left it &mdash;
+           ${offer.when}, ${formatCredits(offer.credits)}, day ${offer.day}`
+        : 'No station checkpoint was found &mdash; you will start again at Lave'}
+    </div>
+    <div class="buttons">
+      <button data-key="Enter">ENTER &mdash; BACK TO THE STATION</button>
+      <button data-key="KeyS">S &mdash; COMMANDER FILE</button>
+    </div>
+    <div class="keyline">
+      THE STATION CHECKPOINT IS WRITTEN WHEN YOU DOCK AND AGAIN AS YOU LAUNCH
+    </div>
   `);
 }
