@@ -40,33 +40,38 @@ cannot be made safe, keep the keys and stop.
 
 `storage.ts` remains the only file that may touch localStorage.
 
+## Three more of Chris's decisions (also decided — implement these)
+
+1. **The docked autosave is written on docking AND immediately before
+   launch.** Those two moments are the checkpoint, and the pre-launch one is
+   what makes the death rule below work: it is by construction the state you
+   left the station in.
+2. **In-flight autosaves never overwrite the docked one.** They are their own
+   thing. A quiet three minutes of flying must not evict the station you came
+   from.
+3. **Death offers a load**, and must at minimum get the player back to the
+   last station before they launched — i.e. the pre-launch docked autosave.
+   Offer the in-flight autosaves too if the list reads clearly; the docked one
+   is the guarantee.
+4. **Saving under an existing name asks first.** The default name is the
+   commander's, so for a second career the default action would otherwise be
+   to overwrite the first.
+
 ## What still needs settling — decide, and write the reason down
 
-1. **How many autosaves, and per what.** A ring of a stated size. Per
-   commander or global? Global silently belongs to whoever flew last, which is
-   wrong the moment a player keeps two careers. Say which and why.
-2. **Do not let routine autosaves flush the useful one.** Docking is a
-   checkpoint; a periodic in-flight save is not. If both go in one ring, three
-   quiet minutes of flying evicts the checkpoint you actually wanted. Either
-   keep the newest docking autosave outside the ring, or tag entries and evict
-   within a kind. State the rule.
-3. **What a save looks like in the list.** A player choosing "one of the
-   autosaves" needs to tell them apart at a glance: when, where (system, and
-   docked or in flight), credits, rating. Decide the line, and make it the
-   same shape for manual saves so the two lists read alike.
-4. **Death.** This is a game-design decision, not a storage one, and it wants
-   Chris's answer rather than an implementer's. Elite's tension comes from
-   death costing you the run. If the death screen offers "load an autosave",
-   dying becomes an inconvenience. Options: offer it (a modern kindness),
-   refuse it and let autosaves cover crashes and closed tabs only, or offer it
-   and take something for it. **Do not decide this silently — ask.**
-5. **Manual save while flying.** A named save taken in flight has to carry the
-   world, or loading it puts you somewhere you never were. Decide whether `S`
-   is available in flight at all, and if so that a named save carries both
-   halves the way an autosave does.
-6. **Overwrite confirmation.** The default name is the commander's, so the
-   default action for a second career is to overwrite the first. A one-key
-   confirmation on an existing name is cheap; say whether you added it.
+- **How many in-flight autosaves, and per what.** A ring of a stated size. Per
+  commander or global? Global silently belongs to whoever flew last, which is
+  wrong the moment a player keeps two careers. Say which and why. The docked
+  autosave is separate from this ring by decision 2.
+- **What a save looks like in the list.** A player choosing "one of the
+  autosaves" needs to tell them apart at a glance: when, where (system, and
+  docked or in flight), credits, rating. Decide the line, and make it the same
+  shape for manual saves so the two lists read alike. The docked autosave
+  should be obviously the safe one.
+- **Manual save while flying.** A named save taken in flight has to carry the
+  world, or loading it puts you somewhere you never were. Decide whether `S`
+  is available in flight at all, and if so that a named save carries both
+  halves the way an autosave does.
 
 ## What to work out
 
@@ -110,10 +115,14 @@ cannot be made safe, keep the keys and stop.
 ## Acceptance
 
 - `S` prompts for a name, defaults to the commander's, and saving under an
-  existing name replaces it.
-- Autosaves are taken on docking and during play, are kept as a set, and can
-  never overwrite a named save.
+  existing name asks before replacing it.
+- The docked autosave is written on docking and immediately before launch, and
+  in-flight autosaves cannot overwrite it.
+- Autosaves can never overwrite a named save.
 - The load list shows named saves and autosaves, each identifiable at a glance.
+- Dying offers a load, and the pre-launch docked autosave is always among the
+  options — a test flies out of a station, dies, and proves the offered save
+  puts the commander back at that station with what they left with.
 - Every pre-existing slot survives with its commander and its world; a test
   loads a fixture of the old key shape and proves it.
 - Migration is idempotent and a half-written store recovers.
@@ -126,5 +135,5 @@ cannot be made safe, keep the keys and stop.
 
 `npm run check`, plus a fixture test for the old key shape, an idempotency
 test, a crash-midway test, a quota-failure test, and a browser pass that
-saves under a new name, overwrites an existing one, flies, docks, and loads
-back from both a named save and an autosave.
+saves under a new name, overwrites an existing one (confirming), flies, docks,
+launches, dies, and takes the offered way back to the station.
