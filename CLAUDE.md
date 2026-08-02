@@ -51,6 +51,8 @@ npm run campaign   # headless balance playtest (test/campaign.ts)
 npm run portability   # how much of src would port to another shell
 npm run sizes      # no file over 400 lines without a stated reason
 npm run coverage   # what the tests touch, and what they never touch
+npm run generate:elite-a   # regenerate src/game/elite-a from the vendored pack
+                   # `-- --check` is the non-writing drift gate, part of `check`
 npm run train -- <attack|evade|pack|defend> [--gens N --pop N --out NAME ...]
 npm run evaluate   # held-out tournament
 npm run survivability # can a shielded commander survive a gang? (a BOT answer)

@@ -42,6 +42,7 @@ import './npc.test.ts';
 import './combat.test.ts';
 import './gunnery.test.ts';
 import './instrumentation.test.ts';
+import './elite-a-catalogue.test.ts';
 
 // --- the trained brains -----------------------------------------------------
 import './ai.test.ts';

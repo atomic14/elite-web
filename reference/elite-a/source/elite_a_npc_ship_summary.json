@@ -1,0 +1,4244 @@
+{
+  "metadata": {
+    "title": "Elite-A combat and ship blueprint data",
+    "edition": "released Elite-A fixed S.A\u2013S.W blueprint files",
+    "generatedFrom": [
+      "elite-ships-a.asm",
+      "elite-ships-b.asm",
+      "elite-ships-c.asm",
+      "elite-ships-d.asm",
+      "elite-ships-e.asm",
+      "elite-ships-f.asm",
+      "elite-ships-g.asm",
+      "elite-ships-h.asm",
+      "elite-ships-i.asm",
+      "elite-ships-j.asm",
+      "elite-ships-k.asm",
+      "elite-ships-l.asm",
+      "elite-ships-m.asm",
+      "elite-ships-n.asm",
+      "elite-ships-o.asm",
+      "elite-ships-p.asm",
+      "elite-ships-q.asm",
+      "elite-ships-r.asm",
+      "elite-ships-s.asm",
+      "elite-ships-t.asm",
+      "elite-ships-u.asm",
+      "elite-ships-v.asm",
+      "elite-ships-w.asm"
+    ],
+    "blueprintSetCount": 23,
+    "designCount": 38,
+    "blueprintVariantCountIncludingCommonMissile": 260,
+    "slotAssignmentCount": 713,
+    "combatNotes": {
+      "npcDefence": "maxEnergy & 7",
+      "playerLaserBaseDamage": "(fittedLaserByte & 0x7F) >> 1",
+      "constrictor": "player laser hit strength is halved again before defence",
+      "stationImmunity": "player lasers do not reduce station energy",
+      "npcOutgoingDamageToPlayerClean": "(laserPower << 2) before player per-hit armour; missile count does not alter laser damage",
+      "npcOutgoingDamageToPlayerOriginal": "if laserPower > 0, weaponByte >> 1 before player armour; this lets missile-count bits alter laser damage",
+      "cleanDestructionRule": "destroy at currentEnergy <= 0; the original exact-zero survival quirk is intentionally omitted",
+      "regeneration": "ordinary AI NPC ships regenerate; use elapsed time rather than render frames in a 60 fps recreation"
+    }
+  },
+  "shipTypeSummaries": [
+    {
+      "designId": 0,
+      "shipSymbol": "SHIP_DODO",
+      "shipName": "Dodo station",
+      "variantCount": 11,
+      "blueprintSets": [
+        "B",
+        "D",
+        "F",
+        "H",
+        "J",
+        "L",
+        "N",
+        "P",
+        "R",
+        "T",
+        "V"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        2
+      ],
+      "maxEnergyValues": [
+        240
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        0
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        32400
+      ],
+      "targetableRadiusValues": [
+        180
+      ],
+      "targetableRadiusApproxValues": [
+        180.0
+      ],
+      "visibilityDistanceValues": [
+        125
+      ],
+      "vertexCountValues": [
+        24
+      ],
+      "edgeCountValues": [
+        34
+      ],
+      "faceCountValues": [
+        12
+      ],
+      "maxVisibleEdgesValues": [
+        24
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        12
+      ],
+      "normalScaleExponentValues": [
+        0
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 240,
+        "perHitDefence": 0,
+        "maxSpeed": 0,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 1,
+      "shipSymbol": "SHIP_CORIOLIS",
+      "shipName": "Coriolis station",
+      "variantCount": 12,
+      "blueprintSets": [
+        "A",
+        "C",
+        "E",
+        "G",
+        "I",
+        "K",
+        "M",
+        "O",
+        "Q",
+        "S",
+        "U",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        2
+      ],
+      "maxEnergyValues": [
+        240
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        0
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        6
+      ],
+      "weaponByteValues": [
+        6
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        25600
+      ],
+      "targetableRadiusValues": [
+        160
+      ],
+      "targetableRadiusApproxValues": [
+        160.0
+      ],
+      "visibilityDistanceValues": [
+        120
+      ],
+      "vertexCountValues": [
+        16
+      ],
+      "edgeCountValues": [
+        28
+      ],
+      "faceCountValues": [
+        14
+      ],
+      "maxVisibleEdgesValues": [
+        21
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        12
+      ],
+      "normalScaleExponentValues": [
+        0
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 240,
+        "perHitDefence": 0,
+        "maxSpeed": 0,
+        "laserPower": 0,
+        "missileCount": 6,
+        "weaponByte": 6,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 2,
+      "shipSymbol": "SHIP_ESCAPE_POD",
+      "shipName": "Escape pod",
+      "variantCount": 23,
+      "blueprintSets": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        3
+      ],
+      "maxEnergyValues": [
+        8
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        8
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [
+        2
+      ],
+      "targetableAreaValues": [
+        256
+      ],
+      "targetableRadiusValues": [
+        16
+      ],
+      "targetableRadiusApproxValues": [
+        16.0
+      ],
+      "visibilityDistanceValues": [
+        8
+      ],
+      "vertexCountValues": [
+        4
+      ],
+      "edgeCountValues": [
+        6
+      ],
+      "faceCountValues": [
+        4
+      ],
+      "maxVisibleEdgesValues": [
+        6
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        4
+      ],
+      "normalScaleExponentValues": [
+        4
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 8,
+        "perHitDefence": 0,
+        "maxSpeed": 8,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 3,
+      "shipSymbol": "SHIP_PLATE",
+      "shipName": "Alloy plate",
+      "variantCount": 13,
+      "blueprintSets": [
+        "A",
+        "D",
+        "E",
+        "F",
+        "H",
+        "J",
+        "L",
+        "M",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        4
+      ],
+      "maxEnergyValues": [
+        8
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        16
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        1
+      ],
+      "bountyCreditValues": [
+        0.1
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [
+        8
+      ],
+      "targetableAreaValues": [
+        100
+      ],
+      "targetableRadiusValues": [
+        10
+      ],
+      "targetableRadiusApproxValues": [
+        10.0
+      ],
+      "visibilityDistanceValues": [
+        5
+      ],
+      "vertexCountValues": [
+        4
+      ],
+      "edgeCountValues": [
+        4
+      ],
+      "faceCountValues": [
+        1
+      ],
+      "maxVisibleEdgesValues": [
+        4
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        1
+      ],
+      "normalScaleExponentValues": [
+        3
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 8,
+        "perHitDefence": 0,
+        "maxSpeed": 16,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 1,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 4,
+      "shipSymbol": "SHIP_CANISTER",
+      "shipName": "Cargo canister",
+      "variantCount": 23,
+      "blueprintSets": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        5
+      ],
+      "maxEnergyValues": [
+        8
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        15
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        1
+      ],
+      "bountyCreditValues": [
+        0.1
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        400
+      ],
+      "targetableRadiusValues": [
+        20
+      ],
+      "targetableRadiusApproxValues": [
+        20.0
+      ],
+      "visibilityDistanceValues": [
+        12
+      ],
+      "vertexCountValues": [
+        10
+      ],
+      "edgeCountValues": [
+        15
+      ],
+      "faceCountValues": [
+        7
+      ],
+      "maxVisibleEdgesValues": [
+        12
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        3
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 8,
+        "perHitDefence": 0,
+        "maxSpeed": 15,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 1,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 5,
+      "shipSymbol": "SHIP_BOULDER",
+      "shipName": "Boulder",
+      "variantCount": 9,
+      "blueprintSets": [
+        "A",
+        "D",
+        "K",
+        "O",
+        "Q",
+        "R",
+        "S",
+        "U",
+        "V"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        6
+      ],
+      "maxEnergyValues": [
+        16
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        30
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        1
+      ],
+      "bountyCreditValues": [
+        0.1
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        900
+      ],
+      "targetableRadiusValues": [
+        30
+      ],
+      "targetableRadiusApproxValues": [
+        30.0
+      ],
+      "visibilityDistanceValues": [
+        20
+      ],
+      "vertexCountValues": [
+        7
+      ],
+      "edgeCountValues": [
+        15
+      ],
+      "faceCountValues": [
+        10
+      ],
+      "maxVisibleEdgesValues": [
+        11
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        2
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 16,
+        "perHitDefence": 0,
+        "maxSpeed": 30,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 1,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 6,
+      "shipSymbol": "SHIP_ASTEROID",
+      "shipName": "Asteroid",
+      "variantCount": 6,
+      "blueprintSets": [
+        "E",
+        "G",
+        "K",
+        "O",
+        "R",
+        "U"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        7
+      ],
+      "maxEnergyValues": [
+        56
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        30
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        15
+      ],
+      "bountyCreditValues": [
+        1.5
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        6400
+      ],
+      "targetableRadiusValues": [
+        80
+      ],
+      "targetableRadiusApproxValues": [
+        80.0
+      ],
+      "visibilityDistanceValues": [
+        50
+      ],
+      "vertexCountValues": [
+        9
+      ],
+      "edgeCountValues": [
+        21
+      ],
+      "faceCountValues": [
+        14
+      ],
+      "maxVisibleEdgesValues": [
+        16
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        7
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 56,
+        "perHitDefence": 0,
+        "maxSpeed": 30,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 15,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 7,
+      "shipSymbol": "SHIP_SPLINTER",
+      "shipName": "Splinter",
+      "variantCount": 6,
+      "blueprintSets": [
+        "E",
+        "G",
+        "K",
+        "O",
+        "R",
+        "U"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        8
+      ],
+      "maxEnergyValues": [
+        16
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        10
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        1
+      ],
+      "bountyCreditValues": [
+        0.1
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [
+        11
+      ],
+      "targetableAreaValues": [
+        256
+      ],
+      "targetableRadiusValues": [
+        16
+      ],
+      "targetableRadiusApproxValues": [
+        16.0
+      ],
+      "visibilityDistanceValues": [
+        8
+      ],
+      "vertexCountValues": [
+        4
+      ],
+      "edgeCountValues": [
+        6
+      ],
+      "faceCountValues": [
+        4
+      ],
+      "maxVisibleEdgesValues": [
+        6
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        4
+      ],
+      "normalScaleExponentValues": [
+        5
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 16,
+        "perHitDefence": 0,
+        "maxSpeed": 10,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 1,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 8,
+      "shipSymbol": "SHIP_SHUTTLE",
+      "shipName": "Shuttle",
+      "variantCount": 1,
+      "blueprintSets": [
+        "L"
+      ],
+      "spawnInstallProbabilityRaw": 50,
+      "spawnInstallProbabilityPercent": 19.53125,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        9
+      ],
+      "maxEnergyValues": [
+        32
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        8
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        15
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        2500
+      ],
+      "targetableRadiusValues": [
+        50
+      ],
+      "targetableRadiusApproxValues": [
+        50.0
+      ],
+      "visibilityDistanceValues": [
+        22
+      ],
+      "vertexCountValues": [
+        19
+      ],
+      "edgeCountValues": [
+        30
+      ],
+      "faceCountValues": [
+        13
+      ],
+      "maxVisibleEdgesValues": [
+        27
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        8
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 32,
+        "perHitDefence": 0,
+        "maxSpeed": 8,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 15
+      }
+    },
+    {
+      "designId": 9,
+      "shipSymbol": "SHIP_TRANSPORTER",
+      "shipName": "Transporter",
+      "variantCount": 3,
+      "blueprintSets": [
+        "C",
+        "P",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 50,
+      "spawnInstallProbabilityPercent": 19.53125,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        10
+      ],
+      "maxEnergyValues": [
+        32
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        10
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        2500
+      ],
+      "targetableRadiusValues": [
+        50
+      ],
+      "targetableRadiusApproxValues": [
+        50.0
+      ],
+      "visibilityDistanceValues": [
+        16
+      ],
+      "vertexCountValues": [
+        37
+      ],
+      "edgeCountValues": [
+        46
+      ],
+      "faceCountValues": [
+        14
+      ],
+      "maxVisibleEdgesValues": [
+        36
+      ],
+      "gunVertexIndexValues": [
+        12
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 32,
+        "perHitDefence": 0,
+        "maxSpeed": 10,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 10,
+      "shipSymbol": "SHIP_COBRA_MK_3",
+      "shipName": "Cobra Mk III",
+      "variantCount": 5,
+      "blueprintSets": [
+        "B",
+        "N",
+        "Q",
+        "T",
+        "V"
+      ],
+      "spawnInstallProbabilityRaw": 70,
+      "spawnInstallProbabilityPercent": 27.34375,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        11,
+        12,
+        13,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        98,
+        106
+      ],
+      "perHitDefenceValues": [
+        2
+      ],
+      "maxSpeedValues": [
+        28
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        4
+      ],
+      "weaponByteValues": [
+        36,
+        44
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        18,
+        22
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        200,
+        300,
+        400
+      ],
+      "bountyCreditValues": [
+        20.0,
+        30.0,
+        40.0
+      ],
+      "cargoCanisterValues": [
+        3
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        9025
+      ],
+      "targetableRadiusValues": [
+        95
+      ],
+      "targetableRadiusApproxValues": [
+        95.0
+      ],
+      "visibilityDistanceValues": [
+        50
+      ],
+      "vertexCountValues": [
+        28
+      ],
+      "edgeCountValues": [
+        38
+      ],
+      "faceCountValues": [
+        13
+      ],
+      "maxVisibleEdgesValues": [
+        38
+      ],
+      "gunVertexIndexValues": [
+        21
+      ],
+      "explosionCloudOriginCountValues": [
+        9
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 98,
+        "perHitDefence": 2,
+        "maxSpeed": 28,
+        "laserPower": 4,
+        "missileCount": 4,
+        "weaponByte": 36,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 18,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 200,
+        "maxCargoCanistersOnDestruction": 3
+      }
+    },
+    {
+      "designId": 11,
+      "shipSymbol": "SHIP_PYTHON",
+      "shipName": "Python",
+      "variantCount": 7,
+      "blueprintSets": [
+        "C",
+        "E",
+        "F",
+        "N",
+        "O",
+        "Q",
+        "U"
+      ],
+      "spawnInstallProbabilityRaw": 65,
+      "spawnInstallProbabilityPercent": 25.390625,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        11,
+        12,
+        13,
+        22,
+        23,
+        24,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        125,
+        133
+      ],
+      "perHitDefenceValues": [
+        5
+      ],
+      "maxSpeedValues": [
+        20
+      ],
+      "laserPowerValues": [
+        5,
+        6
+      ],
+      "missileCountValues": [
+        4
+      ],
+      "weaponByteValues": [
+        44,
+        52
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        22,
+        26
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        20,
+        24
+      ],
+      "bountyRawValues": [
+        300,
+        500
+      ],
+      "bountyCreditValues": [
+        30.0,
+        50.0
+      ],
+      "cargoCanisterValues": [
+        5
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        6400
+      ],
+      "targetableRadiusValues": [
+        80
+      ],
+      "targetableRadiusApproxValues": [
+        80.0
+      ],
+      "visibilityDistanceValues": [
+        40
+      ],
+      "vertexCountValues": [
+        11
+      ],
+      "edgeCountValues": [
+        26
+      ],
+      "faceCountValues": [
+        13
+      ],
+      "maxVisibleEdgesValues": [
+        21
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        9
+      ],
+      "normalScaleExponentValues": [
+        0
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 125,
+        "perHitDefence": 5,
+        "maxSpeed": 20,
+        "laserPower": 5,
+        "missileCount": 4,
+        "weaponByte": 44,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 22,
+        "npcLaserDamageCleanBeforeArmour": 20,
+        "bountyRawTenthsOfCredit": 300,
+        "maxCargoCanistersOnDestruction": 5
+      }
+    },
+    {
+      "designId": 12,
+      "shipSymbol": "SHIP_BOA",
+      "shipName": "Boa",
+      "variantCount": 7,
+      "blueprintSets": [
+        "D",
+        "F",
+        "G",
+        "K",
+        "L",
+        "R",
+        "V"
+      ],
+      "spawnInstallProbabilityRaw": 60,
+      "spawnInstallProbabilityPercent": 23.4375,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        11,
+        12,
+        13
+      ],
+      "maxEnergyValues": [
+        164,
+        165
+      ],
+      "perHitDefenceValues": [
+        4,
+        5
+      ],
+      "maxSpeedValues": [
+        24
+      ],
+      "laserPowerValues": [
+        5,
+        6
+      ],
+      "missileCountValues": [
+        2
+      ],
+      "weaponByteValues": [
+        42,
+        50
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        21,
+        25
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        20,
+        24
+      ],
+      "bountyRawValues": [
+        250,
+        350
+      ],
+      "bountyCreditValues": [
+        25.0,
+        35.0
+      ],
+      "cargoCanisterValues": [
+        5
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        4900
+      ],
+      "targetableRadiusValues": [
+        70
+      ],
+      "targetableRadiusApproxValues": [
+        70.0
+      ],
+      "visibilityDistanceValues": [
+        40
+      ],
+      "vertexCountValues": [
+        13
+      ],
+      "edgeCountValues": [
+        24
+      ],
+      "faceCountValues": [
+        13
+      ],
+      "maxVisibleEdgesValues": [
+        22
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        8
+      ],
+      "normalScaleExponentValues": [
+        0
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 164,
+        "perHitDefence": 4,
+        "maxSpeed": 24,
+        "laserPower": 5,
+        "missileCount": 2,
+        "weaponByte": 42,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 21,
+        "npcLaserDamageCleanBeforeArmour": 20,
+        "bountyRawTenthsOfCredit": 250,
+        "maxCargoCanistersOnDestruction": 5
+      }
+    },
+    {
+      "designId": 13,
+      "shipSymbol": "SHIP_ANACONDA",
+      "shipName": "Anaconda",
+      "variantCount": 2,
+      "blueprintSets": [
+        "H",
+        "I"
+      ],
+      "spawnInstallProbabilityRaw": 10,
+      "spawnInstallProbabilityPercent": 3.90625,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        14
+      ],
+      "maxEnergyValues": [
+        252
+      ],
+      "perHitDefenceValues": [
+        4
+      ],
+      "maxSpeedValues": [
+        14
+      ],
+      "laserPowerValues": [
+        1
+      ],
+      "missileCountValues": [
+        7
+      ],
+      "weaponByteValues": [
+        79
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        39
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        4
+      ],
+      "bountyRawValues": [
+        350
+      ],
+      "bountyCreditValues": [
+        35.0
+      ],
+      "cargoCanisterValues": [
+        7
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        10000
+      ],
+      "targetableRadiusValues": [
+        100
+      ],
+      "targetableRadiusApproxValues": [
+        100.0
+      ],
+      "visibilityDistanceValues": [
+        50
+      ],
+      "vertexCountValues": [
+        15
+      ],
+      "edgeCountValues": [
+        25
+      ],
+      "faceCountValues": [
+        12
+      ],
+      "maxVisibleEdgesValues": [
+        22
+      ],
+      "gunVertexIndexValues": [
+        12
+      ],
+      "explosionCloudOriginCountValues": [
+        10
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 252,
+        "perHitDefence": 4,
+        "maxSpeed": 14,
+        "laserPower": 1,
+        "missileCount": 7,
+        "weaponByte": 79,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 39,
+        "npcLaserDamageCleanBeforeArmour": 4,
+        "bountyRawTenthsOfCredit": 350,
+        "maxCargoCanistersOnDestruction": 7
+      }
+    },
+    {
+      "designId": 14,
+      "shipSymbol": "SHIP_WORM",
+      "shipName": "Worm",
+      "variantCount": 4,
+      "blueprintSets": [
+        "G",
+        "H",
+        "I",
+        "J"
+      ],
+      "spawnInstallProbabilityRaw": 15,
+      "spawnInstallProbabilityPercent": 5.859375,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        15,
+        22,
+        23,
+        24
+      ],
+      "maxEnergyValues": [
+        32
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        23
+      ],
+      "laserPowerValues": [
+        3
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        24
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        12
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        12
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        9801
+      ],
+      "targetableRadiusValues": [
+        99
+      ],
+      "targetableRadiusApproxValues": [
+        99.0
+      ],
+      "visibilityDistanceValues": [
+        19
+      ],
+      "vertexCountValues": [
+        10
+      ],
+      "edgeCountValues": [
+        16
+      ],
+      "faceCountValues": [
+        8
+      ],
+      "maxVisibleEdgesValues": [
+        18
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        3
+      ],
+      "normalScaleExponentValues": [
+        3
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 32,
+        "perHitDefence": 0,
+        "maxSpeed": 23,
+        "laserPower": 3,
+        "missileCount": 0,
+        "weaponByte": 24,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 12,
+        "npcLaserDamageCleanBeforeArmour": 12,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 15,
+      "shipSymbol": "SHIP_MISSILE",
+      "shipName": "Missile",
+      "variantCount": 1,
+      "blueprintSets": [
+        "COMMON"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        1
+      ],
+      "maxEnergyValues": [
+        2
+      ],
+      "perHitDefenceValues": [
+        2
+      ],
+      "maxSpeedValues": [
+        44
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        1600
+      ],
+      "targetableRadiusValues": [
+        40
+      ],
+      "targetableRadiusApproxValues": [
+        40.0
+      ],
+      "visibilityDistanceValues": [
+        14
+      ],
+      "vertexCountValues": [
+        17
+      ],
+      "edgeCountValues": [
+        24
+      ],
+      "faceCountValues": [
+        9
+      ],
+      "maxVisibleEdgesValues": [
+        20
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        1
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 2,
+        "perHitDefence": 2,
+        "maxSpeed": 44,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 16,
+      "shipSymbol": "SHIP_VIPER",
+      "shipName": "Viper",
+      "variantCount": 23,
+      "blueprintSets": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        16
+      ],
+      "maxEnergyValues": [
+        91,
+        92,
+        99,
+        100
+      ],
+      "perHitDefenceValues": [
+        3,
+        4
+      ],
+      "maxSpeedValues": [
+        32
+      ],
+      "laserPowerValues": [
+        5,
+        6
+      ],
+      "missileCountValues": [
+        1
+      ],
+      "weaponByteValues": [
+        41,
+        49
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        20,
+        24
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        20,
+        24
+      ],
+      "bountyRawValues": [
+        0,
+        100,
+        200
+      ],
+      "bountyCreditValues": [
+        0.0,
+        10.0,
+        20.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        5625
+      ],
+      "targetableRadiusValues": [
+        75
+      ],
+      "targetableRadiusApproxValues": [
+        75.0
+      ],
+      "visibilityDistanceValues": [
+        23
+      ],
+      "vertexCountValues": [
+        15
+      ],
+      "edgeCountValues": [
+        20
+      ],
+      "faceCountValues": [
+        7
+      ],
+      "maxVisibleEdgesValues": [
+        19
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        9
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 91,
+        "perHitDefence": 3,
+        "maxSpeed": 32,
+        "laserPower": 5,
+        "missileCount": 1,
+        "weaponByte": 41,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 20,
+        "npcLaserDamageCleanBeforeArmour": 20,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 17,
+      "shipSymbol": "SHIP_SIDEWINDER",
+      "shipName": "Sidewinder",
+      "variantCount": 7,
+      "blueprintSets": [
+        "D",
+        "J",
+        "L",
+        "R",
+        "S",
+        "V",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 90,
+      "spawnInstallProbabilityPercent": 35.15625,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        15,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        28
+      ],
+      "maxEnergyValues": [
+        73,
+        81,
+        82
+      ],
+      "perHitDefenceValues": [
+        1,
+        2
+      ],
+      "maxSpeedValues": [
+        37
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        32,
+        40
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        16,
+        20
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        100,
+        300,
+        400
+      ],
+      "bountyCreditValues": [
+        10.0,
+        30.0,
+        40.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        4225
+      ],
+      "targetableRadiusValues": [
+        65
+      ],
+      "targetableRadiusApproxValues": [
+        65.0
+      ],
+      "visibilityDistanceValues": [
+        20
+      ],
+      "vertexCountValues": [
+        10
+      ],
+      "edgeCountValues": [
+        15
+      ],
+      "faceCountValues": [
+        7
+      ],
+      "maxVisibleEdgesValues": [
+        15
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        6
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 73,
+        "perHitDefence": 1,
+        "maxSpeed": 37,
+        "laserPower": 4,
+        "missileCount": 0,
+        "weaponByte": 32,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 16,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 100,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 18,
+      "shipSymbol": "SHIP_MAMBA",
+      "shipName": "Mamba",
+      "variantCount": 6,
+      "blueprintSets": [
+        "F",
+        "J",
+        "M",
+        "P",
+        "S",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 100,
+      "spawnInstallProbabilityPercent": 39.0625,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        28
+      ],
+      "maxEnergyValues": [
+        80,
+        81
+      ],
+      "perHitDefenceValues": [
+        0,
+        1
+      ],
+      "maxSpeedValues": [
+        30
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        2
+      ],
+      "weaponByteValues": [
+        34,
+        42
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        17,
+        21
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        150,
+        250,
+        350
+      ],
+      "bountyCreditValues": [
+        15.0,
+        25.0,
+        35.0
+      ],
+      "cargoCanisterValues": [
+        1
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        4900
+      ],
+      "targetableRadiusValues": [
+        70
+      ],
+      "targetableRadiusApproxValues": [
+        70.0
+      ],
+      "visibilityDistanceValues": [
+        25
+      ],
+      "vertexCountValues": [
+        25
+      ],
+      "edgeCountValues": [
+        28
+      ],
+      "faceCountValues": [
+        5
+      ],
+      "maxVisibleEdgesValues": [
+        23
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        7
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 80,
+        "perHitDefence": 0,
+        "maxSpeed": 30,
+        "laserPower": 4,
+        "missileCount": 2,
+        "weaponByte": 34,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 17,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 150,
+        "maxCargoCanistersOnDestruction": 1
+      }
+    },
+    {
+      "designId": 19,
+      "shipSymbol": "SHIP_KRAIT",
+      "shipName": "Krait",
+      "variantCount": 7,
+      "blueprintSets": [
+        "I",
+        "K",
+        "L",
+        "N",
+        "T",
+        "U",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 100,
+      "spawnInstallProbabilityPercent": 39.0625,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        28
+      ],
+      "maxEnergyValues": [
+        73,
+        81,
+        82
+      ],
+      "perHitDefenceValues": [
+        1,
+        2
+      ],
+      "maxSpeedValues": [
+        30
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        32,
+        40
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        16,
+        20
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        100,
+        200,
+        400
+      ],
+      "bountyCreditValues": [
+        10.0,
+        20.0,
+        40.0
+      ],
+      "cargoCanisterValues": [
+        1
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        3600
+      ],
+      "targetableRadiusValues": [
+        60
+      ],
+      "targetableRadiusApproxValues": [
+        60.0
+      ],
+      "visibilityDistanceValues": [
+        25
+      ],
+      "vertexCountValues": [
+        17
+      ],
+      "edgeCountValues": [
+        21
+      ],
+      "faceCountValues": [
+        6
+      ],
+      "maxVisibleEdgesValues": [
+        21
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        3
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 73,
+        "perHitDefence": 1,
+        "maxSpeed": 30,
+        "laserPower": 4,
+        "missileCount": 0,
+        "weaponByte": 32,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 16,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 100,
+        "maxCargoCanistersOnDestruction": 1
+      }
+    },
+    {
+      "designId": 20,
+      "shipSymbol": "SHIP_ADDER",
+      "shipName": "Adder",
+      "variantCount": 6,
+      "blueprintSets": [
+        "A",
+        "E",
+        "G",
+        "H",
+        "O",
+        "V"
+      ],
+      "spawnInstallProbabilityRaw": 85,
+      "spawnInstallProbabilityPercent": 33.203125,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        12,
+        13,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        72,
+        81
+      ],
+      "perHitDefenceValues": [
+        0,
+        1
+      ],
+      "maxSpeedValues": [
+        24
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        1
+      ],
+      "weaponByteValues": [
+        33,
+        41
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        16,
+        20
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        40,
+        340
+      ],
+      "bountyCreditValues": [
+        4.0,
+        34.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        2500
+      ],
+      "targetableRadiusValues": [
+        50
+      ],
+      "targetableRadiusApproxValues": [
+        50.0
+      ],
+      "visibilityDistanceValues": [
+        23
+      ],
+      "vertexCountValues": [
+        18
+      ],
+      "edgeCountValues": [
+        29
+      ],
+      "faceCountValues": [
+        15
+      ],
+      "maxVisibleEdgesValues": [
+        24
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        4
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 72,
+        "perHitDefence": 0,
+        "maxSpeed": 24,
+        "laserPower": 4,
+        "missileCount": 1,
+        "weaponByte": 33,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 16,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 40,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 21,
+      "shipSymbol": "SHIP_GECKO",
+      "shipName": "Gecko",
+      "variantCount": 10,
+      "blueprintSets": [
+        "A",
+        "D",
+        "E",
+        "G",
+        "J",
+        "K",
+        "N",
+        "Q",
+        "R",
+        "S"
+      ],
+      "spawnInstallProbabilityRaw": 80,
+      "spawnInstallProbabilityPercent": 31.25,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        65
+      ],
+      "perHitDefenceValues": [
+        1
+      ],
+      "maxSpeedValues": [
+        30
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        32,
+        40
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        16,
+        20
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        55,
+        155
+      ],
+      "bountyCreditValues": [
+        5.5,
+        15.5
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        9801
+      ],
+      "targetableRadiusValues": [
+        99
+      ],
+      "targetableRadiusApproxValues": [
+        99.0
+      ],
+      "visibilityDistanceValues": [
+        18
+      ],
+      "vertexCountValues": [
+        12
+      ],
+      "edgeCountValues": [
+        17
+      ],
+      "faceCountValues": [
+        9
+      ],
+      "maxVisibleEdgesValues": [
+        16
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        3
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 65,
+        "perHitDefence": 1,
+        "maxSpeed": 30,
+        "laserPower": 4,
+        "missileCount": 0,
+        "weaponByte": 32,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 16,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 55,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 22,
+      "shipSymbol": "SHIP_COBRA_MK_1",
+      "shipName": "Cobra Mk I",
+      "variantCount": 8,
+      "blueprintSets": [
+        "A",
+        "B",
+        "H",
+        "I",
+        "M",
+        "O",
+        "U",
+        "V"
+      ],
+      "spawnInstallProbabilityRaw": 80,
+      "spawnInstallProbabilityPercent": 31.25,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        13,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        81
+      ],
+      "perHitDefenceValues": [
+        1
+      ],
+      "maxSpeedValues": [
+        26
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        2
+      ],
+      "weaponByteValues": [
+        34,
+        42
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        17,
+        21
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        75,
+        175
+      ],
+      "bountyCreditValues": [
+        7.5,
+        17.5
+      ],
+      "cargoCanisterValues": [
+        3
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        9801
+      ],
+      "targetableRadiusValues": [
+        99
+      ],
+      "targetableRadiusApproxValues": [
+        99.0
+      ],
+      "visibilityDistanceValues": [
+        19
+      ],
+      "vertexCountValues": [
+        11
+      ],
+      "edgeCountValues": [
+        18
+      ],
+      "faceCountValues": [
+        10
+      ],
+      "maxVisibleEdgesValues": [
+        17
+      ],
+      "gunVertexIndexValues": [
+        10
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 81,
+        "perHitDefence": 1,
+        "maxSpeed": 26,
+        "laserPower": 4,
+        "missileCount": 2,
+        "weaponByte": 34,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 17,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 75,
+        "maxCargoCanistersOnDestruction": 3
+      }
+    },
+    {
+      "designId": 23,
+      "shipSymbol": "SHIP_ASP_MK_2",
+      "shipName": "Asp Mk II",
+      "variantCount": 3,
+      "blueprintSets": [
+        "I",
+        "N",
+        "T"
+      ],
+      "spawnInstallProbabilityRaw": 10,
+      "spawnInstallProbabilityPercent": 3.90625,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        24,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        109,
+        117
+      ],
+      "perHitDefenceValues": [
+        5
+      ],
+      "maxSpeedValues": [
+        40
+      ],
+      "laserPowerValues": [
+        1
+      ],
+      "missileCountValues": [
+        1
+      ],
+      "weaponByteValues": [
+        73
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        36
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        4
+      ],
+      "bountyRawValues": [
+        450,
+        550
+      ],
+      "bountyCreditValues": [
+        45.0,
+        55.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        3600
+      ],
+      "targetableRadiusValues": [
+        60
+      ],
+      "targetableRadiusApproxValues": [
+        60.0
+      ],
+      "visibilityDistanceValues": [
+        40
+      ],
+      "vertexCountValues": [
+        19
+      ],
+      "edgeCountValues": [
+        28
+      ],
+      "faceCountValues": [
+        12
+      ],
+      "maxVisibleEdgesValues": [
+        25
+      ],
+      "gunVertexIndexValues": [
+        8
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 109,
+        "perHitDefence": 5,
+        "maxSpeed": 40,
+        "laserPower": 1,
+        "missileCount": 1,
+        "weaponByte": 73,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 36,
+        "npcLaserDamageCleanBeforeArmour": 4,
+        "bountyRawTenthsOfCredit": 450,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 24,
+      "shipSymbol": "SHIP_FER_DE_LANCE",
+      "shipName": "Fer-de-Lance",
+      "variantCount": 4,
+      "blueprintSets": [
+        "J",
+        "K",
+        "M",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 60,
+      "spawnInstallProbabilityPercent": 23.4375,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        13,
+        24,
+        25,
+        26,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        83,
+        92
+      ],
+      "perHitDefenceValues": [
+        3,
+        4
+      ],
+      "maxSpeedValues": [
+        30
+      ],
+      "laserPowerValues": [
+        6,
+        7
+      ],
+      "missileCountValues": [
+        2
+      ],
+      "weaponByteValues": [
+        50,
+        58
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        25,
+        29
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        24,
+        28
+      ],
+      "bountyRawValues": [
+        250,
+        550
+      ],
+      "bountyCreditValues": [
+        25.0,
+        55.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        1600
+      ],
+      "targetableRadiusValues": [
+        40
+      ],
+      "targetableRadiusApproxValues": [
+        40.0
+      ],
+      "visibilityDistanceValues": [
+        40
+      ],
+      "vertexCountValues": [
+        19
+      ],
+      "edgeCountValues": [
+        27
+      ],
+      "faceCountValues": [
+        10
+      ],
+      "maxVisibleEdgesValues": [
+        26
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 83,
+        "perHitDefence": 3,
+        "maxSpeed": 30,
+        "laserPower": 6,
+        "missileCount": 2,
+        "weaponByte": 50,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 25,
+        "npcLaserDamageCleanBeforeArmour": 24,
+        "bountyRawTenthsOfCredit": 250,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 25,
+      "shipSymbol": "SHIP_MORAY",
+      "shipName": "Moray",
+      "variantCount": 5,
+      "blueprintSets": [
+        "A",
+        "J",
+        "O",
+        "P",
+        "Q"
+      ],
+      "spawnInstallProbabilityRaw": 60,
+      "spawnInstallProbabilityPercent": 23.4375,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        12,
+        13,
+        22,
+        23,
+        24,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        89
+      ],
+      "perHitDefenceValues": [
+        1
+      ],
+      "maxSpeedValues": [
+        25
+      ],
+      "laserPowerValues": [
+        5
+      ],
+      "missileCountValues": [
+        2
+      ],
+      "weaponByteValues": [
+        42
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        21
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        20
+      ],
+      "bountyRawValues": [
+        50
+      ],
+      "bountyCreditValues": [
+        5.0
+      ],
+      "cargoCanisterValues": [
+        1
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        900
+      ],
+      "targetableRadiusValues": [
+        30
+      ],
+      "targetableRadiusApproxValues": [
+        30.0
+      ],
+      "visibilityDistanceValues": [
+        40
+      ],
+      "vertexCountValues": [
+        14
+      ],
+      "edgeCountValues": [
+        19
+      ],
+      "faceCountValues": [
+        9
+      ],
+      "maxVisibleEdgesValues": [
+        17
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 89,
+        "perHitDefence": 1,
+        "maxSpeed": 25,
+        "laserPower": 5,
+        "missileCount": 2,
+        "weaponByte": 42,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 21,
+        "npcLaserDamageCleanBeforeArmour": 20,
+        "bountyRawTenthsOfCredit": 50,
+        "maxCargoCanistersOnDestruction": 1
+      }
+    },
+    {
+      "designId": 26,
+      "shipSymbol": "SHIP_THARGOID",
+      "shipName": "Thargoid",
+      "variantCount": 2,
+      "blueprintSets": [
+        "C",
+        "D"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        29
+      ],
+      "maxEnergyValues": [
+        253
+      ],
+      "perHitDefenceValues": [
+        5
+      ],
+      "maxSpeedValues": [
+        39
+      ],
+      "laserPowerValues": [
+        7
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        56
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        28
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        28
+      ],
+      "bountyRawValues": [
+        500
+      ],
+      "bountyCreditValues": [
+        50.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        9801
+      ],
+      "targetableRadiusValues": [
+        99
+      ],
+      "targetableRadiusApproxValues": [
+        99.0
+      ],
+      "visibilityDistanceValues": [
+        55
+      ],
+      "vertexCountValues": [
+        20
+      ],
+      "edgeCountValues": [
+        26
+      ],
+      "faceCountValues": [
+        10
+      ],
+      "maxVisibleEdgesValues": [
+        25
+      ],
+      "gunVertexIndexValues": [
+        15
+      ],
+      "explosionCloudOriginCountValues": [
+        8
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 253,
+        "perHitDefence": 5,
+        "maxSpeed": 39,
+        "laserPower": 7,
+        "missileCount": 0,
+        "weaponByte": 56,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 28,
+        "npcLaserDamageCleanBeforeArmour": 28,
+        "bountyRawTenthsOfCredit": 500,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 27,
+      "shipSymbol": "SHIP_THARGON",
+      "shipName": "Thargon",
+      "variantCount": 2,
+      "blueprintSets": [
+        "C",
+        "D"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        30
+      ],
+      "maxEnergyValues": [
+        33
+      ],
+      "perHitDefenceValues": [
+        1
+      ],
+      "maxSpeedValues": [
+        30
+      ],
+      "laserPowerValues": [
+        4
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        32
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        16
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16
+      ],
+      "bountyRawValues": [
+        50
+      ],
+      "bountyCreditValues": [
+        5.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [
+        15
+      ],
+      "targetableAreaValues": [
+        1600
+      ],
+      "targetableRadiusValues": [
+        40
+      ],
+      "targetableRadiusApproxValues": [
+        40.0
+      ],
+      "visibilityDistanceValues": [
+        20
+      ],
+      "vertexCountValues": [
+        10
+      ],
+      "edgeCountValues": [
+        15
+      ],
+      "faceCountValues": [
+        7
+      ],
+      "maxVisibleEdgesValues": [
+        16
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        3
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 33,
+        "perHitDefence": 1,
+        "maxSpeed": 30,
+        "laserPower": 4,
+        "missileCount": 0,
+        "weaponByte": 32,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 16,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 50,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 28,
+      "shipSymbol": "SHIP_CONSTRICTOR",
+      "shipName": "Constrictor",
+      "variantCount": 1,
+      "blueprintSets": [
+        "G"
+      ],
+      "spawnInstallProbabilityRaw": 0,
+      "spawnInstallProbabilityPercent": 0.0,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        31
+      ],
+      "maxEnergyValues": [
+        115
+      ],
+      "perHitDefenceValues": [
+        3
+      ],
+      "maxSpeedValues": [
+        55
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        7
+      ],
+      "weaponByteValues": [
+        71
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        3
+      ],
+      "scoopedMarketItemIds": [
+        15
+      ],
+      "targetableAreaValues": [
+        9801
+      ],
+      "targetableRadiusValues": [
+        99
+      ],
+      "targetableRadiusApproxValues": [
+        99.0
+      ],
+      "visibilityDistanceValues": [
+        45
+      ],
+      "vertexCountValues": [
+        17
+      ],
+      "edgeCountValues": [
+        24
+      ],
+      "faceCountValues": [
+        10
+      ],
+      "maxVisibleEdgesValues": [
+        19
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        10
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 115,
+        "perHitDefence": 3,
+        "maxSpeed": 55,
+        "laserPower": 0,
+        "missileCount": 7,
+        "weaponByte": 71,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 3
+      }
+    },
+    {
+      "designId": 29,
+      "shipSymbol": "SHIP_DRAGON",
+      "shipName": "Dragon",
+      "variantCount": 2,
+      "blueprintSets": [
+        "D",
+        "W"
+      ],
+      "spawnInstallProbabilityRaw": 3,
+      "spawnInstallProbabilityPercent": 1.171875,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        14
+      ],
+      "maxEnergyValues": [
+        247,
+        255
+      ],
+      "perHitDefenceValues": [
+        7
+      ],
+      "maxSpeedValues": [
+        20
+      ],
+      "laserPowerValues": [
+        0,
+        1
+      ],
+      "missileCountValues": [
+        7
+      ],
+      "weaponByteValues": [
+        71,
+        79
+      ],
+      "canFireLaserValues": [
+        false,
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0,
+        39
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0,
+        4
+      ],
+      "bountyRawValues": [
+        0,
+        200
+      ],
+      "bountyCreditValues": [
+        0.0,
+        20.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        26192
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        161.839
+      ],
+      "visibilityDistanceValues": [
+        32
+      ],
+      "vertexCountValues": [
+        9
+      ],
+      "edgeCountValues": [
+        21
+      ],
+      "faceCountValues": [
+        14
+      ],
+      "maxVisibleEdgesValues": [
+        16
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        13
+      ],
+      "normalScaleExponentValues": [
+        0
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 247,
+        "perHitDefence": 7,
+        "maxSpeed": 20,
+        "laserPower": 0,
+        "missileCount": 7,
+        "weaponByte": 71,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 30,
+      "shipSymbol": "SHIP_MONITOR",
+      "shipName": "Monitor",
+      "variantCount": 3,
+      "blueprintSets": [
+        "A",
+        "B",
+        "S"
+      ],
+      "spawnInstallProbabilityRaw": 30,
+      "spawnInstallProbabilityPercent": 11.71875,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        11,
+        12,
+        13,
+        24,
+        28
+      ],
+      "maxEnergyValues": [
+        132,
+        133
+      ],
+      "perHitDefenceValues": [
+        4,
+        5
+      ],
+      "maxSpeedValues": [
+        16
+      ],
+      "laserPowerValues": [
+        6
+      ],
+      "missileCountValues": [
+        7
+      ],
+      "weaponByteValues": [
+        55
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        27
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        24
+      ],
+      "bountyRawValues": [
+        400,
+        500
+      ],
+      "bountyCreditValues": [
+        40.0,
+        50.0
+      ],
+      "cargoCanisterValues": [
+        4
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        13824
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        117.576
+      ],
+      "visibilityDistanceValues": [
+        40
+      ],
+      "vertexCountValues": [
+        17
+      ],
+      "edgeCountValues": [
+        23
+      ],
+      "faceCountValues": [
+        11
+      ],
+      "maxVisibleEdgesValues": [
+        25
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        9
+      ],
+      "normalScaleExponentValues": [
+        0
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 132,
+        "perHitDefence": 4,
+        "maxSpeed": 16,
+        "laserPower": 6,
+        "missileCount": 7,
+        "weaponByte": 55,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 27,
+        "npcLaserDamageCleanBeforeArmour": 24,
+        "bountyRawTenthsOfCredit": 400,
+        "maxCargoCanistersOnDestruction": 4
+      }
+    },
+    {
+      "designId": 31,
+      "shipSymbol": "SHIP_OPHIDIAN",
+      "shipName": "Ophidian",
+      "variantCount": 8,
+      "blueprintSets": [
+        "A",
+        "F",
+        "I",
+        "K",
+        "L",
+        "M",
+        "P",
+        "R"
+      ],
+      "spawnInstallProbabilityRaw": 75,
+      "spawnInstallProbabilityPercent": 29.296875,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        12,
+        13,
+        21,
+        22,
+        23,
+        24,
+        28
+      ],
+      "maxEnergyValues": [
+        64
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        34
+      ],
+      "laserPowerValues": [
+        3
+      ],
+      "missileCountValues": [
+        2
+      ],
+      "weaponByteValues": [
+        26
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        13
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        12
+      ],
+      "bountyRawValues": [
+        50
+      ],
+      "bountyCreditValues": [
+        5.0
+      ],
+      "cargoCanisterValues": [
+        2
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        3720
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        60.992
+      ],
+      "visibilityDistanceValues": [
+        20
+      ],
+      "vertexCountValues": [
+        20
+      ],
+      "edgeCountValues": [
+        30
+      ],
+      "faceCountValues": [
+        12
+      ],
+      "maxVisibleEdgesValues": [
+        28
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        13
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 64,
+        "perHitDefence": 0,
+        "maxSpeed": 34,
+        "laserPower": 3,
+        "missileCount": 2,
+        "weaponByte": 26,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 13,
+        "npcLaserDamageCleanBeforeArmour": 12,
+        "bountyRawTenthsOfCredit": 50,
+        "maxCargoCanistersOnDestruction": 2
+      }
+    },
+    {
+      "designId": 32,
+      "shipSymbol": "SHIP_GHAVIAL",
+      "shipName": "Ghavial",
+      "variantCount": 5,
+      "blueprintSets": [
+        "B",
+        "H",
+        "I",
+        "S",
+        "U"
+      ],
+      "spawnInstallProbabilityRaw": 50,
+      "spawnInstallProbabilityPercent": 19.53125,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        11,
+        12,
+        13,
+        28
+      ],
+      "maxEnergyValues": [
+        114,
+        115,
+        123
+      ],
+      "perHitDefenceValues": [
+        2,
+        3
+      ],
+      "maxSpeedValues": [
+        16
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        7
+      ],
+      "weaponByteValues": [
+        39,
+        47
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        19,
+        23
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        100,
+        300
+      ],
+      "bountyCreditValues": [
+        10.0,
+        30.0
+      ],
+      "cargoCanisterValues": [
+        3
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        9728
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        98.631
+      ],
+      "visibilityDistanceValues": [
+        10
+      ],
+      "vertexCountValues": [
+        12
+      ],
+      "edgeCountValues": [
+        22
+      ],
+      "faceCountValues": [
+        12
+      ],
+      "maxVisibleEdgesValues": [
+        24
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        7
+      ],
+      "normalScaleExponentValues": [
+        0
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 114,
+        "perHitDefence": 2,
+        "maxSpeed": 16,
+        "laserPower": 4,
+        "missileCount": 7,
+        "weaponByte": 39,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 19,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 100,
+        "maxCargoCanistersOnDestruction": 3
+      }
+    },
+    {
+      "designId": 33,
+      "shipSymbol": "SHIP_BUSHMASTER",
+      "shipName": "Bushmaster",
+      "variantCount": 7,
+      "blueprintSets": [
+        "D",
+        "F",
+        "J",
+        "M",
+        "Q",
+        "R",
+        "S"
+      ],
+      "spawnInstallProbabilityRaw": 75,
+      "spawnInstallProbabilityPercent": 29.296875,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        20,
+        21,
+        22,
+        23,
+        24,
+        26,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        74
+      ],
+      "perHitDefenceValues": [
+        2
+      ],
+      "maxSpeedValues": [
+        35
+      ],
+      "laserPowerValues": [
+        4,
+        5
+      ],
+      "missileCountValues": [
+        1
+      ],
+      "weaponByteValues": [
+        33,
+        41
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        16,
+        20
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16,
+        20
+      ],
+      "bountyRawValues": [
+        150,
+        250
+      ],
+      "bountyCreditValues": [
+        15.0,
+        25.0
+      ],
+      "cargoCanisterValues": [
+        0
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        4250
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        65.192
+      ],
+      "visibilityDistanceValues": [
+        20
+      ],
+      "vertexCountValues": [
+        12
+      ],
+      "edgeCountValues": [
+        19
+      ],
+      "faceCountValues": [
+        9
+      ],
+      "maxVisibleEdgesValues": [
+        20
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        6
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 74,
+        "perHitDefence": 2,
+        "maxSpeed": 35,
+        "laserPower": 4,
+        "missileCount": 1,
+        "weaponByte": 33,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 16,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 150,
+        "maxCargoCanistersOnDestruction": 0
+      }
+    },
+    {
+      "designId": 34,
+      "shipSymbol": "SHIP_RATTLER",
+      "shipName": "Rattler",
+      "variantCount": 4,
+      "blueprintSets": [
+        "C",
+        "E",
+        "H",
+        "N"
+      ],
+      "spawnInstallProbabilityRaw": 55,
+      "spawnInstallProbabilityPercent": 21.484375,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        12,
+        13,
+        22,
+        23,
+        24,
+        28
+      ],
+      "maxEnergyValues": [
+        113
+      ],
+      "perHitDefenceValues": [
+        1
+      ],
+      "maxSpeedValues": [
+        31
+      ],
+      "laserPowerValues": [
+        4
+      ],
+      "missileCountValues": [
+        2
+      ],
+      "weaponByteValues": [
+        34
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        17
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16
+      ],
+      "bountyRawValues": [
+        150
+      ],
+      "bountyCreditValues": [
+        15.0
+      ],
+      "cargoCanisterValues": [
+        2
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        6000
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        77.46
+      ],
+      "visibilityDistanceValues": [
+        10
+      ],
+      "vertexCountValues": [
+        15
+      ],
+      "edgeCountValues": [
+        26
+      ],
+      "faceCountValues": [
+        13
+      ],
+      "maxVisibleEdgesValues": [
+        22
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        9
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 113,
+        "perHitDefence": 1,
+        "maxSpeed": 31,
+        "laserPower": 4,
+        "missileCount": 2,
+        "weaponByte": 34,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 17,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 150,
+        "maxCargoCanistersOnDestruction": 2
+      }
+    },
+    {
+      "designId": 35,
+      "shipSymbol": "SHIP_IGUANA",
+      "shipName": "Iguana",
+      "variantCount": 6,
+      "blueprintSets": [
+        "B",
+        "E",
+        "F",
+        "G",
+        "Q",
+        "T"
+      ],
+      "spawnInstallProbabilityRaw": 60,
+      "spawnInstallProbabilityPercent": 23.4375,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        13,
+        20,
+        21,
+        22,
+        23,
+        24,
+        26,
+        27,
+        28
+      ],
+      "maxEnergyValues": [
+        90
+      ],
+      "perHitDefenceValues": [
+        2
+      ],
+      "maxSpeedValues": [
+        33
+      ],
+      "laserPowerValues": [
+        4
+      ],
+      "missileCountValues": [
+        3
+      ],
+      "weaponByteValues": [
+        35
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        17
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16
+      ],
+      "bountyRawValues": [
+        150
+      ],
+      "bountyCreditValues": [
+        15.0
+      ],
+      "cargoCanisterValues": [
+        1
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        3500
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        59.161
+      ],
+      "visibilityDistanceValues": [
+        10
+      ],
+      "vertexCountValues": [
+        15
+      ],
+      "edgeCountValues": [
+        23
+      ],
+      "faceCountValues": [
+        10
+      ],
+      "maxVisibleEdgesValues": [
+        20
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 90,
+        "perHitDefence": 2,
+        "maxSpeed": 33,
+        "laserPower": 4,
+        "missileCount": 3,
+        "weaponByte": 35,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 17,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 150,
+        "maxCargoCanistersOnDestruction": 1
+      }
+    },
+    {
+      "designId": 36,
+      "shipSymbol": "SHIP_SHUTTLE_MK_2",
+      "shipName": "Shuttle Mk II",
+      "variantCount": 3,
+      "blueprintSets": [
+        "B",
+        "O",
+        "T"
+      ],
+      "spawnInstallProbabilityRaw": 50,
+      "spawnInstallProbabilityPercent": 19.53125,
+      "standardEscapePod": false,
+      "allowedBlueprintSlots": [
+        9,
+        10
+      ],
+      "maxEnergyValues": [
+        32
+      ],
+      "perHitDefenceValues": [
+        0
+      ],
+      "maxSpeedValues": [
+        9
+      ],
+      "laserPowerValues": [
+        0
+      ],
+      "missileCountValues": [
+        0
+      ],
+      "weaponByteValues": [
+        0
+      ],
+      "canFireLaserValues": [
+        false
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        0
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        0
+      ],
+      "bountyRawValues": [
+        0
+      ],
+      "bountyCreditValues": [
+        0.0
+      ],
+      "cargoCanisterValues": [
+        15
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        2500
+      ],
+      "targetableRadiusValues": [
+        50
+      ],
+      "targetableRadiusApproxValues": [
+        50.0
+      ],
+      "visibilityDistanceValues": [
+        10
+      ],
+      "vertexCountValues": [
+        17
+      ],
+      "edgeCountValues": [
+        28
+      ],
+      "faceCountValues": [
+        13
+      ],
+      "maxVisibleEdgesValues": [
+        22
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        8
+      ],
+      "normalScaleExponentValues": [
+        2
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 32,
+        "perHitDefence": 0,
+        "maxSpeed": 9,
+        "laserPower": 0,
+        "missileCount": 0,
+        "weaponByte": 0,
+        "canFireLaser": false,
+        "npcLaserDamageOriginalBeforeArmour": 0,
+        "npcLaserDamageCleanBeforeArmour": 0,
+        "bountyRawTenthsOfCredit": 0,
+        "maxCargoCanistersOnDestruction": 15
+      }
+    },
+    {
+      "designId": 37,
+      "shipSymbol": "SHIP_CHAMELEON",
+      "shipName": "Chameleon",
+      "variantCount": 5,
+      "blueprintSets": [
+        "C",
+        "L",
+        "M",
+        "P",
+        "U"
+      ],
+      "spawnInstallProbabilityRaw": 45,
+      "spawnInstallProbabilityPercent": 17.578125,
+      "standardEscapePod": true,
+      "allowedBlueprintSlots": [
+        12,
+        13,
+        22,
+        23,
+        24,
+        28
+      ],
+      "maxEnergyValues": [
+        100,
+        109
+      ],
+      "perHitDefenceValues": [
+        4,
+        5
+      ],
+      "maxSpeedValues": [
+        29
+      ],
+      "laserPowerValues": [
+        4
+      ],
+      "missileCountValues": [
+        3
+      ],
+      "weaponByteValues": [
+        35
+      ],
+      "canFireLaserValues": [
+        true
+      ],
+      "npcLaserDamageOriginalBeforeArmourValues": [
+        17
+      ],
+      "npcLaserDamageCleanBeforeArmourValues": [
+        16
+      ],
+      "bountyRawValues": [
+        200,
+        400
+      ],
+      "bountyCreditValues": [
+        20.0,
+        40.0
+      ],
+      "cargoCanisterValues": [
+        3
+      ],
+      "scoopedMarketItemIds": [],
+      "targetableAreaValues": [
+        4000
+      ],
+      "targetableRadiusValues": [],
+      "targetableRadiusApproxValues": [
+        63.246
+      ],
+      "visibilityDistanceValues": [
+        10
+      ],
+      "vertexCountValues": [
+        18
+      ],
+      "edgeCountValues": [
+        29
+      ],
+      "faceCountValues": [
+        13
+      ],
+      "maxVisibleEdgesValues": [
+        22
+      ],
+      "gunVertexIndexValues": [
+        0
+      ],
+      "explosionCloudOriginCountValues": [
+        5
+      ],
+      "normalScaleExponentValues": [
+        1
+      ],
+      "recommendedDefault": {
+        "maxEnergy": 100,
+        "perHitDefence": 4,
+        "maxSpeed": 29,
+        "laserPower": 4,
+        "missileCount": 3,
+        "weaponByte": 35,
+        "canFireLaser": true,
+        "npcLaserDamageOriginalBeforeArmour": 17,
+        "npcLaserDamageCleanBeforeArmour": 16,
+        "bountyRawTenthsOfCredit": 200,
+        "maxCargoCanistersOnDestruction": 3
+      }
+    }
+  ]
+}

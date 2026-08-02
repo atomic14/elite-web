@@ -11,7 +11,8 @@
   "scripts": {
     "dev": "vite",
     "lint": "tsc --noEmit",
-    "check": "npm run lint && npm test && npm run sizes",
+    "generate:elite-a": "node tools/import-elite-a.mjs",
+    "check": "npm run lint && npm test && npm run sizes && npm run generate:elite-a -- --check",
     "prebuild": "npm run check",
     "build": "vite build",
     "preview": "vite preview",

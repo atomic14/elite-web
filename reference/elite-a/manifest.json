@@ -1,0 +1,16 @@
+{
+  "note": "Provenance for the verbatim pack in ./source. Regenerate with `npm run generate:elite-a`.",
+  "sourceHash": "85fece5618c1302dac6b2bbc5c6e78629d37fb5ac27769dddf24fb0b38b52ccb",
+  "files": [
+    { "name": "EliteACombatModel.swift", "bytes": 4803, "sha256": "0b2a198bd525b8244bf45b5f2000f7fc234dbe5bf73ce38c647fb75d214b3105" },
+    { "name": "README.txt", "bytes": 264, "sha256": "d667f3677bfddd07034c719845a2c3c2712ce50bfc6f75762db5587b6a2a4046" },
+    { "name": "elite_a_combat_reference.md", "bytes": 36380, "sha256": "57f5ea6c110e3feab91ef25b341c5c3f571b8ca31b518c2cefaaa05cddcd96f8" },
+    { "name": "elite_a_complete_ship_data.json", "bytes": 6636159, "sha256": "bc69c28bf5e09f166346a8aea88df335e746e566ceeeb556ce4baccb1cb257de" },
+    { "name": "elite_a_hit_ranges.json", "bytes": 1041387, "sha256": "3e3c394967ce3700580a67444a1423b16a380bab963b3a3d8776c82961b31e5b" },
+    { "name": "elite_a_hit_ranges.md", "bytes": 32887, "sha256": "86e88ab405eceecd765e8c60cfbf27a02d25eb29b0cd0bc586ef517f1aab9482" },
+    { "name": "elite_a_hits_to_destroy.json", "bytes": 6499740, "sha256": "53e603ea2a031d5b70788c03b22f1c0c208504b59037f511f13ad22890037e68" },
+    { "name": "elite_a_npc_damage_to_player.json", "bytes": 1678571, "sha256": "4b53dce5218dd43b84471c0e53ebeebab8ed91e7f57a213e9235a383705346fe" },
+    { "name": "elite_a_npc_ship_summary.json", "bytes": 83832, "sha256": "abfd6cf6e8e55f79753066f15be8860e9e9f1a139660c4cf15572d53dbdbf47c" },
+    { "name": "elite_a_player_ships.json", "bytes": 18694, "sha256": "a9e3dc3e12425ee915a78917b7bab62c7eff1eddd82c47f4232708ac57e74021" }
+  ]
+}

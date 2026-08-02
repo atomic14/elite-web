@@ -1,0 +1,4 @@
+# Vendored verbatim: never diffed, never merged, never counted as our source.
+# Two of these files are >6 MB of one-object-per-line JSON, and a textual diff
+# of them is neither reviewable nor useful — the importer's output diff is.
+* -diff -merge linguist-vendored linguist-generated

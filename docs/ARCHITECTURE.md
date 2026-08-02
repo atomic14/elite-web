@@ -231,6 +231,19 @@ src/
     effects.ts              explosions and tracers — seen, never simulated
     screens/                one file per overlay, behind the Screen contract
 
+    elite-a/                the released-Elite-A reference catalogue. GENERATED
+                            from reference/elite-a/source by the importer —
+                            nothing in here is edited by hand
+      types.ts              its shape, and the only hand-written file here
+      catalogue.ts          the way in: lookups by id, merged combat profiles,
+                            and recommendedNpcProfile(designId)
+      designs.generated.ts  the 38 designs and the header they all share
+      variants.generated.ts the 260 exact S.A-S.W builds — what differs
+      geometry.generated.ts one hull per design, deduplicated
+      slots.generated.ts    the 713 blueprint-slot assignments + NEWB bytes
+      player-hulls.generated.ts   the 15 flyable hulls
+      provenance.generated.ts     the pack's hash, counts and NEWB bit layout
+
   galaxy/galaxy.ts          the 1984 procedural universe + market model
   galaxy/navigation.ts      chart distances and jump costs — the 1984 metric
   galaxy/living.ts          256 systems trading while you are elsewhere
@@ -268,8 +281,16 @@ test/fixtures.ts            data two or more test files share
 test/combat-sim.test.ts     the training simulator's screen, keys and draft
 test/campaign.ts            headless balance playtest (npm run campaign)
 test/playtest.js            autonomous in-browser play agent (console)
+test/fixtures/elite-a/      the 15,600 / 3,900 / 570 combat-oracle rows —
+                            generated, and never imported by src/
 train/evolve.ts             neuroevolution trainer
 train/evaluate.ts           held-out tournament — the validation gate
+tools/import-elite-a.mjs    npm run generate:elite-a — reads the vendored pack,
+                            verifies its hashes, writes the catalogue; --check
+                            is the CI drift gate
+tools/elite-a/              build (what the game learns), fixtures (what the
+                            tests read), emit (what it looks like on disk)
+reference/elite-a/          the vendored pack, verbatim, plus its manifest
 docs/                       you are here
 ```
 
