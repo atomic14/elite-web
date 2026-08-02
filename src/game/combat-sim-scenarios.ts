@@ -4,7 +4,8 @@
 // live here and nothing else does:
 //
 //   1. WHO you fight — the seven scenarios, as a table rather than seven code
-//      paths, plus the wave ramp and the live "as they come" reception.
+//      paths, plus the wave ramp (which ramps twice: the numbers, and then the
+//      fight) and the live "as they come" reception.
 //   2. WHETHER the round or the exercise is finished — `nextOpposition()` and
 //      `roundOutcome()`, which is the whole of the three modes.
 //
@@ -27,6 +28,10 @@ import {
   type BrainSelection, type NamedBrain,
 } from './brain-names.ts';
 import { hasShipDef, shipDisplayName } from '../ships/registry.ts';
+// The SHAPE of the record is combat-sim-report.ts's, as `OpeningGeometry` is —
+// this module fills one in and nothing here reads one back. A type, so there is
+// no runtime edge and no cycle.
+import type { WaveEscalation } from './combat-sim-report.ts';
 import { random } from './rng.ts';
 
 // --- what an opponent is ----------------------------------------------------
@@ -136,6 +141,17 @@ export interface Opposition {
   /** fit overrides; omitted means the hull's own */
   missiles?: number;
   ecm?: number;
+  /**
+   * Fit FLOORS: at least this much, whatever the hull carries.
+   *
+   * A second pair rather than a reading of the pair above, because they are
+   * different claims and the picker needs the first one. `missiles: 0` from the
+   * custom picker means an unarmed ship and has to win over a hull that carries
+   * two; the wave ramp's "everyone is carrying a missile now" must NOT take the
+   * Python's second one away. One field cannot mean both.
+   */
+  minMissiles?: number;
+  minEcm?: number;
   /** hull override, from the custom picker. Wins over the role's roster. */
   hull?: NpcSpec;
 }
@@ -160,14 +176,18 @@ function rosterHull(role: OppositionRole, seed: number): NpcSpec {
   return options[Math.abs(seed) % options.length];
 }
 
-/** Apply the group's fit to a hull without touching the roster's own entry. */
+/**
+ * Apply the group's fit to a hull without touching the roster's own entry.
+ *
+ * The override is applied first and the floor second, which is the only order
+ * that lets both mean what they say: a picker asking for no missiles gets none,
+ * and a wave arming everybody cannot disarm the hull that already had two.
+ */
 function fitted(spec: NpcSpec, o: Opposition): NpcSpec {
-  if (o.missiles === undefined && o.ecm === undefined) return spec;
-  return {
-    ...spec,
-    missiles: o.missiles ?? spec.missiles,
-    ecmChance: o.ecm ?? spec.ecmChance,
-  };
+  const missiles = Math.max(o.missiles ?? spec.missiles ?? 0, o.minMissiles ?? 0);
+  const ecm = Math.max(o.ecm ?? spec.ecmChance ?? 0, o.minEcm ?? 0);
+  if (missiles === (spec.missiles ?? 0) && ecm === (spec.ecmChance ?? 0)) return spec;
+  return { ...spec, missiles, ecmChance: ecm };
 }
 
 /**
@@ -446,19 +466,27 @@ export function asTheyCome(
  * waves are all the same fight and surviving three of them is a fact about
  * flying. Both properties are asserted in `npm test`.
  *
+ * THE NUMBERS RAMP FIRST, and this half is unchanged:
+ *
  *   wave   1  2  3  4  5  6  7  8  9 10 11 12+
  *   count  1  1  2  2  3  3  4  4  5  5  6  6
  *   tier   0  0  0  1  1  1  2  2  2  2  2  2
  *
  * Organised from wave 7, when the tier tops out and there are enough of them to
  * bother forming a gang — the same rule `pirateThreat` uses.
+ *
+ * From wave 12 the numbers stop and the FIGHT keeps going: `WAVE_STEPS` below.
  */
 export const WAVE_MAX_COUNT = 6;
 const WAVE_COUNT_EVERY = 2;
 const WAVE_TIER_EVERY = 3;
 
-/** From this wave on, every wave is identical. Quoted in the report. */
-export const WAVE_SATURATION = Math.max(
+/**
+ * From this wave on, count and tier stop growing — six of them, all at the top
+ * tier, in a gang. It is NOT where the ramp stops any more; see
+ * `WAVE_SATURATION`.
+ */
+export const WAVE_COUNT_SATURATION = Math.max(
   (WAVE_MAX_COUNT - 1) * WAVE_COUNT_EVERY, MAX_TIER * WAVE_TIER_EVERY) + 1;
 
 export function waveCount(n: number): number {
@@ -469,20 +497,215 @@ export function waveTier(n: number): number {
   return Math.min(MAX_TIER, Math.floor(Math.max(0, n - 1) / WAVE_TIER_EVERY));
 }
 
-/** Wave `n`, 1-based. */
+// --- what a wave adds once the numbers have stopped -------------------------
+//
+// Wave 11 is six professionals in a gang, and until TODO 39 so was wave 40. The
+// argument for stopping the COUNT is still right — a ramp that keeps adding
+// ships makes the score a fact about arithmetic — but "harder" and "bigger" are
+// not the same axis, and only the second one had a ceiling on it.
+//
+// So past wave 11 the wave stops growing and starts CHANGING. Each step below is
+// one stated thing, it is a pure function of the wave number, and it is chosen
+// against the standard CLAUDE.md sets for the AI: it has to make the pilot fly
+// better, not make the fight longer. A wave that is harder because it is more
+// annoying is a failure, and two candidates were dropped on exactly that test —
+// see the note under `WAVE_STEPS`.
+
+/** Ships in a wave that are not pirates, taking a pirate's place in the count. */
+export interface WaveEscort {
+  role: OppositionRole;
+  count: number;
+  tier: number;
+}
+
+/**
+ * One stated step of the escalation, stated as what it ADDS.
+ *
+ * Deltas rather than a full description per stage, because a table that
+ * restated "everyone carries a missile" on three rows is a table that will
+ * eventually disagree with itself. `waveFit` folds them; `waveEscort`
+ * concatenates them.
+ */
+export interface WaveStep {
+  /** what the banner, the strip and the record call it */
+  name: string;
+  /** why this step, and why here — quoted on the record */
+  why: string;
+  /** from here on every ship in the wave carries at least this many missiles */
+  missiles?: number;
+  /** ...and carries E.C.M. with at least this chance (1 is certainly) */
+  ecm?: number;
+  /** ships that join, and take a pirate's place rather than adding to the count */
+  joined?: readonly WaveEscort[];
+}
+
+/** One new thing every this many waves — the count ramp's own cadence. */
+export const WAVE_STEP_EVERY = 2;
+
+/**
+ * The four steps, in order. Each is argued at its own entry.
+ *
+ * DROPPED, and why, because the list of what is not here is the more useful
+ * half:
+ *
+ *   * A HARDER RELEASED BUILD of the same hull — the first axis TODO 39 asked
+ *     for, and it is already spent. `role-variants.ts` picks the hardest build
+ *     the source ever filed as a pirate, so every pirate in the game is already
+ *     flying it: the Sidewinder is `V:17` and not `D:17`, the Krait is `W:19`.
+ *     There is nothing above it to escalate TO without either flying a build the
+ *     source never filed as a pirate or inventing a number, and the second is
+ *     forbidden by the fidelity contract. The axis is real; TODO 29 spent it.
+ *   * MORE SHIPS, or a ship the count ramp would not have sent. That is the
+ *     ceiling this deliberately does not raise.
+ *   * A TIGHTER OPENING — starting the late waves inside their gun. It reads as
+ *     being cheated rather than as being outclassed, and it would silently
+ *     change what the attack-run count MEANS (combat-sim-opening.ts).
+ */
+export const WAVE_STEPS: readonly WaveStep[] = [
+  {
+    name: 'MISSILES',
+    why: 'the numbers have topped out, so the wave brings ordnance instead. A '
+      + 'missile is the one weapon that makes a pilot fly rather than shoot — '
+      + 'break the lock, spend the E.C.M., or take the warhead — and it ends a '
+      + 'fight sooner rather than dragging one out.',
+    // A FLOOR, not a rack size: the tier-2 hulls that already carry two keep
+    // two. This arms the Sidewinders and the Geckos that never carried any.
+    missiles: 1,
+  },
+  {
+    name: 'E.C.M.',
+    why: 'now they can swat yours. Not a wall: an E.C.M. defeats a missile at '
+      + '45% a second inside 2,800 units, so one fired close still arrives — the '
+      + 'answer is to fire late, not to stop firing.',
+    ecm: 1,
+  },
+  {
+    name: 'A BOUNTY HUNTER',
+    why: 'one of them is not a pirate. It flies a hunter-grade released build '
+      + 'off a different roster, it is not in the gang and it does not weave '
+      + 'with them — a second kind of ship to read, for the same number of ships.',
+    joined: [{ role: 'hunter', count: 1, tier: 1 }],
+  },
+  {
+    name: 'THARGOIDS',
+    why: 'two of the pirates stand down and something else takes their place. '
+      + 'The Thargoid is the toughest hull in the game and its Thargon goes '
+      + 'INERT the moment the mothership dies, so the last wave is a fight with '
+      + 'a priority target in it rather than a bigger crowd.',
+    joined: [
+      { role: 'thargoid', count: 1, tier: MAX_TIER },
+      { role: 'thargon', count: 1, tier: 0 },
+    ],
+  },
+];
+
+/**
+ * From this wave on, every wave is identical — the whole wave, not just its
+ * arithmetic. Quoted on the record and on the strip.
+ *
+ * DERIVED from the two things that decide it: four stated steps, two waves
+ * apart. Two waves is the count ramp's own cadence and it is the point of the
+ * spacing — you meet a new thing, and then you meet it again knowing it is
+ * coming, which is the difference between learning it and being surprised by it
+ * twice. Past the fourth step there is nothing left to add that is not simply
+ * more ships, and more ships is the axis this ramp exists to have stopped.
+ */
+export const WAVE_SATURATION = waveOfStage(WAVE_STEPS.length);
+
+/** The wave a given step arrives at — the inverse of `waveStage`. */
+export function waveOfStage(stage: number): number {
+  return WAVE_COUNT_SATURATION + (Math.max(1, stage) - 1) * WAVE_STEP_EVERY + 1;
+}
+
+/** How many of the steps wave `n` has taken: 0 while only the numbers ramp. */
+export function waveStage(n: number): number {
+  return Math.max(0, Math.min(WAVE_STEPS.length,
+    Math.ceil((n - WAVE_COUNT_SATURATION) / WAVE_STEP_EVERY)));
+}
+
+/** The fit every ship in wave `n` carries at least. Cumulative over the steps. */
+function waveFit(stage: number): { minMissiles?: number; minEcm?: number } {
+  const taken = WAVE_STEPS.slice(0, stage);
+  const minMissiles = taken.reduce((m, s) => Math.max(m, s.missiles ?? 0), 0);
+  const minEcm = taken.reduce((m, s) => Math.max(m, s.ecm ?? 0), 0);
+  return {
+    ...(minMissiles > 0 ? { minMissiles } : {}),
+    ...(minEcm > 0 ? { minEcm } : {}),
+  };
+}
+
+/** Who has joined the wave by stage `stage`, in the order they arrived. */
+function waveEscort(stage: number): WaveEscort[] {
+  return WAVE_STEPS.slice(0, stage).flatMap((s) => s.joined ?? []);
+}
+
+/**
+ * What wave `n` has that wave `n - 1` did not, for the banner and the record.
+ *
+ * Pure in `n`, like everything else here, so the line the pilot reads at the
+ * start of a wave is the line the record carries at the end of it.
+ */
+export function waveEscalation(n: number): WaveEscalation {
+  const stage = waveStage(n);
+  const added = stage > 0 && waveStage(n - 1) < stage ? WAVE_STEPS[stage - 1] : null;
+  return {
+    wave: n,
+    stage,
+    active: WAVE_STEPS.slice(0, stage).map((s) => s.name),
+    added: added?.name ?? null,
+    why: added?.why
+      ?? (stage === 0
+        ? 'the count and the tier are still climbing — see the table in '
+          + 'combat-sim-scenarios.ts.'
+        : 'nothing new this wave: fly the one before it again, knowing what is '
+          + 'in it.'),
+    saturatesAt: WAVE_SATURATION,
+  };
+}
+
+/**
+ * Wave `n`, 1-based.
+ *
+ * Waves 1 to `WAVE_COUNT_SATURATION` are exactly what they always were — the
+ * escort is empty and the fit floors are absent, so the group this returns is
+ * the same object it returned before the steps existed.
+ */
 export function waveOpposition(n: number, seed = 0): Opposition[] {
   const count = waveCount(n);
   const tier = waveTier(n);
-  const organised = tier >= MAX_TIER && count >= 3;
-  return [{
-    role: 'pirate',
-    count,
-    tier,
-    organised,
-    brain: liveBrainFor('pirate', organised, tier),
-    mixed: organised,
-    seed,
-  }];
+  const fit = waveFit(waveStage(n));
+  const escort = waveEscort(waveStage(n));
+  // The escort takes a pirate's PLACE. `waveCount` is the whole wave, and the
+  // floor of 1 is belt and braces: the steps only start once the count has
+  // saturated at six, so the escort can never be more than half of it.
+  const pirates = Math.max(1, count - escort.reduce((k, e) => k + e.count, 0));
+  const organised = tier >= MAX_TIER && pirates >= 3;
+  return [
+    {
+      role: 'pirate',
+      count: pirates,
+      tier,
+      organised,
+      brain: liveBrainFor('pirate', organised, tier),
+      mixed: organised,
+      seed,
+      ...fit,
+    },
+    // Each on its own seed, the same 101 stride `resolve()` gives a table's
+    // groups, so the hunter and the Thargon do not draw the pirates' hull.
+    ...escort.map((e, i) => ({
+      role: e.role,
+      count: e.count,
+      tier: e.tier,
+      // Not in the gang: a hunter came for you on its own account, and a
+      // Thargoid does not fly a pirate's pack policy.
+      organised: false,
+      brain: liveBrainFor(e.role, false, e.tier),
+      mixed: false,
+      seed: seed + (i + 1) * 101,
+      ...fit,
+    })),
+  ];
 }
 
 // --- the three modes --------------------------------------------------------

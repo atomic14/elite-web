@@ -13,7 +13,9 @@ import { Ordnance } from '../src/game/ordnance.ts';
 import { WorldStep, FIXED_DT, type StepHost } from '../src/game/world-step.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
-import { newCommander, MAX_FUEL, defaultEquipment } from '../src/game/commander.ts';
+import {
+  newCommander, recordFurthestWave, MAX_FUEL, defaultEquipment,
+} from '../src/game/commander.ts';
 import {
   clearWorld, readWorld, saveCommander, saveWorld, slotKeys, withoutSaving,
 } from '../src/game/storage.ts';
@@ -25,7 +27,7 @@ import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { pirateSpecForTier } from '../src/game/ship-specs.ts';
 import { CombatSim, type SimHost } from '../src/game/combat-sim.ts';
-import { makeSimLog } from '../src/game/combat-sim-report.ts';
+import { furthestWave, makeSimLog } from '../src/game/combat-sim-report.ts';
 import {
   SHIPPED_SOLO_BRAIN,
   type Opposition,
@@ -186,6 +188,12 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       sound: () => {},
       flashDamage: () => { r.flashes += 1; },
       aimBeams: () => {},
+      // Exactly what game.ts does, and it has to be real here: the ONE number a
+      // run may leave behind is only worth asserting against a host that
+      // actually applies it. The rule is commander.ts's, so this is a wire.
+      recordFurthestWave: (wave) => {
+        if (recordFurthestWave(state.commander, wave)) saveCommander(state.commander, 4);
+      },
       finished: () => {},
     };
     r.sim = new CombatSim(state, ordnance, combat, r.persistence, simHost, makeSimLog());
@@ -563,7 +571,16 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
   {
     const demand: FlightDemand = { rollRate: 0.3, pitchRate: 0.15, throttle: 1, fire: true };
-    /** What the run LOOKED like, to the byte. */
+    /**
+     * What the run LOOKED like, to the byte — minus the ONE field a run of
+     * waves is allowed to move.
+     *
+     * `furthestWave` is left out here and asserted on its own below, which is
+     * the honest shape of the promise: the career after an excursion is
+     * byte-identical to a career that never took one EXCEPT for the number the
+     * exercise is allowed to leave behind, and that number is checked by name
+     * rather than excused by a looser comparison.
+     */
     const trace = (r: Rig) => JSON.stringify({
       npcs: r.state.world.npcs.map((n) => [
         n.role, n.state.energy,
@@ -577,7 +594,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       ],
       sys: r.state.sys,
       session: r.state.session,
-      commander: r.state.commander,
+      commander: { ...r.state.commander, furthestWave: 'CHECKED SEPARATELY' },
     });
 
     /** A career mid-flight, with a reception around it. */
@@ -625,6 +642,31 @@ console.log('\ncombat simulator: nothing leaves the exercise');
       trace(excursion) === wanted);
     check('...and the fixture is not vacuously empty',
       wanted.length > 1000 && control.state.world.npcs.length > 0);
+
+    // --- the ONE thing a run of waves is allowed to leave behind -------------
+    //
+    // TODO 39: a run needs a result worth coming back to, so the furthest wave
+    // it reached is kept with the commander. Everything else about the run is
+    // still gone — the check above is over every other field of the commander,
+    // by name, and it is that check which makes this one an exception rather
+    // than a hole. It is not a rating, a kill or a credit, and nothing in the
+    // career reads it.
+    {
+      const best = excursion.state.commander.furthestWave;
+      check(`a run of waves leaves its furthest wave on the career (wave ${best})`,
+        best >= 1 && best === furthestWave(excursionRecords));
+      check('...and a career that never flew one has none',
+        control.state.commander.furthestWave === 0);
+      check('...and it is SAVED, not just held — a best that dies with the tab is not one',
+        JSON.parse(held.get(KEYS.commander) ?? '{}').furthestWave === best);
+      check('...while the two fields the whole rule is about did not move',
+        excursion.state.commander.kills === 137
+        && excursion.state.commander.combatScore === 642);
+      // ...and it only ever grows: a bad run does not cost you a good one.
+      recordFurthestWave(excursion.state.commander, 1);
+      check('...and a worse run later cannot take it away',
+        excursion.state.commander.furthestWave === best);
+    }
 
     // the negative control: a career that took a DIFFERENT excursion is allowed
     // to differ from neither of them — what must not differ is the one above

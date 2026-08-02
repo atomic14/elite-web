@@ -313,6 +313,24 @@ one thing that is also a player feature.
      and the mode that answers "how many can I actually take?" — which is the
      question `npm run survivability` currently answers with a bot.
 
+     **It escalates twice** (TODO 39). The NUMBERS first — count and tier, to
+     six ships in an organised gang, saturating at wave 11 — and then the
+     FIGHT, in four stated steps two waves apart: missiles at 12, E.C.M. at
+     14, a bounty hunter among them at 16, and a Thargoid with its Thargon at
+     18, each taking a pirate's PLACE rather than adding to the count. Past 18
+     every wave is identical, which is the property that makes surviving three
+     of them mean something. Every step is a pure function of the wave number
+     and lives beside the ramp in `combat-sim-scenarios.ts`; the banner names
+     each one as it arrives, the cockpit strip carries the standing list, and
+     the record carries a `WaveEscalation` with the reason, because an
+     escalation the pilot cannot see is indistinguishable from bad luck.
+
+     The furthest wave a run reaches is kept with the commander
+     (`commander.furthestWave`) — the ONE exception to "nothing leaves the
+     exercise", argued at its field and at the teardown that writes it. It is
+     not a rating, a kill or a credit; no career rule reads it, and it is shown
+     on the trainer's own panel and nowhere else.
+
    All three export; waves and sparring emit a record per wave / per kill so a
    long session is still usable data rather than one summary line.
 

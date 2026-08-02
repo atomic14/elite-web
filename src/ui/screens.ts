@@ -15,7 +15,7 @@ import type { SlotSummary } from '../game/storage.ts';
 import { describeContract } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import {
-  PASS_CLOSE, PASS_FAR, type CombatSimReport, type OpeningGeometry,
+  PASS_CLOSE, PASS_FAR, type CombatSimReport, type OpeningGeometry, type WaveEscalation,
 } from '../game/combat-sim-report.ts';
 import type {
   CompareGroup, SimComparePanel,
@@ -968,6 +968,25 @@ function opening(o: OpeningGeometry): string {
     + ` &middot; ${o.inView ? 'IN VIEW' : 'NOT IN VIEW'}`;
 }
 
+/**
+ * `WAVE 14 OF A RAMP THAT SATURATES AT 18 · CARRYING MISSILES, E.C.M. · NEW: …`
+ *
+ * On the report because the escalation past wave 11 changes the FIGHT rather
+ * than the arithmetic — the opponent table below still says six ships at tier 2,
+ * exactly as it did at wave 11 — so without this line a pilot cannot tell a hard
+ * wave from an unlucky one. The reason is quoted too: a step whose argument is
+ * only in the source is a step nobody can disagree with.
+ */
+function escalation(e: WaveEscalation): string {
+  const carrying = e.active.length ? e.active.join(', ') : 'NOTHING YET';
+  return `<div class="info" style="text-align:center">
+      WAVE ${e.wave} OF A RAMP THAT SATURATES AT ${e.saturatesAt}
+      &middot; CARRYING ${carrying}
+      ${e.added ? `<br/><b>NEW THIS WAVE: ${e.added}</b> &mdash; ${e.why.toUpperCase()}`
+    : `<br/>${e.why.toUpperCase()}`}
+    </div>`;
+}
+
 /** `laser 41.0 (12) · ram 8.0 (1)` — what hurt, and how often. */
 function bySource(
   tallies: Partial<Record<string, { damage: number; count: number }>>,
@@ -1018,6 +1037,7 @@ export function renderCombatSimReport(
       ${r.player.energyUnit ? '&middot; ENERGY UNIT' : ''}
       ${r.player.energyBomb ? '&middot; ENERGY BOMB' : ''}
     </div>
+    ${r.escalation ? escalation(r.escalation) : ''}
     <div class="chartrow">
       <table>
         <tr><th>&nbsp;</th><th class="num">YOU</th><th class="num">THEM</th></tr>

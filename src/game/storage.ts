@@ -235,6 +235,8 @@ export function loadCommander(slot = currentSlot()): CommanderData {
     if (typeof parsed.trumbles !== 'number') parsed.trumbles = 0;
     // saves written before survivors stopped being logged as slaves
     if (typeof parsed.survivors !== 'number') parsed.survivors = 0;
+    // ...and before the combat trainer's waves mode kept a best
+    if (typeof parsed.furthestWave !== 'number') parsed.furthestWave = 0;
     if (!Array.isArray(parsed.cargo) || parsed.cargo.length !== COMMODITIES.length) {
       parsed.cargo = COMMODITIES.map(() => 0);
     }

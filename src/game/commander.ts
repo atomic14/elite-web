@@ -147,6 +147,24 @@ export interface CommanderData {
   trumbles: number;
   /** elapsed days — advanced by hyperspace jumps, used for deadlines */
   day: number;
+  /**
+   * The furthest wave this commander has ever reached in the combat trainer.
+   *
+   * THE ONE THING AN EXERCISE IS ALLOWED TO LEAVE BEHIND, and it is here rather
+   * than in the trainer because a run needs a result worth coming back to and a
+   * result that dies with the tab is not one. It is state, so it is saved.
+   *
+   * It is deliberately NOT a rating, a kill or a credit, and nothing in the
+   * career reads it: `rating()` reads `combatScore`, `markOf` reads the hold and
+   * the reputation, and neither has heard of this. It is shown on the trainer's
+   * own setup panel and nowhere else — the room's promise is that nothing that
+   * happens in it leaves it, and a number the galaxy cannot see does not break
+   * that promise. `test/combat-sim-career.test.ts` holds it to exactly that:
+   * after a run of waves it is the ONLY field of the career that has moved.
+   *
+   * Absent in every save written before it existed, and those load as 0.
+   */
+  furthestWave: number;
   contracts: Contract[];
   /** living-galaxy deltas (prices, danger, convoys in flight) */
   galaxyState?: GalaxyStateSave;
@@ -173,8 +191,26 @@ export function newCommander(): CommanderData {
     mission: { stage: 0, targetIndex: null },
     trumbles: 0,
     day: 0,
+    furthestWave: 0,
     contracts: [],
   };
+}
+
+/**
+ * A run of waves ended at `wave`. Keep it if it is the best there has been.
+ *
+ * A rule rather than a `Math.max` at the call site because there are two call
+ * sites — the Game and the harness that proves the Game is right — and a
+ * monotonic record written out twice is a record that eventually goes backwards.
+ * It only ever grows: a bad run does not cost you a good one.
+ *
+ * @returns whether it moved, so the caller knows whether there is anything to save.
+ */
+export function recordFurthestWave(c: CommanderData, wave: number): boolean {
+  const best = Math.max(0, Math.floor(wave));
+  if (!(best > (c.furthestWave ?? 0))) return false;
+  c.furthestWave = best;
+  return true;
 }
 
 export function rating(combatScore: number): string {

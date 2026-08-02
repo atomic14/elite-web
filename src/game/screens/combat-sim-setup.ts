@@ -148,6 +148,15 @@ export interface SimDraft {
    * could have made, which the row says rather than mislabelling.
    */
   live: LiveBrainId | null;
+  /**
+   * The furthest wave this commander has ever reached, 0 for never.
+   *
+   * READ from the commander, never written here: the draft is a picker and the
+   * record is the career's (`commander.furthestWave`). Re-read every time the
+   * screen opens, exactly as `live` is, because a run since the last open is
+   * precisely when it changes.
+   */
+  furthestWave: number;
   fit: FitDraft;
 }
 
@@ -216,6 +225,7 @@ export function freshDraft(c: CommanderData, live: LiveBrainId | null = AS_SHIPP
     groups: [],
     brain: AS_THE_GAME_FLIES,
     live,
+    furthestWave: c.furthestWave ?? 0,
     fit: {
       laser: c.equipment.laser,
       rearLaser: c.equipment.rearLaser,

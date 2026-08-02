@@ -116,6 +116,7 @@ import { BEAM_Z } from '../engine/render-stack.ts';
 
 import {
   formatCredits,
+  recordFurthestWave,
   type Contract,
 } from './commander.ts';
 import {
@@ -322,6 +323,16 @@ export class Game {
       sound: (event) => this.playSound(event),
       flashDamage: () => this.hud.flashDamage(),
       aimBeams: (at) => this.aimBeams(at),
+      // The one number a run leaves behind. The RULE is commander.ts's — only
+      // ever grows, and it says whether it moved — so this applies it and saves
+      // it, which is all an orchestrator does. Written straight to storage
+      // rather than left for the next autosave, because a pilot who reads their
+      // best wave off the panel and closes the tab has earned it.
+      recordFurthestWave: (wave) => {
+        if (recordFurthestWave(this.state.commander, wave)) {
+          saveCommander(this.state.commander);
+        }
+      },
       // The exercise has torn down and the career is back: hold the records and
       // put the report on screen. Ordering is not incidental — teardown restores
       // the mode first (`enterMode` clears the stack), so pushing the screen

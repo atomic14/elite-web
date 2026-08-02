@@ -301,6 +301,35 @@ export interface OpeningGeometry {
   inView: boolean;
 }
 
+/**
+ * What the wave ramp has turned on by this wave — the waves mode only.
+ *
+ * Declared here rather than where the rule lives (`combat-sim-scenarios.ts`,
+ * which fills it in) for the same reason `OpeningGeometry` is: it is part of the
+ * SHAPE OF THE RECORD, and this file owns that shape. The rules module imports
+ * the type; nothing here computes one.
+ *
+ * It exists because an escalation nobody can see is not an escalation. Count and
+ * tier are readable from the opponent table — six ships at tier 2 is six lines
+ * saying so — but "they are all carrying missiles now" and "one of them is not a
+ * pirate" are facts about the WAVE, and without them on the record a pilot
+ * cannot tell a hard wave from an unlucky one.
+ */
+export interface WaveEscalation {
+  /** which wave, 1-based — the same number `wave` carries */
+  wave: number;
+  /** 0 while only count and tier are ramping; then one per stated step */
+  stage: number;
+  /** everything the ramp has turned on by this wave, in the order it arrived */
+  active: readonly string[];
+  /** the one thing that is NEW in this wave, or null when nothing is */
+  added: string | null;
+  /** why — the stated reason for `added`, or for where the ramp has got to */
+  why: string;
+  /** the wave from which every wave is identical */
+  saturatesAt: number;
+}
+
 /** Everything fixed about an exercise before it starts. */
 export interface ExerciseSetup {
   /** the seed the exercise ran on, so the same fight can be flown again */
@@ -313,6 +342,8 @@ export interface ExerciseSetup {
   opening: OpeningGeometry;
   /** which wave this record covers, in the waves mode */
   wave?: number;
+  /** what the ramp had turned on by it — waves mode only, see `WaveEscalation` */
+  escalation?: WaveEscalation;
   /** override the sampling rate; every derived duration follows it */
   sampleHz?: number;
 }
@@ -440,6 +471,8 @@ export interface CombatSimReport {
   scenario: string;
   mode: SimMode;
   wave?: number;
+  /** what the wave ramp had turned on by this wave — see `WaveEscalation` */
+  escalation?: WaveEscalation;
   outcome: SimOutcome;
   seconds: number;
   /** seconds with at least one hostile in the sky */
@@ -886,6 +919,7 @@ export class CombatSimRecorder {
       scenario: this.setup.scenario,
       mode: this.setup.mode,
       ...(this.setup.wave === undefined ? {} : { wave: this.setup.wave }),
+      ...(this.setup.escalation === undefined ? {} : { escalation: this.setup.escalation }),
       outcome,
       seconds: p.seconds,
       engagedSeconds: secs(engagedFrames),
@@ -1096,6 +1130,20 @@ const low = (xs: number[]): number | null => (xs.length ? Math.min(...xs) : null
 /** The report as JSON, ready for the clipboard or a file. */
 export function combatSimJson(report: CombatSimReport): string {
   return JSON.stringify(report, null, 1);
+}
+
+/**
+ * How far a run of waves got — 0 for a set of records that is not one.
+ *
+ * REACHED, not cleared: the wave that killed you is the wave you got to, and it
+ * is the number a pilot quotes. It is derived from the records rather than
+ * counted alongside them for the usual reason — the records are the run's own
+ * account of itself, so a second tally could disagree with the report the pilot
+ * is looking at.
+ */
+export function furthestWave(records: readonly CombatSimReport[]): number {
+  return records.reduce(
+    (n, r) => (r.mode === 'waves' ? Math.max(n, r.wave ?? 0) : n), 0);
 }
 
 // --- the ring of recent exercises -------------------------------------------

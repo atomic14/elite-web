@@ -147,6 +147,7 @@ console.log('\ncombat simulator — the opening, flown');
       sound: () => {},
       flashDamage: () => {},
       aimBeams: () => {},
+      recordFurthestWave: () => {},
       finished: () => {},
     };
     return {

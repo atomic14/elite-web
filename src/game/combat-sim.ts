@@ -36,6 +36,14 @@
 //     also puts the rng stream back exactly, because `Persistence.restore` does
 //     that last.
 //
+// **The one exception, stated rather than smuggled.** A run of the waves mode
+// leaves exactly one number behind: `commander.furthestWave`, the furthest wave
+// it reached. A run needs a result worth coming back to, and a result that dies
+// with the tab is not one. It is not a rating, a kill or a credit; no career
+// rule reads it, and `commander.ts` says so at the field. It is written AFTER
+// the entry snapshot has been restored — before it, the restore would put it
+// back — and it is reported to the orchestrator rather than written here.
+//
 // `die()` is the one that is data loss rather than a leak: `Game.die` calls
 // `clearWorld()` on purpose, so death is not optional if you refresh, and a
 // simulated death reaching it would delete the player's real saved world. It is
@@ -68,7 +76,7 @@ import {
   type CombatEvent, type CombatScratch, type DamageSource,
 } from './combat.ts';
 import {
-  CombatSimRecorder, aimAngle, makeSimLog,
+  CombatSimRecorder, aimAngle, furthestWave, makeSimLog,
   type CombatSimReport, type ContactSample, type ExerciseSetup, type FrameSample,
   type OpeningGeometry, type OpponentSetup, type PlayerLoadout, type SimLog,
   type SimOutcome,
@@ -79,7 +87,7 @@ import {
 import { exerciseStrip, type ExerciseStrip } from './combat-sim-strip.ts';
 import {
   MODES, allShips, describeOpposition, liveBrainFor, nextOpposition, roundOutcome,
-  roundSeed, scenarioById,
+  roundSeed, scenarioById, waveEscalation,
   type BrainId, type ExerciseSession, type ExerciseSpec, type Opposition,
   type SimShip, type ThreatContext,
 } from './combat-sim-scenarios.ts';
@@ -151,6 +159,17 @@ export interface SimHost {
   flashDamage(): void;
   /** point the cockpit beams at what the shot found, or straight ahead */
   aimBeams(at: THREE.Vector3 | null): void;
+  /**
+   * A run of waves reached this far — the ONE number an exercise may leave
+   * behind, and the only exception to the rule at the top of this file.
+   *
+   * Reported rather than written, because it is the career that keeps it and
+   * this module does not touch the career: the orchestrator applies it through
+   * `commander.ts`'s `recordFurthestWave` and saves. Called after the entry
+   * snapshot has been restored — before it, the restore would simply undo it —
+   * and only when a run of waves actually reached a wave.
+   */
+  recordFurthestWave(wave: number): void;
   /** the exercise is over and the records are ready to read */
   finished(reports: readonly CombatSimReport[]): void;
 }
@@ -490,6 +509,12 @@ export class CombatSim {
     // At t=0, beside who turned up: the two facts a reader needs to know whether
     // the fight they are reading started where it meant to.
     this.recorder.event(`opening: ${describeOpening(opening)}`);
+    // ...and, in the waves mode, what the ramp has turned on by this one. The
+    // record carries the escalation as a field for the report to paint; this is
+    // the same fact in the event log, where the reason it gives can be read
+    // beside the fight it explains.
+    const step = this.recorder.setup.escalation;
+    if (step?.added) this.recorder.event(`wave ${step.wave} adds ${step.added} — ${step.why}`);
     for (const w of this.brainWarnings) this.recorder.warn(w);
     return true;
   }
@@ -556,6 +581,10 @@ export class CombatSim {
       opponents,
       opening,
       ...(endless ? { wave: this.round + 1 } : {}),
+      // Waves only: sparring is endless and therefore has a `wave`, but nothing
+      // about it escalates, and an escalation of "stage 0, nothing added" on
+      // every sparring record would be a field that means nothing.
+      ...(spec.mode === 'waves' ? { escalation: waveEscalation(this.round + 1) } : {}),
     };
   }
 
@@ -601,8 +630,13 @@ export class CombatSim {
     }
     if (!this.beginRound()) { this.finish('cleared'); return; }
     const setup = this.recorder!.setup;
-    this.host.message(
-      setup.wave === undefined ? 'NEXT OPPONENT' : `WAVE ${setup.wave}`, 3);
+    if (setup.wave === undefined) { this.host.message('NEXT OPPONENT', 3); return; }
+    // The banner NAMES what is new, because a wave that is harder in a way the
+    // pilot cannot see is indistinguishable from a wave that went badly. Only on
+    // the wave that adds it: the strip carries the standing list from then on,
+    // and a banner that repeated it every wave would stop being read.
+    const added = setup.escalation?.added;
+    this.host.message(`WAVE ${setup.wave}${added ? ` — ${added}` : ''}`, added ? 5 : 3);
   }
 
   /** How this ended, for a round that ran out rather than being ended. */
@@ -673,6 +707,15 @@ export class CombatSim {
     this.spec = null;
     this.opponents = [];
     this.phase = 'idle';
+
+    // 4. And the one thing that goes the other way. Everything above is about
+    //    the career surviving the exercise unchanged; this is the single number
+    //    a run is allowed to leave behind, and it is here — AFTER the restore
+    //    and after the byte check — precisely because the restore would
+    //    otherwise put it back. It is not a rating, a kill or a credit, and no
+    //    career rule reads it (commander.ts says so at the field).
+    const reached = furthestWave(done);
+    if (reached > 0) this.host.recordFurthestWave(reached);
 
     const last = done[done.length - 1];
     if (last) {

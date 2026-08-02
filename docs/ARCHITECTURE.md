@@ -260,7 +260,9 @@ src/
     combat-sim.ts           the training exercise: a real fight that costs
                             nothing — the commander swap, the entry snapshot,
                             its own StepHost
-    combat-sim-scenarios.ts who it sends at you, and when it stops sending
+    combat-sim-scenarios.ts who it sends at you, and when it stops sending —
+                            the seven fights, the wave ramp (numbers, then the
+                            four stated steps past it) and the three modes
     combat-sim-opening.ts   where an exercise is fought and where the two sides
                             start it: the arena centre, the per-scenario arc,
                             range and cone, and the geometry the record quotes

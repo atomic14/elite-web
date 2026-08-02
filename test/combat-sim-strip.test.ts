@@ -30,7 +30,8 @@ import {
 } from '../src/game/combat-sim-report.ts';
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import {
-  MODES, SCENARIO_TIMEOUT, exerciseTimeout, type ExerciseSpec,
+  MODES, SCENARIO_TIMEOUT, WAVE_SATURATION, exerciseTimeout, waveEscalation,
+  type ExerciseSpec,
 } from '../src/game/combat-sim-scenarios.ts';
 import { exerciseStrip, type ExerciseStrip } from '../src/game/combat-sim-strip.ts';
 import type { FlightDemand } from '../src/player.ts';
@@ -93,6 +94,18 @@ console.log('\ncombat simulator — the exercise strip');
     eq('waves is endless too', s.remaining, null);
     eq('...and scored on the wave you reached', s.score, 'waves');
     eq('...taken from the wave the round\'s own record will carry', s.standing, 4);
+    eq('...and it carries no escalation while the ramp has added nothing',
+      s.escalation, null);
+    // The escalation is the record's, carried and not derived: the strip cannot
+    // say the wave is carrying missiles unless the round's setup says so.
+    const late = exerciseStrip(spec({ mode: 'waves' }), setup({
+      mode: 'waves',
+      wave: WAVE_SATURATION,
+      escalation: waveEscalation(WAVE_SATURATION),
+    }), progress());
+    eq('...and everything the ramp HAS turned on, in the record\'s own words',
+      (late.escalation ?? []).join(),
+      waveEscalation(WAVE_SATURATION).active.join());
   }
   {
     // The property the strip rests on, asserted where it lives: at ANY instant,
@@ -184,6 +197,7 @@ console.log('\ncombat simulator — the strip is the record, early');
       sound: () => {},
       flashDamage: () => {},
       aimBeams: () => {},
+      recordFurthestWave: () => {},
       finished: () => {},
     };
     r.sim = new CombatSim(state, ordnance, combat, persistence, simHost, makeSimLog());
@@ -224,6 +238,7 @@ console.log('\ncombat simulator — the strip is the record, early');
       remaining: limit > 0 ? Math.max(0, Math.round((limit - rec.seconds) * 10) / 10) : null,
       score,
       standing: score === 'waves' ? rec.wave! : rec.kills.yours,
+      escalation: rec.escalation?.active ?? null,
       shots: rec.you.shots,
       hits: rec.you.hits,
       accuracy: rec.you.accuracy,

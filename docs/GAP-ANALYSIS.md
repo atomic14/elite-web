@@ -180,6 +180,14 @@ one table in [ELITE-A.md](ELITE-A.md).
   project could produce and lost the only one that counted. Every exercise
   exports a JSON record, and those records are the missing input.
 
+  Its **waves** mode is the furthest from anything in the original, and
+  deliberately so: it sends a Thargoid and a Thargon at wave 18, which the
+  released game only ever does in witch-space. That is a simulator sending what
+  a simulator can send, not a change to what the galaxy spawns — `encounters.ts`
+  is untouched — and the whole ramp is a Harmless selection policy over released
+  hulls and released builds. The one thing it leaves behind, the furthest wave
+  reached, is not a rating and nothing in the career reads it.
+
   The rule that makes it defensible is that **nothing which happens in it
   leaves it**: no kills, no `combatScore`, no credits, no legal status, no cargo
   or equipment lost, no save write, and death ends the exercise rather than the

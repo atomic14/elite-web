@@ -51,6 +51,17 @@ export interface ExerciseStrip {
   score: ModeRules['score'];
   /** the standing in that score: the wave you are on, or kills */
   standing: number;
+  /**
+   * What the wave ramp has turned on by this wave, or null outside the waves
+   * mode — `WaveEscalation.active`, carried and not formatted.
+   *
+   * The banner names a step on the wave that adds it and then it is gone, which
+   * is right for an announcement and wrong for a fact you have to fly against
+   * for the rest of the run: three waves later a pilot needs to know that
+   * everything out there is carrying a missile, and the cockpit is where they
+   * are looking.
+   */
+  escalation: readonly string[] | null;
   shots: number;
   hits: number;
   /** hits / shots, or null when the trigger has not been pulled */
@@ -85,6 +96,7 @@ export function exerciseStrip(
     // the number the round's own record will carry, so a strip and the wave's
     // record never quote different waves.
     standing: score === 'waves' ? (setup.wave ?? 1) : progress.kills,
+    escalation: setup.escalation?.active ?? null,
     shots: progress.shots,
     hits: progress.hits,
     accuracy: progress.accuracy,

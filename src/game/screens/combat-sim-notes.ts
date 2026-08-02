@@ -17,7 +17,8 @@
 // bound that moved with the draft would not be one.
 
 import {
-  SCENARIOS, SHIPPED_DEFENCE_BRAIN, SHIPPED_PACK_BRAIN, SHIPPED_SOLO_BRAIN, type SimMode,
+  SCENARIOS, SHIPPED_DEFENCE_BRAIN, SHIPPED_PACK_BRAIN, SHIPPED_SOLO_BRAIN,
+  WAVE_SATURATION, WAVE_STEPS, waveOfStage, type SimMode,
 } from '../combat-sim-scenarios.ts';
 import {
   AS_SHIPPED, BRAIN_CHARACTER, LIVE_BRAIN_IDS, brainCharacter, type LiveBrainId,
@@ -34,6 +35,22 @@ const MIXED_BRAINS = 'MIXED BRAINS CANNOT FLY: THE GAME LOADS ONE POLICY PER ROL
   + 'SO THE LIVE BRAINS WILL. SET THE EXERCISE BRAIN ROW INSTEAD.';
 
 /**
+ * What the waves mode escalates, and where it stops — DERIVED from the ramp.
+ *
+ * Typed out, this would be a second home for the step table, wrong the day
+ * somebody adds a step or moves the cadence. The pilot needs to know two things
+ * before launching: that the ramp has a top, and that it is not just more ships.
+ */
+const wavesRamp = (): string =>
+  `PAST WAVE ${waveOfStage(1) - 1} THE NUMBERS STOP AND THE FIGHT CHANGES: `
+  + `${WAVE_STEPS.map((s, i) => `${s.name} AT ${waveOfStage(i + 1)}`).join(', ')} `
+  + `— AND NO HARDER FROM ${WAVE_SATURATION} ON.`;
+
+/** `YOUR FURTHEST: WAVE 13.` — the one thing a run leaves behind. */
+const bestWave = (n: number): string =>
+  (n > 0 ? ` YOUR FURTHEST: WAVE ${n}.` : ' YOU HAVE NOT FLOWN ONE YET.');
+
+/**
  * The longest of a set of strings.
  *
  * A proxy for "the tallest", and an honest one here: the panel is set in the
@@ -46,10 +63,14 @@ const longest = (xs: readonly string[]): string =>
 
 /** What the panel says under the rows: the mode, the fight, and any warning. */
 export function draftNotes(d: SimDraft): string[] {
-  const out: string[] = [MODE_BLURB[d.mode]];
-  if (d.mode !== 'waves' && d.groups.length === 0) {
-    out.push(SCENARIOS[d.scenario].blurb.toUpperCase());
-  }
+  const out: string[] = [MODE_BLURB[d.mode] + (d.mode === 'waves' ? bestWave(d.furthestWave) : '')];
+  // The waves mode sends the RAMP, and only the ramp: `nextOpposition` builds
+  // every one of its rounds from the wave number, so a hand-built opposition is
+  // not flown in it at all. That is why its second slot is the ramp and why the
+  // mixed-brains complaint is not shown here — it is a warning about groups this
+  // mode was never going to send.
+  if (d.mode === 'waves') { out.push(wavesRamp()); return out; }
+  if (d.groups.length === 0) out.push(SCENARIOS[d.scenario].blurb.toUpperCase());
   const asked = new Set(d.groups
     .filter((g) => g.brain !== AS_THE_GAME_FLIES).map((g) => g.brain));
   if (d.brain === AS_THE_GAME_FLIES && asked.size > 1) out.push(MIXED_BRAINS);
@@ -70,8 +91,11 @@ export function draftNotes(d: SimDraft): string[] {
  */
 export function draftNotesReserve(): string[] {
   return [
-    longest(Object.values(MODE_BLURB)),
-    longest([...SCENARIOS.map((s) => s.blurb.toUpperCase()), MIXED_BRAINS]),
+    // The waves blurb carries the best wave, so the bound has to include every
+    // tail it can grow — the never-flown line, and a three-digit wave nobody
+    // will ever reach.
+    longest(Object.values(MODE_BLURB).flatMap((b) => [b + bestWave(999), b + bestWave(0)])),
+    longest([...SCENARIOS.map((s) => s.blurb.toUpperCase()), MIXED_BRAINS, wavesRamp()]),
   ];
 }
 

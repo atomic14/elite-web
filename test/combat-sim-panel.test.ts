@@ -16,7 +16,9 @@
 import { check, eq } from './harness.ts';
 import { readFileSync } from 'node:fs';
 import { newCommander } from '../src/game/commander.ts';
-import { SCENARIOS } from '../src/game/combat-sim-scenarios.ts';
+import {
+  SCENARIOS, WAVE_SATURATION, WAVE_STEPS, waveOfStage,
+} from '../src/game/combat-sim-scenarios.ts';
 import {
   MODES, defaultGroup, freshDraft, setupCells,
 } from '../src/game/screens/combat-sim-setup.ts';
@@ -259,4 +261,50 @@ console.log('\ncombat simulator — the panel names its keys');
     .test(read('play.html')));
   check('...and so does the README', /\*\*L\*\* re-opens the last report/
     .test(read('README.md')));
+}
+
+// --- the waves mode says what it will do to you, and how you did last time ---
+//
+// TODO 39: the ramp keeps escalating past wave 11, so the panel has to say so
+// before you launch — a pilot deciding whether to fly one needs to know that it
+// has a top and that the top is not simply more ships. And a run needs a result
+// worth coming back to, which is the furthest wave the commander has ever
+// reached: state, saved with the commander, and shown HERE and nowhere else.
+
+console.log('\ncombat simulator — the waves mode says where it stops');
+{
+  const c = newCommander();
+  const d = freshDraft(c);
+  d.mode = 'waves';
+  const note = () => draftNotes(d).join(' ');
+
+  check('a commander who has never flown one is told so',
+    /NOT FLOWN ONE YET/.test(note()) && c.furthestWave === 0);
+
+  d.furthestWave = 13;
+  check('...and one who has sees their best', /YOUR FURTHEST: WAVE 13/.test(note()));
+  eq('the draft reads the best off the COMMANDER rather than keeping its own',
+    freshDraft({ ...c, furthestWave: 9 }).furthestWave, 9);
+
+  // Derived from the step table, not typed out: a second copy of "missiles at
+  // 12" is a second copy that goes wrong the day the cadence moves.
+  const said = note();
+  check(`every step is named with the wave it arrives at `
+    + `(${WAVE_STEPS.map((s) => s.name).join(', ')})`,
+  WAVE_STEPS.every((s, i) => said.includes(`${s.name} AT ${waveOfStage(i + 1)}`)));
+  check(`...and so is where it stops (${WAVE_SATURATION})`,
+    said.includes(`NO HARDER FROM ${WAVE_SATURATION} ON`));
+  check('the other two modes say none of it — nothing escalates in them',
+    !/NO HARDER FROM/.test(draftNotes({ ...d, mode: 'sparring' }).join(' '))
+    && !/FURTHEST/.test(draftNotes({ ...d, mode: 'scenario' }).join(' ')));
+
+  // ...and the report says it afterwards, which is the other half: an
+  // escalation the pilot can only infer from losing is not a visible one.
+  const report = read('src/ui/screens.ts');
+  check('the report paints the escalation the record carries',
+    /r\.escalation \? escalation\(r\.escalation\) : ''/.test(report)
+    && /SATURATES AT \$\{e\.saturatesAt\}/.test(report)
+    && /NEW THIS WAVE/.test(report));
+  check('...and the cockpit strip carries it while the wave is being flown',
+    /strip\.escalation/.test(read('src/hud/hud.ts')));
 }

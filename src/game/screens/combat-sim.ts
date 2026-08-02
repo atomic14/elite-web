@@ -123,6 +123,9 @@ export class CombatSimScreen implements Screen {
     // launches of the same setup), and a console or an exercise teardown can
     // have moved `state.brains` underneath it since.
     this.draft.live = this.ctx().liveBrain;
+    // ...and so is the best wave, for the same reason: the draft is kept for the
+    // session, and a run flown since the last open is exactly when it moves.
+    this.draft.furthestWave = this.ctx().commander.furthestWave ?? 0;
     const n = this.ctx().reports.length;
     if (this.panel === 'report' && n === 0) this.panel = 'setup';
     // A pair needs two. The ring only grows while this screen is closed, but a

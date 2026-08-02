@@ -15,7 +15,10 @@ import {
   SCENARIO_TIMEOUT,
   MAX_TIER,
   WAVE_MAX_COUNT,
+  WAVE_COUNT_SATURATION,
   WAVE_SATURATION,
+  WAVE_STEPS,
+  WAVE_STEP_EVERY,
   SHIPPED_SOLO_BRAIN,
   SHIPPED_PACK_BRAIN,
   SHIPPED_DEFENCE_BRAIN,
@@ -31,6 +34,9 @@ import {
   waveOpposition,
   waveCount,
   waveTier,
+  waveStage,
+  waveOfStage,
+  waveEscalation,
   exerciseTimeout,
   nextOpposition,
   roundOutcome,
@@ -289,6 +295,11 @@ console.log('\ncombat trainer scenarios');
     }
 
     // waves: the human-flown answer to "how many can I actually take?"
+    //
+    // The ramp has two halves and both must RAMP, then SATURATE, never diverge.
+    // The numbers first (count and tier, saturating at WAVE_COUNT_SATURATION),
+    // and then the FIGHT — a stated step every WAVE_STEP_EVERY waves until
+    // WAVE_SATURATION, past which every wave is identical (TODO 39).
     {
       const wv = spec({ mode: 'waves' });
       const ns = Array.from({ length: 40 }, (_, i) => i + 1);
@@ -301,14 +312,48 @@ console.log('\ncombat trainer scenarios');
         + `tier ${tiers[0]}→${tiers[9]})`,
       counts[9] > counts[0] && tiers[9] > tiers[0]);
       check(`...then saturate rather than diverge (${WAVE_MAX_COUNT} ships, `
-        + `tier ${MAX_TIER}, from wave ${WAVE_SATURATION})`,
-      counts.every((c) => c <= WAVE_MAX_COUNT) && tiers.every((t) => t <= MAX_TIER));
+        + `tier ${MAX_TIER}, from wave ${WAVE_COUNT_SATURATION})`,
+      counts.every((c) => c <= WAVE_MAX_COUNT) && tiers.every((t) => t <= MAX_TIER)
+        && counts[WAVE_COUNT_SATURATION - 1] === WAVE_MAX_COUNT
+        && tiers[WAVE_COUNT_SATURATION - 1] === MAX_TIER);
+      // ...and a wave is never MORE ships than the count ramp said, which is the
+      // ceiling the new axes are forbidden to raise: the escort takes a pirate's
+      // place rather than joining it.
+      const sizes = ns.map((n) => shipCount(waveOpposition(n, 0)));
+      check(`no wave is bigger than the count ramp allows (largest ${Math.max(...sizes)})`,
+        sizes.every((k, i) => k === counts[i]));
+
+      // the FIGHT ramp: one stated step at a time, cumulative, and then it stops
+      const stages = ns.map(waveStage);
+      check('the escalation steps monotonically too',
+        stages.every((s, i) => i === 0 || s >= stages[i - 1]));
+      check(`...taking none of them until the numbers have topped out `
+        + `(stage 0 through wave ${WAVE_COUNT_SATURATION})`,
+      ns.filter((n) => n <= WAVE_COUNT_SATURATION).every((n) => waveStage(n) === 0));
+      check(`...one every ${WAVE_STEP_EVERY} waves after that `
+        + `(${WAVE_STEPS.map((s) => s.name).join(', ')})`,
+      WAVE_STEPS.every((_, i) => waveStage(waveOfStage(i + 1)) === i + 1
+          && waveStage(waveOfStage(i + 1) - 1) === i));
+      check(`...and never more than the ${WAVE_STEPS.length} that are stated`,
+        stages.every((s) => s <= WAVE_STEPS.length));
+      // Every step must actually CHANGE the wave, or it is a name and not a step.
+      const changed = WAVE_STEPS.filter((_, i) =>
+        JSON.stringify(waveOpposition(waveOfStage(i + 1), 0))
+        !== JSON.stringify(waveOpposition(waveOfStage(i + 1) - 1, 0)));
+      check('every stated step changes the fight it names',
+        changed.length === WAVE_STEPS.length,
+        WAVE_STEPS.filter((s) => !changed.includes(s)).map((s) => s.name).join(', '));
+
       const late = ns.filter((n) => n >= WAVE_SATURATION)
         .map((n) => JSON.stringify(waveOpposition(n, 0)));
       check(`every wave from ${WAVE_SATURATION} on is the same fight`,
         new Set(late).size === 1);
       check(`...and the wave before it is not (${WAVE_SATURATION - 1} differs)`,
         JSON.stringify(waveOpposition(WAVE_SATURATION - 1, 0)) !== late[0]);
+      check(`...which is where the ramp says it saturates `
+        + `(${WAVE_STEPS.length} steps, ${WAVE_STEP_EVERY} waves apart)`,
+      WAVE_SATURATION === waveOfStage(WAVE_STEPS.length)
+        && WAVE_SATURATION > WAVE_COUNT_SATURATION);
       check('a top wave is an organised gang flying the pack policy',
         waveOpposition(WAVE_SATURATION)[0].organised
         && waveOpposition(WAVE_SATURATION)[0].brain === SHIPPED_PACK_BRAIN);
@@ -323,6 +368,56 @@ console.log('\ncombat trainer scenarios');
         roundOutcome(session({ spec: wv, spawned: 3, alive: 1, playerAlive: false })) === 'over');
       check('waves do NOT restore the ship — attrition is the question',
         !MODES.waves.restoreBetweenRounds && MODES.waves.score === 'waves');
+
+      // What each step DOES, held to what the step table says it does.
+      {
+        const fit = (n: number) => allShips(waveOpposition(n, 0));
+        const msl = WAVE_STEPS.findIndex((s) => s.missiles !== undefined) + 1;
+        const ecm = WAVE_STEPS.findIndex((s) => s.ecm !== undefined) + 1;
+        const before = fit(waveOfStage(msl) - 1);
+        const after = fit(waveOfStage(msl));
+        check(`ordnance: nobody is unarmed from wave ${waveOfStage(msl)} on `
+          + `(${before.filter((s) => !s.spec.missiles).length} were)`,
+        before.some((s) => !s.spec.missiles)
+          && after.every((s) => (s.spec.missiles ?? 0) >= 1));
+        // ...and the floor is a FLOOR: the hull that already carried two keeps two
+        const rack = (ships: typeof after) => Math.max(...ships.map((s) => s.spec.missiles ?? 0));
+        check(`...without disarming the hull that already carried more `
+          + `(${rack(before)} → ${rack(after)})`,
+        rack(after) >= rack(before) && rack(before) > 1);
+        check(`E.C.M.: everybody carries one from wave ${waveOfStage(ecm)} on`,
+          fit(waveOfStage(ecm) - 1).some((s) => (s.spec.ecmChance ?? 0) < 1)
+          && fit(waveOfStage(ecm)).every((s) => s.spec.ecmChance === 1));
+        // ...and the roles the last two steps bring, which are the whole of
+        // "the fight changes rather than the arithmetic"
+        const roles = (n: number) => [...new Set(fit(n).map((s) => s.role))].sort().join(',');
+        check(`roles: pirates alone until wave ${waveOfStage(3)} (${roles(WAVE_SATURATION)})`,
+          roles(waveOfStage(3) - 1) === 'pirate'
+          && roles(waveOfStage(3)) === 'hunter,pirate'
+          && roles(WAVE_SATURATION) === 'hunter,pirate,thargoid,thargon');
+        check('...and the ones that joined are not in the gang',
+          waveOpposition(WAVE_SATURATION, 0).slice(1)
+            .every((o) => !o.organised && !o.mixed && o.brain === 'scripted'));
+      }
+
+      // The record's own account of the wave: pure in n, and it says what is new.
+      {
+        const at = (n: number) => waveEscalation(n);
+        check('an escalation is a pure function of the wave number',
+          JSON.stringify(at(14)) === JSON.stringify(waveEscalation(14)));
+        check(`...naming what is new only on the wave that adds it `
+          + `(${at(waveOfStage(1)).added})`,
+        at(waveOfStage(1)).added === WAVE_STEPS[0].name
+          && at(waveOfStage(1) + 1).added === null
+          && at(1).added === null);
+        check('...listing everything turned on so far, in order',
+          at(WAVE_SATURATION).active.join() === WAVE_STEPS.map((s) => s.name).join()
+          && at(1).active.length === 0);
+        check(`...and quoting where the ramp stops (${at(1).saturatesAt})`,
+          ns.every((n) => at(n).saturatesAt === WAVE_SATURATION));
+        check('...with a reason on every wave, new step or not',
+          ns.every((n) => at(n).why.length > 20));
+      }
     }
   }
 

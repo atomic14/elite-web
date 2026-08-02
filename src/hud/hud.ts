@@ -291,7 +291,11 @@ export class Hud {
   private drawExercise(strip: HudState['exercise']): void {
     this.exerciseEl.classList.toggle('hidden', !strip);
     if (!strip) return;
-    this.exScenarioEl.textContent = strip.scenario.toUpperCase();
+    // The fight, and — in the waves mode — what the ramp has turned on so far.
+    // Painted, not decided: the list arrives finished from the round's setup.
+    this.exScenarioEl.textContent = strip.escalation?.length
+      ? `${strip.scenario.toUpperCase()} · ${strip.escalation.join(' · ')}`
+      : strip.scenario.toUpperCase();
     this.exClockEl.textContent = `T+${strip.elapsed.toFixed(1)}s`;
     // A timed mode counts down to the moment it will be called off; an endless
     // one has nothing to count down TO, so it shows what it is scored on
