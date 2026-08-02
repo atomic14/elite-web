@@ -179,7 +179,10 @@ Free, at every station, on **T**. Pick a mode (one scored fight · endless
 sparring against one hull · escalating waves), a scenario, a threat tier, an
 optional seed, and optionally build the opposition yourself — hull, count,
 tier, brain and fit, per group — plus a fit-out override for your own ship.
-ENTER launches; **ESC** or **Q** ends the exercise.
+ENTER launches; **L** re-opens the last report; **ESC** or **Q** ends the
+exercise. The panel is grouped — the fight, who flies what, your ship — with
+**LIVE BRAINS (CAREER)** fenced off at the foot, because that one is still set
+when you undock.
 
 It is the real game: real flight model, real trained brains, real guns. But
 **nothing that happens in it leaves it** — no kills, no combat rating, no

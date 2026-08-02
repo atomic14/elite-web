@@ -26,9 +26,10 @@ import {
   SCENARIOS, SIM_BRAINS, clampTier, liveBrainFor, simHulls, type BrainId,
 } from '../src/game/combat-sim-scenarios.ts';
 import {
-  MODES, AS_THE_GAME_FLIES, brainOverride, defaultGroup, draftNotes, fitFrom,
+  MODES, AS_THE_GAME_FLIES, brainOverride, defaultGroup, fitFrom,
   freshDraft, freshSeed, nudgeOrHull, setupCells, specFrom,
 } from '../src/game/screens/combat-sim-setup.ts';
+import { draftNotes } from '../src/game/screens/combat-sim-notes.ts';
 import { renderDockedMenu } from '../src/ui/screens.ts';
 
 const read = (path: string): string =>
@@ -382,10 +383,12 @@ console.log('\ncombat simulator — purity');
   // The draft is the half worth testing, and every assertion above runs under
   // node because of this. The screen itself is allowed the DOM: it paints, reads
   // a keyboard and downloads a file.
-  const src = read('src/game/screens/combat-sim-setup.ts')
-    .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
-  check('combat-sim-setup.ts does not reach for the browser',
-    !/\b(localStorage|sessionStorage|document|window)\b/.test(src));
-  check('...and does not reach for Math.random either, which src/game bans',
-    !/Math\.random\b/.test(src));
+  for (const file of ['combat-sim-setup.ts', 'combat-sim-notes.ts']) {
+    const src = read(`src/game/screens/${file}`)
+      .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+    check(`${file} does not reach for the browser`,
+      !/\b(localStorage|sessionStorage|document|window)\b/.test(src));
+    check('...and does not reach for Math.random either, which src/game bans',
+      !/Math\.random\b/.test(src));
+  }
 }

@@ -290,6 +290,9 @@ src/
       briefing.ts           a mission, several pages, read with left and right
       combat-sim.ts         the trainer's front of house: pick a fight, read it
       combat-sim-setup.ts   what the pilot picked, and the rows that show it
+      combat-sim-notes.ts   what the panel says under the rows, and the tallest
+                            it can ever say it — the reserve that stops a note
+                            appearing from shifting the row under the cursor
 
     elite-a/                the released-Elite-A reference catalogue, and the
                             rules that read it. Everything ending .generated.ts

@@ -17,8 +17,11 @@ import {
 } from '../src/game/brain-names.ts';
 import { liveBrainFor } from '../src/game/combat-sim-scenarios.ts';
 import {
-  defaultGroup, draftNotes, freshDraft, liveSelectionOf, setupCells, specFrom,
+  defaultGroup, freshDraft, liveSelectionOf, setupCells, specFrom,
 } from '../src/game/screens/combat-sim-setup.ts';
+import {
+  careerNote, careerNoteReserve, draftNotes,
+} from '../src/game/screens/combat-sim-notes.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { check, eq } from './harness.ts';
 
@@ -137,16 +140,38 @@ const d = freshDraft(newCommander());
 const row = () => setupCells(d).find((c) => c.label === 'LIVE BRAINS (CAREER)')!;
 eq('the panel offers it, and it starts at the shipped set', row().value, 'AS SHIPPED');
 eq('...so the draft asks for no override', JSON.stringify(liveSelectionOf(d)), '{}');
-check('...and the notes say nothing about it',
-  !draftNotes(d).some((n) => /LIVE BRAINS/.test(n)));
+// The fence is never an empty box: the reserved space is held whether or not
+// there is a warning in it, so the calm case says the calm thing instead of
+// leaving a hole. It is a STATUS, not a warning, and the two are painted apart.
+eq('...and the fence says so rather than sitting empty',
+  careerNote(d).text, 'AS SHIPPED — NOTHING HERE FOLLOWS YOU OUT.');
+eq('...as a status, not a warning', careerNote(d).warning, false);
+
+// It is fenced off from the exercise settings and it is LAST, because it is the
+// one row that is still set when you undock. A pilot reading it beside EXERCISE
+// BRAIN read it as a second override for the same fight.
+check('the row is fenced off from the exercise settings', row().fenced === true);
+check('...under a heading that says it leaves the room',
+  /LEAVES THE ROOM/.test(row().heading ?? ''));
+eq('...and it is the last row on the panel',
+  setupCells(d).at(-1)!.label, 'LIVE BRAINS (CAREER)');
+check('...so no exercise setting sits below it',
+  setupCells(d).filter((c) => c.fenced).length === 1);
 
 // step to a named policy: one arrow key, and it is the whole galaxy
 d.live = 'pirate-attack-t29';
 eq('a picked policy reads back on the row', row().value, 'PIRATE-ATTACK-T29');
 eq('...and is the selection the game would fly',
   JSON.stringify(liveSelectionOf(d)), '{"t29":true}');
-check('...and the panel says it outlives the exercise',
-  draftNotes(d).some((n) => /LIVE BRAINS: THE WHOLE GALAXY FLIES PIRATE-ATTACK-T29/.test(n)));
+check('...and the fenced note says it outlives the exercise',
+  /LIVE BRAINS: THE WHOLE GALAXY FLIES PIRATE-ATTACK-T29/.test(careerNote(d).text));
+eq('...as a warning this time, painted apart from the calm case',
+  careerNote(d).warning, true);
+check('...in words the contextual help does not use, because it is forgettable',
+  /CAREER|SAVED WITH THE COMMANDER/.test(careerNote(d).text)
+  && !draftNotes(d).some((n) => /LIVE BRAINS/.test(n)));
+check('...and the space it takes is reserved whether it is there or not',
+  careerNoteReserve().length >= careerNote(d).text.length);
 
 // ...and every "AS THE GAME FLIES" hint on the panel follows it, because the
 // hint's whole job is to say what the opposition will actually be flying
@@ -161,8 +186,10 @@ eq('...and that is the brain the spec carries',
 // a console-set combination the picker cannot name is SAID, not guessed
 d.live = null;
 eq('a selection only the console can make says so', row().value, 'SET FROM THE CONSOLE');
-check('...on the panel too',
-  draftNotes(d).some((n) => /SET FROM THE CONSOLE/.test(n)));
+check('...in the fenced note too', /SET FROM THE CONSOLE/.test(careerNote(d).text));
+eq('...and that is a warning as well', careerNote(d).warning, true);
+check('...and it fits the reserved space',
+  careerNoteReserve().length >= careerNote(d).text.length);
 row().change!(1);
 check('...and one arrow key takes it back', d.live !== null);
 }

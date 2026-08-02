@@ -120,7 +120,8 @@ Two levels, because the audiences differ:
   `game/brain-names.ts` and checked against the imports in `game/brains.ts` by
   `npm test`), and the fit — missiles, E.C.M.
 
-There is one row on the panel that is NOT about the exercise: **LIVE BRAINS
+There is one row on the panel that is NOT about the exercise, and it is fenced
+off at the foot of it, under a heading saying so: **LIVE BRAINS
 (CAREER)** writes `state.brains`, so the policy you pick there is what the whole
 galaxy flies once you leave the station, until you set it back to AS SHIPPED. It
 is state, so it is in the save; it is a name, so the panel and the report agree

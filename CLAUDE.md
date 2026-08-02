@@ -268,7 +268,7 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
   (`flight`, `geometry`, `npc`, `systems`, `combat`, `gunnery`,
   `instrumentation`, `damage-paths`, four `elite-a-*`, `ship-identity`,
   `ship-roles`, `role-variants`), the brains (`ai`, `combat-model`, `arena`),
-  the shell (`ui`, `hud-binding`, `audio`) and four for the combat trainer.
+  the shell (`ui`, `hud-binding`, `audio`) and five for the combat trainer.
   `test/run.ts` is an INDEX that imports them all and prints one total;
   `test/elite-a.ts` is a second index over the alignment-critical subset, with
   no assertions of its own. `harness.ts` holds `check`, `fixtures.ts` holds

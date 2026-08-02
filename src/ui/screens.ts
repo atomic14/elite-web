@@ -15,7 +15,7 @@ import type { SlotSummary } from '../game/storage.ts';
 import { describeContract } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import type { CombatSimReport } from '../game/combat-sim-report.ts';
-import type { SimSetupRow } from '../game/screens/combat-sim-setup.ts';
+import type { SimSetupPanel, SimSetupRow } from '../game/screens/combat-sim-setup.ts';
 import { elementById, inertElement } from '../engine/inert-dom.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
@@ -865,24 +865,57 @@ export function renderContracts(
 // --- the combat training simulator -----------------------------------------
 
 /**
+ * One line of the setup panel, with its group heading above it if it opens one.
+ *
+ * The heading is a `<tr>` with NO `data-row`, so a click on it walks up to a
+ * table that has none either and is ignored: a heading cannot be selected, and
+ * the row indices stay exactly `setupCells()`'s.
+ */
+const simSetupRow = (r: SimSetupRow, i: number, selected: number): string =>
+  `${r.heading ? `<tr class="grouphead"><td colspan="2">${r.heading}</td></tr>` : ''}
+      <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}"
+        ${r.dim ? 'style="opacity:0.45"' : ''}>
+        <td>${r.label}</td><td class="num">${r.value}</td>
+      </tr>`;
+
+/**
+ * A block of notes that always occupies the height of its worst case.
+ *
+ * `reserve` is painted first and made invisible, `live` sits on top of it in the
+ * same grid cell, and the taller of the two sets the height — so a warning
+ * appearing does not push the rows above it up by a line while the cursor is on
+ * one of them. Wrapping is included for free, which is why this is a ghost and
+ * not a line count.
+ */
+const reservedNotes = (
+  live: readonly string[], reserve: readonly string[], tone: string,
+): string => {
+  const lines = (xs: readonly string[]): string =>
+    xs.map((t) => `<div class="keyline ${tone}">${t}</div>`).join('');
+  return `<div class="reserved">
+      <div class="hold" aria-hidden="true">${lines(reserve)}</div>
+      <div>${lines(live)}</div>
+    </div>`;
+};
+
+/**
  * The setup panel: a list of rows, and which one the cursor is on.
  *
  * A row list rather than a named field per control, because the panel's shape
  * depends on what has been picked — a custom opposition grows seven rows per
  * group — and a renderer that knew that would be holding half the screen's
- * logic. It paints a list; `screens/combat-sim-setup.ts` decides what is in it.
+ * logic. It paints a list; `screens/combat-sim-setup.ts` decides what is in it,
+ * which of them opens a group, and which one is fenced off.
  */
-export function renderCombatSimSetup(
-  rows: readonly SimSetupRow[],
-  selected: number,
-  notes: readonly string[],
-  hasReport: boolean,
-): void {
-  const body = rows.map((r, i) => `
-      <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}"
-        ${r.dim ? 'style="opacity:0.45"' : ''}>
-        <td>${r.label}</td><td class="num">${r.value}</td>
-      </tr>`).join('');
+export function renderCombatSimSetup(p: SimSetupPanel): void {
+  const exercise = p.rows
+    .map((r, i) => (r.fenced ? '' : simSetupRow(r, i, p.selected))).join('');
+  const career = p.rows
+    .map((r, i) => (r.fenced ? simSetupRow(r, i, p.selected) : '')).join('');
+  const hints = [
+    'CLICK A ROW', '&uarr;&darr; SELECT', '&larr;&rarr; CHANGE', 'R RANDOM SEED',
+    'A ADD OPPONENT', 'X REMOVE', ...(p.hasReport ? ['L LAST REPORT'] : []), 'ESC DONE',
+  ];
   show(`
     <h2>COMBAT TRAINING SIMULATOR</h2>
     <div class="rule"></div>
@@ -890,17 +923,19 @@ export function renderCombatSimSetup(
       NOTHING THAT HAPPENS IN HERE LEAVES IT &mdash;
       NO KILLS, NO RATING, NO CREDITS, NO LEGAL STATUS, NO SAVE
     </div>
-    <table>${body}</table>
-    ${notes.map((t) => `<div class="keyline" style="color:var(--hud-amber)">${t}</div>`).join('')}
+    <table>${exercise}</table>
+    ${reservedNotes(p.notes, p.notesReserve, 'note-help')}
+    <div class="fence">
+      <table>${career}</table>
+      ${reservedNotes([p.careerNote.text], [p.careerReserve],
+    p.careerNote.warning ? 'note-warn' : 'note-calm')}
+    </div>
     <div class="buttons">
       <button data-key="Enter">ENTER &mdash; LAUNCH</button>
-      ${hasReport ? '<button data-key="KeyL">L &mdash; LAST REPORT</button>' : ''}
+      ${p.hasReport ? '<button data-key="KeyL">L &mdash; LAST REPORT</button>' : ''}
       <button data-key="Escape">ESC &mdash; DONE</button>
     </div>
-    <div class="keyline">
-      CLICK A ROW &middot; &uarr;&darr; SELECT &middot; &larr;&rarr; CHANGE &middot;
-      R RANDOM SEED &middot; A ADD OPPONENT &middot; X REMOVE &middot; ESC DONE
-    </div>
+    <div class="keyline hints">${hints.map((h) => `<span>${h}</span>`).join('\n      ')}</div>
   `);
 }
 

@@ -23,9 +23,12 @@ import type { ExerciseFit } from '../combat-sim.ts';
 import { combatSimJson, type CombatSimReport } from '../combat-sim-report.ts';
 import type { ExerciseSpec } from '../combat-sim-scenarios.ts';
 import {
-  defaultGroup, draftNotes, fitFrom, freshDraft, freshSeed, setupCells, specFrom,
+  defaultGroup, fitFrom, freshDraft, freshSeed, setupCells, specFrom,
   type SimDraft,
 } from './combat-sim-setup.ts';
+import {
+  careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
+} from './combat-sim-notes.ts';
 import type { LiveBrainId } from '../brain-names.ts';
 import { renderCombatSimSetup, renderCombatSimReport } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
@@ -117,7 +120,15 @@ export class CombatSimScreen implements Screen {
     const draft = this.draft!;
     const cells = setupCells(draft);
     this.row = clamp(this.row, 0, cells.length - 1);
-    renderCombatSimSetup(cells, this.row, draftNotes(draft), this.ctx().reports.length > 0);
+    renderCombatSimSetup({
+      rows: cells,
+      selected: this.row,
+      notes: draftNotes(draft),
+      notesReserve: draftNotesReserve(),
+      careerNote: careerNote(draft),
+      careerReserve: careerNoteReserve(),
+      hasReport: this.ctx().reports.length > 0,
+    });
   }
 
   /** A click on a row selects it — the same path the arrow keys take. */

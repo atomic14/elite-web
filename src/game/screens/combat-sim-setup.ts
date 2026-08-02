@@ -7,10 +7,14 @@
 // combat-sim.ts runs.
 //
 // Split out of combat-sim.ts because the two halves answer different questions
-// and the file was 540 lines answering both. This one is also the half worth
-// testing: `npm test` builds a draft, drives the same `change()` functions an
-// arrow key drives, and asserts the spec that comes out — which is the whole
-// screen minus the keyboard, under node, with no browser.
+// and the file was 540 lines answering both. The PROSE under the rows went the
+// same way again, to combat-sim-notes.ts: a cell is a closure over the draft and
+// has to stay beside it, but a sentence describing a draft only reads it.
+//
+// This one is also the half worth testing: `npm test` builds a draft, drives
+// the same `change()` functions an arrow key drives, and asserts the spec that
+// comes out — which is the whole screen minus the keyboard, under node, with no
+// browser.
 
 import type { CommanderData, LaserType } from '../commander.ts';
 import { MAX_MISSILES } from '../commander.ts';
@@ -36,15 +40,49 @@ export interface SimSetupRow {
   value: string;
   /** shown for context, but this fight does not use it */
   dim?: boolean;
+  /**
+   * A faint group heading painted ABOVE this row.
+   *
+   * A property of the row it introduces rather than an entry in the list,
+   * deliberately: the cursor and every click index THIS list, so a heading that
+   * was a list entry would be a selectable row that does nothing, and `this.row`
+   * would stop meaning what `setupCells()` says it means.
+   */
+  heading?: string;
+  /**
+   * This row is not about the exercise, and the renderer fences it off.
+   *
+   * Exactly one row is: LIVE BRAINS (CAREER) writes `state.brains`, so it is
+   * still set when you undock. It stays IN this list — it is a cell, it is
+   * arrowed and clicked like any other — and the renderer paints it apart.
+   */
+  fenced?: boolean;
+}
+
+/** The whole setup panel, as the renderer needs it. */
+export interface SimSetupPanel {
+  rows: readonly SimSetupRow[];
+  /** index into `rows` — headings are not rows, so this needs no correction */
+  selected: number;
+  /** the contextual help under the rows */
+  notes: readonly string[];
+  /** the tallest `notes` can ever be, painted invisibly to hold the height */
+  notesReserve: readonly string[];
+  /**
+   * The line under the fenced row, and whether it is a warning or a status.
+   *
+   * Structural rather than imported from combat-sim-notes.ts, which already
+   * imports this file: the shape is two fields and the arrow points one way.
+   */
+  careerNote: { text: string; warning: boolean };
+  /** the tallest `careerNote` can ever be, held open the same way */
+  careerReserve: string;
+  /** whether there is a report to go back to */
+  hasReport: boolean;
 }
 
 export const MODES: readonly SimMode[] = ['scenario', 'sparring', 'waves'];
 
-const MODE_BLURB: Record<SimMode, string> = {
-  scenario: 'ONE NAMED FIGHT, SCORED, ENDS BY ITSELF',
-  sparring: 'ONE OPPONENT, RESPAWNING, PATCHED UP BETWEEN ROUNDS',
-  waves: 'ESCALATING WAVES UNTIL YOU DIE — HOW MANY CAN YOU TAKE?',
-};
 const TIERS = ['0 OPPORTUNISTS', '1 PROFESSIONALS', '2 ORGANISED GANG'];
 const LASERS: readonly LaserType[] = ['pulse', 'beam', 'military'];
 
@@ -252,28 +290,6 @@ export function fitFrom(d: SimDraft): ExerciseFit {
   };
 }
 
-/** What the panel says under the rows: the mode, the fight, and any warning. */
-export function draftNotes(d: SimDraft): string[] {
-  const out: string[] = [MODE_BLURB[d.mode]];
-  if (d.mode !== 'waves' && d.groups.length === 0) {
-    out.push(SCENARIOS[d.scenario].blurb.toUpperCase());
-  }
-  const asked = new Set(d.groups
-    .filter((g) => g.brain !== AS_THE_GAME_FLIES).map((g) => g.brain));
-  if (d.live === null) {
-    out.push('LIVE BRAINS WERE SET FROM THE CONSOLE TO SOMETHING THIS PICKER CANNOT NAME — '
-      + 'ARROW THE LIVE BRAINS ROW TO TAKE IT BACK.');
-  } else if (d.live !== AS_SHIPPED) {
-    out.push(`LIVE BRAINS: THE WHOLE GALAXY FLIES ${d.live.toUpperCase()} UNTIL YOU SET `
-      + 'THAT ROW BACK TO AS SHIPPED. IT IS SAVED WITH THE COMMANDER.');
-  }
-  if (d.brain === AS_THE_GAME_FLIES && asked.size > 1) {
-    out.push('MIXED BRAINS CANNOT FLY: THE GAME LOADS ONE POLICY PER ROLE, SO THE '
-      + 'LIVE BRAINS WILL. SET THE EXERCISE BRAIN ROW INSTEAD.');
-  }
-  return out;
-}
-
 // --- the rows ---------------------------------------------------------------
 
 /**
@@ -283,6 +299,11 @@ export function draftNotes(d: SimDraft): string[] {
  * seven rows per group. A cell owns its own label, its own reading and what an
  * arrow key does to it, so nothing anywhere switches on a row index — which is
  * the drift the market screen's old parallel click path was.
+ *
+ * It comes out in three groups and a fence — THE FIGHT, WHO FLIES WHAT, YOUR
+ * SHIP, and then the one row that outlives the fight. The groups are `heading`
+ * on the row that opens each, not entries in the list, so the list stays
+ * exactly the rows the cursor can land on.
  */
 export function setupCells(d: SimDraft): SetupCell[] {
   const hulls = simHulls();
@@ -291,6 +312,7 @@ export function setupCells(d: SimDraft): SetupCell[] {
   const custom = d.groups.length > 0;
   const cells: SetupCell[] = [
     {
+      heading: 'THE FIGHT',
       label: 'MODE',
       value: d.mode.toUpperCase(),
       change: (n) => { d.mode = MODES[cycle(MODES.indexOf(d.mode), MODES.length, n)]; },
@@ -319,23 +341,11 @@ export function setupCells(d: SimDraft): SetupCell[] {
       },
     },
     {
+      heading: 'WHO FLIES WHAT',
       label: 'EXERCISE BRAIN',
       value: d.brain === AS_THE_GAME_FLIES ? 'AS THE GAME FLIES' : d.brain,
       change: (n) => {
         d.brain = BRAIN_CHOICES[cycle(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length, n)];
-      },
-    },
-    {
-      // Beside the exercise brain because the two are read together: this one
-      // says what "AS THE GAME FLIES" means and outlives the fight, the one
-      // above overrides it for one fight. Set it, leave, and the galaxy flies it.
-      label: 'LIVE BRAINS (CAREER)',
-      value: d.live === null ? 'SET FROM THE CONSOLE'
-        : d.live === AS_SHIPPED ? 'AS SHIPPED' : d.live.toUpperCase(),
-      change: (n) => {
-        const at = d.live === null ? -1 : LIVE_BRAIN_IDS.indexOf(d.live);
-        d.live = at < 0 ? LIVE_BRAIN_IDS[0]
-          : LIVE_BRAIN_IDS[cycle(at, LIVE_BRAIN_IDS.length, n)];
       },
     },
     {
@@ -406,6 +416,7 @@ export function setupCells(d: SimDraft): SetupCell[] {
   const f = d.fit;
   cells.push(
     {
+      heading: 'YOUR SHIP',
       label: 'YOUR LASER',
       value: f.laser.toUpperCase(),
       change: (n) => { f.laser = LASERS[cycle(LASERS.indexOf(f.laser), LASERS.length, n)]; },
@@ -432,5 +443,23 @@ export function setupCells(d: SimDraft): SetupCell[] {
       change: (n) => { f.missiles = clamp(f.missiles + n, 0, MAX_MISSILES); },
     },
   );
+  // LAST, alone, and fenced. It used to sit sixth, between the exercise brain
+  // and the opposition, in the same weight as YOUR MISSILES — and it is the one
+  // row here that is still set when you undock: it writes `state.brains`, so the
+  // whole galaxy flies what it says, and it is saved with the commander. Read
+  // together with the exercise brain it looked like a second override for the
+  // same fight, which is exactly what it is not.
+  cells.push({
+    heading: 'THIS ONE LEAVES THE ROOM',
+    fenced: true,
+    label: 'LIVE BRAINS (CAREER)',
+    value: d.live === null ? 'SET FROM THE CONSOLE'
+      : d.live === AS_SHIPPED ? 'AS SHIPPED' : d.live.toUpperCase(),
+    change: (n) => {
+      const at = d.live === null ? -1 : LIVE_BRAIN_IDS.indexOf(d.live);
+      d.live = at < 0 ? LIVE_BRAIN_IDS[0]
+        : LIVE_BRAIN_IDS[cycle(at, LIVE_BRAIN_IDS.length, n)];
+    },
+  });
   return cells;
 }

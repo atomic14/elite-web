@@ -383,6 +383,57 @@ body.screen-open #message {
   text-align: center;
   letter-spacing: 2px;
 }
+/*
+ * A faint group heading inside a table of rows — the combat trainer's setup
+ * panel, which is three unrelated groups and one row that outlives the fight.
+ * A heading row carries no `data-row`, so it is not selectable and the indices
+ * either side of it are still the screen's own; the blank line before it is
+ * padding rather than an empty row, for the same reason.
+ */
+#screen tr.grouphead td {
+  color: var(--hud-amber);
+  opacity: 0.6;
+  font-size: 11px;
+  letter-spacing: 3px;
+  padding-top: 16px;
+}
+#screen tr.grouphead:first-child td { padding-top: 2px; }
+
+/*
+ * A note block that always stands as tall as its worst case.
+ *
+ * Both children occupy the same grid cell; the `hold` one is the tallest set of
+ * notes that could ever appear there and is invisible, so a warning appearing
+ * mid-interaction does not shift every row above it by a line and move the
+ * selected row out from under the cursor.
+ */
+#screen .reserved { display: grid; }
+#screen .reserved > * { grid-area: 1 / 1; }
+#screen .reserved .hold { visibility: hidden; }
+
+/*
+ * Three tones, and they have to be told apart without being read: amber is the
+ * contextual help about the fight, red is the career still being set when you
+ * undock, and the quiet green is the same block saying there is nothing to
+ * warn about — which is what stops the held space reading as a hole.
+ */
+#screen .note-help { color: var(--hud-amber); }
+#screen .note-warn { color: var(--hud-red); }
+#screen .note-calm { color: var(--hud-green); opacity: 0.5; letter-spacing: 1px; }
+
+/* the fence: what is inside it is still set when you undock */
+#screen .fence {
+  margin-top: 16px;
+  border: 1px solid var(--hud-dim);
+  border-left: 3px solid var(--hud-amber);
+  padding: 2px 10px 8px;
+}
+#screen .fence .keyline { margin-top: 6px; }
+
+/* a hint line that breaks BETWEEN items, never inside one */
+#screen .hints span { white-space: nowrap; }
+#screen .hints span + span::before { content: "\00b7"; margin-right: 6px; }
+
 #screen .menu { font-size: 14px; line-height: 2.1; margin: 8px 0 0 18%; }
 #screen .menu b { color: var(--hud-amber); font-weight: normal; display: inline-block; width: 34px; }
 #screen .info { font-size: 12px; line-height: 1.7; }
