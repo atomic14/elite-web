@@ -1,0 +1,23 @@
+
+> harmless@1.0.0 survivability
+> node --experimental-strip-types --no-warnings train/survivability.ts
+
+
+200 episodes per row · 45s · defender flies jameson-defend-g1
+the commander's own pools: 765 points across two 255-point shields and the bank, no recharge — see the header
+
+| gang | brain | destroyed | pools stripped | a shield flattened | they lost |
+| --- | --- | --- | --- | --- | --- |
+| 1 | pirate-attack-g3 (opportunists) | 0% in 45.0s | 5% | 2% | 0.04/ep |
+| 1 | pirate-pack-r4-selectonly (gangs) | 0% in 45.0s | 5% | 2% | 0.03/ep |
+| 2 | pirate-attack-g3 (opportunists) | 0% in 45.0s | 18% | 12% | 0.36/ep |
+| 2 | pirate-pack-r4-selectonly (gangs) | 0% in 45.0s | 11% | 2% | 0.12/ep |
+| 3 | pirate-attack-g3 (opportunists) | 5% in 39.2s | 31% | 34% | 0.69/ep |
+| 3 | pirate-pack-r4-selectonly (gangs) | 1% in 7.5s | 15% | 6% | 0.26/ep |
+| 4 | pirate-attack-g3 (opportunists) | 9% in 31.7s | 43% | 55% | 1.13/ep |
+| 4 | pirate-pack-r4-selectonly (gangs) | 1% in 9.1s | 23% | 12% | 0.39/ep |
+
+pools stripped = mean share of fore + aft + bank gone when the fight ended
+they lost = attackers destroyed per episode, by her guns or their own flying
+
+npm run survivability  18.53s user 0.12s system 102% cpu 18.238 total

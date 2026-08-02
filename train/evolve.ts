@@ -265,22 +265,44 @@ function fitnessOf(ep: Episode): number {
   return ep.fitnessPack();
 }
 
+/**
+ * HOW WELL DID THIS GENOME DO ITS JOB, 0..1 — the selection metric.
+ *
+ * It was "did the trader die", and TODO 29 retired that. The episode's target
+ * is the commander now: three 255-point pools, hit for the source rule's 9 to
+ * 21 points a time, and a pirate lands about seven hits in forty-five seconds.
+ * So a kill is RARE — the shipped brain takes 12% of her pools against an
+ * untrained policy's 1.7%, and neither ever kills. A binary that is always zero
+ * cannot rank anything, and `--select-kills` and `--validate-select` were both
+ * built on it.
+ *
+ * The share of the pools removed is the same quantity with the granularity put
+ * back: continuous, hill-climbable, and still ordered exactly the way a kill
+ * rate was, because destroying the target IS removing all of it. For the two
+ * phases where the genome IS the trader, it is the share she still has.
+ *
+ * The polarity trap is unchanged and worth restating: in `evade` and `defend`
+ * the trader dying is a FAILURE. Scoring every phase by damage done to the
+ * trader selected the evader that died most often, and cost four retrains.
+ */
+function outcomeOf(ep: Episode): number {
+  const defending = phase === 'evade' || phase === 'defend';
+  return defending ? ep.trader.hp : ep.targetDamageShare();
+}
+
 function evaluate(genome: Brain, gen: number): number {
   let total = 0;
   let wins = 0;
-  // same polarity trap as validate(): in evade/defend the genome IS the trader
-  const defending = phase === 'evade' || phase === 'defend';
   for (let e = 0; e < EPISODES; e++) {
     const ep = makeEpisodeFor(genome, gen * 977 + e * 131 + 7);
     while (!ep.done) ep.step(DT);
     total += fitnessOf(ep);
-    if (defending ? ep.trader.alive : !ep.trader.alive) wins += 1;
+    wins += outcomeOf(ep);
   }
   const shaped = total / EPISODES;
   if (!SELECT_KILLS) return shaped;
-  // Rank on the behaviour we actually want. A win rate alone is too coarse to
-  // hill-climb (EPISODES+1 distinct values), so shaped fitness breaks ties
-  // *within* a win count without ever outranking one more win.
+  // Rank on the behaviour we actually want, with shaped fitness breaking ties
+  // *within* an outcome band rather than ever outranking a better outcome.
   return (wins / EPISODES) * 1000 + Math.max(-499, Math.min(499, shaped));
 }
 
@@ -450,13 +472,12 @@ function flies(genome: Brain): { forward: number; degenerate: boolean } {
 }
 
 function validate(genome: Brain): { win: number; shaped: number } {
-  const defending = phase === 'evade' || phase === 'defend';
   let win = 0;
   let shaped = 0;
   for (let e = 0; e < VALIDATION_EPISODES; e++) {
     const ep = makeEpisodeFor(genome, VALIDATION_BASE + e * 7919);
     while (!ep.done) ep.step(DT);
-    if (defending ? ep.trader.alive : !ep.trader.alive) win += 1;
+    win += outcomeOf(ep);
     shaped += fitnessOf(ep);
   }
   return { win: win / VALIDATION_EPISODES, shaped: shaped / VALIDATION_EPISODES };
@@ -494,8 +515,9 @@ if (VALIDATE_SELECT && champions.length) {
   if (bestScore === -Infinity) {
     console.log('EVERY champion was degenerate — nothing worth saving from this run');
   }
-  const metric = (phase === 'evade' || phase === 'defend') ? 'survival' : 'kill';
-  console.log(`selected champion: ${(bestWin * 100).toFixed(0)}% validation ${metric} rate ` +
+  const metric = (phase === 'evade' || phase === 'defend')
+    ? 'of her pools left' : 'of her pools taken';
+  console.log(`selected champion: ${(bestWin * 100).toFixed(1)}% validation ${metric} ` +
     `(shaped ${bestFitness.toFixed(2)}, throttles forward ${(bestForward * 100).toFixed(0)}% of the time)`);
 }
 

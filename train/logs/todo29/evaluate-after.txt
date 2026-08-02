@@ -1,0 +1,215 @@
+
+> harmless@1.0.0 evaluate
+> node --experimental-strip-types --no-warnings train/evaluate.ts 60
+
+
+Evaluation tournament — 60 held-out episodes per matchup (seed base 10000019)
+
+## 1v1 vs scripted trader
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scripted pirate (baseline)         |  25.3% |    2% |   58% |  29.5 |   31.8s |  0.00 |     — |
+| random policy (baseline)           |   0.7% |    0% |   34% |   1.5 |    0.0s |  0.00 |     — |
+| trained pirate r1                  |  13.0% |    0% |   45% |  15.3 |   12.7s |  0.03 |     — |
+| trained pirate r2 (league)         |  20.9% |    0% |   54% |  21.4 |   18.8s |  0.02 |     — |
+| trained pirate r3 (league)         |   2.5% |    0% |   33% |   5.0 |    1.8s |  0.00 |     — |
+
+## 1v1 vs trained evader
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scripted pirate vs evader          |  27.3% |    0% |   75% |  26.0 |   20.7s |  0.00 |     — |
+| trained pirate r1 vs evader        |   2.7% |    0% |   44% |   3.9 |    0.3s |  0.00 |     — |
+| trained pirate r2 vs evader        |  15.7% |    0% |   73% |  13.6 |   12.7s |  0.05 |     — |
+| trained pirate r3 vs evader        |   2.6% |    0% |   50% |   3.5 |    0.2s |  0.00 |     — |
+
+## pack of 3 vs armed scripted trader (all packs trained on this)
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3x scripted pirates                |  47.2% |   23% |   55% |  63.7 |   69.0s |  1.77 |    30 |
+| 3x solo r1 brains (no pack obs)    |  25.9% |    0% |   50% |  28.5 |   39.4s |  0.18 |    48 |
+| 3x solo r2 brains (SHIPPED)        |  68.6% |   33% |   60% |  65.9 |   67.9s |  0.95 |    40 |
+| pack r2 (alpha strike)             |   5.0% |    0% |   33% |  10.9 |    2.2s |  0.07 |    83 |
+| pack r3 (sustained fire)           |   4.7% |    0% |   33% |  10.1 |    2.1s |  0.03 |    86 |
+| run-4 config, fixed selection      |  10.1% |    0% |   48% |  15.5 |   15.4s |  0.00 |    61 |
+| r4 control (none of the 3)         |  10.6% |    0% |   43% |  17.4 |   17.9s |  0.00 |    56 |
+| r4 +wide obs only                  |  21.9% |    0% |   45% |  37.0 |   56.3s |  0.00 |    39 |
+| r4 +opponent pool only             |  23.9% |    0% |   50% |  38.5 |   39.1s |  0.02 |    50 |
+| r4 +kill-rate ranking only         |  53.2% |   35% |   52% |  75.8 |   89.8s |  0.00 |    26 |
+| r4 ALL THREE                       |  46.4% |    5% |   59% |  53.8 |   63.6s |  0.20 |    40 |
+
+## pack of 3 vs armed jameson-defend trader (in r4's pool)
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3x scripted pirates                |  36.5% |    0% |   72% |  36.3 |   13.3s |  1.00 |    79 |
+| 3x solo r1 brains (no pack obs)    |  38.3% |    3% |   55% |  29.4 |    6.6s |  0.67 |    89 |
+| 3x solo r2 brains (SHIPPED)        |  47.4% |   17% |   53% |  14.6 |    5.3s |  1.48 |    87 |
+| pack r2 (alpha strike)             |  23.7% |    2% |   50% |  26.2 |    5.9s |  0.50 |    89 |
+| pack r3 (sustained fire)           |  22.7% |    2% |   49% |  25.2 |    6.7s |  0.43 |    93 |
+| run-4 config, fixed selection      |  10.6% |    0% |   47% |  12.4 |    2.6s |  0.33 |    88 |
+| r4 control (none of the 3)         |   7.6% |    0% |   44% |   8.2 |    2.9s |  0.25 |    91 |
+| r4 +wide obs only                  |  13.8% |    0% |   50% |  14.1 |    3.9s |  0.50 |    89 |
+| r4 +opponent pool only             |  24.2% |    0% |   51% |  18.2 |    5.7s |  0.62 |    89 |
+| r4 +kill-rate ranking only         |  18.3% |    0% |   52% |  17.8 |    5.7s |  0.65 |    86 |
+| r4 ALL THREE                       |  14.9% |    0% |   49% |  15.6 |    4.8s |  0.18 |    87 |
+
+## pack of 3 vs armed trader-evade r1 (unseen by every pack)
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3x scripted pirates                |  66.4% |   57% |   73% |  71.3 |   58.7s |  1.25 |    31 |
+| 3x solo r1 brains (no pack obs)    |  11.4% |    0% |   49% |  17.0 |    8.8s |  0.05 |    72 |
+| 3x solo r2 brains (SHIPPED)        |  64.4% |   15% |   68% |  55.2 |   56.2s |  0.98 |    47 |
+| pack r2 (alpha strike)             |   5.5% |    0% |   36% |  11.0 |    1.5s |  0.07 |    83 |
+| pack r3 (sustained fire)           |   5.8% |    0% |   37% |  11.4 |    1.5s |  0.05 |    83 |
+| run-4 config, fixed selection      |   6.9% |    0% |   42% |   9.3 |    3.8s |  0.07 |    83 |
+| r4 control (none of the 3)         |   6.6% |    0% |   44% |   9.6 |    4.7s |  0.07 |    77 |
+| r4 +wide obs only                  |   8.1% |    0% |   45% |  12.1 |    7.2s |  0.03 |    78 |
+| r4 +opponent pool only             |  11.8% |    0% |   44% |  19.2 |    7.6s |  0.00 |    73 |
+| r4 +kill-rate ranking only         |  23.4% |    0% |   57% |  30.8 |   26.3s |  0.13 |    49 |
+| r4 ALL THREE                       |  14.8% |    0% |   50% |  21.2 |    9.8s |  0.00 |    69 |
+
+## Commander Jameson: armed trader vs 2x pirate-r2
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scripted armed trader (baseline)   |  40.1% |    2% |   57% |  41.0 |   41.5s |  0.37 |    38 |
+| JAMESON defence policy             |  25.0% |    2% |   52% |   8.9 |    2.6s |  0.63 |    89 |
+(here "kill"/"t-surv" describe the TRADER: low kill% + high t-surv = Jameson wins)
+
+## one pirate vs scripted hauler
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scripted pirate (aimbot ceiling)   |  25.3% |    2% |   58% |  29.5 |   31.8s |  0.00 |     — |
+| pirate-attack-g3 (SHIPPED)         |  12.0% |    0% |   51% |  15.6 |   16.6s |  0.00 |     — |
+| pirate-attack-t29 (candidate)      |  29.5% |    0% |   53% |  26.2 |   20.3s |  0.17 |     — |
+| pirate-attack-e1 (engine, on a flag) |  13.7% |    0% |   47% |  19.1 |   28.7s |  0.02 |     — |
+| pirate-attack-r2 (legacy, on a flag) |  20.9% |    0% |   54% |  21.4 |   18.8s |  0.02 |     — |
+
+## one pirate vs a commander who fights back
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scripted pirate (aimbot ceiling)   |   5.7% |    0% |   56% |   4.1 |    0.0s |  0.93 |     — |
+| pirate-attack-g3 (SHIPPED)         |   5.3% |    0% |   48% |   4.1 |    0.0s |  0.32 |     — |
+| pirate-attack-t29 (candidate)      |  25.3% |    0% |   57% |   8.7 |    0.0s |  1.00 |     — |
+| pirate-attack-e1 (engine, on a flag) |  16.8% |    2% |   54% |   6.8 |    0.0s |  1.00 |     — |
+| pirate-attack-r2 (legacy, on a flag) |   9.2% |    0% |   42% |   2.8 |    0.0s |  0.37 |     — |
+
+## one pirate vs a commander who runs
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scripted pirate (aimbot ceiling)   |   3.4% |    0% |   22% |   9.8 |    0.5s |  0.00 |     — |
+| pirate-attack-g3 (SHIPPED)         |   2.8% |    0% |   22% |   8.3 |    0.5s |  0.00 |     — |
+| pirate-attack-t29 (candidate)      |   3.4% |    0% |   21% |   9.9 |    0.4s |  0.00 |     — |
+| pirate-attack-e1 (engine, on a flag) |   3.0% |    0% |   22% |   8.4 |    0.4s |  0.00 |     — |
+| pirate-attack-r2 (legacy, on a flag) |   1.7% |    0% |   23% |   4.6 |    0.3s |  0.00 |     — |
+
+## a gang of three vs a commander who fights back
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| pirate-pack-r4-selectonly (SHIPPED) |  23.7% |    0% |   51% |  17.9 |    5.6s |  1.97 |    93 |
+| pirate-pack-t29 (candidate)        |  53.1% |   18% |   55% |  29.4 |    7.2s |  2.40 |    88 |
+| 3x pirate-attack-g3 (solo trio)    |  37.1% |    3% |   52% |  16.0 |    5.8s |  1.12 |    90 |
+
+## the defence policy: two shipped pirates on her tail
+
+| matchup                            | hurt  | kill | acc  | shots | on-six | lost  | sprd° |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| scripted armed trader (floor)      |   8.9% |    0% |   27% |  23.3 |    5.4s |  0.00 |    36 |
+| jameson-defend-g1 (SHIPPED)        |  21.4% |    0% |   49% |  10.5 |    2.3s |  0.42 |    89 |
+| jameson-defend-t29 (candidate)     |  22.3% |    0% |   59% |  27.1 |   13.5s |  0.12 |    39 |
+(here LOW "hurt" is the defender winning — it is her pools being spent)
+
+## the shape of the fight — 30 held-out episodes, target stops and turns to fight
+
+| brain | speed | throttle | range p10/med/p90 | closest | passes | on-six | rams | hurt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| pirate-attack-g3           |   216 |     100% |        85/234/964 |      41 |   0.00 |   0.0s | 0.20 |  6.1% |
+| pirate-attack-t29          |   104 |     100% |      102/754/1952 |      33 |   0.00 |   0.0s | 2.23 | 42.1% |
+| pirate-attack-e1           |   182 |     100% |      222/706/1740 |      35 |   0.93 |   0.0s | 0.93 | 20.7% |
+| pirate-attack-g2           |   117 |     100% |      113/628/1762 |      33 |   0.00 |   0.0s | 2.27 | 42.1% |
+| pirate-attack-r2           |   262 |     100% |      185/254/1166 |      40 |   0.00 |   0.0s | 0.70 | 13.1% |
+| pirate-pack-r4-selectonly  |   144 |     100% |     393/1447/2905 |      37 |   0.83 |   0.0s | 0.63 | 14.2% |
+| pirate-pack-t29            |   185 |     100% |     198/1340/4505 |      34 |   0.50 |   0.0s | 1.47 | 29.7% |
+
+passes = closed inside 400 and broke back out past 900, per episode — a loiter scores none
+a TURRET reads: low speed, few passes, a collapsed range spread, low on-six
+
+## every design's recommended profile (38)
+
+| design | default | energy | def | vs Cobra III | as a pirate | pulse hits |
+| --- | --- | --- | --- | --- | --- | --- |
+| Dodo station *(immune)*    | B:0     |    240 |   0 |            0 |           — |      never |
+| Coriolis station *(immune)* | A:1     |    240 |   0 |            0 |           — |      never |
+| Escape pod *(object)*      | A:2     |      8 |   0 |            0 |           — |          1 |
+| Alloy plate *(object)*     | A:3     |      8 |   0 |            0 |           — |          1 |
+| Cargo canister *(object)*  | A:4     |      8 |   0 |            0 |           — |          1 |
+| Boulder *(object)*         | A:5     |     16 |   0 |            0 |           — |          2 |
+| Asteroid *(object)*        | E:6     |     56 |   0 |            0 |           — |          7 |
+| Splinter *(object)*        | E:7     |     16 |   0 |            0 |           — |          2 |
+| Shuttle *(object)*         | L:8     |     32 |   0 |            0 |           — |          4 |
+| Transporter *(object)*     | C:9     |     32 |   0 |            0 |           — |          4 |
+| Cobra Mk III               | B:10    |     98 |   2 |            9 |  T:10 -> 13 |         14 |
+| Python                     | C:11    |    125 |   5 |           13 |  U:11 -> 17 |         32 |
+| Boa                        | D:12    |    164 |   4 |           13 |           — |         33 |
+| Anaconda                   | H:13    |    252 |   4 |            0 |           — |         51 |
+| Worm                       | G:14    |     32 |   0 |            5 |   G:14 -> 5 |          4 |
+| Missile *(object)*         | COMMON:15 |      2 |   2 |            0 |           — |          1 |
+| Viper                      | A:16    |     91 |   3 |           13 |           — |         16 |
+| Sidewinder                 | D:17    |     73 |   1 |            9 |  V:17 -> 13 |         10 |
+| Mamba                      | F:18    |     80 |   0 |            9 |  W:18 -> 13 |          9 |
+| Krait                      | I:19    |     73 |   1 |            9 |  W:19 -> 13 |         10 |
+| Adder                      | A:20    |     72 |   0 |            9 |  V:20 -> 13 |          8 |
+| Gecko                      | A:21    |     65 |   1 |            9 |  S:21 -> 13 |          9 |
+| Cobra Mk I                 | A:22    |     81 |   1 |            9 |  U:22 -> 13 |         11 |
+| Asp Mk II                  | I:23    |    109 |   5 |            0 |   T:23 -> 0 |         28 |
+| Fer-de-Lance               | J:24    |     83 |   3 |           17 |  W:24 -> 21 |         14 |
+| Moray                      | A:25    |     89 |   1 |           13 |  A:25 -> 13 |         12 |
+| Thargoid                   | C:26    |    253 |   5 |           21 |           — |         64 |
+| Thargon                    | C:27    |     33 |   1 |            9 |           — |          5 |
+| Constrictor *(object)*     | G:28    |    115 |   3 |            0 |           — |        115 |
+| Dragon *(object)*          | D:29    |    247 |   7 |            0 |           — |        124 |
+| Monitor                    | A:30    |    132 |   4 |           17 |  S:30 -> 17 |         27 |
+| Ophidian                   | A:31    |     64 |   0 |            5 |   A:31 -> 5 |          8 |
+| Ghavial                    | B:32    |    114 |   2 |            9 |           — |         17 |
+| Bushmaster                 | D:33    |     74 |   2 |            9 |  S:33 -> 13 |         11 |
+| Rattler                    | C:34    |    113 |   1 |            9 |   C:34 -> 9 |         15 |
+| Iguana                     | B:35    |     90 |   2 |            9 |   B:35 -> 9 |         13 |
+| Shuttle Mk II *(object)*   | B:36    |     32 |   0 |            0 |           — |          4 |
+| Chameleon                  | C:37    |    100 |   4 |            9 |   U:37 -> 9 |         20 |
+
+24 combatants · 14 non-combat objects excluded from the aggregates (Dodo station, Coriolis station, Escape pod, Alloy plate, Cargo canister, Boulder, Asteroid, Splinter, Shuttle, Transporter, Missile, Constrictor, Dragon, Shuttle Mk II)
+combatants: mean 9.8 points a hit against a Cobra Mk III, 2 of them zero (Anaconda, Asp Mk II)
+the commander soaks 510 points on one face (255 shield + 255 bank), 765 manoeuvring
+
+## every flyable hull as the target — 60 held-out episodes, 2x pirate-attack-g3
+
+| hull | armour | pools | taken/ep | share | their hits |
+| --- | --- | --- | --- | --- | --- |
+| Adder          |      4 |   765 |       76 | 10.0% |        5.6 |
+| Gecko          |      5 |   765 |       71 |  9.3% |        5.6 |
+| Moray          |      6 |   765 |       65 |  8.5% |        5.6 |
+| Cobra Mk I     |      5 |   765 |       71 |  9.3% |        5.6 |
+| Iguana         |      7 |   765 |       60 |  7.8% |        5.6 |
+| Ophidian       |      4 |   765 |       76 | 10.0% |        5.6 |
+| Chameleon      |      8 |   765 |       54 |  7.1% |        5.6 |
+| Cobra Mk III   |      7 |   765 |       60 |  7.8% |        5.6 |
+| Fer-de-Lance   |      8 |   765 |       54 |  7.1% |        5.6 |
+| Ghavial        |      9 |   765 |       48 |  6.3% |        5.6 |
+| Monitor        |     10 |   765 |       43 |  5.6% |        5.6 |
+| Python         |     11 |   765 |       37 |  4.9% |        5.6 |
+| Boa            |     10 |   765 |       43 |  5.6% |        5.6 |
+| Asp Mk II      |     10 |   765 |       43 |  5.6% |        5.6 |
+| Anaconda       |     13 |   765 |       33 |  4.3% |        7.1 |
+
+taken/ep = mean pool points off · share = of all three pools
+
+hurt = share of the commander's three pools taken · kill = she was destroyed
+acc = attacker accuracy · shots/on-six per episode · lost = attackers lost/episode

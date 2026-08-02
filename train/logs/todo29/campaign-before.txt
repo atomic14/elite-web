@@ -1,0 +1,30 @@
+
+> harmless@1.0.0 campaign
+> node --experimental-strip-types --no-warnings test/campaign.ts
+
+
+=== TRADER: 40 commanders × 60 legs ===
+(real galaxy, market, living-galaxy and contract code; flight abstracted)
+
+WEALTH   median net worth 6033.2 Cr (cash + fitted kit), from a 100.0 Cr start
+         cash in hand: median 528.0 Cr · peak during career 1188.8 Cr · best career 17312.2 Cr
+SURVIVAL 38/40 never went broke · 0.8 deaths per career
+PACE     median day 136 after 60 legs · first upgrade at leg 7
+CONTRACT 24.8 completed · 22.1 failed per career
+COMBAT   20.8 kills · 33.5t cargo lost to pirates per career
+RATING   median Below Average
+EQUIPMENT owned by end of career: largeBay 100% · ecm 100% · beam 100% · scoops 100% · escapePod 90% · energyUnit 65% · energyBomb 50% · dockingComputer 33% · combatComputer 8% · miningLaser 3% · military 3%
+GALAXY   living prices ranged 0.75x..1.24x baseline · mean system danger 0.055
+PIRATES  reception by tier: opportunists 56% · professionals 31% · gangs 13% · 2.5 organised per career · mean appeal 0.29
+LADDER   median legs / in-game years to each combat rating:
+         Mostly Harmless      25 legs ·    0.2 yr  (39/40 commanders)
+         Poor                 37 legs ·    0.2 yr  (39/40 commanders)
+         Below Average        49 legs ·    0.3 yr  (23/40 commanders)
+         Average              52 legs ·    0.4 yr  (3/40 commanders)
+SCALING  poorer half: appeal 0.26 · 38% tier1+ · 1.4 gangs/career
+         richer half: appeal 0.32 · 50% tier1+ · 3.6 gangs/career
+
+
+all balance checks passed (0.5s)
+
+npm run campaign  0.97s user 0.05s system 148% cpu 0.685 total

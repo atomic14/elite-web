@@ -1,0 +1,41 @@
+
+> harmless@1.0.0 train
+> node --experimental-strip-types --no-warnings train/evolve.ts pack --validate-select --select-kills --out pirate-pack-t29 --gens 300 --pop 48 --eps 6
+
+phase=pack out=pirate-pack-t29 pop=48 gens=300 eps=6 obs=18
+gen    0  best   62.01  mean   36.02  scripted-ref    4.18  (1s)
+gen   10  best  398.40  mean  167.74  scripted-ref    1.19  (18s)
+gen   20  best  490.18  mean  249.29  scripted-ref   -0.52  (37s)
+gen   30  best  459.97  mean  241.38  scripted-ref    5.48  (57s)
+gen   40  best  678.28  mean  319.83  scripted-ref    2.95  (76s)
+gen   50  best  730.13  mean  316.73  scripted-ref    4.43  (95s)
+gen   60  best  653.56  mean  313.44  scripted-ref   -0.90  (113s)
+gen   70  best  664.46  mean  299.71  scripted-ref    1.90  (132s)
+gen   80  best  666.92  mean  341.72  scripted-ref    1.57  (151s)
+gen   90  best  609.89  mean  305.41  scripted-ref    0.36  (169s)
+gen  100  best  729.54  mean  326.42  scripted-ref    0.52  (188s)
+gen  110  best  726.56  mean  370.70  scripted-ref    2.77  (206s)
+gen  120  best  801.74  mean  413.23  scripted-ref    1.65  (224s)
+gen  130  best  693.98  mean  343.29  scripted-ref    4.40  (242s)
+gen  140  best  763.06  mean  389.49  scripted-ref    2.04  (261s)
+gen  150  best  699.48  mean  319.39  scripted-ref    5.49  (279s)
+gen  160  best  695.24  mean  373.25  scripted-ref    5.87  (298s)
+gen  170  best  819.36  mean  365.55  scripted-ref    2.53  (316s)
+gen  180  best  782.51  mean  411.13  scripted-ref   -0.41  (336s)
+gen  190  best  655.48  mean  356.51  scripted-ref    1.46  (354s)
+gen  200  best  694.51  mean  365.91  scripted-ref    2.94  (372s)
+gen  210  best  682.13  mean  322.02  scripted-ref    7.64  (390s)
+gen  220  best  749.56  mean  385.76  scripted-ref    3.13  (407s)
+gen  230  best  759.72  mean  342.98  scripted-ref    2.50  (425s)
+gen  240  best  846.97  mean  424.33  scripted-ref    6.48  (442s)
+gen  250  best  810.77  mean  373.16  scripted-ref    1.67  (461s)
+gen  260  best  711.19  mean  348.66  scripted-ref   -0.16  (479s)
+gen  270  best  828.43  mean  387.76  scripted-ref   -0.06  (498s)
+gen  280  best  832.61  mean  405.66  scripted-ref    2.79  (516s)
+gen  290  best  780.88  mean  382.89  scripted-ref    2.88  (534s)
+gen  299  best  792.26  mean  380.50  scripted-ref    4.77  (551s)
+
+final selection: re-judging 170 generation champions on 24 fixed validation seeds (base 5000011)
+rejected 32 of 170 champions for constant throttle (see flies(): run 11 shipped one of these)
+selected champion: 73.2% validation of her pools taken (shaped 10.22, throttles forward 50% of the time)
+saved /Users/chrisgreening/Work/projects/elite-web/src/ai-training/brains/pirate-pack-t29.json (fitness 10.22), log: /Users/chrisgreening/Work/projects/elite-web/train/logs/pirate-pack-t29-1785675636796.jsonl

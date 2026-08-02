@@ -341,6 +341,19 @@ export interface CombatSimReport {
    * pirates on your tail at once is one bad second, not two.
    */
   onSixSeconds: BothSides;
+  /**
+   * The three pools in SOURCE POINTS at the first sample and at the last, and
+   * the worst each of them got in between.
+   *
+   * Start and end are TODO 29's: a record that says "you lost 180 points" is
+   * not comparable with one from a different fit-out or a different hull unless
+   * it also says what you started with, and the low-water mark alone cannot
+   * tell a fight that ended on fumes from one that ended and then recharged.
+   * All three are whole 255-point-scale numbers, the same ones `systems.ts`
+   * holds — nothing here is a fraction.
+   */
+  poolsAtStart: { foreShield: number | null; aftShield: number | null; energy: number | null };
+  poolsAtEnd: { foreShield: number | null; aftShield: number | null; energy: number | null };
   /** the worst it got */
   lowWater: {
     foreShield: number | null;
@@ -408,6 +421,13 @@ const round = (x: number, dp: number): number => {
 };
 const roundOrNull = (x: number | null, dp: number): number | null =>
   (x === null ? null : round(x, dp));
+
+/** One frame's three pools, or nulls when nothing was ever sampled. */
+const pools = (f: FrameSample | undefined): {
+  foreShield: number | null; aftShield: number | null; energy: number | null;
+} => (f
+  ? { foreShield: f.foreShield, aftShield: f.aftShield, energy: f.energy }
+  : { foreShield: null, aftShield: null, energy: null });
 
 // --- the recorder -----------------------------------------------------------
 
@@ -710,6 +730,8 @@ export class CombatSimRecorder {
         them: round(deg(mean(rows.map((r) => r.theirAim)) ?? 0), 1),
       },
       onSixSeconds: { you: secs(theirSixFrames), them: secs(yourSixFrames) },
+      poolsAtStart: pools(s[0]),
+      poolsAtEnd: pools(s[s.length - 1]),
       lowWater: {
         foreShield: roundOrNull(low(s.map((f) => f.foreShield)), 2),
         aftShield: roundOrNull(low(s.map((f) => f.aftShield)), 2),

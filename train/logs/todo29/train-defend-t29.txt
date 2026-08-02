@@ -1,0 +1,42 @@
+
+> harmless@1.0.0 train
+> node --experimental-strip-types --no-warnings train/evolve.ts defend --opponent pirate-attack-g3 --validate-select --select-kills --out jameson-defend-t29 --gens 300 --pop 48 --eps 6
+
+loaded pirate-attack-g3 (fitness 14.67)
+phase=defend out=jameson-defend-t29 pop=48 gens=300 eps=6 obs=14 opponent=pirate-attack-g3
+gen    0  best  861.06  mean  744.26  scripted-ref   12.06  (3s)
+gen   10  best  908.88  mean  831.44  scripted-ref   11.23  (36s)
+gen   20  best  927.57  mean  857.73  scripted-ref   11.53  (67s)
+gen   30  best  918.23  mean  849.15  scripted-ref   11.12  (99s)
+gen   40  best  894.76  mean  826.42  scripted-ref   11.43  (130s)
+gen   50  best  904.30  mean  836.31  scripted-ref   10.93  (162s)
+gen   60  best  919.06  mean  837.08  scripted-ref   11.16  (193s)
+gen   70  best  921.97  mean  845.69  scripted-ref   11.23  (224s)
+gen   80  best  909.43  mean  843.25  scripted-ref   11.13  (256s)
+gen   90  best  925.56  mean  868.75  scripted-ref   11.22  (287s)
+gen  100  best  899.35  mean  833.65  scripted-ref   11.10  (318s)
+gen  110  best  897.17  mean  854.00  scripted-ref   11.09  (349s)
+gen  120  best  907.01  mean  837.21  scripted-ref   11.07  (380s)
+gen  130  best  939.73  mean  882.69  scripted-ref   11.16  (410s)
+gen  140  best  940.88  mean  887.99  scripted-ref   11.38  (441s)
+gen  150  best  928.23  mean  855.69  scripted-ref   11.28  (471s)
+gen  160  best  919.67  mean  848.10  scripted-ref   11.08  (502s)
+gen  170  best  918.17  mean  858.63  scripted-ref   11.51  (532s)
+gen  180  best  901.82  mean  840.78  scripted-ref   11.11  (562s)
+gen  190  best  931.09  mean  856.29  scripted-ref   11.14  (593s)
+gen  200  best  953.01  mean  889.18  scripted-ref   11.22  (623s)
+gen  210  best  931.18  mean  885.36  scripted-ref   11.12  (654s)
+gen  220  best  915.76  mean  846.37  scripted-ref   10.97  (684s)
+gen  230  best  911.81  mean  850.37  scripted-ref   11.03  (715s)
+gen  240  best  914.78  mean  861.47  scripted-ref   11.20  (745s)
+gen  250  best  932.30  mean  849.04  scripted-ref   11.09  (776s)
+gen  260  best  926.80  mean  877.63  scripted-ref   11.23  (807s)
+gen  270  best  917.41  mean  866.12  scripted-ref   11.54  (837s)
+gen  280  best  911.37  mean  840.67  scripted-ref   10.99  (868s)
+gen  290  best  922.98  mean  848.64  scripted-ref   10.89  (899s)
+gen  299  best  937.85  mean  868.70  scripted-ref   11.20  (926s)
+
+final selection: re-judging 270 generation champions on 24 fixed validation seeds (base 5000011)
+rejected 43 of 270 champions for constant throttle (see flies(): run 11 shipped one of these)
+selected champion: 91.0% validation of her pools left (shaped 12.19, throttles forward 100% of the time)
+saved /Users/chrisgreening/Work/projects/elite-web/src/ai-training/brains/jameson-defend-t29.json (fitness 12.19), log: /Users/chrisgreening/Work/projects/elite-web/train/logs/jameson-defend-t29-1785675636799.jsonl

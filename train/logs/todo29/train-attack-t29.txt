@@ -1,0 +1,46 @@
+
+> harmless@1.0.0 train
+> node --experimental-strip-types --no-warnings train/evolve.ts attack --pool --validate-select --select-kills --out pirate-attack-t29 --gens 300 --pop 48 --eps 6
+
+loaded trader-evade (fitness 14.44)
+loaded trader-evade-r2 (fitness 15.43)
+loaded jameson-defend (fitness 22.43)
+loaded jameson-defend (fitness 22.43)
+(pool) 9 opponents: scripted hauler, scripted, armed, trader-evade/traderCobra, trader-evade-r2/playerCobra, jameson-defend/playerCobra, jameson-defend/playerCobraSlow, runner/traderCobra, runner/playerCobra, holding/playerCobra
+phase=attack out=pirate-attack-t29 pop=48 gens=300 eps=6 obs=14
+gen    0  best   76.84  mean   16.54  scripted-ref   25.40  (1s)
+gen   10  best  261.23  mean  150.24  scripted-ref   27.99  (14s)
+gen   20  best  249.64  mean  167.93  scripted-ref   26.90  (26s)
+gen   30  best  185.22  mean  117.36  scripted-ref   21.99  (40s)
+gen   40  best  135.73  mean   74.25  scripted-ref   23.23  (53s)
+gen   50  best  106.35  mean   53.20  scripted-ref   21.04  (67s)
+gen   60  best  214.17  mean  120.12  scripted-ref   22.88  (80s)
+gen   70  best  235.57  mean  119.18  scripted-ref   29.57  (93s)
+gen   80  best  180.69  mean  108.66  scripted-ref   26.90  (106s)
+gen   90  best  234.78  mean  140.07  scripted-ref   21.87  (119s)
+gen  100  best  232.24  mean  152.33  scripted-ref   27.00  (132s)
+gen  110  best  269.17  mean  167.54  scripted-ref   21.17  (145s)
+gen  120  best  276.28  mean  153.02  scripted-ref   24.87  (158s)
+gen  130  best  287.98  mean  181.56  scripted-ref   27.55  (171s)
+gen  140  best  288.95  mean  171.38  scripted-ref   25.13  (183s)
+gen  150  best  209.39  mean  151.92  scripted-ref   24.88  (196s)
+gen  160  best  199.26  mean  114.88  scripted-ref   22.26  (208s)
+gen  170  best  215.78  mean  136.25  scripted-ref   20.83  (220s)
+gen  180  best  256.44  mean  181.83  scripted-ref   23.45  (233s)
+gen  190  best  443.74  mean  267.88  scripted-ref   27.21  (245s)
+gen  200  best  447.80  mean  266.60  scripted-ref   24.28  (256s)
+gen  210  best  386.57  mean  226.69  scripted-ref   22.99  (268s)
+gen  220  best  181.18  mean  131.31  scripted-ref   20.54  (280s)
+gen  230  best  283.33  mean  153.06  scripted-ref   18.66  (292s)
+gen  240  best  265.81  mean  162.84  scripted-ref   25.85  (304s)
+gen  250  best  284.21  mean  198.91  scripted-ref   29.34  (316s)
+gen  260  best  294.29  mean  206.33  scripted-ref   26.60  (328s)
+gen  270  best  338.91  mean  257.41  scripted-ref   22.01  (341s)
+gen  280  best  315.15  mean  239.93  scripted-ref   19.82  (352s)
+gen  290  best  279.74  mean  179.77  scripted-ref   17.28  (364s)
+gen  299  best  389.09  mean  290.47  scripted-ref   22.24  (375s)
+
+final selection: re-judging 279 generation champions on 24 fixed validation seeds (base 5000011)
+rejected 60 of 279 champions for constant throttle (see flies(): run 11 shipped one of these)
+selected champion: 27.5% validation of her pools taken (shaped 5.40, throttles forward 100% of the time)
+saved /Users/chrisgreening/Work/projects/elite-web/src/ai-training/brains/pirate-attack-t29.json (fitness 5.40), log: /Users/chrisgreening/Work/projects/elite-web/train/logs/pirate-attack-t29-1785675627947.jsonl

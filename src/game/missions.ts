@@ -20,7 +20,11 @@
 import type { CommanderData } from './commander.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { distanceTenths } from '../galaxy/navigation.ts';
+import { playerLaser } from './gunnery.ts';
+import { npcEnergyPolicy, playerLaserDamage } from './npc-energy.ts';
 import { random } from './rng.ts';
+import { CONSTRICTOR_SPEC } from './ship-specs.ts';
+import type { LaserType } from './commander.ts';
 
 /** Kills before the Navy considers you worth talking to. */
 export const MISSION_KILL_THRESHOLD = 16;
@@ -103,13 +107,66 @@ export function constrictorLurksHere(commander: CommanderData): boolean {
     && commander.mission.targetIndex === commander.systemIndex;
 }
 
+/**
+ * What each laser this hull can mount is worth against the Constrictor.
+ *
+ * DERIVED, every time, through the same two functions a live shot goes through:
+ * the fitted laser's byte (`playerLaser`) and what a hit off it is worth against
+ * the target's own profile (`playerLaserDamage`, which is the oracle). Nothing
+ * here restates a rule and nothing here CHANGES one — TODO 29 rules the
+ * Constrictor's source-exact halving untouchable and calls this a signposting
+ * problem instead.
+ *
+ * It is a signposting problem with teeth. The Constrictor halves a player hit
+ * BEFORE its three points of defence subtract, so a BEAM laser's 7 becomes 3
+ * and does exactly nothing, a pulse laser scores 1 and needs 115 unbroken hits,
+ * and only the military laser's 3 kills it in a reasonable time — as in the
+ * original. The one thing a commander must not do is fly forty light years to
+ * find that out, and the beam laser is the trap, because it is the upgrade and
+ * it is worse here than the gun it replaced.
+ */
+export function constrictorGunCheck(
+  commander: CommanderData,
+): { fitted: LaserType; perHit: number; best: LaserType; bestPerHit: number } {
+  const policy = npcEnergyPolicy(CONSTRICTOR_SPEC.profileId);
+  const bite = (type: LaserType): number =>
+    playerLaserDamage(policy, playerLaser(commander.shipId, type).hit);
+  const MOUNTS: LaserType[] = ['pulse', 'beam', 'military'];
+  const best = MOUNTS.reduce((a, b) => (bite(b) > bite(a) ? b : a));
+  return {
+    fitted: commander.equipment.laser,
+    perHit: bite(commander.equipment.laser),
+    best,
+    bestPerHit: bite(best),
+  };
+}
+
+/**
+ * What the Navy tells you about the job, beyond where to go.
+ *
+ * It states the two NUMBERS and lets the commander decide, rather than issuing
+ * an instruction: the figure her gun scores against this hull, and the figure
+ * the best gun she could fit scores. Both come from the oracle.
+ *
+ * '' when she is already carrying the best gun for it — so the line means
+ * something the day it appears, instead of being one the player learns to skip.
+ */
+export function constrictorWarning(commander: CommanderData): string {
+  const g = constrictorGunCheck(commander);
+  if (g.fitted === g.best) return '';
+  return `NAVY: TARGET ARMOUR HALVES LASER FIRE — YOUR ${g.fitted.toUpperCase()} LASER`
+    + ` SCORES ${g.perHit} A HIT, A ${g.best.toUpperCase()} LASER ${g.bestPerHit}`;
+}
+
 /** The mission line for the docked menu, or '' when there is nothing to say. */
 export function missionHeadline(
   commander: CommanderData, systems: readonly StarSystem[],
 ): string {
   const m = commander.mission;
   if (m.stage === 1 && m.targetIndex !== null) {
-    return `NAVY MISSION: DESTROY THE CONSTRICTOR — LAST SEEN AT ${systems[m.targetIndex].name.toUpperCase()}`;
+    const warning = constrictorWarning(commander);
+    return `NAVY MISSION: DESTROY THE CONSTRICTOR — LAST SEEN AT ${systems[m.targetIndex].name.toUpperCase()}`
+      + (warning ? ` · ${warning.replace('NAVY: ', '')}` : '');
   }
   if (m.stage === 3 && m.targetIndex !== null) {
     return `NAVY MISSION: DELIVER THE PLANS TO ${systems[m.targetIndex].name.toUpperCase()}`;

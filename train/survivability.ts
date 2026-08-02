@@ -2,48 +2,36 @@
 //
 //   node --experimental-strip-types train/survivability.ts [episodes]
 //
-// The tournament (train/evaluate.ts) answers a different question than it
-// looks like it answers. Its defender flies the trader Cobra's hull at hp 1.0
-// with no shields; the player has two, plus four points of energy behind them.
+// This script used to exist to CORRECT a number. An episode's target was a
+// stand-in at hp 1.0 with no shields, roughly a third as durable as the
+// commander flying it, so every balance figure the tournament produced was
+// measured against the wrong ship — and this file divided the game's own
+// `durability()` back into the stand-in's units to ask the question properly.
 //
-// So the headline "a gang kills a defended target in 0.7s" is measured
-// against something roughly a third as durable as the commander flying it.
-// That is deliberate: an episode's target carries raw hp so that this script
-// can set it (see `playerHull` in ai-training/scenario.ts), and every brain
-// was fitted that way. It is still the wrong number to make a balance
-// decision from.
+// TODO 29 removed the need. The episode's target IS the commander now: three
+// 255-point pools from `game/systems.ts`, hit by `applyDamage`, for
+// `npcLaserDamageToPlayer` points off the firing build's own packed byte. There
+// is no conversion left to make and no hp to override.
 //
-// This script leaves the episode alone and corrects only the defender's
-// durability, IMPORTED from the game's own damage model (game/systems.ts).
+// So what this asks now is the question the tournament still cannot: how a
+// fight ends against a real GANG, at each size and against each shipped
+// pirate policy, in the commander's own points. It reports how much of her
+// pools a gang can strip in a fight, how often it gets all the way through,
+// and what it costs them — because "kill rate" alone stopped being the
+// interesting number the moment a kill stopped being cheap.
 //
-// It used to be transcribed here by hand, in a comment: "fore/aft shield 1.0
-// each, absorbed first by facing; energy max 4, overflow at 2 per point". Every
-// balance figure this project has quoted rested on that transcription still
-// matching the code. It now calls durability() instead, so it cannot drift.
+// TWO THINGS THE REAL GAME HAS AND THIS DOES NOT, both favouring the player:
+// pool RECHARGE (a shield face recovers 8.9 points a second, which is more than
+// a gang of three lands, and it is left out because an episode with it in has
+// no gradient — see ai-training/scenario.ts), and ECM, the escape capsule, the
+// torus drive and a station to run to. Treat every row as a floor.
 //
-// TWO SCALES MEET HERE, and the conversion belongs to the odd one. The
-// commander's banks are 255-point pools since TODO 27; an episode's target is
-// still the pre-TODO-27 normalized stand-in, and so is the damage the episode's
-// pirates roll at it. So the game's durability goes through
-// `targetHullForPoolPoints`, which lives in `ai-training/scenario.ts` beside the
-// stand-in whose scale it describes — the last conversion in the project, and
-// it goes when TODO 29 puts the episode on the real pools.
-//
-// The commander soaks one shield plus the whole bank from the front, two
-// shields plus the bank when manoeuvring. Regeneration is ignored: it is worth
-// a few points across a fight this short, and ignoring it understates the
-// player, which is the safe direction.
-//
-// Not a substitute for flying it. The real game also has ECM, an escape pod,
-// the torus drive, and RAM_GUARD breaking pirates off at knife range — none
-// of which exist here. Treat this as the floor, not the answer.
+// Not a substitute for flying it. `T` at any station is.
 
-import {
-  Episode, targetHullForPoolPoints, type Controller,
-} from '../src/ai-training/scenario.ts';
+import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { readFileSync } from 'node:fs';
-import { durability } from '../src/game/systems.ts';
+import { durability, MAX_SHIELD } from '../src/game/systems.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
@@ -55,15 +43,32 @@ const DT = FIXED_DT;
 // distinct from the trainer's stream AND from evaluate.ts's held-out base, so
 // this is not scoring on seeds anything was selected against
 const SEED_BASE = 918_273;
+const MAX_TIME = 45;
 
-const pack = load(process.env.PACK_BRAIN ?? 'pirate-pack-r4-selectonly');
-const solo = load(process.env.SOLO_BRAIN ?? 'pirate-attack-r2');
-const jameson = load(process.env.DEFEND_BRAIN ?? 'jameson-defend');
+const BRAIN_NAMES = {
+  pack: process.env.PACK_BRAIN ?? 'pirate-pack-r4-selectonly',
+  solo: process.env.SOLO_BRAIN ?? 'pirate-attack-g3',
+  defend: process.env.DEFEND_BRAIN ?? 'jameson-defend-g1',
+};
+const pack = load(BRAIN_NAMES.pack);
+const solo = load(BRAIN_NAMES.solo);
+const jameson = load(BRAIN_NAMES.defend);
 
-interface Result { kill: number; ttk: number; lost: number }
+interface Result {
+  /** share of episodes the commander was destroyed in */
+  kill: number;
+  /** mean seconds to the kill, of the fights that ended in one */
+  ttk: number;
+  /** mean share of her three pools stripped by the end */
+  poolLost: number;
+  /** share of episodes her FACING shield was flattened */
+  shieldDown: number;
+  /** attackers destroyed per episode */
+  lost: number;
+}
 
-function run(pirateBrain: Brain, hp: number, gang: number): Result {
-  let kills = 0; let ttk = 0; let lost = 0;
+function run(pirateBrain: Brain, gang: number): Result {
+  let kills = 0; let ttk = 0; let lost = 0; let poolLost = 0; let shieldDown = 0;
   const pirates: Controller[] = Array.from({ length: gang },
     () => ({ kind: 'policy', brain: pirateBrain }));
   for (let e = 0; e < N; e++) {
@@ -72,41 +77,43 @@ function run(pirateBrain: Brain, hp: number, gang: number): Result {
       pirates,
       trader: { kind: 'policy', brain: jameson },
       traderArmed: true,
-      maxTime: 45,
+      traderClass: 'playerCobra',
+      maxTime: MAX_TIME,
     });
-    // the whole point: a commander is not a cargo hauler
-    ep.trader.hp = hp;
-    let death = 45;
+    let death = MAX_TIME;
     while (!ep.done) {
       ep.step(DT);
-      if (!ep.trader.alive && death === 45) death = ep.t;
+      if (!ep.trader.alive && death === MAX_TIME) death = ep.t;
     }
     if (!ep.trader.alive) { kills += 1; ttk += death; }
+    poolLost += 1 - ep.trader.hp;
+    if (ep.trader.sys.foreShield <= 0 || ep.trader.sys.aftShield <= 0) shieldDown += 1;
     for (const p of ep.pirates) if (!p.alive) lost += 1;
   }
-  return { kill: kills / N, ttk: kills ? ttk / kills : 45, lost: lost / N };
+  return {
+    kill: kills / N,
+    ttk: kills ? ttk / kills : MAX_TIME,
+    poolLost: poolLost / N,
+    shieldDown: shieldDown / N,
+    lost: lost / N,
+  };
 }
 
-// From game/systems.ts, not from a comment: change the shield or energy model
-// and this table follows it. The division is the scale seam described above.
-const inEpisodeUnits = targetHullForPoolPoints;
-const HP = [
-  [1.0, 'sim trader (what the tournament measures)'],
-  [inEpisodeUnits(durability(false)), 'player, hits landing on one face'],
-  [inEpisodeUnits(durability(true)), 'player, manoeuvring so both shields work'],
-] as const;
-
-console.log(`\n${N} episodes per row, defender flies jameson-defend\n`);
-for (const gang of [3, 4]) {
-  console.log(`## gang of ${gang}\n`);
-  console.log('| defender hp | pack brain (gangs) | solo brain (opportunists) |');
-  console.log('| --- | --- | --- |');
-  for (const [hp, label] of HP) {
-    const p = run(pack, hp, gang);
-    const s = run(solo, hp, gang);
-    const fmt = (r: Result) => `${(r.kill * 100).toFixed(0)}% in ${r.ttk.toFixed(1)}s`;
-    console.log(`| ${hp.toFixed(1)} — ${label} | ${fmt(p)} | ${fmt(s)} |`);
+console.log(`\n${N} episodes per row · ${MAX_TIME}s · defender flies ${BRAIN_NAMES.defend}`);
+console.log(`the commander's own pools: ${durability(true)} points across two ${MAX_SHIELD}-point`
+  + ' shields and the bank, no recharge — see the header\n');
+console.log('| gang | brain | destroyed | pools stripped | a shield flattened | they lost |');
+console.log('| --- | --- | --- | --- | --- | --- |');
+for (const gang of [1, 2, 3, 4]) {
+  for (const [label, brain] of [
+    [`${BRAIN_NAMES.solo} (opportunists)`, solo],
+    [`${BRAIN_NAMES.pack} (gangs)`, pack],
+  ] as const) {
+    const r = run(brain, gang);
+    console.log(`| ${gang} | ${label} | ${(r.kill * 100).toFixed(0)}% in `
+      + `${r.ttk.toFixed(1)}s | ${(r.poolLost * 100).toFixed(0)}% | `
+      + `${(r.shieldDown * 100).toFixed(0)}% | ${r.lost.toFixed(2)}/ep |`);
   }
-  console.log('');
 }
-console.log('kill% = commander destroyed within 45s · time = mean, of the fights that ended in a kill\n');
+console.log('\npools stripped = mean share of fore + aft + bank gone when the fight ended');
+console.log('they lost = attackers destroyed per episode, by her guns or their own flying\n');

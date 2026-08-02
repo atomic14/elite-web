@@ -35,6 +35,7 @@ import {
   type NpcSpec,
 } from '../src/game/ship-specs.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
+import { roleCombatProfileId } from '../src/game/role-variants.ts';
 import { newCommander, type CommanderData } from '../src/game/commander.ts';
 import { exerciseCommander } from '../src/game/combat-sim-safety.ts';
 import { loadCommander, saveCommander, slotKeys } from '../src/game/storage.ts';
@@ -183,15 +184,18 @@ console.log('\nthe Harmless inventions stay separate');
 
 console.log('\nthe roster states its identity');
 {
-  const everySpec: NpcSpec[] = [
-    ...Object.values(SPECS).flat(),
-    ...[0, 1, 2].flatMap((tier) => [0, 1, 2, 3].map((seed) => pirateSpecForTier(tier, seed))),
-    CONSTRICTOR_SPEC,
+  // The build is chosen by the JOB — game/role-variants.ts owns that policy.
+  type Row = [NpcRole, NpcSpec];
+  const byRole: Row[] = [
+    ...Object.entries(SPECS).flatMap(([r, l]) => l.map((s) => [r as NpcRole, s] as Row)),
+    ...[0, 1, 2].flatMap((t) => [0, 1, 2, 3].map((k) => ['pirate', pirateSpecForTier(t, k)] as Row)),
+    ['pirate', CONSTRICTOR_SPEC] as Row,
   ];
+  const everySpec: NpcSpec[] = byRole.map(([, s]) => s);
   check('every hull in the roster carries ids that resolve',
     everySpec.every((s) => isShipDesignId(s.designId) && isNpcCombatProfileId(s.profileId)));
-  check('...and each flies its design\'s recommended exact build',
-    everySpec.every((s) => s.profileId === recommendedProfileIdFor(s.designId)));
+  check('...and each flies the exact build its role selects',
+    byRole.every(([role, s]) => s.profileId === roleCombatProfileId(role, s.designId)));
   check('the asteroid, which has no roster entry, still has one identity',
     isShipDesignId(ASTEROID_IDENTITY.designId)
     && ASTEROID_IDENTITY.profileId === recommendedProfileIdFor(ASTEROID_IDENTITY.designId));

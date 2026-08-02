@@ -110,6 +110,22 @@ export function roleSourceBands(role: NpcRole): readonly SourceSlotBand[] {
   return ROLE_BANDS[role];
 }
 
+/**
+ * Does a released slot number fall in one of this role's bands?
+ *
+ * The slot numbers themselves stay private — `BAND_SLOTS` is this file's rule
+ * and nothing outside it should hold a copy of "17 to 24 means pirate". What a
+ * caller may ask is the question, and `game/role-variants.ts` is the one that
+ * asks it: a variant occupies slots in its own set, and whether any of them is
+ * a slot for THIS job is what decides if the role may fly that build.
+ */
+export function roleBandContainsSlot(role: NpcRole, slot: number): boolean {
+  return ROLE_BANDS[role].some((band) => {
+    const [first, last] = BAND_SLOTS[band];
+    return slot >= first && slot <= last;
+  });
+}
+
 /** Every design a role MAY fly, in design order. Computed once at load. */
 export function roleCandidateDesigns(role: NpcRole): readonly ShipDesignId[] {
   return CANDIDATES[role];

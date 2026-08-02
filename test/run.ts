@@ -51,6 +51,7 @@ import './elite-a-live-combat.test.ts';
 import './elite-a-live-defence.test.ts';
 import './ship-identity.test.ts';
 import './ship-roles.test.ts';
+import './role-variants.test.ts';
 
 // --- the trained brains -----------------------------------------------------
 import './ai.test.ts';

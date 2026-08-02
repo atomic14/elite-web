@@ -203,17 +203,24 @@ console.log('\npirate threat tiers classify from source combat fields');
       !(a.score > b.score && a.tier < b.tier))),
     others.map((s) => `${s.name} ${s.score}/${s.tier}`).join(', '));
 
-  // The seeds that picked a hull before this phase still pick that hull: the
-  // tiers grew at the END, because a tier is the roster filtered in order.
-  eq('tier 0 still opens Sidewinder, Gecko, Worm',
+  // The tier a hull lands in follows the BUILD it flies, and TODO 29 changed
+  // which build that is: a combat role now takes the hardest variant the source
+  // ever filed under its own job (game/role-variants.ts), so a hull with a
+  // harder gun scores higher and several moved up. Recorded here rather than
+  // argued about — the Gecko went 0 -> 1 and the pirate Cobra Mk III 1 -> 2, and
+  // the Asp Mk II left the roster entirely because no released build of it can
+  // hurt a flyable hull.
+  eq('tier 0 opens Sidewinder, Worm, Ophidian',
     [0, 1, 2].map((k) => shipDisplayName(pirateSpecForTier(0, k).designId)).join(),
-    'Sidewinder,Gecko,Worm');
-  eq('tier 1 still opens Krait, Mamba, Moray, Cobra Mk III',
+    'Sidewinder,Worm,Ophidian');
+  eq('tier 1 opens Krait, Mamba, Gecko, Moray',
     [0, 1, 2, 3].map((k) => shipDisplayName(pirateSpecForTier(1, k).designId)).join(),
-    'Krait,Mamba,Moray,Cobra Mk III');
-  eq('tier 2 still opens Fer-de-Lance, Asp Mk II, Python',
+    'Krait,Mamba,Gecko,Moray');
+  eq('tier 2 opens Cobra Mk III, Fer-de-Lance, Python',
     [0, 1, 2].map((k) => shipDisplayName(pirateSpecForTier(2, k).designId)).join(),
-    'Fer-de-Lance,Asp Mk II,Python');
+    'Cobra Mk III,Fer-de-Lance,Python');
+  check('...and no tier is empty, so every threat level has hulls to draw from',
+    PIRATE_TIERS.every((tier) => tier.length > 0));
 }
 
 // --- no source combat field is copied into the tables -----------------------

@@ -1,0 +1,35 @@
+
+> harmless@1.0.0 campaign
+> node --experimental-strip-types --no-warnings test/campaign.ts
+
+
+=== TRADER: 40 commanders × 60 legs ===
+(real galaxy, market, living-galaxy and contract code; flight abstracted)
+
+WEALTH   median net worth 5926.0 Cr (cash + fitted kit), from a 100.0 Cr start
+         cash in hand: median 473.1 Cr · peak during career 1355.6 Cr · best career 17353.0 Cr
+SURVIVAL 39/40 never went broke · 0.8 deaths per career
+PACE     median day 139 after 60 legs · first upgrade at leg 7
+CONTRACT 26.0 completed · 22.2 failed per career
+COMBAT   20.6 kills · 33.7t cargo lost to pirates per career
+RATING   median Below Average
+EQUIPMENT owned by end of career: largeBay 100% · ecm 100% · beam 100% · scoops 100% · escapePod 90% · energyBomb 65% · energyUnit 63% · dockingComputer 38% · combatComputer 8% · miningLaser 3% · military 3%
+GALAXY   living prices ranged 0.75x..1.25x baseline · mean system danger 0.053
+PIRATES  reception by tier: opportunists 56% · professionals 31% · gangs 13% · 2.3 organised per career · mean appeal 0.29
+LADDER   median legs / in-game years to each combat rating:
+         Mostly Harmless      24 legs ·    0.2 yr  (37/40 commanders)
+         Poor                 37 legs ·    0.2 yr  (39/40 commanders)
+         Below Average        48 legs ·    0.3 yr  (21/40 commanders)
+         Average              52 legs ·    0.4 yr  (3/40 commanders)
+SCALING  poorer half: appeal 0.28 · 42% tier1+ · 1.8 gangs/career
+         richer half: appeal 0.30 · 47% tier1+ · 2.9 gangs/career
+THREAT   by third of a career (early / middle / late):
+         early   800 receptions · tier mix 70%/24%/6% · 30% tier1+ · 9 gangs · 0.42 deaths · 5.0 kills · 11.1t lost
+         middle  800 receptions · tier mix 55%/34%/12% · 45% tier1+ · 27 gangs · 0.40 deaths · 6.8 kills · 11.8t lost
+         late    800 receptions · tier mix 42%/36%/22% · 58% tier1+ · 57 gangs · 0.00 deaths · 8.9 kills · 10.8t lost
+NAVY     31/40 reached 16 kills (median leg 46) · median cash then 63.4 Cr vs a 6000.0 Cr military laser at TL10+
+         0% could pay for one outright · 100% had already docked somewhere that sells it · 0% were already carrying one
+
+
+all balance checks passed (0.5s)
+

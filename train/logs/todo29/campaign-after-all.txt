@@ -1,0 +1,92 @@
+
+> harmless@1.0.0 campaign
+> node --experimental-strip-types --no-warnings test/campaign.ts 20 60 all
+
+
+=== TRADER: 20 commanders × 60 legs ===
+(real galaxy, market, living-galaxy and contract code; flight abstracted)
+
+WEALTH   median net worth 5949.4 Cr (cash + fitted kit), from a 100.0 Cr start
+         cash in hand: median 514.5 Cr · peak during career 1355.6 Cr · best career 17353.0 Cr
+SURVIVAL 20/20 never went broke · 0.7 deaths per career
+PACE     median day 139 after 60 legs · first upgrade at leg 7
+CONTRACT 25.8 completed · 21.9 failed per career
+COMBAT   21.8 kills · 33.8t cargo lost to pirates per career
+RATING   median Below Average
+EQUIPMENT owned by end of career: largeBay 100% · ecm 100% · beam 100% · scoops 100% · escapePod 90% · energyBomb 80% · energyUnit 55% · dockingComputer 40% · miningLaser 5% · military 5% · combatComputer 5%
+GALAXY   living prices ranged 0.75x..1.25x baseline · mean system danger 0.055
+PIRATES  reception by tier: opportunists 54% · professionals 31% · gangs 15% · 2.6 organised per career · mean appeal 0.30
+LADDER   median legs / in-game years to each combat rating:
+         Mostly Harmless      22 legs ·    0.1 yr  (18/20 commanders)
+         Poor                 35 legs ·    0.2 yr  (19/20 commanders)
+         Below Average        46 legs ·    0.3 yr  (13/20 commanders)
+         Average              52 legs ·    0.4 yr  (1/20 commanders)
+SCALING  poorer half: appeal 0.29 · 46% tier1+ · 2.3 gangs/career
+         richer half: appeal 0.31 · 46% tier1+ · 3.0 gangs/career
+THREAT   by third of a career (early / middle / late):
+         early   400 receptions · tier mix 71%/24%/5% · 29% tier1+ · 4 gangs · 0.35 deaths · 4.8 kills · 9.4t lost
+         middle  400 receptions · tier mix 53%/34%/14% · 48% tier1+ · 14 gangs · 0.35 deaths · 7.5 kills · 12.9t lost
+         late    400 receptions · tier mix 39%/35%/26% · 61% tier1+ · 35 gangs · 0.00 deaths · 9.4 kills · 11.4t lost
+NAVY     16/20 reached 16 kills (median leg 46) · median cash then 83.5 Cr vs a 6000.0 Cr military laser at TL10+
+         0% could pay for one outright · 100% had already docked somewhere that sells it · 0% were already carrying one
+
+
+=== BOUNTY HUNTER: 20 commanders × 60 legs ===
+(real galaxy, market, living-galaxy and contract code; flight abstracted)
+
+WEALTH   median net worth 649.7 Cr (cash + fitted kit), from a 100.0 Cr start
+         cash in hand: median 632.3 Cr · peak during career 632.3 Cr · best career 859.0 Cr
+SURVIVAL 20/20 never went broke · 2.4 deaths per career
+PACE     median day 118 after 60 legs · first upgrade at leg 54
+CONTRACT 5.5 completed · 9.4 failed per career
+COMBAT   38.9 kills · 0.0t cargo lost to pirates per career
+RATING   median Below Average
+EQUIPMENT owned by end of career: ecm 10%
+GALAXY   living prices ranged 0.75x..1.25x baseline · mean system danger 0.046
+PIRATES  reception by tier: opportunists 100% · professionals 0% · gangs 0% · 0.0 organised per career · mean appeal 0.00
+LADDER   median legs / in-game years to each combat rating:
+         Mostly Harmless      14 legs ·    0.1 yr
+         Poor                 26 legs ·    0.1 yr
+         Below Average        45 legs ·    0.3 yr  (15/20 commanders)
+SCALING  poorer half: appeal 0.00 · 0% tier1+ · 0.0 gangs/career
+         richer half: appeal 0.00 · 0% tier1+ · 0.0 gangs/career
+THREAT   by third of a career (early / middle / late):
+         early   400 receptions · tier mix 100%/0%/0% · 0% tier1+ · 0 gangs · 1.00 deaths · 12.7 kills · 0.0t lost
+         middle  400 receptions · tier mix 100%/0%/0% · 0% tier1+ · 0 gangs · 0.80 deaths · 14.2 kills · 0.0t lost
+         late    400 receptions · tier mix 100%/0%/0% · 0% tier1+ · 0 gangs · 0.60 deaths · 12.0 kills · 0.0t lost
+NAVY     20/20 reached 16 kills (median leg 28) · median cash then 309.1 Cr vs a 6000.0 Cr military laser at TL10+
+         0% could pay for one outright · 70% had already docked somewhere that sells it · 0% were already carrying one
+
+  FAIL most contracts are completed rather than failed
+
+=== PRIVATEER: 20 commanders × 60 legs ===
+(real galaxy, market, living-galaxy and contract code; flight abstracted)
+
+WEALTH   median net worth 7982.0 Cr (cash + fitted kit), from a 100.0 Cr start
+         cash in hand: median 425.1 Cr · peak during career 2052.1 Cr · best career 16650.1 Cr
+SURVIVAL 20/20 never went broke · 0.5 deaths per career
+PACE     median day 156 after 60 legs · first upgrade at leg 16
+CONTRACT 34.2 completed · 22.6 failed per career
+COMBAT   58.9 kills · 40.1t cargo lost to pirates per career
+RATING   median Average
+EQUIPMENT owned by end of career: largeBay 100% · ecm 100% · beam 100% · scoops 100% · escapePod 95% · energyUnit 95% · energyBomb 80% · combatComputer 60% · dockingComputer 25% · miningLaser 5% · military 5%
+GALAXY   living prices ranged 0.75x..1.25x baseline · mean system danger 0.049
+PIRATES  reception by tier: opportunists 69% · professionals 22% · gangs 10% · 1.6 organised per career · mean appeal 0.22
+LADDER   median legs / in-game years to each combat rating:
+         Mostly Harmless      20 legs ·    0.1 yr
+         Poor                 26 legs ·    0.2 yr
+         Below Average        36 legs ·    0.2 yr
+         Average              50 legs ·    0.4 yr  (16/20 commanders)
+         Above Average        57 legs ·    0.5 yr  (2/20 commanders)
+SCALING  poorer half: appeal 0.19 · 23% tier1+ · 0.7 gangs/career
+         richer half: appeal 0.25 · 40% tier1+ · 2.4 gangs/career
+THREAT   by third of a career (early / middle / late):
+         early   400 receptions · tier mix 76%/21%/4% · 24% tier1+ · 2 gangs · 0.30 deaths · 9.3 kills · 11.0t lost
+         middle  400 receptions · tier mix 69%/23%/9% · 32% tier1+ · 8 gangs · 0.15 deaths · 21.2 kills · 17.4t lost
+         late    400 receptions · tier mix 62%/22%/17% · 39% tier1+ · 21 gangs · 0.00 deaths · 28.3 kills · 11.7t lost
+NAVY     20/20 reached 16 kills (median leg 27) · median cash then 60.6 Cr vs a 6000.0 Cr military laser at TL10+
+         0% could pay for one outright · 100% had already docked somewhere that sells it · 0% were already carrying one
+
+
+1 balance check(s) failed
+

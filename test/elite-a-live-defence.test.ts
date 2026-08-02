@@ -139,7 +139,13 @@ console.log('\nlive defence — the cases the contract names');
   {
     // FULL ARMOUR ABSORPTION: an Asp Mk II's single laser-power bit is 4 points
     // before armour, and a Cobra Mk III subtracts 7. Nothing gets through.
-    const asp = npcWeaponByte(SPECS.pirate[8].profileId);
+    //
+    // Reached by variant id rather than through the roster, because that is
+    // exactly why the roster no longer flies one: all three released Asp builds
+    // do zero to all fifteen flyable hulls, so it is not a combat hull under
+    // the clean rule (see ship-specs.ts). The BOUNDARY is still worth proving,
+    // and this is a real released build.
+    const asp = npcWeaponByte(npcCombatProfileIdOf('I:23'));
     eq('a laser weaker than the hull\'s armour is worth nothing at all',
       npcLaserDamageToPlayer(asp, COBRA_MK_3_HULL_ID), 0);
     const sys = freshSystems();
@@ -243,7 +249,10 @@ console.log('\nlive defence — every one of the 15 hulls, flown');
     // `npc.weaponByte` is what world-step.ts hands the rule; the armour is the
     // commander's own. This is the whole live expression, per hull.
     const perHit = npcLaserDamageToPlayer(pirate.weaponByte, shipId);
-    const want = 16 - hull.perHitShieldArmour;     // a Sidewinder's 4 power bits
+    // A pirate Sidewinder's 5 power bits: `V:17`, the hardest build the released
+    // sets ever filed in a pirate slot (game/role-variants.ts). It was `D:17`
+    // and 4 bits before the roster started choosing by role.
+    const want = 20 - hull.perHitShieldArmour;
     if (perHit !== Math.max(0, want)) {
       tally.fail(`${hull.name} got ${perHit}, want ${Math.max(0, want)}`);
     }

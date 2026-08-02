@@ -1,0 +1,26 @@
+
+> harmless@1.0.0 survivability
+> node --experimental-strip-types --no-warnings train/survivability.ts
+
+
+200 episodes per row, defender flies jameson-defend
+
+## gang of 3
+
+| defender hp | pack brain (gangs) | solo brain (opportunists) |
+| --- | --- | --- |
+| 1.0 — sim trader (what the tournament measures) | 75% in 7.8s | 80% in 12.8s |
+| 2.0 — player, hits landing on one face | 9% in 14.3s | 13% in 24.8s |
+| 3.0 — player, manoeuvring so both shields work | 1% in 44.6s | 0% in 45.0s |
+
+## gang of 4
+
+| defender hp | pack brain (gangs) | solo brain (opportunists) |
+| --- | --- | --- |
+| 1.0 — sim trader (what the tournament measures) | 89% in 6.1s | 92% in 8.0s |
+| 2.0 — player, hits landing on one face | 36% in 10.9s | 33% in 21.6s |
+| 3.0 — player, manoeuvring so both shields work | 3% in 28.7s | 1% in 33.3s |
+
+kill% = commander destroyed within 45s · time = mean, of the fights that ended in a kill
+
+npm run survivability  22.97s user 0.20s system 100% cpu 22.995 total

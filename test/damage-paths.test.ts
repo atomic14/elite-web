@@ -404,18 +404,22 @@ console.log('\nthe old scale is gone, and cannot come back');
     literals.length === 0, literals.join(' · '));
   check('...and the check is not vacuous', spends >= 15);
 
-  //    (c) the one surviving normalized scale is the training stand-in's, and it
-  //        stays inside the trainer.
-  const standIn = ['TARGET_DAMAGE_LO', 'TARGET_DAMAGE_SPREAD', 'VICTIM_RAM_DAMAGE',
+  //    (c) THE STAND-IN SCALE IS GONE. TODO 29 put the training episode's target
+  //        on the commander's own three 255-point pools, hit through
+  //        `applyDamage` for `npcLaserDamageToPlayer` points, so the five names
+  //        below no longer exist anywhere — not in the trainer either. This is
+  //        the last row of docs/DAMAGE-PATHS.md closing.
+  const retired = ['TARGET_DAMAGE_LO', 'TARGET_DAMAGE_SPREAD', 'VICTIM_RAM_DAMAGE',
     'targetShotDamage', 'targetHullForPoolPoints'];
-  const leaked: string[] = [];
-  for (const f of files.filter((x) => x.startsWith('game/'))) {
-    for (const name of standIn) if (code(f).includes(name)) leaked.push(`${f}: ${name}`);
+  const stillThere: string[] = [];
+  for (const f of [...files, 'ai-training/scenario.ts']) {
+    for (const name of retired) if (code(f).includes(name)) stillThere.push(`${f}: ${name}`);
   }
-  check('the trainer\'s normalized stand-in scale never reaches game code',
-    leaked.length === 0, leaked.join(' · '));
-  check('...and it really is declared in the trainer',
-    standIn.every((n) => code('ai-training/scenario.ts').includes(n)));
+  check('the normalized stand-in scale is gone from the project entirely',
+    stillThere.length === 0, stillThere.join(' · '));
+  check('...and the episode spends the commander\'s own points instead',
+    code('ai-training/scenario.ts').includes('npcLaserDamageToPlayer')
+    && code('ai-training/scenario.ts').includes('playerImpactDamage'));
 }
 
 console.log('\nthe inventory doc is the code\'s own list');

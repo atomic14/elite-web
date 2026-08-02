@@ -16,7 +16,7 @@ import {
   stepMissionAtDock,
   constrictorDestroyed,
   constrictorLurksHere,
-  missionHeadline,
+  missionHeadline, constrictorGunCheck, constrictorWarning,
 } from '../src/game/missions.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import {
@@ -25,7 +25,7 @@ import {
   acceptContract,
   contractMessage,
 } from '../src/game/contracts.ts';
-import { check } from './harness.ts';
+import { check, eq } from './harness.ts';
 
 // --- taking work, and being paid for it -------------------------------------
 //
@@ -164,7 +164,11 @@ console.log('\ncontracts');
 console.log('\nNavy mission');
 {
   const systems = generateGalaxy(1);
+  // A real commander underneath, because the headline now derives the Navy's
+  // weapon warning from the hull and the fitted gun (missions.ts
+  // `constrictorGunCheck`) — a stub with no `shipId` is not a ship.
   const cmdr = (over: Record<string, unknown> = {}) => ({
+    ...newCommander(),
     kills: 0, galaxy: 1, systemIndex: 7, credits: 1000,
     mission: { stage: 0, targetIndex: null }, ...over,
   }) as unknown as Parameters<typeof stepMissionAtDock>[0];
@@ -212,6 +216,32 @@ console.log('\nNavy mission');
       missionHeadline(cmdr(), systems) === '');
     check('a briefed one names the system',
       missionHeadline(cmdr({ mission: { stage: 1, targetIndex: 7 } }), systems).includes('LAVE'));
+  }
+
+  // --- what the job NEEDS, which is the other half of a briefing -------------
+  //
+  // TODO 29's ruling on the Constrictor: the source-exact halving stays, and
+  // what was missing was the signposting. A commander must not fly forty light
+  // years to discover that the upgrade she bought does nothing.
+  {
+    const withLaser = (laser: string) => {
+      const c = cmdr({ mission: { stage: 1, targetIndex: 7 } }) as unknown as CommanderData;
+      c.equipment.laser = laser as CommanderData['equipment']['laser'];
+      return c;
+    };
+    const beam = constrictorGunCheck(withLaser('beam'));
+    eq('a beam laser scores nothing at all against the Constrictor', beam.perHit, 0);
+    eq('...and the military laser is what does', `${beam.best}/${beam.bestPerHit}`,
+      'military/3');
+    check('so the briefing says so, with both numbers in it',
+      constrictorWarning(withLaser('beam')).includes('BEAM')
+      && constrictorWarning(withLaser('beam')).includes('MILITARY'));
+    eq('a commander already carrying the right gun is told nothing',
+      constrictorWarning(withLaser('military')), '');
+    check('and the mission headline carries the warning while the hunt is on',
+      missionHeadline(withLaser('beam'), systems).includes('MILITARY'));
+    check('...but not once she has the gun',
+      !missionHeadline(withLaser('military'), systems).includes('MILITARY LASER'));
   }
 }
 

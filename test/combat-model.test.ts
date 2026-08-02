@@ -84,29 +84,42 @@ console.log('\none combat model (the trainer flies the game)');
   check('...and it really is a PlayerShip, flown by a FlightDemand',
     playerEp.trader.ship instanceof PlayerShip);
 
-  // 2. The pirates in a training episode ARE roster hulls.
-  const gangEp = new Episode({
-    seed: 12,
-    pirates: [{ kind: 'scripted' }, { kind: 'scripted' }],
-    trader: { kind: 'scripted' },
-  });
+  // 2. The pirates in a training episode ARE roster hulls — the WHOLE roster,
+  //    sampled by the game's own threat-tier rule since TODO 29. It used to
+  //    alternate between two hand-picked rows, which is a narrow world to fit a
+  //    pursuit curve in when the roster holds sixteen.
+  //
   // By DESIGN ID, never by comparing hulls: two roster rows can share a mesh,
   // and ship-identity.ts is the only thing that says what a ship is.
+  const seen = new Set<string>();
+  const strangers: string[] = [];
+  for (let seed = 10; seed < 40; seed++) {
+    const ep = new Episode({
+      seed,
+      pirates: [{ kind: 'scripted' }, { kind: 'scripted' }],
+      trader: { kind: 'scripted' },
+    });
+    for (const p of ep.setup().pirates) {
+      seen.add(p.designId);
+      const spec = SPECS.pirate.find((s) => s.designId === p.designId);
+      // A fresh pirate is at FULL health and carries the exact released bank
+      // its own profile names — the fraction alone would pass for any hull.
+      if (!spec || spec.profileId !== p.profileId
+        || npcMaxEnergy(spec.profileId) !== p.maxEnergy) {
+        strangers.push(`${p.name} ${p.profileId}`);
+      }
+    }
+    if (!ep.pirates.every((p) => p.hp === 1)) strangers.push(`seed ${seed} not whole`);
+  }
+  check('every episode pirate is a roster row, on its own released bank',
+    strangers.length === 0, strangers.join(', '));
+  check(`...drawn from across the roster, not two hulls (${seen.size} designs in 30 seeds)`,
+    seen.size >= 6);
   const cobraSpec = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(10))!;
   const sideSpec = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(17))!;
-  const cobraR = shipTargetRadius(cobraSpec.designId);
-  const sideR = shipTargetRadius(sideSpec.designId);
-  // A fresh pirate is at FULL health — a fraction of 1 — and carries the exact
-  // released bank its profile names. Both, because the fraction alone would
-  // pass for any hull and the bank alone would not say it started whole.
-  const cobraE = npcMaxEnergy(cobraSpec.profileId);
-  const sideE = npcMaxEnergy(sideSpec.profileId);
-  check(`episode pirate 1 is the roster Cobra (energy ${cobraE}, r ${cobraR})`,
-    gangEp.pirates[0].hp === 1 && gangEp.pirates[0].radius === cobraR
-    && (gangEp.pirates[0] as { npc: { maxEnergy: number } }).npc.maxEnergy === cobraE);
-  check(`episode pirate 2 is the roster Sidewinder (energy ${sideE}, r ${sideR})`,
-    gangEp.pirates[1].hp === 1 && gangEp.pirates[1].radius === sideR
-    && (gangEp.pirates[1] as { npc: { maxEnergy: number } }).npc.maxEnergy === sideE);
+  check(`the Cobra Mk III (r ${shipTargetRadius(cobraSpec.designId).toFixed(2)}) and`
+    + ` the Sidewinder (r ${shipTargetRadius(sideSpec.designId).toFixed(2)}) are both in it`,
+  seen.has(cobraSpec.designId) && seen.has(sideSpec.designId));
 
   // 3. Per-hull accel — the omission the merge exposed.
   //

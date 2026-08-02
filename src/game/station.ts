@@ -29,7 +29,7 @@ import type { StarSystem } from '../galaxy/galaxy.ts';
 import { formatCredits } from './commander.ts';
 import { fineFor, CLEAN } from './law.ts';
 import { generateContractOffers, makeLocalMarket, describeContract } from './contracts.ts';
-import { stepMissionAtDock, missionHeadline } from './missions.ts';
+import { stepMissionAtDock, missionHeadline, constrictorWarning } from './missions.ts';
 import type { Ordnance } from './ordnance.ts';
 import { repairAtStation } from './systems.ts';
 import type { GameState } from './state.ts';
@@ -158,7 +158,16 @@ export class Station {
     // this owns the announcement, exactly as combat.ts announces the kill.
     // FIRST of the dock's rng draws — it picks the next target.
     for (const e of stepMissionAtDock(c, s.systems)) {
-      if (e.kind === 'briefed') messages.push(say('INCOMING NAVY TRANSMISSION', 5));
+      if (e.kind === 'briefed') {
+        messages.push(say('INCOMING NAVY TRANSMISSION', 5));
+        // What the job NEEDS, not just where it is. The Constrictor's armour
+        // halves a player hit before its own defence subtracts, so a beam laser
+        // does literally nothing to it and the commander would find that out
+        // forty light years from here. missions.ts derives the line from her
+        // actual fitted gun through the oracle, and returns '' when it will do.
+        const warning = constrictorWarning(c);
+        if (warning) messages.push(say(warning, 8));
+      }
       else if (e.kind === 'courierOrders') {
         messages.push(say('NAVY: COURIER RUN — EXPECT THARGOID INTERFERENCE', 6));
       } else if (e.kind === 'delivered') {

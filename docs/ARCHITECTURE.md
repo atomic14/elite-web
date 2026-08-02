@@ -196,6 +196,10 @@ src/
                             the pack
     ship-roles.ts           what a ship is FOR, and which released designs the
                             blueprint slots allow to be it
+    role-variants.ts        which released BUILD of that design the job flies —
+                            a combat role takes the hardest variant the source
+                            itself filed under that job, everything else the
+                            pack's recommended default
     ship-identity.ts        the three ids — player hull, design, exact variant —
                             what they resolve to, what a save without one
                             becomes, and the two Harmless-only overlays
@@ -311,6 +315,10 @@ test/harness.ts             check(), the counters and the shared fixtures
 test/*.test.ts              invariant + unit tests, one file per subsystem
 test/ship-roles.test.ts     the roster's gate: role bands, the whole catalogue,
                             the tiers, and hulls surviving a reload
+test/role-variants.test.ts  the selection policy's gate — every build is a real
+                            released row, the choice is deterministic and draws
+                            no rng, and no combat role flies a gun that cannot
+                            hurt a Cobra Mk III
 test/systems.test.ts        the commander's banks, the damage model and the
                             recharge — the numbers every balance claim rests on
 test/elite-a-live-defence.test.ts
@@ -326,6 +334,12 @@ test/fixtures/elite-a/      the 15,600 / 3,900 / 570 combat-oracle rows —
                             generated, and never imported by src/
 train/evolve.ts             neuroevolution trainer
 train/evaluate.ts           held-out tournament — the validation gate
+train/profile-sweep.ts      the catalogue rather than the policies: all 15
+                            flyable hulls as the target, all 38 designs'
+                            recommended profiles, non-combat objects excluded
+                            from the aggregates
+train/survivability.ts      how a fight against a real gang ends, in the
+                            commander's own pool points
 tools/import-elite-a.mjs    npm run generate:elite-a — reads the vendored pack,
                             verifies its hashes, writes the catalogue; --check
                             is the CI drift gate

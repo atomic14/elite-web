@@ -27,6 +27,7 @@ import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
 } from '../src/game/shop.ts';
 import { pirateSpecForTier } from '../src/game/ship-specs.ts';
+import { MISSION_KILL_THRESHOLD } from '../src/game/missions.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
 import { isContraband } from '../src/game/law.ts';
@@ -48,6 +49,17 @@ const STRATEGY = (process.argv[4] ?? 'trader') as Strategy | 'both' | 'all';
  */
 type Strategy = 'trader' | 'hunter' | 'privateer';
 const GRADIENTS = COMMODITIES.map((c) => c.gradient);
+
+/**
+ * The military laser, from the shop's own row — the one gun that kills a
+ * Constrictor in a reasonable time, and the whole of TODO 29's Navy-mission
+ * question: can a commander plausibly have one by the time the Navy calls?
+ *
+ * Read from EQUIPMENT_CATALOGUE rather than written down, so a price change
+ * moves this harness with it.
+ */
+const MILITARY = EQUIPMENT_CATALOGUE.find((e) => e.id === 'military')!;
+const MILITARY_LASER_TL = MILITARY.minTL;
 
 interface CareerResult {
   credits: number;
@@ -71,11 +83,50 @@ interface CareerResult {
   /** encounters seen at each threat tier, and how many were organised gangs */
   tierSeen: [number, number, number];
   gangs: number;
+  /**
+   * The same, split into the three thirds of the career — the EARLY, MIDDLE and
+   * LATE threat bands.
+   *
+   * A career-long average hides the thing the tier ladder exists to produce.
+   * "13% of receptions are gangs" is true and says nothing about whether a
+   * commander meets one on her second leg or her fiftieth, and a change that
+   * moved every gang to the first third would not move that number at all.
+   * These three bands are what TODO 29 asserts against.
+   */
+  bands: BandTally[];
   /** mean "worth robbing" score across the career */
   appeal: number;
+  /**
+   * The Navy mission's signposting question (TODO 29): the leg her 16th kill
+   * landed on, what she was worth then, whether she had already docked at a
+   * TL10+ system, and whether she was carrying the only gun that kills a
+   * Constrictor in a reasonable time.
+   */
+  missionLeg: number | null;
+  creditsAtMission: number;
+  tl10SeenByMission: boolean;
+  militaryAtMission: boolean;
   /** first leg and day each combat rating was reached */
   milestones: { rank: string; leg: number; day: number }[];
 }
+
+/** One third of a career: what turned up, and what it cost. */
+interface BandTally {
+  receptions: number;
+  tierSeen: [number, number, number];
+  gangs: number;
+  deaths: number;
+  kills: number;
+  cargoLost: number;
+}
+
+const freshBand = (): BandTally => ({
+  receptions: 0, tierSeen: [0, 0, 0], gangs: 0, deaths: 0, kills: 0, cargoLost: 0,
+});
+
+/** Which third of the planned career this leg falls in: 0 early, 1 middle, 2 late. */
+const bandOf = (leg: number, total: number): number =>
+  Math.min(2, Math.floor((leg * 3) / Math.max(1, total)));
 
 function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'trader'): CareerResult {
   const rng = makeRng(seed);
@@ -93,10 +144,16 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
   let peakCredits = c.credits;
   let legs = 0;
   const tierSeen: [number, number, number] = [0, 0, 0];
+  const bands: BandTally[] = [freshBand(), freshBand(), freshBand()];
   let gangs = 0;
   let appealSum = 0;
   let appealCount = 0;
   const milestones: { rank: string; leg: number; day: number }[] = [];
+  let missionLeg: number | null = null;
+  let creditsAtMission = 0;
+  let tl10Seen = false;
+  let tl10SeenAtMission = false;
+  let militaryAtMission = false;
   let lastRank = rating(0);
   let minMult = 1;
   let maxMult = 1;
@@ -154,6 +211,8 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       }
     }
 
+    if (here.techLevel >= MILITARY_LASER_TL) tl10Seen = true;
+
     // --- refuel ---
     const need = fuelNeeded(c);
     if (need > 0) {
@@ -165,9 +224,10 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     // A hunter's shopping list is not a trader's: guns and survivability
     // first, and it needs a far smaller float because it isn't buying cargo.
     // Order matters more now that an unaffordable item means saving rather
-    // than skipping: put a 60,000 credit military laser second and a hunter
-    // buys nothing else until it has one. Cheap survivability first, the
-    // expensive gun once it is actually reachable.
+    // than skipping: put the 6,000 Cr military laser second and a hunter buys
+    // nothing else until it has one. Cheap survivability first, the expensive
+    // gun once it is actually reachable. (The price is 60,000 TENTHS — money is
+    // tenths of a credit everywhere in this project, CLAUDE.md invariant 8.)
     const COMBAT_KIT = ['beam', 'ecm', 'energyUnit', 'escapePod',
       'combatComputer', 'military', 'missile'];
     // A trader needs a list too. Without one it shopped in EQUIPMENT_CATALOGUE
@@ -267,8 +327,12 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     // --- what happens on the way in ---
     const danger = living.danger(dest);
     const threat = pirateThreat(destSys, danger, markOf(c, living.notoriety(dest)), rng);
+    const band = bands[bandOf(legs - 1, LEGS)];
     tierSeen[threat.tier] += 1;
+    band.tierSeen[threat.tier] += 1;
+    band.receptions += 1;
     if (threat.organised) gangs += 1;
+    if (threat.organised) band.gangs += 1;
     appealSum += threat.appeal;
     appealCount += 1;
     const pirates = threat.count;
@@ -278,6 +342,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
       if (outcome === 'escaped') continue;
       if (outcome === 'dead') {
         deaths += 1;
+        band.deaths += 1;
         // Dying costs you the cargo and the work in hand. It does NOT cost
         // credits: `Game.die()` has no such line, and this file used to take
         // 40% of them "the original's rule". Inventing a tax the game does
@@ -294,10 +359,12 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
           const taken = Math.min(pick.q, 1 + Math.floor(rng() * 3));
           c.cargo[pick.i] -= taken;
           cargoLost += taken;
+          band.cargoLost += taken;
         }
       }
       if (outcome === 'killed-them') {
         c.kills += 1;
+        band.kills += 1;
         c.combatScore += killValue(mt);
         // The bounty the GAME pays, from the hull that actually spawns.
         // This was `(50 + rng()*60) * (tier2 ? 4 : tier1 ? 2 : 1)` — an
@@ -308,6 +375,13 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
           if (k.kind === 'bounty' && k.destination === c.systemIndex) k.progress += 1;
         }
       }
+    }
+
+    if (missionLeg === null && c.kills >= MISSION_KILL_THRESHOLD) {
+      missionLeg = leg + 1;
+      creditsAtMission = c.credits;
+      tl10SeenAtMission = tl10Seen;
+      militaryAtMission = c.equipment.laser === 'military';
     }
 
     const rank = rating(c.combatScore);
@@ -330,7 +404,12 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     priceSpread: [minMult, maxMult],
     dangerSeen: dangerSum / Math.max(1, legs),
     tierSeen,
+    bands,
     gangs,
+    missionLeg,
+    creditsAtMission,
+    tl10SeenByMission: tl10SeenAtMission,
+    militaryAtMission,
     appeal: appealSum / Math.max(1, appealCount),
     milestones,
     day: c.day,
@@ -603,6 +682,59 @@ function report(label: string, careers: CareerResult[], strategy: Strategy): voi
       `${upperTier(rich).toFixed(0)}% tier1+ · ${gangRate(rich).toFixed(1)} gangs/career`);
   }
 
+  // --- the three combat threat bands ----------------------------------------
+  //
+  // TODO 29: a career-long tier average cannot tell an escalating game from one
+  // that throws gangs at a fresh commander. These are the same receptions split
+  // into thirds of the career.
+  const band = (i: number): BandTally => careers.reduce((a, r) => ({
+    receptions: a.receptions + r.bands[i].receptions,
+    tierSeen: [
+      a.tierSeen[0] + r.bands[i].tierSeen[0],
+      a.tierSeen[1] + r.bands[i].tierSeen[1],
+      a.tierSeen[2] + r.bands[i].tierSeen[2],
+    ],
+    gangs: a.gangs + r.bands[i].gangs,
+    deaths: a.deaths + r.bands[i].deaths,
+    kills: a.kills + r.bands[i].kills,
+    cargoLost: a.cargoLost + r.bands[i].cargoLost,
+  }), freshBand());
+  const BAND_NAMES = ['early', 'middle', 'late'];
+  const bandRows = [0, 1, 2].map(band);
+  const upper = (b: BandTally): number =>
+    (100 * (b.tierSeen[1] + b.tierSeen[2])) / Math.max(1, b.receptions);
+  console.log('THREAT   by third of a career (early / middle / late):');
+  for (const [i, b] of bandRows.entries()) {
+    console.log(`         ${BAND_NAMES[i].padEnd(7)} ${b.receptions} receptions · `
+      + `tier mix ${b.tierSeen.map((t) => Math.round((100 * t) / Math.max(1, b.receptions)) + '%').join('/')} · `
+      + `${upper(b).toFixed(0)}% tier1+ · ${b.gangs} gangs · `
+      + `${(b.deaths / COMMANDERS).toFixed(2)} deaths · ${(b.kills / COMMANDERS).toFixed(1)} kills · `
+      + `${(b.cargoLost / COMMANDERS).toFixed(1)}t lost`);
+  }
+
+  // --- the Navy mission's signposting question -------------------------------
+  //
+  // TODO 29: the Constrictor's source-exact armour makes a BEAM laser worth
+  // exactly nothing against it, and only a military laser kills it in a
+  // reasonable time. That is not a balance bug to be tuned away — it is the
+  // released rule, and the same one the original had. What it needs is for the
+  // job to be reachable: a commander must be able to have the gun by the time
+  // the Navy calls, and to be told what the job wants.
+  const briefed = careers.filter((r) => r.missionLeg !== null);
+  if (briefed.length) {
+    const canAfford = briefed.filter((r) => r.creditsAtMission >= MILITARY.price);
+    const sawTl = briefed.filter((r) => r.tl10SeenByMission);
+    console.log(`NAVY     ${briefed.length}/${COMMANDERS} reached ${MISSION_KILL_THRESHOLD} kills`
+      + ` (median leg ${median(briefed.map((r) => r.missionLeg!))})`
+      + ` · median cash then ${cr(median(briefed.map((r) => r.creditsAtMission)))} Cr`
+      + ` vs a ${cr(MILITARY.price)} Cr military laser at TL${MILITARY_LASER_TL}+`);
+    console.log(`         ${Math.round((100 * canAfford.length) / briefed.length)}%`
+      + ` could pay for one outright · `
+      + `${Math.round((100 * sawTl.length) / briefed.length)}% had already docked somewhere`
+      + ` that sells it · ${Math.round((100 * briefed.filter((r) => r.militaryAtMission).length) / briefed.length)}%`
+      + ' were already carrying one');
+  }
+
   // sanity assertions — this doubles as a regression test.
   //
   // NO `let failures` HERE. There is one at module scope, and the exit code is
@@ -670,6 +802,57 @@ function report(label: string, careers: CareerResult[], strategy: Strategy): voi
     Math.max(...worth) < wealthCeiling,
     `best ${cr(Math.max(...worth))} Cr over ${LEGS} legs, ceiling ${cr(wealthCeiling)} Cr`);
   assert('credits never go negative', credits.every((x) => x >= 0));
+
+  // The Navy mission is reachable, and it is a reachability check rather than a
+  // purchasing one: the campaign bot's shopping list is not a person's, and it
+  // is the bot the 3%-buy-a-military-laser figure describes. What has to hold is
+  // that the OPTION is there — a shipyard that sells the gun, within reach, by
+  // the time the briefing arrives.
+  if (briefed.length) {
+    assert('most commanders have docked where the military laser is sold by then',
+      briefed.filter((r) => r.tl10SeenByMission).length >= briefed.length * 0.5,
+      `${briefed.filter((r) => r.tl10SeenByMission).length}/${briefed.length}`);
+  }
+
+  // --- and the bands are covered, and in the right order ---------------------
+  //
+  // Every one of these would have passed silently on a career average. They are
+  // the acceptance criterion TODO 29 names: "campaign checks cover early,
+  // middle and late combat threat bands".
+  assert('every third of a career actually sees combat',
+    bandRows.every((b) => b.receptions > 0),
+    bandRows.map((b, i) => `${BAND_NAMES[i]} ${b.receptions}`).join(', '));
+  // A BOUNTY HUNTER IS EXEMPT FROM THE NEXT THREE, and that exemption is the
+  // tier rule working rather than a hole in it. `pirateThreat` reads what a
+  // pirate can SEE — cargo, hold, laser, reputation — and a hunter flies empty
+  // on purpose, so it looks worthless and meets nothing but opportunists (0.00
+  // appeal, 100% tier 0 across every band). Asserting escalation for a cohort
+  // that has deliberately made itself a poor target would be asserting that the
+  // deterrence lever does not work.
+  if (strategy !== 'hunter') {
+    assert('all three threat tiers are exercised somewhere in a career',
+      [0, 1, 2].every((t) => bandRows.reduce((a, b) => a + b.tierSeen[t], 0) > 0));
+    // The ladder's whole point: a new commander meets opportunists, and the
+    // professionals and gangs arrive once she is worth the trouble.
+    assert('threat escalates from the early band to the late one',
+      upper(bandRows[2]) > upper(bandRows[0]),
+      `early ${upper(bandRows[0]).toFixed(0)}% tier1+ · late ${upper(bandRows[2]).toFixed(0)}%`);
+    assert('the late band is where the organised gangs are',
+      bandRows[2].gangs >= bandRows[0].gangs,
+      `early ${bandRows[0].gangs} · late ${bandRows[2].gangs}`);
+  } else {
+    assert('a hunter who flies empty is only ever worth an opportunist\'s time',
+      upper(bandRows[2]) < 10,
+      `${upper(bandRows[2]).toFixed(1)}% tier1+ in the late band`);
+  }
+  // ...and the escalation must not outrun the upgrades. The late band throws
+  // twice the tier-1+ receptions and six times the gangs at her, so if the
+  // ladder is working she is nonetheless SAFER by then, not more at risk.
+  // Measured on a 40x60 trader run: 17 deaths early, 16 middle, 0 late.
+  assert('a commander who has upgraded is safer, despite the harder receptions',
+    bandRows[2].deaths <= bandRows[0].deaths,
+    `early ${bandRows[0].deaths} deaths · late ${bandRows[2].deaths}, `
+    + `on ${upper(bandRows[0]).toFixed(0)}% vs ${upper(bandRows[2]).toFixed(0)}% tier1+`);
   assert('the living galaxy actually moves prices', hi - lo > 0.05, `${lo.toFixed(2)}..${hi.toFixed(2)}`);
 
 }

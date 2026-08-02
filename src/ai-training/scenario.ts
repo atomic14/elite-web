@@ -37,11 +37,20 @@ import {
   npcHitChance, npcTriggerPull, npcWeaponByte,
 } from '../game/gunnery.ts';
 import { npcCrossfireDamage } from '../game/npc-energy.ts';
-import { IMPACT, npcImpactDamage } from '../game/impact-damage.ts';
-import type { NpcEnergyPoints } from '../game/damage-units.ts';
-import { COBRA_MK_3_HULL_ID } from '../game/ship-identity.ts';
+import { IMPACT, npcImpactDamage, playerImpactDamage } from '../game/impact-damage.ts';
+import type { NpcEnergyPoints, PlayerPoolPoints } from '../game/damage-units.ts';
+import {
+  COBRA_MK_3_HULL_ID,
+  type NpcCombatProfileId, type PlayerHullId, type ShipDesignId,
+} from '../game/ship-identity.ts';
+import { npcLaserDamageToPlayer } from '../game/gunnery.ts';
+import { memberTier } from '../game/threat.ts';
+import { pirateSpecForTier } from '../game/ship-specs.ts';
 import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
-import { LASER_COOL_RATE, MAX_SHIELD } from '../game/systems.ts';
+import {
+  LASER_COOL_RATE, MAX_ENERGY, MAX_SHIELD, applyDamage, durability, freshSystems,
+  type ShipSystems,
+} from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
   observe, act, makeScratch, shipView, writeView,
@@ -60,13 +69,14 @@ export interface EpisodeShip {
   /**
    * How much of this ship is left, 0..1.
    *
-   * A FRACTION on both sides of the fight, deliberately. A pirate's real bank
-   * is source energy points (TODO 26) and the target's is still normalized hull
-   * (TODO 29 moves it), so the one number both an `EpisodeShip` reader and a
-   * fitness function can compare is the fraction — and it is what the AI's own
-   * health observation uses anyway.
+   * A FRACTION, and it is the ONLY place either side of the fight is normalized
+   * — the AI's observation boundary and the shaped fitness that reads it. Both
+   * ships now hold exact source-scale numbers underneath: a pirate its released
+   * energy bank in `NpcEnergyPoints`, the target the commander's own three
+   * 255-point pools in `PlayerPoolPoints`, each divided by its own maximum here
+   * and nowhere else (TODO 29).
    */
-  hp: number;
+  readonly hp: number;
   alive: boolean;
   /** telemetry the fitness functions and the tournament read */
   shotsFired: number;
@@ -127,7 +137,6 @@ export type TargetHullId = 'traderCobra' | 'playerCobra' | 'playerCobraSlow';
 
 interface TargetHull {
   name: string;
-  hp: number;
   radius: number;
   maxSpeed: number;
   accel: number;
@@ -147,12 +156,6 @@ function traderHull(): TargetHull {
   const s = TRADER_COBRA;
   return {
     name: 'Cobra Mk III',
-    // Still the normalized hull: the episode's TARGET stands in for the
-    // commander, whose banks moved onto the 255-point source scale in TODO 27
-    // while this stand-in — and the `targetShotDamage` roll thrown at it below —
-    // stayed where the shipped brains were fitted. TODO 29 rebaselines both
-    // together, because moving one without the other is a different world.
-    hp: s.legacyHullPoints,
     radius: shipTargetRadius(s.designId),
     maxSpeed: s.maxSpeed,
     accel: shipAccel(s),
@@ -174,14 +177,14 @@ function traderHull(): TargetHull {
  * (1.036 x 1.4 = 1.4504 against 1.45). Both are now the same number as the
  * ship, because they are read off it.
  *
- * hp 1.0 with no shields is deliberate and unchanged: `train/survivability.ts`
- * exists to re-run the balance question at the commander's real durability
- * (game/systems.ts `durability()`), and it works by overriding `trader.hp`.
+ * DURABILITY IS NO LONGER A PROPERTY OF THE HULL ROW. Every target flies the
+ * commander's own three 255-point pools through `game/systems.ts`, so
+ * `train/survivability.ts` no longer has to correct a stand-in's hp — the
+ * stand-in is the commander (TODO 29).
  */
-function playerHull(maxSpeed: number, accel: number): TargetHull {
+function targetFlightHull(maxSpeed: number, accel: number): TargetHull {
   return {
     name: 'Cobra Mk III (player)',
-    hp: 1.0,
     radius: shipTargetRadius(TRADER_COBRA.designId),
     maxSpeed,
     accel,
@@ -204,7 +207,7 @@ const TARGET_HULLS: Record<TargetHullId, () => TargetHull> = {
    * re-acquiring instead of shooting — measured in the game, a Sidewinder is
    * lined up on the player for 5% of a fight.
    */
-  playerCobra: () => playerHull(PLAYER_FLIGHT.maxSpeed, PLAYER_FLIGHT.accel),
+  playerCobra: () => targetFlightHull(PLAYER_FLIGHT.maxSpeed, PLAYER_FLIGHT.accel),
   /**
    * How a human actually flies in a dogfight, from Chris's recorded envelope:
    * median speed 66, pitch held at 1.36 of a possible 1.45. He turns almost on
@@ -218,63 +221,55 @@ const TARGET_HULLS: Record<TargetHullId, () => TargetHull> = {
    * commander's own ship.
    */
   playerCobraSlow: () => {
-    const h = playerHull(90, 120);
+    const h = targetFlightHull(90, 120);
     h.name = 'Cobra Mk III (player, knife-fighting)';
     return h;
   },
 };
 
-/** Which hull a pirate flies. Both are read from the roster. */
-const PIRATE_COBRA: NpcSpec = SPECS.pirate[5];
-const PIRATE_SIDEWINDER: NpcSpec = SPECS.pirate[0];
-
-// --- the stand-in target's own scale ----------------------------------------
-//
-// EVERYTHING BELOW IS THE TRAINING TARGET'S, and it is the last normalized
-// scale in the project. `TargetShip` stands in for the commander at hp 1.0 with
-// no shields; the shipped brains were all fitted against it, and TODO 29
-// rebaselines it onto the commander's real 255-point pools. TODO 28 left it
-// alone deliberately — moving it is a different world, not a unit fix — but it
-// moved the numbers that feed it HERE, where the scale is, so that no game
-// module holds a fractional damage figure any more.
-//
-// Nothing on this scale ever reaches a real `NpcShip`: a pirate's bank takes
-// `NpcEnergyPoints` and the type refuses anything else.
-
-/** Damage per hit against the stand-in target: 0.1 plus up to 0.12. */
-export const TARGET_DAMAGE_LO = 0.1;
-export const TARGET_DAMAGE_SPREAD = 0.12;
-
-/** One NPC hit on the stand-in target, on its own normalized scale. */
-export function targetShotDamage(roll: number): number {
-  return TARGET_DAMAGE_LO + roll * TARGET_DAMAGE_SPREAD;
+/**
+ * Which hull a pirate flies.
+ *
+ * SAMPLED FROM THE ROSTER, by the game's own rule. An episode draws a threat
+ * tier from its seed and hands each attacker the hull `threat.ts` would give
+ * the Nth member of a group at that tier — so the trainer meets the same spread
+ * of released builds the sky does, from a tier-0 Sidewinder to a tier-2 Monitor,
+ * instead of the two hulls it used to alternate between.
+ *
+ * It was `SPECS.pirate[5]` and `SPECS.pirate[0]`, indexes into a list that has
+ * since grown by seven ships. Two hulls is a narrow world to fit a pursuit
+ * curve in, and TODO 29 widened the roster it is drawn from without widening
+ * the world the brains saw.
+ */
+function pirateSpecFor(seed: number, index: number, count: number): NpcSpec {
+  const tier = seed % 3;
+  return pirateSpecForTier(memberTier(tier, index), (seed >>> 2) + index * 7 + count);
 }
 
-/**
- * What the *victim* of a ram takes, against the rammer's `IMPACT.ram`.
- *
- * In the game the player's fore/aft shields absorb collision damage before the
- * hull sees any (world-step.ts bills `applyPlayerDamage`), so ramming is
- * heavily asymmetric against the pirate. The target here has raw hp and no
- * shields — see `playerHull` — so the asymmetry is modelled directly.
- * Symmetric damage punished the trader for being hit, which is not what
- * happens in the game.
- */
-const VICTIM_RAM_DAMAGE = 0.12;
+/** The record schema an episode's setup and report are written against. */
+export const EPISODE_SCHEMA = 1;
 
-/**
- * The commander's real durability, in the units this episode's target speaks.
- *
- * THE ONE REMAINING CONVERSION IN THE PROJECT, and it lives here rather than in
- * any game module because it is a property of the STAND-IN, not of combat: the
- * target's hull is 1.0 where the commander's facing shield is `MAX_SHIELD`
- * points. `train/survivability.ts` is its only caller — it corrects the
- * defender's durability to the commander's before asking how long a gang takes
- * — and it goes when TODO 29 puts the episode on the real pools.
- */
-export function targetHullForPoolPoints(poolPoints: number): number {
-  return poolPoints / MAX_SHIELD;
-}
+// --- the target's scale, which is now the commander's ------------------------
+//
+// THERE IS NO NORMALIZED SCALE LEFT. The episode's target used to be a
+// stand-in at hp 1.0 taking a 0.1-0.22 roll per hit; it is the commander now,
+// with `game/systems.ts`'s three 255-point pools, hit through the same
+// `applyDamage` the game runs and for the same `npcLaserDamageToPlayer` points.
+// Every damage path in an episode is a runtime combat function:
+//
+//   NPC laser -> the target     gunnery.ts  npcLaserDamageToPlayer
+//   NPC laser -> another ship   npc-energy.ts npcCrossfireDamage
+//   player laser -> a ship      npc.ts      takeLaserHit (the oracle)
+//   a ram, either way           impact-damage.ts IMPACT.ram
+//
+// ONE THING IS DELIBERATELY LEFT OUT, and it is the difference between a
+// trainer and a playtest: the target's pools DO NOT RECHARGE. A shield face
+// recovers 8.9 points a second and a pirate lands about two, so an episode with
+// regeneration in it cannot be lost by anyone and carries no gradient at all.
+// That is a fact about a 45-second episode rather than about the brain — see
+// docs/TRAINING-LOG.md, where regeneration is what made the real game's gang
+// fights survivable. `npm run survivability` is where the question of how a
+// real fight ends belongs.
 
 /**
  * The commander's pulse laser, from the commander's hull.
@@ -292,6 +287,61 @@ const PLAYER_PULSE = playerLaser(COBRA_MK_3_HULL_ID, 'pulse');
  */
 const TRADER_WEAPON_BYTE = npcWeaponByte(TRADER_COBRA.profileId);
 
+/** Everything fixed about an episode before it runs — the record's inputs. */
+export interface EpisodeSetup {
+  schema: number;
+  seed: number;
+  maxTime: number;
+  escapeRange: number;
+  target: {
+    /** which of the 15 flyable hulls supplies the armour and the pools */
+    shipId: PlayerHullId;
+    /** which flight envelope it is flown at */
+    hull: TargetHullId;
+    laser: string;
+    armed: boolean;
+    controller: string;
+    pools: { foreShield: number; aftShield: number; energy: number };
+  };
+  pirates: {
+    designId: ShipDesignId;
+    profileId: NpcCombatProfileId;
+    name: string;
+    maxEnergy: number;
+    controller: string;
+    /** what one of its registered hits costs THIS target, armour already off */
+    damagePerHit: number;
+  }[];
+}
+
+/** What an episode leaves behind — the same shape whoever ran it. */
+export interface EpisodeReport {
+  schema: number;
+  setup: EpisodeSetup;
+  seconds: number;
+  outcome: 'destroyed' | 'escaped' | 'cleared' | 'timeout';
+  target: {
+    alive: boolean;
+    pools: { foreShield: number; aftShield: number; energy: number };
+    /** exact pool points taken, and the same as a fraction of the full pools */
+    damageTaken: number;
+    healthFraction: number;
+    shots: number;
+    hits: number;
+    damageDealt: number;
+  };
+  pirates: {
+    profileId: NpcCombatProfileId;
+    alive: boolean;
+    energy: number;
+    maxEnergy: number;
+    shots: number;
+    hits: number;
+    damageDealt: number;
+    damageTaken: number;
+  }[];
+}
+
 export interface EpisodeOptions {
   seed: number;
   /** one brain per pirate; scripted pirates use the game's chase AI */
@@ -305,6 +355,13 @@ export interface EpisodeOptions {
   traderClass?: TargetHullId;
   /** armed traders shoot back (used for pack scenarios) */
   traderArmed?: boolean;
+  /**
+   * Which of the 15 flyable hulls the target IS — its per-hit armour and the
+   * size of its three pools. The Cobra Mk III unless a caller says otherwise,
+   * because that is the ship a career flies and the only one the game can put
+   * you in; `train/profile-sweep.ts` is what exercises the other fourteen.
+   */
+  targetShipId?: PlayerHullId;
   maxTime?: number;
   /**
    * How far the target has to get before it is gone for good. Without this the
@@ -360,23 +417,33 @@ class TargetShip implements EpisodeShip {
   readonly hull: TargetHull;
   readonly radius: number;
   readonly name: string;
-  hp: number;
+  /** which of the 15 flyable hulls: the armour, the pools and the recharge */
+  readonly shipId: PlayerHullId;
+  /**
+   * The commander's own three pools, in `PlayerPoolPoints` — the game's object,
+   * hit by the game's `applyDamage`. It was a single normalized `hp` field.
+   */
+  readonly sys: ShipSystems;
+  /** every point the pools can hold: both faces and the bank */
+  readonly maxPool: number;
   alive = true;
   shotsFired = 0;
   shotsHit = 0;
+  /** in NpcEnergyPoints — what it took OFF a pirate */
   damageDealt = 0;
+  /** in PlayerPoolPoints — what came off its own pools */
   damageTaken = 0;
   /** ramped turn rates — the pilot's, not the hull's (see FlightDemand) */
   pitchRate = 0;
   rollRate = 0;
-  laserTemp = 0;
-  laserCooldown = 0;
 
-  constructor(hull: TargetHull) {
+  constructor(hull: TargetHull, shipId: PlayerHullId) {
     this.hull = hull;
     this.radius = hull.radius;
     this.name = hull.name;
-    this.hp = hull.hp;
+    this.shipId = shipId;
+    this.sys = freshSystems();
+    this.maxPool = durability(true);
     this.ship = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
     this.ship.speed = hull.maxSpeed * 0.5;
   }
@@ -384,6 +451,17 @@ class TargetShip implements EpisodeShip {
   get pos(): THREE.Vector3 { return this.ship.position; }
   get quat(): THREE.Quaternion { return this.ship.quaternion; }
   get speed(): number { return this.ship.speed; }
+  /** The gun's clocks live on the systems block, as the commander's do. */
+  get laserTemp(): number { return this.sys.laserTemp; }
+  set laserTemp(v: number) { this.sys.laserTemp = v; }
+  get laserCooldown(): number { return this.sys.laserCooldown; }
+  set laserCooldown(v: number) { this.sys.laserCooldown = v; }
+  /** THE observation boundary: exact points in, a fraction out. */
+  get hp(): number { return this.pool / this.maxPool; }
+  /** Points left across all three pools, exact. */
+  get pool(): number {
+    return this.sys.foreShield + this.sys.aftShield + this.sys.energy;
+  }
 
   forward(out: THREE.Vector3): THREE.Vector3 {
     return this.ship.getForward(out);
@@ -417,10 +495,17 @@ class TargetShip implements EpisodeShip {
     this.laserTemp = Math.max(0, this.laserTemp - LASER_COOL_RATE * dt);
   }
 
-  takeDamage(amount: number): void {
-    this.damageTaken += amount;
-    this.hp -= amount;
-    if (this.hp <= 0) this.alive = false;
+  /**
+   * Take a hit, in the commander's own points, through the commander's own
+   * rule: the facing shield first, the remainder straight into the bank,
+   * destroyed at zero energy. `roll` is the equipment-damage die, which an
+   * episode has no fittings to wreck — so it is fed a constant and nothing is
+   * drawn from the world's stream for it.
+   */
+  takeDamage(points: PlayerPoolPoints, fromFront = true): void {
+    this.damageTaken += points;
+    const r = applyDamage(this.sys, points, fromFront, () => 1);
+    if (r.destroyed) this.alive = false;
   }
 }
 
@@ -470,7 +555,9 @@ export class Episode {
     // game lives with: episodes must be RUN one at a time, not interleaved.
     seedWorld(opts.seed >>> 0);
 
-    this.trader = new TargetShip(TARGET_HULLS[opts.traderClass ?? 'traderCobra']());
+    this.trader = new TargetShip(
+      TARGET_HULLS[opts.traderClass ?? 'traderCobra'](),
+      opts.targetShipId ?? COBRA_MK_3_HULL_ID);
     // random initial trader orientation
     steerQuatToward(
       this.trader.quat, randomDirection(this.tmp).multiplyScalar(1000), Math.PI);
@@ -479,7 +566,7 @@ export class Episode {
       const dir = randomDirection(this.tmp);
       const dist = 1500 + random() * 1200;
       const p = new PirateShip(
-        opts.pirates.length > 1 && i % 2 === 1 ? PIRATE_SIDEWINDER : PIRATE_COBRA,
+        pirateSpecFor(opts.seed >>> 0, i, opts.pirates.length),
         this.tmp2.copy(dir).multiplyScalar(dist),
         i * 7 + 1);
       p.npc.faceToward(this.trader.pos); // roughly face the prey
@@ -600,12 +687,26 @@ export class Episode {
     p.shotsFired += 1;
     const hit = random() < npcHitChance(dist);
     if (hit) {
-      const damage = targetShotDamage(random());
+      // The live rule and nothing else: the firing build's own packed byte
+      // (`laserPower << 2`) less the target hull's own per-hit armour, in the
+      // commander's pool points. It used to be a 0.1-0.22 roll on a normalized
+      // scale that existed nowhere in the game.
+      const damage = npcLaserDamageToPlayer(p.npc.weaponByte, this.trader.shipId);
       p.shotsHit += 1;
       p.damageDealt += damage;
-      this.trader.takeDamage(damage);
+      this.trader.takeDamage(damage, this.hitFromFront(p));
     }
     return { from: p, to: this.trader, hit };
+  }
+
+  /**
+   * Which face takes it — the same question `world-step.ts` asks of a shot, and
+   * the reason it matters here is that the commander has two shields and an
+   * attacker on your six is spending a different pool from one head-on.
+   */
+  private hitFromFront(p: PirateShip): boolean {
+    const toShooter = this.tmp2.copy(p.pos).sub(this.trader.pos);
+    return this.trader.forward(this.tmp).dot(toShooter) > 0;
   }
 
   /**
@@ -674,16 +775,17 @@ export class Episode {
    * world-step.ts makes — and what it costs is decided here, as it is there.
    */
   private resolveCollisions(): void {
-    // A ram costs a ship the stated `IMPACT.ram` in its own points — the same
-    // call world-step.ts makes. The TARGET's half stays on the stand-in's own
-    // normalized scale (VICTIM_RAM_DAMAGE) until TODO 29 rebaselines it.
+    // A ram costs a ship the stated `IMPACT.ram` in its own points and the
+    // commander the stated 115 in hers — the same two calls world-step.ts
+    // makes. There is no third number and no conversion between them.
     const ramEnergy = npcImpactDamage(IMPACT.ram);
     if (this.trader.alive) {
       const pos = this.trader.pos;
+      const ramPool = playerImpactDamage(IMPACT.ram);
       for (const npc of playerVsNpcs(
         pos, (k) => { this.trader.ship.speed *= k; }, this.fleet, this.scratchVecs)) {
         const p = this.pirates.find((x) => x.npc === npc)!;
-        this.trader.takeDamage(VICTIM_RAM_DAMAGE);
+        this.trader.takeDamage(ramPool, true);
         this.hurtSelf(p, ramEnergy);
       }
     }
@@ -800,18 +902,107 @@ export class Episode {
     return fwd.angleTo(this.tmp.copy(point).sub(s.pos).normalize());
   }
 
+  // --- the record -------------------------------------------------------------
+
+  /**
+   * What this episode WAS: schema, seed, the target's hull and pools, and every
+   * attacker's exact released build.
+   *
+   * It exists because a number without its inputs is not a measurement. Before
+   * TODO 29 an episode reported a kill rate and a shaped fitness and nothing at
+   * all about which ships fought — so two runs a month apart could disagree for
+   * reasons no log could recover. The ids are the catalogue's own
+   * (`ship-identity.ts`), never a name and never a copied stat block.
+   */
+  setup(): EpisodeSetup {
+    return {
+      schema: EPISODE_SCHEMA,
+      seed: this.opts.seed >>> 0,
+      maxTime: this.maxTime,
+      escapeRange: this.escapeRange,
+      target: {
+        shipId: this.trader.shipId,
+        hull: this.opts.traderClass ?? 'traderCobra',
+        laser: this.trader.hull.gun === 'player' ? 'pulse' : 'npc',
+        armed: !!this.opts.traderArmed,
+        controller: this.opts.trader.kind,
+        pools: { foreShield: MAX_SHIELD, aftShield: MAX_SHIELD, energy: MAX_ENERGY },
+      },
+      pirates: this.pirates.map((p, i) => ({
+        designId: p.npc.designId,
+        profileId: p.npc.profileId,
+        name: p.name,
+        maxEnergy: p.npc.maxEnergy,
+        controller: this.opts.pirates[i].kind,
+        damagePerHit: npcLaserDamageToPlayer(p.npc.weaponByte, this.trader.shipId),
+      })),
+    };
+  }
+
+  /** How it ended, in the same exact units it was fought in. */
+  report(): EpisodeReport {
+    const sys = this.trader.sys;
+    return {
+      schema: EPISODE_SCHEMA,
+      setup: this.setup(),
+      seconds: +this.t.toFixed(3),
+      outcome: !this.trader.alive ? 'destroyed'
+        : this.escaped ? 'escaped'
+          : this.pirates.every((p) => !p.alive) ? 'cleared' : 'timeout',
+      target: {
+        alive: this.trader.alive,
+        pools: {
+          foreShield: sys.foreShield, aftShield: sys.aftShield, energy: sys.energy,
+        },
+        damageTaken: this.trader.damageTaken,
+        healthFraction: +this.trader.hp.toFixed(4),
+        shots: this.trader.shotsFired,
+        hits: this.trader.shotsHit,
+        damageDealt: this.trader.damageDealt,
+      },
+      pirates: this.pirates.map((p) => ({
+        profileId: p.npc.profileId,
+        alive: p.alive,
+        energy: p.npc.state.energy,
+        maxEnergy: p.npc.maxEnergy,
+        shots: p.shotsFired,
+        hits: p.shotsHit,
+        damageDealt: p.damageDealt,
+        damageTaken: p.damageTaken,
+      })),
+    };
+  }
+
   // --- fitness -------------------------------------------------------------
+  //
+  // EVERY TERM BELOW IS A FRACTION, and that is the second half of the
+  // observation-boundary rule: an episode holds exact points, and the moment a
+  // number is compared with a shaping weight it is divided by its own maximum.
+  // Otherwise the weights would mean something different for every ship — 44
+  // points of ram is 60% of a Worm and 17% of a Python — and the four fitness
+  // functions below, whose constants were tuned over eighteen runs against a
+  // 0..1 scale, would all silently change meaning.
+
+  /** Share of the target's pools removed, 0..1. Its damage, from its side. */
+  targetDamageShare(): number {
+    return Math.max(0, Math.min(1, 1 - this.trader.hp));
+  }
+
+  /** Share of pirate i's own released bank that has been taken off it, 0..1. */
+  pirateDamageShare(i: number): number {
+    const p = this.pirates[i];
+    return Math.max(0, Math.min(1, p.damageTaken / Math.max(1, p.npc.maxEnergy)));
+  }
 
   /** Fitness for pirate index i, attack phase. */
   fitnessAttack(i = 0): number {
-    const p = this.pirates[i];
     const killed = !this.trader.alive;
     return (
-      6 * p.damageDealt +
+      6 * this.targetDamageShare() +
       (killed ? 8 + 4 * (1 - this.t / this.maxTime) : 0) +
       0.05 * this.engagedTime[i] +
       0.6 * this.tailTime[i] -
-      2 * p.damageTaken -
+      2 * this.pirateDamageShare(i) -
       (this.escaped ? 6 : 0)
     );
   }
@@ -827,13 +1018,12 @@ export class Episode {
    * term so staying alive is worth less than keeping the target under fire.
    */
   fitnessPack(): number {
-    let damage = 0;
+    const damage = this.targetDamageShare();
     let taken = 0;
     let alive = 0;
-    for (const p of this.pirates) {
-      damage += p.damageDealt;
-      taken += p.damageTaken;
-      if (p.alive) alive += 1;
+    for (let i = 0; i < this.pirates.length; i++) {
+      taken += this.pirateDamageShare(i);
+      if (this.pirates[i].alive) alive += 1;
     }
     const killed = !this.trader.alive;
     const pressure = damage / Math.max(4, this.t); // damage per second on target
@@ -849,10 +1039,15 @@ export class Episode {
   /** Fitness for an armed policy trader defending itself (Jameson phase). */
   fitnessDefend(): number {
     const killedPirates = this.pirates.filter((p) => !p.alive).length;
+    // What IT took off THEM, as a share of one attacker's bank — so the weight
+    // means the same thing whether it is shooting a Worm or a Monitor.
+    const bank = this.pirates.reduce((sum, p) => sum + p.npc.maxEnergy, 0)
+      / Math.max(1, this.pirates.length);
+    const dealt = this.trader.damageDealt / Math.max(1, bank);
     return (
       (this.t / this.maxTime) * 8 +
       this.trader.hp * 4 +
-      4 * this.trader.damageDealt +
+      4 * dealt +
       3 * killedPirates -
       0.02 * this.trader.shotsFired
     );

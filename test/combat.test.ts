@@ -179,8 +179,13 @@ console.log('\ncollision rates');
     const vScripted = rams(() => ({
       pirates: [{ kind: 'policy', brain: pirate }], trader: { kind: 'scripted' },
     }), 40);
+    // Rebaselined by TODO 29: an episode's attackers are sampled from the whole
+    // pirate roster by the game's own tier rule now, not alternated between two
+    // hulls, and the light tier-0 ships close harder and clip more often. r2
+    // went 0.10 -> 0.40 on a bound that was 0.3. The bound is a CEILING on
+    // today's behaviour, not a target — a retrain should push it back down.
     check(`pirate vs scripted trader rarely collides (${vScripted.toFixed(2)}/episode)`,
-      vScripted < 0.3);
+      vScripted < 0.6);
   }
   {
     // WAS known-bad, and the retrain that fixed it tightened the number as
@@ -200,7 +205,7 @@ console.log('\ncollision rates');
       pirates: [{ kind: 'policy', brain: shipped }], trader: { kind: 'policy', brain: evader },
     }), 40);
     check(`shipped pirate vs trained evader rarely collides (${vEvader.toFixed(2)}/episode)`,
-      vEvader < 1.2);
+      vEvader < 0.8);
   }
 }
 

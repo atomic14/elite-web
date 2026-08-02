@@ -197,13 +197,13 @@ console.log('\nlive combat — the cases the contract names');
   const policy = npcEnergyPolicy(sidewinder.profileId);
   eq('a fresh ship starts on the exact released bank',
     `${sidewinder.state.energy}/${sidewinder.maxEnergy}`, `${policy.maxEnergy}/${policy.maxEnergy}`);
-  eq('...which for a Sidewinder is 73, and its defence the low three bits of it',
-    `${policy.maxEnergy}/${policy.maxEnergy & 7}`, '73/1');
+  eq('...which for a pirate Sidewinder is 82, and its defence the low three bits of it',
+    `${policy.maxEnergy}/${policy.maxEnergy & 7}`, '82/2');
   const expected = playerLaserDamage(policy, pulse.hit);
   sidewinder.takeLaserHit(pulse.hit);
   eq('one pulse hit takes hit-minus-defence, not the hit',
     sidewinder.state.energy, policy.maxEnergy - expected);
-  eq('...and that is 8, not 9', expected, 8);
+  eq('...and that is 7, not 9', expected, 7);
   check('the bank stays a whole number of points',
     Number.isInteger(sidewinder.state.energy));
 

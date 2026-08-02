@@ -21,10 +21,14 @@ the released byte scale, both branded so one cannot be spent as the other:
 | `NpcEnergyPoints` | a ship's or object's released energy bank | 2 (the missile) to 255 (the heaviest Dragon build) |
 | `PlayerPoolPoints` | the commander's 255-point facing shield, then the 255-point bank | 0–510 to strip both |
 
-The old normalized scale still exists in exactly one place, and it is not the
-game: the training episode's stand-in target (`src/ai-training/scenario.ts`),
-which TODO 29 rebaselines. Nothing on that scale can reach a live ship or the
-commander — the branded types refuse it.
+**The old normalized scale is gone.** It survived TODO 28 in one place — the
+training episode's stand-in target — and TODO 29 closed it: an episode's target
+is the commander, with `game/systems.ts`'s three 255-point pools, hit by
+`applyDamage` for `npcLaserDamageToPlayer` points off the firing build's own
+packed byte. `TARGET_DAMAGE_LO`, `TARGET_DAMAGE_SPREAD`, `VICTIM_RAM_DAMAGE`,
+`targetShotDamage` and `targetHullForPoolPoints` no longer exist anywhere, and
+`test/damage-paths.test.ts` asserts that none of the five comes back. There are
+now exactly two damage scales in the project and both are the released game's.
 
 ## The inventory
 
@@ -52,7 +56,7 @@ commander — the branded types refuse it.
 | 20 | headless campaign | — | — | — | `test/campaign.ts` | flight is abstracted; it never applies damage |
 | 21 | combat simulator | commander and opponents | — | rows 1–10, unchanged | `combat-sim.ts` via `exerciseStepHost` | it flies the **real** step; there is no simulator damage model |
 | 22 | training episode → pirate | a real `NpcShip` | normalized, converted | `NpcEnergyPoints` (rows 3 and 7) | `ai-training/scenario.ts` | as the live game |
-| 23 | training episode → stand-in target | the episode's `TargetShip` | normalized | **still normalized** | `ai-training/scenario.ts` `targetShotDamage`, `VICTIM_RAM_DAMAGE` | Harmless scaffolding, TODO 29 — it is not the commander and cannot reach one |
+| 23 | training episode → its target | the episode's `TargetShip` | normalized | `PlayerPoolPoints` (rows 2 and 8) | `ai-training/scenario.ts` → `gunnery.ts`, `impact-damage.ts`, `systems.ts` `applyDamage` | **as the live game** — TODO 29. The target holds `freshSystems()` and takes `npcLaserDamageToPlayer` points on the facing shield. One thing is deliberately absent and stated in the file: the pools do NOT recharge, because a shield face recovers 8.9 points a second against a gang's two, and an episode with regeneration in it carries no gradient at all. |
 | 24 | debug / console | — | — | — | `console.ts` | the handles are write-only: `__game`, `__policyKit`, `__simLog`. Nothing there applies damage. |
 | 25 | in-flight missile as a target | — | — | none | — | Harmless **cannot** damage a missile in flight: `shot.ts` traces ships, cargo and the station only, and the E.C.M. destroys missiles outright. The pack's profile for design 15 (2 energy, 2 defence) is available the day it becomes a target. |
 

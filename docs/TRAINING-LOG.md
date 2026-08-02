@@ -1649,3 +1649,237 @@ is what the trainer was built for, and it could not be run until now.
 The trader remains genuinely unfinished: `trader-evade-e1` is overfitted to a
 single opponent (0% deaths against its training partner, 18% against the
 scripted baseline) and wants a pirate rotation via repeated `--opponent` runs.
+
+
+## Run 19 — TODO 29: the trainer flies the commander, and three retrains that must not ship
+
+Not a training round so much as a rebaseline that happened to include one. Three
+things changed under the brains at once, so the honest way to read this entry is
+top to bottom: the world moved first, the existing brains were measured in it,
+and only then was anything retrained.
+
+    npm run evaluate 60          # before, from a worktree at ee60eb8
+    npm run survivability
+    npm run campaign
+    # ...then the same three after every change below
+
+Archived, deterministic, in `train/logs/todo29/`: `evaluate-before.txt`,
+`survivability-before.txt`, `campaign-before.txt` and their `-after` twins, plus
+the three training console logs. Catalogue manifest hash
+`85fece5618c1302dac6b2bbc5c6e78629d37fb5ac27769dddf24fb0b38b52ccb`
+(`npm run generate:elite-a -- --check`), episode record schema
+`EPISODE_SCHEMA = 1`, exercise record schema `COMBAT_SIM_SCHEMA = 2`.
+
+### 1. Threat came back by SELECTION, not by changing a rule
+
+The oracle is untouched. What changed is which released BUILD a combat role
+flies: `src/game/role-variants.ts` gives a pirate, a policeman, a bounty hunter,
+a Thargoid and a Thargon the hardest variant of their hull that the source
+itself ever filed under that job, instead of the pack's recommended default.
+Same design, same geometry, same name, one more point of laser power on most of
+them — and still one hundred per cent released data.
+
+| hull | was | now | to a Cobra Mk III |
+| --- | --- | --- | --- |
+| Sidewinder | D:17 | **V:17** | 9 -> **13** |
+| Krait | I:19 | W:19 | 9 -> 13 |
+| Mamba | F:18 | W:18 | 9 -> 13 |
+| Gecko | A:21 | S:21 | 9 -> 13 |
+| pirate Cobra Mk III | B:10 | T:10 | 9 -> 13 |
+| Cobra Mk I | A:22 | U:22 (pirate) / V:22 (hunter) | 9 -> 13 |
+| Bushmaster | D:33 | S:33 | 9 -> 13 |
+| Python | C:11 | U:11 | 13 -> **17** |
+| Fer-de-Lance | J:24 | W:24 | 17 -> **21** |
+| Monitor | A:30 | S:30 (pirate) | 17 -> 17, bank 132 -> 133 |
+| Viper (police) | A:16 | W:16 | 13 -> **17** |
+| Moray, Worm, Ophidian, Rattler, Iguana, Chameleon, Thargoid, Thargon | unchanged | | |
+
+A Cobra Mk III's 510-point front face now takes about 39 hits from an ordinary
+pirate where it took 57. Traders keep the recommended default: a freighter is
+not trying to hurt anyone.
+
+**The Asp Mk II left the pirate and hunter rosters**, and it is the one
+deliberate omission in the roster. All three released builds carry the same
+packed byte, worth four points before armour, against a minimum flyable-hull
+armour of four — so it did ZERO to every ship the commander can fly, and armour
+subtracts per hit, so ten of them accumulated nothing. No selection fixes it;
+the alternatives were to invent a number the pack does not contain or to adopt
+the `>> 1` diagnostic encoding the fidelity contract forbids.
+`test/role-variants.test.ts` now asserts that no combat role flies a build which
+cannot hurt a Cobra Mk III.
+
+Threat tiers moved with the builds, because `hullThreatTier` reads the build:
+the Gecko went 0 -> 1 and the pirate Cobra Mk III 1 -> 2. Tier 0 is Sidewinder,
+Worm, Ophidian.
+
+### 2. The episode's target is the commander now
+
+`ai-training/scenario.ts` held the last normalized scale in the project: a
+stand-in at hp 1.0 taking a 0.1-0.22 roll per hit. It holds
+`game/systems.ts`'s three 255-point pools, hit by `applyDamage` for
+`npcLaserDamageToPlayer` points off the firing build's own byte, with the facing
+shield chosen by geometry and a ram costing the stated 115. `TARGET_DAMAGE_LO`,
+`TARGET_DAMAGE_SPREAD`, `VICTIM_RAM_DAMAGE`, `targetShotDamage` and
+`targetHullForPoolPoints` are gone, and `test/damage-paths.test.ts` asserts that
+none of the five comes back. Episode pirates are sampled from the whole roster
+by the game's own threat-tier rule instead of alternating between two hulls.
+
+**One thing is deliberately left out, and it is the difference between a trainer
+and a playtest: the target's pools do not recharge.** A shield face recovers 8.9
+points a second and a gang of three lands about two, so an episode with
+regeneration in it cannot be lost by anyone and carries no gradient at all.
+
+### 3. Which retired the kill rate, and that is the interesting part
+
+A pirate lands about seven hits in forty-five seconds. Seven times thirteen is
+91 points of 765. **Nothing kills the commander inside an episode any more** —
+not the shipped brain, not an untrained one, not the scripted aimbot — so every
+kill rate in this file reads 0 and ranks nothing.
+
+`--select-kills` and `--validate-select` both rested on it. They now rank on the
+SHARE OF HER POOLS taken (or, for `evade`/`defend`, the share she keeps): the
+same quantity with its granularity restored, ordered the same way, and
+continuous enough to hill-climb. On 60 held-out seeds against a scripted hauler:
+
+| policy | of her pools taken |
+| --- | --- |
+| scripted aimbot (ceiling) | 25.3% |
+| **pirate-attack-g3 (shipped)** | **12.0%** |
+| untrained random policy | 1.7% |
+
+`test/ai.test.ts`'s gates were rebaselined onto the same number, and the
+collision bounds in `test/combat.test.ts` with them — the roster sampling put
+lighter, faster hulls in more episodes, so r2 went 0.10 -> 0.40 rams/episode on
+a bound that was 0.3.
+
+### The three retrains
+
+    npm run train -- attack --pool --validate-select --select-kills \
+        --out pirate-attack-t29 --gens 300 --pop 48 --eps 6            # 375s
+    npm run train -- pack --validate-select --select-kills \
+        --out pirate-pack-t29 --gens 300 --pop 48 --eps 6              # 344s
+    npm run train -- defend --opponent pirate-attack-g3 --validate-select \
+        --select-kills --out jameson-defend-t29 --gens 300 --pop 48 --eps 6   # 926s
+
+300 generations x 48 population x 6 episodes was chosen to fit a ten-minute
+wall-clock budget per run so all three could go in parallel; the previous
+shipped brains used 350-450 generations at 6-10 episodes, so this is the same
+order and slightly cheaper. Training seeds are the usual `gen*977 + e*131 + 7`
+stream, validation `5,000,011`, the tournament `10,000,019`, the profile sweep
+`20,000,003` and the flight probe `30,000,007` — five disjoint bases.
+
+Validation, on the new metric: attack **27.5%** of her pools taken, pack
+**73.2%**, defence **91.0%** of her pools kept.
+
+### None of them ships, and the table that settles it
+
+Every candidate beats its shipped counterpart on held-out seeds, by a lot:
+
+| matchup (60 held-out episodes) | shipped | candidate |
+| --- | --- | --- |
+| one pirate vs scripted hauler | 12.0% | **29.5%** |
+| one pirate vs a commander who fights back | 5.3% | **25.3%** |
+| a gang of three vs the same | 23.7% | **53.1%**, 18% kills |
+| the defence brain, 2v1 (lower is better) | 21.4% | 22.3% |
+
+And `train/flight-probe.ts` — new, and the whole reason this run has an answer
+rather than a temptation — says what those numbers cost. It flies each brain
+against a target that stops and turns, and reports the SHAPE of the fight:
+
+| brain | mean speed | range p10/med/p90 | rams/ep | of her pools |
+| --- | --- | --- | --- | --- |
+| **pirate-attack-g3 (shipped)** | **216** | 85/**234**/964 | 0.20 | 6.1% |
+| pirate-attack-r2 (legacy) | 262 | 185/254/1166 | 0.70 | 13.1% |
+| pirate-attack-e1 | 182 | 222/706/1740 | 0.93 | 20.7% |
+| **pirate-attack-g2** (rolled back, run 16) | **117** | 113/**628**/1762 | 2.27 | **42.1%** |
+| **pirate-attack-t29** (this run) | **104** | 102/**754**/1952 | 2.23 | **42.1%** |
+
+**t29 is generation 2 again.** Not similar — the same, to the decimal on the
+damage share, and slower still. Mean speed 104 against the shipped brain's 216,
+a median engagement range three times longer, and eleven times the contact.
+Chris played g2, said *"I think our old AI was more fun to play with"*, and it
+was rolled back the day it shipped. Evolution found the turret again the moment
+the reward could see damage clearly, exactly as CLAUDE.md says it will.
+
+`pirate-pack-t29` reads the same way — 29.7% of her pools to the shipped pack's
+14.2% on the same probe, 1.47 rams an episode against 0.63, and a median
+engagement range of 1,340 units, which is sniping rather than a gang closing.
+`jameson-defend-t29` is simply worse: it
+lets attackers sit on her six for 13.5 seconds against the shipped brain's 2.3
+and shoots down 0.12 of them against 0.42.
+
+So **the shipped three are unchanged** — `pirate-attack-g3`,
+`pirate-pack-r4-selectonly`, `jameson-defend-g1` — and all three candidates are
+kept as evidence, with the flight probe as the reason. What would change the
+verdict is a fight Chris flies: `T` at any station, same scenario, same seed.
+See docs/BROWSER-TRIALS.md. Flying them needs one wiring change that has not
+been made — a `BrainSelection` flag and a `BrainId` entry each — because
+shipping candidate weights into the game bundle to fly a brain we recommend
+against is a decision for the owner, not for the retrain.
+
+### Balance, after all of it
+
+`npm run survivability`, rewritten because there is no longer a stand-in
+durability to correct — it reports what a gang can strip from the commander's
+real pools:
+
+| gang | brain | destroyed | pools stripped | a shield flattened | they lost |
+| --- | --- | --- | --- | --- | --- |
+| 1 | g3 | 0% | 5% | 2% | 0.04/ep |
+| 2 | g3 | 0% | 18% | 12% | 0.36/ep |
+| 3 | g3 | 5% | 31% | 34% | 0.69/ep |
+| 4 | g3 | 9% | 43% | 55% | 1.13/ep |
+| 3 | pack (organised) | 1% | 15% | 6% | 0.26/ep |
+| 4 | pack (organised) | 1% | 23% | 12% | 0.39/ep |
+
+A single opportunist is a nuisance, two are a fight, four flatten a shield face
+in more than half of engagements, and the defender still lives — which is what
+the harder builds were meant to buy. Note the reversal against the old table:
+the SOLO brain is now more dangerous than the pack policy at every gang size,
+because the pack brain snipes from 1,447 units where g3 closes to 234, and the
+harder builds reward closing.
+
+`npm run campaign` passes every check, and gained three of them: the receptions
+are now reported and asserted in EARLY / MIDDLE / LATE thirds of a career.
+
+| third | tier mix | tier1+ | gangs | deaths | cargo lost |
+| --- | --- | --- | --- | --- | --- |
+| early | 70/24/6 | 30% | 9 | 0.42 | 11.1t |
+| middle | 55/34/12 | 45% | 27 | 0.40 | 11.8t |
+| late | 42/36/22 | 58% | 57 | **0.00** | 10.8t |
+
+Escalation works and the upgrades outrun it: the late band throws twice the
+tier-1+ receptions and six times the gangs at her, and kills nobody. Median net
+worth moved 6,033 -> 5,926 Cr and kills 20.8 -> 20.6 per career, which is the
+tier reshuffle changing which bounties get paid and nothing else.
+
+### The Constrictor: a signposting fix, and a figure that was off by ten
+
+Chris's ruling stands and the oracle is untouched. Two things were checked and
+one was wrong.
+
+The military laser is **6,000 Cr, not 60,000** — the catalogue's `60000` is
+tenths of a credit, as everything in this project is (CLAUDE.md invariant 8),
+and both the TODO and a comment in `test/campaign.ts` had read it as credits.
+And it is not remote: 49 of galaxy 1's 256 systems are TL10+, and **201 of 256
+are within a single 7-light-year jump of one** (241 within two). Every commander
+in a 40x60 campaign run had already docked somewhere that sells it before the
+Navy called.
+
+So the mission is reachable, and what was missing was being told. The docking
+transmission and the mission line now carry a warning derived from the
+commander's ACTUAL fitted gun through the oracle:
+
+> NAVY: TARGET ARMOUR HALVES LASER FIRE — YOUR BEAM LASER SCORES 0 A HIT, A
+> MILITARY LASER 3
+
+It states the two numbers rather than issuing an instruction, and it says
+nothing at all once she is carrying the right gun. The beam laser is the trap
+worth signposting: it is the upgrade, and against this one hull it is worse than
+the pulse laser it replaced (0 a hit against 1).
+
+The campaign's own 3% military-laser figure is unchanged and still measures the
+BOT: its shopping list spends down to a 1,500-tenth float, so it holds a median
+of 63 Cr in cash at the moment the Navy calls, whatever its 5,900 Cr of net
+worth says. That is a purchasing policy, not a reachability problem, and the
+campaign now asserts the reachability instead.
