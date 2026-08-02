@@ -231,12 +231,17 @@ src/
     effects.ts              explosions and tracers — seen, never simulated
     screens/                one file per overlay, behind the Screen contract
 
-    elite-a/                the released-Elite-A reference catalogue. GENERATED
-                            from reference/elite-a/source by the importer —
-                            nothing in here is edited by hand
-      types.ts              its shape, and the only hand-written file here
+    elite-a/                the released-Elite-A reference catalogue, and the
+                            rules that read it. Everything ending .generated.ts
+                            comes from reference/elite-a/source via the importer
+                            and is never edited by hand
+      types.ts              the catalogue's shape — hand-written
       catalogue.ts          the way in: lookups by id, merged combat profiles,
                             and recommendedNpcProfile(designId)
+      combat-math.ts        the combat oracle: laser decoding, defence, armour,
+                            hits-to-destroy, destruction and regeneration. Pure,
+                            imports nothing, and reproduces all 20,070 rows the
+                            pack supplies (test/elite-a-oracle.test.ts)
       designs.generated.ts  the 38 designs and the header they all share
       variants.generated.ts the 260 exact S.A-S.W builds — what differs
       geometry.generated.ts one hull per design, deduplicated

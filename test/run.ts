@@ -43,6 +43,7 @@ import './combat.test.ts';
 import './gunnery.test.ts';
 import './instrumentation.test.ts';
 import './elite-a-catalogue.test.ts';
+import './elite-a-oracle.test.ts';
 
 // --- the trained brains -----------------------------------------------------
 import './ai.test.ts';
