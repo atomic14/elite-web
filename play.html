@@ -21,6 +21,16 @@
         <span id="condition">CONDITION: GREEN</span>
       </div>
       <div id="message"></div>
+      <!--
+        The exercise strip: shown for as long as a training exercise is being
+        flown, and never in career flight. Painted by hud/hud.ts from the
+        exercise's own recorder — see game/combat-sim-strip.ts.
+      -->
+      <div id="exercise" class="hidden">
+        <div class="ex-head"><b>SIMULATION</b><span id="ex-scenario"></span></div>
+        <div class="ex-row"><span id="ex-clock"></span><span id="ex-mark"></span></div>
+        <div class="ex-row"><span id="ex-tally"></span></div>
+      </div>
       <div id="damage-flash"></div>
       <div id="hud">
         <div class="hud-panel hud-left">

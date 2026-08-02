@@ -57,6 +57,15 @@ export interface HudSources {
   readonly ecmDetected: boolean;
   readonly messageText: string;
   readonly messageTimer: number;
+  /**
+   * The training exercise in progress, or null in career flight.
+   *
+   * Arrives finished from the exercise's own recorder — see
+   * game/combat-sim-strip.ts. The dashboard does not decide whether there is an
+   * exercise any more than it decides where the station is: it is handed one or
+   * it is handed null.
+   */
+  readonly exercise: HudState['exercise'];
 }
 
 /** Scratch vectors, so a per-frame read allocates nothing. */
@@ -175,5 +184,6 @@ export function buildHudFrame(s: HudSources, scratch: HudScratch): HudFrame {
     stationInRange: s.inFlight && !s.witchspace
       && playerPos.distanceTo(world.station.position) < SCANNER_RANGE,
     ecmDetected: s.ecmDetected,
+    exercise: s.exercise,
   };
 }

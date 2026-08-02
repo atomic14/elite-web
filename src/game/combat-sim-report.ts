@@ -126,6 +126,33 @@ export interface BothSides {
   them: number;
 }
 
+/**
+ * How the fight is going, WHILE it is going — the subset of the report that is
+ * meaningful before the exercise has ended.
+ *
+ * It exists because the cockpit strip (combat-sim-strip.ts) has to show the
+ * pilot the same numbers the report will show them afterwards, and the only way
+ * to be sure of that is for both to be the same numbers. `report()` builds its
+ * `seconds`, its `you` block and its `them.hits` OUT OF THIS — so the strip is
+ * not a second tally that agrees, it is the tally.
+ *
+ * Everything on it is already accumulated: nothing here is derived for the
+ * strip's benefit, and nothing here is rounded differently from the report.
+ */
+export interface SimProgress {
+  /** seconds of exercise so far, as `CombatSimReport.seconds` states them */
+  seconds: number;
+  /** discharges of your gun, and how many of them landed */
+  shots: number;
+  hits: number;
+  /** hits / shots, or null when the trigger was never pulled */
+  accuracy: number | null;
+  /** laser hits they have landed on you — `CombatSimReport.them.hits` */
+  hitsTaken: number;
+  /** opponents destroyed and credited to you */
+  kills: number;
+}
+
 // --- what the caller feeds in ------------------------------------------------
 
 /**
@@ -489,6 +516,23 @@ export class CombatSimRecorder {
   /** Seconds of exercise so far. */
   get elapsed(): number { return this.t; }
 
+  /**
+   * How it is going so far — see `SimProgress`.
+   *
+   * Cheap and pure: it reads the counters it already keeps and derives nothing
+   * that `report()` would derive differently, because `report()` reads it.
+   */
+  get progress(): SimProgress {
+    return {
+      seconds: round(this.t, 1),
+      shots: this.playerShots,
+      hits: this.playerHits,
+      accuracy: ratio(this.playerHits, this.playerShots),
+      hitsTaken: this.npcHits,
+      kills: this.killsByYou,
+    };
+  }
+
   /** Every sample taken, for a caller that wants the raw log and not the report. */
   get raw(): readonly FrameSample[] { return this.samples; }
 
@@ -677,6 +721,11 @@ export class CombatSimRecorder {
       (m, c) => Math.min(m, c.dist), Infinity)).filter((d) => d !== Infinity);
 
     const shipSeconds = rows.length / this.hz;
+    // The live standing and the finished record are ONE set of numbers. The
+    // cockpit strip reads `progress` every frame and the report reads it here,
+    // so "the strip agreed with the report" is a property of the code rather
+    // than of two accumulations that were kept in step by hope.
+    const p = this.progress;
     return {
       schema: COMBAT_SIM_SCHEMA,
       seed: this.setup.seed,
@@ -684,21 +733,21 @@ export class CombatSimRecorder {
       mode: this.setup.mode,
       ...(this.setup.wave === undefined ? {} : { wave: this.setup.wave }),
       outcome,
-      seconds: round(this.t, 1),
+      seconds: p.seconds,
       engagedSeconds: secs(engagedFrames),
       player: this.setup.player,
       you: {
-        shots: this.playerShots,
-        hits: this.playerHits,
-        accuracy: ratio(this.playerHits, this.playerShots),
+        shots: p.shots,
+        hits: p.hits,
+        accuracy: p.accuracy,
         damageDealt: round(total(this.damageOut), 2),
         damageBySource: tallies(this.damageOut),
-        kills: this.killsByYou,
+        kills: p.kills,
       },
       them: {
         shots: this.npcShots,
         missiles: this.npcMissiles,
-        hits: this.npcHits,
+        hits: p.hitsTaken,
         accuracy: ratio(this.npcHits, this.npcShots),
         damageToYou: round(total(this.damageIn), 2),
         damageBySource: tallies(this.damageIn),
@@ -706,7 +755,7 @@ export class CombatSimRecorder {
           ? round(this.npcShots / (shipSeconds / 60), 1) : null,
       },
       kills: {
-        yours: this.killsByYou,
+        yours: p.kills,
         total: this.deaths,
         firstAt: roundOrNull(this.firstKill, 1),
         lastAt: roundOrNull(this.lastKill, 1),

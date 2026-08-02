@@ -318,6 +318,42 @@ body.screen-open #message {
   white-space: nowrap;
 }
 
+/*
+ * The exercise strip — top left, under the topbar.
+ *
+ * Deliberately away from the middle of the screen and away from the bottom:
+ * the sight, the ship id and the lead marker own the centre, the console and
+ * the scanner own the bottom, and the fight is the thing being watched. The
+ * top-left corner is the only block of the cockpit nothing else uses, and text
+ * there can be read with peripheral vision.
+ *
+ * Amber and plated, so it does not read as one more green console gauge: this
+ * is the one thing on screen saying you are NOT in real space.
+ */
+#exercise {
+  position: absolute;
+  top: 34px; left: 16px;
+  z-index: 5;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 180, 68, 0.45);
+  border-left: 2px solid var(--hud-amber);
+  background: rgba(0, 10, 2, 0.72);
+  font-size: 10px;
+  letter-spacing: 2px;
+  line-height: 1.7;
+  color: var(--hud-amber);
+  text-shadow: 0 0 6px rgba(255, 180, 68, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
+}
+#exercise.hidden { display: none; }
+#exercise .ex-head b { letter-spacing: 3px; }
+#exercise .ex-head span { margin-left: 10px; opacity: 0.85; }
+#exercise .ex-row { display: flex; gap: 16px; color: var(--hud-green); }
+#exercise .ex-row #ex-mark { color: var(--hud-amber); }
+/* a screen replaces the cockpit, and the strip is cockpit — see #hud above */
+body.screen-open #exercise { display: none; }
+
 #damage-flash {
   position: absolute;
   inset: 0;

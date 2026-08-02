@@ -107,6 +107,7 @@ console.log('\nhud binding');
       ecmDetected: false,
       messageText: 'FRAME COMPLETE',
       messageTimer: 1.5,
+      exercise: null,
     } as unknown as Parameters<typeof buildHudFrame>[0], {
       a: V(0, 0, 0), b: V(0, 0, 0), c: V(0, 0, 0), q: new THREE.Quaternion(),
     });
@@ -119,5 +120,22 @@ console.log('\nhud binding');
       && frame.contacts[0]?.position === stationPos);
     check('the complete HUD frame has no second nested state definition',
       !('state' in frame));
+
+    // The exercise strip is HANDED to the dashboard, never decided by it: the
+    // running exercise is the only thing that knows there is one
+    // (game/combat-sim-strip.ts). Career flight is handed null, and gets null.
+    check('career flight carries no exercise strip', frame.exercise === null);
+    const strip = { scenario: 'Pirate gang', mode: 'waves' } as never;
+    const flown = buildHudFrame({
+      commander: state.commander, sys: state.sys, world,
+      camera: new THREE.PerspectiveCamera(), playerPos, playerQuat,
+      playerForward: V(0, 0, -1), viewDir: V(0, 0, -1),
+      missiles: [], canisters: [], targetLock: null, inFlight: false,
+      exercise: strip,
+    } as unknown as Parameters<typeof buildHudFrame>[0], {
+      a: V(0, 0, 0), b: V(0, 0, 0), c: V(0, 0, 0), q: new THREE.Quaternion(),
+    });
+    check('...and an exercise\'s own strip reaches the painter unchanged',
+      flown.exercise === strip);
   }
 }

@@ -1720,6 +1720,10 @@ export class Game {
       ecmDetected: this.state.ecmDetectedTimer > 0,
       messageText: this.state.session.messageText,
       messageTimer: this.state.session.messageTimer,
+      // Null in career flight, and gated on the same `active` that decides the
+      // exercise owns the keyboard (controlMode) — the strip is the exercise's
+      // own view of itself, not a second opinion about one.
+      exercise: this.combatSim.strip,
     }, this.hudScratch);
 
     this.hud.render(dt, frame);

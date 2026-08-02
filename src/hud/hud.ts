@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { describeSystem } from '../galaxy/galaxy.ts';
 import { formatCredits } from '../game/commander.ts';
+import type { ExerciseStrip } from '../game/combat-sim-strip.ts';
 
 // The classic console: elliptical 3D scanner (dot + vertical stick per
 // contact), station compass, gauge bars, and the message line.
@@ -98,6 +99,14 @@ export interface HudState {
   stationInRange: boolean;
   /** console 'E': an E.C.M. broadcast was detected recently */
   ecmDetected: boolean;
+  /**
+   * The training exercise in progress, or null in career flight.
+   *
+   * Read from the running exercise's own recorder (game/combat-sim-strip.ts):
+   * the painter shows it and counts nothing, exactly as it shows a shield
+   * fraction without knowing what a shield is.
+   */
+  exercise: ExerciseStrip | null;
 }
 
 /** Every value needed to paint one complete dashboard frame. */
@@ -127,6 +136,17 @@ export interface ScreenTarget {
 
 const VIEW_NAMES = ['', 'REAR VIEW', 'LEFT VIEW', 'RIGHT VIEW'];
 
+/**
+ * What to CALL an exercise's standing, per thing it is scored on.
+ *
+ * Words, not a rule: which of the three applies is `MODES[mode].score`, decided
+ * in game/combat-sim-strip.ts. A scenario is scored on its outcome and shows a
+ * countdown instead, so its entry is only ever reached by a timeout of zero.
+ */
+const SCORE_LABELS: Record<NonNullable<HudState['exercise']>['score'], string> = {
+  outcome: 'KILLS', kills: 'KILLS', waves: 'WAVE',
+};
+
 export class Hud {
   private readonly scanner: CanvasRenderingContext2D;
   private readonly compass: CanvasRenderingContext2D;
@@ -152,6 +172,11 @@ export class Hud {
   private readonly creditsEl = byId('credits-display');
   private readonly messageEl = byId('message');
   private readonly flashEl = byId('damage-flash');
+  private readonly exerciseEl = byId('exercise');
+  private readonly exScenarioEl = byId('ex-scenario');
+  private readonly exClockEl = byId('ex-clock');
+  private readonly exMarkEl = byId('ex-mark');
+  private readonly exTallyEl = byId('ex-tally');
 
   private readonly local = new THREE.Vector3();
   private readonly invQ = new THREE.Quaternion();
@@ -210,6 +235,8 @@ export class Hud {
     this.conditionEl.style.color = frame.condition === 'RED' ? '#ff4d4d' : '';
     this.creditsEl.textContent = formatCredits(frame.credits);
 
+    this.drawExercise(frame.exercise);
+
     // No separate docking-aid overlay: the port marker already says whether
     // you are lined up, and two things telling you the same thing in different
     // corners of the screen is worse than one. dockAid survives purely as the
@@ -219,6 +246,32 @@ export class Hud {
     this.drawThreatMarker(frame.threatMarker);
     this.drawScanner(frame.playerPos, frame.playerQuat, frame.contacts);
     this.drawCompass(frame.playerPos, frame.playerQuat, frame.compassTarget);
+  }
+
+  /**
+   * The exercise strip: you are in a simulation, this is how long it has run,
+   * and this is how it is going.
+   *
+   * Four writes and a class, and only when there is an exercise — career flight
+   * pays one null check. Nothing is computed here: the strip arrives finished
+   * from the exercise's own recorder, and the only choice the painter makes is
+   * the WORDS — what to call a standing, and how many decimals a pilot can read
+   * while being shot at.
+   */
+  private drawExercise(strip: HudState['exercise']): void {
+    this.exerciseEl.classList.toggle('hidden', !strip);
+    if (!strip) return;
+    this.exScenarioEl.textContent = strip.scenario.toUpperCase();
+    this.exClockEl.textContent = `T+${strip.elapsed.toFixed(1)}s`;
+    // A timed mode counts down to the moment it will be called off; an endless
+    // one has nothing to count down TO, so it shows what it is scored on
+    // instead — the model has already asked MODES which this is.
+    this.exMarkEl.textContent = strip.remaining === null
+      ? `${SCORE_LABELS[strip.score]} ${strip.standing}`
+      : `${strip.remaining.toFixed(0)}s LEFT`;
+    const acc = strip.accuracy === null ? '--' : `${Math.round(strip.accuracy * 100)}%`;
+    this.exTallyEl.textContent =
+      `SHOTS ${strip.shots}  HITS ${strip.hits}  ACC ${acc}  TAKEN ${strip.hitsTaken}`;
   }
 
   /**

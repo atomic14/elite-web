@@ -71,6 +71,7 @@ import {
   type CombatSimReport, type ContactSample, type ExerciseSetup, type FrameSample,
   type OpponentSetup, type PlayerLoadout, type SimLog, type SimOutcome,
 } from './combat-sim-report.ts';
+import { exerciseStrip, type ExerciseStrip } from './combat-sim-strip.ts';
 import {
   MODES, allShips, describeOpposition, liveBrainFor, nextOpposition, roundOutcome,
   roundSeed, scenarioById,
@@ -231,6 +232,21 @@ export class CombatSim {
   get fighting(): boolean { return this.phase === 'fighting'; }
   /** What was asked for, or null when nothing is running. */
   get exercise(): ExerciseSpec | null { return this.spec; }
+  /**
+   * What the cockpit shows while this exercise is flown — null when none is.
+   *
+   * Gated on `active`, which is the same question `Game.controlMode` asks to
+   * decide the exercise is holding the keyboard: one condition, so the strip
+   * and the keys can never disagree about whether this is a simulation.
+   *
+   * It reads the ROUND'S OWN RECORDER, which is the accumulation the record is
+   * derived from (combat-sim-strip.ts). Nothing is counted twice, and the
+   * career pays a null check per frame.
+   */
+  get strip(): ExerciseStrip | null {
+    if (!this.active || !this.spec || !this.recorder) return null;
+    return exerciseStrip(this.spec, this.recorder.setup, this.recorder.progress);
+  }
   /**
    * The commander the exercise is flying — the CLONE.
    *

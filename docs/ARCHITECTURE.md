@@ -260,6 +260,8 @@ src/
                             its own StepHost
     combat-sim-scenarios.ts who it sends at you, and when it stops sending
     combat-sim-report.ts    what happened, counted — and the JSON that exports
+    combat-sim-strip.ts     how it is going, WHILE it is going: the cockpit
+                            strip's model, read off the round's own recorder
     combat-sim-safety.ts    the three layers of "nothing that happens in the
                             simulator leaves it"
 
