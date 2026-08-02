@@ -90,6 +90,7 @@ import { freshSession, type GameState } from './state.ts';
 import { breachLoss, freshSystems } from './systems.ts';
 import { type PilotInput, type StepEvent, type StepHost, WorldStep } from './world-step.ts';
 import type { SoundEvent } from './sounds.ts';
+import { shipDisplayName } from '../ships/registry.ts';
 
 /**
  * How far out the encounter timers are pushed while an exercise runs.
@@ -499,7 +500,7 @@ export class CombatSim {
     const spec = this.spec!;
     const endless = MODES[spec.mode].endless;
     const opponents: OpponentSetup[] = ships.map((sh) => ({
-      hull: sh.spec.def?.name ?? sh.role,
+      hull: shipDisplayName(sh.spec.designId),
       // From the roster entry that is about to be flown, not from the mesh:
       // the display name above is a label, these two say what it IS.
       designId: sh.spec.designId,

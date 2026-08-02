@@ -19,8 +19,9 @@ import type { World } from './world.ts';
 import type { PopulationPlan } from './population.ts';
 import { steerQuatToward, type NpcShip } from './npc.ts';
 import {
-  pirateSpecForTier, CONSTRICTOR_SPEC, SPECS, type NpcRole, type NpcSpec,
+  pirateSpecForTier, CONSTRICTOR_SPEC, SPECS, type NpcSpec,
 } from './ship-specs.ts';
+import type { NpcRole } from './ship-roles.ts';
 import { memberTier } from './threat.ts';
 import { slotNormal } from '../world/slot.ts';
 import { random, randomInt, randomDirection } from './rng.ts';

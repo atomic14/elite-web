@@ -32,8 +32,9 @@ import {
 } from '../src/game/ship-identity.ts';
 import {
   ASTEROID_IDENTITY, CONSTRICTOR_SPEC, SPECS, pirateSpecForTier,
-  type NpcSpec, type NpcRole,
+  type NpcSpec,
 } from '../src/game/ship-specs.ts';
+import type { NpcRole } from '../src/game/ship-roles.ts';
 import { newCommander, type CommanderData } from '../src/game/commander.ts';
 import { exerciseCommander } from '../src/game/combat-sim-safety.ts';
 import { loadCommander, saveCommander, slotKeys } from '../src/game/storage.ts';

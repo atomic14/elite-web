@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { buildShip, buildAsteroid } from '../ships/geometry.ts';
+import { registeredHull } from '../ships/registry.ts';
 import {
-  ASTEROID_IDENTITY, SPECS, TURN, shipAccel, type NpcSpec, type NpcRole,
+  ASTEROID_IDENTITY, SPECS, TURN, shipAccel, type NpcSpec,
 } from './ship-specs.ts';
+import type { NpcRole } from './ship-roles.ts';
 import type {
   NpcCombatProfileId, ShipDesignId, ShipIdentity,
 } from './ship-identity.ts';
@@ -383,8 +385,11 @@ export class NpcShip {
       waypointTimer: 0, brainTimer: 0, brainPitchRate: 0, brainRollRate: 0,
     };
     if (role === 'hermit') {
-      this.object = buildAsteroid(120, variantSeed * 977 + 3, 0xb9b9a5);
-      this.radius = 120;
+      // The one rostered ship with no tabulated hull: a hollowed rock, so its
+      // mesh is generated at the registry's radius for it.
+      const hermitRadius = registeredHull(this.designId).targetRadius;
+      this.object = buildAsteroid(hermitRadius, variantSeed * 977 + 3, 0xb9b9a5);
+      this.radius = hermitRadius;
       this.state.hp = this.maxHp = 4;
       this.bounty = 0;
       this.cargoDrop = 0;
@@ -412,8 +417,12 @@ export class NpcShip {
       this.armed = false;
     } else {
       const spec = rostered!;
-      this.object = buildShip(spec.def!, spec.color);
-      this.radius = spec.radius;
+      // The hull and its size come from the DESIGN, not from the roster row —
+      // `ships/registry.ts` is the only way to either, so two roster rows of the
+      // same design cannot disagree about what it looks like or how big it is.
+      const hull = registeredHull(this.designId);
+      this.object = buildShip(hull.def!, spec.color);
+      this.radius = hull.targetRadius;
       this.state.hp = this.maxHp = spec.hp;
       this.bounty = spec.bounty;
       this.cargoDrop = spec.cargoDrop ?? 0;

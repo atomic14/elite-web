@@ -7,22 +7,12 @@
 // ids live in `game/ship-identity.ts` under `harmless:`, which is the same
 // bargain from the other end.
 //
-// THE TWO STATIONS ARE HERE ON PURPOSE, and it is the one thing in this phase
-// that did not convert. The released Coriolis is 160 source units across the
-// half-diagonal, which is 40 world units through the one conversion — against
-// the 160 the Harmless scene has always placed it at. In the source a station is
-// 1.7 Cobras wide; here it is 4.7, and everything about docking is built on the
-// wider one: `game/docking.ts` gates at five station half-widths, tests a
-// 124x52 slot channel and rolls the ship against the slot's long axis, which is
-// horizontal here and VERTICAL in the released table (the source slot is 20
-// wide by 60 tall). Swapping the hull in would shrink the station fourfold and
-// turn the letterbox on its side, which is a docking change, not a geometry one.
-// So the exact stations are built and shown in the viewer, the scene keeps
-// these, and re-tuning the approach belongs with the rebalance.
+// THE STATIONS USED TO BE HERE, and they are not any more. They are exact
+// released hulls now, drawn at a size Harmless chose — the one per-object scale
+// in the project, and `ships/station-hulls.ts` states it. What is left in this
+// file has no source record at all, which is the only thing that belongs here.
 
-import * as THREE from 'three';
-
-import { hullMaterial, type ShipDef } from './geometry.ts';
+import type { ShipDef } from './geometry.ts';
 
 /** Ring-based hull generator: rings of vertices plus optional nose/tail points. */
 function makeSpindle(
@@ -96,77 +86,3 @@ export const GENERATION_SHIP_RADIUS = 340;
 
 /** The hollowed asteroid the player can dock with. Procedural, so no ShipDef. */
 export const ROCK_HERMIT_RADIUS = 120;
-
-/**
- * The Coriolis, at the size the Harmless scene is built around.
- *
- * The twelve hull vertices are the released ones; the scale and the letterbox
- * are not, and the header above says why. Front and rear faces are diamonds, the
- * waist is a square, with a horizontal docking slot in the front face.
- */
-export const CORIOLIS: ShipDef = {
-  name: 'Coriolis Station',
-  scale: 1,
-  vertices: [
-    [160, 0, 160], [0, 160, 160], [-160, 0, 160], [0, -160, 160],   // 0-3 front diamond
-    [160, 160, 0], [-160, 160, 0], [-160, -160, 0], [160, -160, 0], // 4-7 waist square
-    [160, 0, -160], [0, 160, -160], [-160, 0, -160], [0, -160, -160], // 8-11 rear diamond
-    [48, 10, 160], [48, -10, 160], [-48, -10, 160], [-48, 10, 160], // 12-15 docking slot
-  ],
-  edges: [
-    [0, 1], [1, 2], [2, 3], [3, 0],
-    [8, 9], [9, 10], [10, 11], [11, 8],
-    [4, 5], [5, 6], [6, 7], [7, 4],
-    [0, 4], [0, 7], [1, 4], [1, 5], [2, 5], [2, 6], [3, 6], [3, 7],
-    [8, 4], [8, 7], [9, 4], [9, 5], [10, 5], [10, 6], [11, 6], [11, 7],
-    [12, 13], [13, 14], [14, 15], [15, 12],
-  ],
-  faces: [
-    [0, 1, 2, 3], [8, 9, 10, 11],
-    [0, 1, 4], [1, 5, 4], [1, 2, 5], [2, 6, 5],
-    [2, 3, 6], [3, 7, 6], [3, 0, 7], [0, 4, 7],
-    [8, 9, 4], [9, 5, 4], [9, 10, 5], [10, 6, 5],
-    [10, 11, 6], [11, 7, 6], [11, 8, 7], [8, 4, 7],
-  ],
-};
-
-/** Distance from the Coriolis's centre to the slot face plane. */
-export const CORIOLIS_DOCK_Z = 160;
-
-/** Dodecahedral "Dodo" station for high-tech systems — also at scene scale. */
-export function buildDodoStation(color: THREE.ColorRepresentation): {
-  group: THREE.Group; dockZ: number;
-} {
-  const geo = new THREE.DodecahedronGeometry(170);
-  // orient the first face's normal along -Z so the slot faces forward
-  const pos = geo.getAttribute('position') as THREE.BufferAttribute;
-  const a = new THREE.Vector3().fromBufferAttribute(pos, 0);
-  const b = new THREE.Vector3().fromBufferAttribute(pos, 1);
-  const c = new THREE.Vector3().fromBufferAttribute(pos, 2);
-  const normal = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize();
-  const q = new THREE.Quaternion().setFromUnitVectors(normal, new THREE.Vector3(0, 0, -1));
-  geo.applyQuaternion(q);
-  const dockZ = Math.abs(a.clone().applyQuaternion(q).dot(new THREE.Vector3(0, 0, 1)));
-
-  const group = new THREE.Group();
-  group.name = 'Dodo Station';
-  const hull = new THREE.Mesh(geo, hullMaterial());
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geo, 1),
-    new THREE.LineBasicMaterial({ color }),
-  );
-  // Docking port on the front face, sitting just PROUD of it.
-  //
-  // This was -(dockZ - 0.5), which put it half a unit inside the hull — and
-  // the hull is an opaque black mesh, so from outside the station the port was
-  // simply not there. On a 170-unit station half a unit out is invisible as an
-  // offset and guarantees the lines draw in front of the fill.
-  const slot = new THREE.BufferGeometry();
-  const z = -(dockZ + 0.5);
-  slot.setAttribute('position', new THREE.Float32BufferAttribute([
-    48, 10, z, 48, -10, z, 48, -10, z, -48, -10, z,
-    -48, -10, z, -48, 10, z, -48, 10, z, 48, 10, z,
-  ], 3));
-  group.add(hull, edges, new THREE.LineSegments(slot, new THREE.LineBasicMaterial({ color })));
-  return { group, dockZ };
-}

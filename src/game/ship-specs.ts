@@ -6,68 +6,54 @@
 // by scrolling. Now it is a question you answer by opening the file called
 // ship-specs.ts.
 //
-// Nothing here decides anything: population.ts chooses how many, contracts.ts
-// chooses the threat tier, spawning.ts puts them in the sky.
+// EVERY NUMBER IN THIS FILE IS HARMLESS'S. The rows say colour, hull points,
+// cruise, turn rate, bounty, racks and racks alone — presentation, motion and
+// selection policy. Not one source combat field is copied in: energy, defence,
+// laser power and the released bounty live in the catalogue and are reached
+// through `profileId`, so re-importing the pack cannot leave a stale twin here.
+// The one source number the rows DO consume is a released top speed, and it
+// arrives converted (`cruise`), never copied.
+//
+// Nothing here decides anything either: `ship-roles.ts` says which designs a
+// role may fly at all, population.ts chooses how many, contracts.ts chooses the
+// threat tier, spawning.ts puts them in the sky.
 
-import type { ShipDef } from '../ships/geometry.ts';
-import { registeredHull } from '../ships/registry.ts';
+import { PLAYER_FLIGHT } from '../player.ts';
+import { eliteADesign } from './elite-a/catalogue.ts';
+import { hullThreatTier } from './threat.ts';
+import type { NpcRole } from './ship-roles.ts';
 import {
-  eliteAShipIdentity, HARMLESS_OVERLAYS,
+  COBRA_MK_3_HULL_ID, eliteAShipIdentity, HARMLESS_OVERLAYS, playerHull,
   type HarmlessOverlay, type NpcCombatProfileId, type ShipDesignId, type ShipIdentity,
 } from './ship-identity.ts';
-
-/** What a ship is FOR. The roster is keyed on it, so it lives here. */
-export type NpcRole =
-  'trader' | 'pirate' | 'police' | 'hunter' | 'thargoid' | 'thargon' | 'asteroid' |
-  'hermit' | 'generation';
 
 /**
  * Which source design each roster hull IS, stated once.
  *
  * The mapping is written down rather than inferred because inferring it is the
  * failure ship-identity.ts exists to prevent: `spec.def === COBRA_MK3` makes
- * the geometry table the identity table, and a hull reused for two ships (or
- * replaced with the exact source mesh in a later TODO) would silently change
- * what a ship is. These numbers are the pack's own design ids; every one is
- * validated by `eliteAShipIdentity` as the table below is built.
+ * the geometry table the identity table, and a hull reused for two ships would
+ * silently change what a ship is. These numbers are the pack's own design ids;
+ * every one is validated by `eliteAShipIdentity` as the table below is built.
  */
 const SOURCE_DESIGN = {
   shuttle: 8, transporter: 9, cobraMk3: 10, python: 11, boa: 12, anaconda: 13,
   worm: 14, viper: 16, sidewinder: 17, mamba: 18, krait: 19, adder: 20,
-  gecko: 21, asp: 23, ferDeLance: 24, moray: 25, thargoid: 26, thargon: 27,
-  constrictor: 28,
+  gecko: 21, cobraMk1: 22, asp: 23, ferDeLance: 24, moray: 25, thargoid: 26,
+  thargon: 27, constrictor: 28, dragon: 29, monitor: 30, ophidian: 31,
+  ghavial: 32, bushmaster: 33, rattler: 34, iguana: 35, shuttleMk2: 36,
+  chameleon: 37,
   /** The source roster's own rock — the one design whose mesh Harmless generates. */
   asteroid: 6,
 } as const;
 
-/**
- * Everything about a roster hull that the CATALOGUE decides, spread into its
- * spec below: which design it is, which released build it flies as, the mesh
- * and the target radius.
- *
- * Not a copy of a rule — one expression, evaluated once per row as the table is
- * built, reading `ships/registry.ts`. What the rows still state for themselves
- * is what Harmless chose: colour, hull points, speed, turn rate, bounty, racks.
- * The radius used to be one of those, hand-tuned per row; it is the pack's own
- * targetable radius through `sourceGeometryToWorld` now, and there is nowhere
- * left to override it.
- */
-interface CataloguedHull extends ShipIdentity {
-  def: ShipDef | null;
-  radius: number;
-}
-
-const hullOf = (identity: ShipIdentity): CataloguedHull => {
-  const hull = registeredHull(identity.designId);
-  return { ...identity, def: hull.def, radius: hull.targetRadius };
-};
-
-const flying = (sourceDesignId: number): CataloguedHull =>
-  hullOf(eliteAShipIdentity(sourceDesignId));
+/** The ids a roster row states: which design, and which exact build of it. */
+const flying = (sourceDesignId: number): ShipIdentity =>
+  eliteAShipIdentity(sourceDesignId);
 
 /** The same, for one of the two Harmless inventions — the ids alone, not the note. */
-const own = (o: HarmlessOverlay): CataloguedHull =>
-  hullOf({ designId: o.designId, profileId: o.profileId });
+const own = (o: HarmlessOverlay): ShipIdentity =>
+  ({ designId: o.designId, profileId: o.profileId });
 
 /**
  * What an asteroid is. The `asteroid` role has no `NpcSpec` — its size is
@@ -78,7 +64,8 @@ const own = (o: HarmlessOverlay): CataloguedHull =>
  * drawn from its seed, so it is the one design whose mesh and radius do not
  * come from the registry. That is a Harmless deviation — the released asteroid
  * is one fixed 20-unit lump and rocks that all match are worse to fly among —
- * and it is stated here rather than being a silent difference.
+ * and it is stated here, and in docs/GAP-ANALYSIS.md, rather than being a
+ * silent difference.
  */
 export const ASTEROID_IDENTITY: ShipIdentity = eliteAShipIdentity(SOURCE_DESIGN.asteroid);
 
@@ -121,35 +108,63 @@ export const TURN = { pitch: 1.4, roll: 2.4 };
  */
 export const ACCEL_FRACTION = 0.46;
 
-export interface NpcSpec {
-  /**
-   * The released hull, from `ships/registry.ts`. null only for the rock hermit,
-   * whose mesh is generated.
-   *
-   * NEVER compare it to decide what a ship is — that is `designId`'s job, and
-   * the reason it is beside it. Two roster rows of the same design share this
-   * object, exactly as they share the design.
-   */
-  def: ShipDef | null;
-  /** which catalogue design this hull is — see ship-identity.ts, never inferred from `def` */
+// --- the one source-speed conversion ----------------------------------------
+
+/**
+ * World units per second for one unit of released top speed.
+ *
+ * Anchored exactly the way the geometry is (ships/elite-a-hulls.ts): on the
+ * Cobra Mk III. The released player Cobra tops out at 42 source units and the
+ * Harmless player ship at 400, so one source unit is 400/42 ≈ 9.52 units/s.
+ * Read from both tables rather than written down, so neither can drift away
+ * from it quietly.
+ */
+export const WORLD_SPEED_PER_SOURCE_SPEED =
+  PLAYER_FLIGHT.maxSpeed / playerHull(COBRA_MK_3_HULL_ID).maxSpeed;
+
+/** A released top speed in world units/second. The only conversion there is. */
+export function sourceSpeedToWorld(sourceSpeed: number): number {
+  return Math.round(sourceSpeed * WORLD_SPEED_PER_SOURCE_SPEED);
+}
+
+/**
+ * The cruise for a hull Harmless has never chosen one for.
+ *
+ * Used by the ten designs this phase brought into the roster and by nothing
+ * else. The nineteen that were already flying keep the speeds they were tuned
+ * and trained at: those numbers are the world the shipped brains were fitted
+ * in, and re-deriving them would move every hull by up to 40% for no reason
+ * connected to damage. So the conversion applies where there was nothing, and
+ * the older tuning stands — which is why a Shuttle cruises at 180 and a Shuttle
+ * Mk II, converted, at 86.
+ */
+const cruise = (sourceDesignId: number): number =>
+  sourceSpeedToWorld(eliteADesign(sourceDesignId).maxSpeed);
+
+export interface NpcSpec extends ShipIdentity {
+  /** which catalogue design this hull is — see ship-identity.ts */
   designId: ShipDesignId;
   /** the exact released build it flies as, resolved from the recommended default */
   profileId: NpcCombatProfileId;
   color: number;
   hp: number;
   maxSpeed: number;
+  /**
+   * Radians/second of yaw authority — and OURS.
+   *
+   * The Harmless motion overlay, along with `accel`: the pack has a top speed
+   * per design and nothing else, because the original's handling is a table of
+   * per-frame rotation bytes for a 2 MHz 6502 and not a number this flight
+   * model could take. So every turn rate below is a browser-game constant
+   * chosen for feel, and no re-import can supply one.
+   */
   turnRate: number;
   bounty: number; // tenths of a credit
   /**
-   * World units, from the catalogue's targetable area — `shipTargetRadius`.
-   * Ray tests, the hit cone and collision separation all read it, so it is a
-   * gameplay number and not a drawing one; it is not settable per row.
-   */
-  radius: number;
-  /**
    * Units/s of thrust. Omitted means ACCEL_FRACTION of top speed, which is
    * what every hull wants unless it is deliberately sluggish or brisk — use
-   * `shipAccel()` rather than reading this field.
+   * `shipAccel()` rather than reading this field. Also part of the motion
+   * overlay: the pack does not define it.
    */
   accel?: number;
   missiles?: number;
@@ -163,6 +178,15 @@ export function shipAccel(spec: NpcSpec): number {
   return spec.accel ?? spec.maxSpeed * ACCEL_FRACTION;
 }
 
+/**
+ * The roster.
+ *
+ * Which designs each role MAY contain is `ship-roles.ts`'s answer, read off the
+ * released blueprint slots, and `test/ship-roles.test.ts` holds every row below
+ * to it — so a hull cannot be filed as a trader because it looked like one.
+ * Which of the permitted designs a role actually flies is a choice, and this is
+ * where it is made.
+ */
 export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
   trader: [
     { ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffffff, hp: 1.0, maxSpeed: 220, turnRate: 0.5, bounty: 0, ecmChance: 0.4, cargoDrop: 3, armed: true },
@@ -173,7 +197,20 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
     { ...flying(SOURCE_DESIGN.boa), color: 0xd8d8c0, hp: 2.2, maxSpeed: 140, turnRate: 0.3, bounty: 0, ecmChance: 0.6, cargoDrop: 5, armed: true },
     { ...flying(SOURCE_DESIGN.shuttle), color: 0xc8e8c8, hp: 0.45, maxSpeed: 180, turnRate: 0.7, bounty: 0, cargoDrop: 1 },
     { ...flying(SOURCE_DESIGN.transporter), color: 0xc0d0e0, hp: 0.6, maxSpeed: 160, turnRate: 0.5, bounty: 0, cargoDrop: 2 },
+    // --- brought into the roster by TODO 25; cruise converted, turn ours -----
+    { ...flying(SOURCE_DESIGN.cobraMk1), color: 0xe8e8ff, hp: 0.8, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 0, ecmChance: 0.3, cargoDrop: 2, armed: true },
+    { ...flying(SOURCE_DESIGN.dragon), color: 0xcfd8e8, hp: 2.5, maxSpeed: cruise(SOURCE_DESIGN.dragon), turnRate: 0.22, bounty: 0, ecmChance: 0.7, cargoDrop: 6, armed: true },
+    { ...flying(SOURCE_DESIGN.monitor), color: 0xd0d0c8, hp: 1.6, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 0, ecmChance: 0.5, cargoDrop: 4, armed: true },
+    { ...flying(SOURCE_DESIGN.ophidian), color: 0xdfe8ff, hp: 0.55, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 0, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.ghavial), color: 0xd8e0d0, hp: 1.4, maxSpeed: cruise(SOURCE_DESIGN.ghavial), turnRate: 0.35, bounty: 0, ecmChance: 0.4, cargoDrop: 4, armed: true },
+    { ...flying(SOURCE_DESIGN.rattler), color: 0xe0d8c8, hp: 1.2, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 0, cargoDrop: 2, armed: true },
+    { ...flying(SOURCE_DESIGN.iguana), color: 0xd8e8c8, hp: 0.9, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 0, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.shuttleMk2), color: 0xc8e8d8, hp: 0.45, maxSpeed: cruise(SOURCE_DESIGN.shuttleMk2), turnRate: 0.6, bounty: 0, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.chameleon), color: 0xd8d8e8, hp: 1.1, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 0, ecmChance: 0.4, cargoDrop: 3, armed: true },
   ],
+  // The pirate roster is ALSO the threat-tier table — see PIRATE_TIERS below.
+  // The first six are the mix that has always flown; the next four used to be
+  // reachable only through a tier; the last seven are new.
   pirate: [
     { ...flying(SOURCE_DESIGN.sidewinder), color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50 },
     { ...flying(SOURCE_DESIGN.krait), color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80 },
@@ -181,6 +218,18 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
     { ...flying(SOURCE_DESIGN.gecko), color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60 },
     { ...flying(SOURCE_DESIGN.moray), color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65 },
     { ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, missiles: 1, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.worm), color: 0xffbb80, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40 },
+    { ...flying(SOURCE_DESIGN.ferDeLance), color: 0xff7a4c, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.asp), color: 0xff8f5c, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 150, missiles: 1, ecmChance: 0.3, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.python), color: 0xffa878, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
+    // --- brought into the roster by TODO 25 ---------------------------------
+    { ...flying(SOURCE_DESIGN.cobraMk1), color: 0xffb066, hp: 0.8, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 90, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.ophidian), color: 0xffc07a, hp: 0.55, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 55 },
+    { ...flying(SOURCE_DESIGN.bushmaster), color: 0xff8f5c, hp: 0.7, maxSpeed: cruise(SOURCE_DESIGN.bushmaster), turnRate: 1.1, bounty: 110, missiles: 1 },
+    { ...flying(SOURCE_DESIGN.rattler), color: 0xffa060, hp: 1.2, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 120, cargoDrop: 1 },
+    { ...flying(SOURCE_DESIGN.iguana), color: 0xffb078, hp: 0.9, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 110 },
+    { ...flying(SOURCE_DESIGN.chameleon), color: 0xff9a80, hp: 1.1, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 190, missiles: 1, ecmChance: 0.4, cargoDrop: 2 },
+    { ...flying(SOURCE_DESIGN.monitor), color: 0xff7a5c, hp: 1.6, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 220, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
   ],
   police: [
     { ...flying(SOURCE_DESIGN.viper), color: 0x9ad9ff, hp: 0.9, maxSpeed: 320, turnRate: 1.3, bounty: 0, ecmChance: 1 },
@@ -188,6 +237,15 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
   hunter: [
     { ...flying(SOURCE_DESIGN.ferDeLance), color: 0xd8c8ff, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 0, ecmChance: 0.6 },
     { ...flying(SOURCE_DESIGN.asp), color: 0xc8d8ff, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 0, ecmChance: 0.4 },
+    // --- brought into the roster by TODO 25 ---------------------------------
+    { ...flying(SOURCE_DESIGN.cobraMk1), color: 0xc8c8ff, hp: 0.8, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 0, ecmChance: 0.3 },
+    { ...flying(SOURCE_DESIGN.monitor), color: 0xc0c8e0, hp: 1.6, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 0, ecmChance: 0.6 },
+    { ...flying(SOURCE_DESIGN.ophidian), color: 0xd0c8ff, hp: 0.55, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 0, ecmChance: 0.3 },
+    { ...flying(SOURCE_DESIGN.ghavial), color: 0xc8d0e8, hp: 1.4, maxSpeed: cruise(SOURCE_DESIGN.ghavial), turnRate: 0.35, bounty: 0, ecmChance: 0.5 },
+    { ...flying(SOURCE_DESIGN.bushmaster), color: 0xd8c0ff, hp: 0.7, maxSpeed: cruise(SOURCE_DESIGN.bushmaster), turnRate: 1.1, bounty: 0, ecmChance: 0.4 },
+    { ...flying(SOURCE_DESIGN.rattler), color: 0xccc8f0, hp: 1.2, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 0, ecmChance: 0.4 },
+    { ...flying(SOURCE_DESIGN.iguana), color: 0xd0d8f0, hp: 0.9, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 0, ecmChance: 0.35 },
+    { ...flying(SOURCE_DESIGN.chameleon), color: 0xd4c8f8, hp: 1.1, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 0, ecmChance: 0.45 },
   ],
   thargoid: [
     { ...flying(SOURCE_DESIGN.thargoid), color: 0x7cff9a, hp: 2.6, maxSpeed: 300, turnRate: 0.7, bounty: 500, ecmChance: 1 },
@@ -207,33 +265,22 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
 };
 
 /**
- * Pirate hulls by threat tier (see pirateThreat() in contracts.ts). Tier is
+ * Pirate hulls by threat tier (see pirateThreat() in threat.ts). Tier is
  * decided by how attractive a target the player looks — a poor Cobra full of
  * food draws opportunists in Sidewinders; a fat, notorious one draws a gang in
  * Fer-de-Lances. Passed to spawnNpc as a specOverride, so these stay ordinary
  * pirates for every other purpose (bounty, legality, police response).
+ *
+ * DERIVED, not written. This was three hand-typed lists that repeated the
+ * pirate roster in a different order and, between them, a fourth opinion about
+ * how tough each hull was. The tier is `hullThreatTier` now — energy, defence
+ * and laser power off the exact released build — so a hull moves tier only when
+ * the pack says it got tougher, and every entry keeps the presentation its one
+ * roster row states. Order within a tier is roster order, which is why every
+ * seed that picked a hull before this phase still picks the same one.
  */
-const PIRATE_TIERS: NpcSpec[][] = [
-  // 0 — opportunists: cheap, fast, easily discouraged
-  [
-    { ...flying(SOURCE_DESIGN.sidewinder), color: 0xff9a5c, hp: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50 },
-    { ...flying(SOURCE_DESIGN.gecko), color: 0xffa050, hp: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60 },
-    { ...flying(SOURCE_DESIGN.worm), color: 0xffbb80, hp: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40 },
-  ],
-  // 1 — professionals: the existing pirate mix
-  [
-    { ...flying(SOURCE_DESIGN.krait), color: 0xffb36c, hp: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80 },
-    { ...flying(SOURCE_DESIGN.mamba), color: 0xff8a4c, hp: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70 },
-    { ...flying(SOURCE_DESIGN.moray), color: 0xff9a70, hp: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65 },
-    { ...flying(SOURCE_DESIGN.cobraMk3), color: 0xffc46c, hp: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, missiles: 1, cargoDrop: 2 },
-  ],
-  // 2 — an organised gang: they brought the good ships, and missiles
-  [
-    { ...flying(SOURCE_DESIGN.ferDeLance), color: 0xff7a4c, hp: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
-    { ...flying(SOURCE_DESIGN.asp), color: 0xff8f5c, hp: 1.0, maxSpeed: 340, turnRate: 1.2, bounty: 150, missiles: 1, ecmChance: 0.3, cargoDrop: 1 },
-    { ...flying(SOURCE_DESIGN.python), color: 0xffa878, hp: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
-  ],
-];
+export const PIRATE_TIERS: NpcSpec[][] = [0, 1, 2].map(
+  (tier) => SPECS.pirate.filter((s) => hullThreatTier(s.designId, s.profileId) === tier));
 
 /** Pick a hull for a pirate of the given threat tier. */
 export function pirateSpecForTier(tier: number, variantSeed: number): NpcSpec {
@@ -245,3 +292,31 @@ export const CONSTRICTOR_SPEC: NpcSpec = {
   ...flying(SOURCE_DESIGN.constrictor), color: 0xffd24d, hp: 3.2, maxSpeed: 370, turnRate: 1.2,
   bounty: 2500, missiles: 2, ecmChance: 1,
 };
+
+/**
+ * The roster row for a design a ship ALREADY knows it is.
+ *
+ * Restoring a save is the caller (persistence.ts). A snapshot carries the
+ * ship's `designId`, and rebuilding it from a tier table instead meant a pirate
+ * spawned outside the tier tables — the combat trainer's hull picker offers
+ * exactly that — came back on a different hull while keeping its saved
+ * identity, so the two disagreed for the rest of the session. Looking the row
+ * up by design cannot disagree with it.
+ *
+ * The Constrictor is included under `pirate` because that is the role it flies
+ * with; it is not in `SPECS.pirate` for the reason `ship-roles.ts` gives.
+ */
+const BY_ROLE_AND_DESIGN = new Map<string, NpcSpec>(
+  [
+    ...Object.entries(SPECS).flatMap(
+      ([role, list]) => list.map((s) => [`${role} ${s.designId}`, s] as const)),
+    [`pirate ${CONSTRICTOR_SPEC.designId}`, CONSTRICTOR_SPEC] as const,
+  ],
+);
+
+export function specForDesign(
+  role: NpcRole, designId: ShipDesignId | undefined,
+): NpcSpec | undefined {
+  return designId === undefined
+    ? undefined : BY_ROLE_AND_DESIGN.get(`${role} ${designId}`);
+}

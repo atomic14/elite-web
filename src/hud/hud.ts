@@ -68,6 +68,10 @@ export interface HudState {
    * Docking state. Once drove a separate corner overlay; that is gone — the
    * port marker says whether you are lined up, and saying it twice in two
    * places was worse than saying it once. Only `inSlot` is read now.
+   *
+   * `roll` is how far the wings are off the slot's long axis, in radians —
+   * unsigned, and zero when lined up. It was a signed bearing when the slot was
+   * horizontal; game/docking.ts owns the measurement either way.
    */
   dockAid: { x: number; y: number; roll: number; inSlot: boolean; rollOk: boolean } | null;
   /**

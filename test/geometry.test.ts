@@ -22,6 +22,8 @@ import {
   HARMLESS_OVERLAYS, shipDesignIdOf, SHIP_DESIGN_IDS,
 } from '../src/game/ship-identity.ts';
 import { SPECS, CONSTRICTOR_SPEC } from '../src/game/ship-specs.ts';
+import type { NpcRole } from '../src/game/ship-roles.ts';
+import { NpcShip } from '../src/game/npc.ts';
 import { hitCone } from '../src/game/gunnery.ts';
 import { traceShot } from '../src/game/shot.ts';
 import { buildShip } from '../src/ships/geometry.ts';
@@ -216,15 +218,23 @@ check('the canister and the missile are released designs 4 and 15',
 // cone and `game/collisions.ts`'s separation both read `spec.radius`, and that
 // number is no longer hand-tuned per roster row.
 
-const roster = [...Object.values(SPECS).flat(), CONSTRICTOR_SPEC];
-const offRadius = roster.filter((spec) => spec.radius !== shipTargetRadius(spec.designId));
+// There is nowhere left for a row to state a size: `NpcSpec` has no `radius`
+// field, so the number a ship is shot at with is the design's or it is nothing.
+// This checks the ship the game actually builds, not the table.
+const built = [
+  ...Object.entries(SPECS).flatMap(([role, list]) => list.map(
+    (spec) => new NpcShip(role as NpcRole, new THREE.Vector3(), 0, spec))),
+  new NpcShip('pirate', new THREE.Vector3(), 0, CONSTRICTOR_SPEC),
+];
+const offRadius = built.filter(
+  (npc) => npc.radius !== shipTargetRadius(npc.designId));
 check('every roster hull uses its design\'s catalogue radius', offRadius.length === 0,
-  offRadius.map((s) => s.designId).join(', '));
+  offRadius.map((n) => n.designId).join(', '));
 check('...which for the roster Cobra Mk III is 95 source units = 23.75 world',
-  roster.find((s) => s.designId === shipDesignIdOf(10))!.radius === 23.75);
+  shipTargetRadius(shipDesignIdOf(10)) === 23.75);
 check('no two roster rows of the same design disagree about size',
-  new Set(roster.map((s) => `${s.designId}:${s.radius}`)).size
-  === new Set(roster.map((s) => s.designId)).size);
+  new Set(built.map((n) => `${n.designId}:${n.radius}`)).size
+  === new Set(built.map((n) => n.designId)).size);
 
 // --- and a shot really is traced against it ----------------------------------
 //

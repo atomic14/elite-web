@@ -110,6 +110,31 @@ export function eliteASlotsForSet(blueprintSet: string): EliteASlot[] {
   return ELITE_A_SLOTS.filter((slot) => slot.blueprintSet === blueprintSet);
 }
 
+/**
+ * Every design that actually FILLS a slot in `[firstSlot, lastSlot]` in any
+ * released set, in design order.
+ *
+ * The occupancy, not the permission. `EliteADesign.allowedBlueprintSlots` is
+ * the wider set the pack says a design MAY sit in, and reading it would let a
+ * Sidewinder be a trader because no released set ever made it one. This asks
+ * the 713-row slot table what the 23 sets between them actually did, which is
+ * what `game/ship-roles.ts` turns into role membership.
+ *
+ * Here rather than at that call site for the reason the header gives: nothing
+ * outside this file scans the flat generated arrays.
+ */
+export function eliteADesignsInSlotRange(
+  firstSlot: number, lastSlot: number,
+): EliteADesignId[] {
+  const found = new Set<EliteADesignId>();
+  for (const slot of ELITE_A_SLOTS) {
+    if (slot.designId === null) continue;
+    if (slot.slot < firstSlot || slot.slot > lastSlot) continue;
+    found.add(slot.designId);
+  }
+  return [...found].sort((a, b) => a - b);
+}
+
 /** Every exact variant of one design, in A-W source order. */
 export function eliteAVariantsOf(designId: EliteADesignId): EliteAVariant[] {
   return ELITE_A_VARIANTS.filter((variant) => variant.designId === designId);

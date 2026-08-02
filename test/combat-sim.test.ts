@@ -15,6 +15,7 @@
 // all. These do, by reading the files.
 
 import { readFileSync } from 'node:fs';
+import { hasShipDef, shipDisplayName } from '../src/ships/registry.ts';
 
 import { check, eq, cmds, eqc } from './harness.ts';
 import {
@@ -258,7 +259,7 @@ console.log('\ncombat simulator — the custom picker');
   d.groups.push(defaultGroup(2));
   const hulls = simHulls();
   check('the hull roster is the whole roster that can fight',
-    hulls.length > 8 && hulls.every((h) => !!h.spec.def));
+    hulls.length > 8 && hulls.every((h) => hasShipDef(h.spec.designId)));
   check('...including the Constrictor, which a career meets once',
     hulls.some((h) => h.name === 'Constrictor'));
   const hullRow = setupCells(d)[6];
@@ -294,7 +295,7 @@ console.log('\ncombat simulator — the custom picker');
   const spec = specFrom(d, 7);
   check('the spec carries the custom opposition', (spec.custom ?? []).length === 1);
   eq('...with the hull pinned, which is what makes it custom',
-    spec.custom![0].hull?.def?.name, simHulls()[g.hull].name);
+    shipDisplayName(spec.custom![0].hull!.designId), simHulls()[g.hull].name);
   eq('...and the role that hull actually flies', spec.custom![0].role, simHulls()[g.hull].role);
   eq('...and the seed left to nextOpposition, which re-seeds per round',
     spec.custom![0].seed, 0);

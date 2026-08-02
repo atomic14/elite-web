@@ -9,10 +9,23 @@
 //
 // Why roll is the crux: `NpcShip.steerToward` builds orientation from
 // `lookAt(dir, WORLD_UP)`, so roll is whatever falls out of pointing at a
-// target. The Coriolis slot is a 96x20 letterbox on a station spinning at
-// 0.26 rad/s, so a ship that cannot choose its roll cannot fit through it.
-// The fix is to take the up-hint from the STATION rather than the world, which
-// matches the slot's rotation for free as it turns.
+// target. The station's slot is a letterbox on a hull spinning at 0.26 rad/s,
+// so a ship that cannot choose its roll cannot fit through it. The fix is to
+// take the up-hint from the STATION rather than the world, which matches the
+// slot's rotation for free as it turns.
+//
+// WHICH WAY UP THE LETTERBOX IS. Both released stations put their slot on the
+// front face as a rectangle that is TALLER THAN IT IS WIDE in station-local
+// coordinates — 20x60 on the Coriolis, 32x64 on the Dodo — so the long axis a
+// ship's wings must line up with is the station's local Y. Harmless drew a
+// horizontal 96x20 for years and this file was written the other way round; the
+// exact hulls arrived with TODO 25 and the axes swapped with them.
+//
+// What did NOT change is how precisely you have to fly. The channel below is
+// the same rectangle it always was, turned a quarter turn with the slot, so the
+// approach is the one that has always worked and the roll you have to hold is
+// still a quarter turn's worth of tolerance either side. `test/world.test.ts`
+// pins both.
 
 import * as THREE from 'three';
 
@@ -68,7 +81,11 @@ export function planDocking(
   // perpendicular distance from the axis
   const lateral = _rel.addScaledVector(_slotN, -along).length();
   out.lateral = lateral;
-  out.up.set(0, 1, 0).applyQuaternion(station.quaternion);
+  // The station's local X, not its Y: `lookAt(heading, up)` puts the ship's
+  // RIGHT perpendicular to the up-hint, and the wings have to lie along the
+  // slot's LONG axis, which is the station's local Y (see the header). Handing
+  // it the Y put every trader through the letterbox side-on.
+  out.up.set(1, 0, 0).applyQuaternion(station.quaternion);
 
   const gateDist = dockZ * GATE;
   // Commit to the run only when actually on the axis. Skipping the lateral
@@ -136,18 +153,60 @@ export function makeDockPlan(): DockPlan {
 // One rule, one home. The consequence — bounce, damage, message, or actually
 // docking — stays with the Game, because that is what it costs.
 
-/** Bounding cube around the station, a little larger than the hull. */
-const HULL_BOX_MARGIN = 45;
 /**
- * The visible slot is 96x20; the test is padded to 124x52 as tolerance for
- * the player's own hull.
+ * Bounding cube around the station, a little larger than the hull.
+ *
+ * Measured against the widest point of both released hulls at the scene's
+ * station scale: the Coriolis reaches 160 on every axis against a 160 slot
+ * plane, and the Dodo's five tallest vertices reach 243 against a 196 one. 50
+ * clears both, which is what "a little larger than the hull" has to mean if a
+ * ship is not to slip past a vertex and be reported clear.
  */
-const SLOT_HALF_WIDTH = 62;
-const SLOT_HALF_HEIGHT = 26;
+const HULL_BOX_MARGIN = 50;
+/**
+ * The channel, as half-extents ACROSS the slot and ALONG it.
+ *
+ * The released slots are 20x60 (Coriolis) and 32x64 (Dodo), long axis vertical
+ * in station-local coordinates. These are the same 52x124 tolerance Harmless
+ * has always allowed, turned to match — not a re-tuning. Sized from the
+ * narrower of the two so one rule covers both stations, and a ship that
+ * threads the Coriolis threads the Dodo.
+ */
+const SLOT_HALF_ACROSS = 26;
+const SLOT_HALF_ALONG = 62;
 /** How far into the -Z face counts as being in the channel. */
 const SLOT_DEPTH = 60;
 /** Wings vs the slot's long axis, in radians. */
 export const ROLL_TOLERANCE = 0.65;
+
+/**
+ * Is a point in the slot channel? `x` and `y` are station-LOCAL.
+ *
+ * Exported because the HUD's alignment aid asks the same question and used to
+ * answer it with its own copy of the numbers (`hud/hud-model.ts`), which is the
+ * rule-with-two-homes this project is organised against — and which would have
+ * silently kept the old horizontal channel through this change.
+ */
+export function inSlotChannel(localX: number, localY: number): boolean {
+  return Math.abs(localX) < SLOT_HALF_ACROSS && Math.abs(localY) < SLOT_HALF_ALONG;
+}
+
+/**
+ * Are the wings lined up with the slot's long axis?
+ *
+ * `right` is the ship's own +X in the STATION's frame. The slot runs along the
+ * station's local Y, so alignment is measured against Y and the tolerance is
+ * the angle away from it. Both magnitudes are absolute: a ship upside down in
+ * the slot still fits through it.
+ */
+export function rollAlignedWithSlot(rightX: number, rightY: number): boolean {
+  return slotRollOffset(rightX, rightY) < ROLL_TOLERANCE;
+}
+
+/** How far off the slot's long axis the wings are, in radians. */
+export function slotRollOffset(rightX: number, rightY: number): number {
+  return Math.atan2(Math.abs(rightX), Math.abs(rightY));
+}
 
 export type DockingOutcome =
   /** nothing near enough to matter */
@@ -178,12 +237,10 @@ export function dockingOutcome(
   if (Math.abs(local.x) > box || Math.abs(local.y) > box || Math.abs(local.z) > box) {
     return 'clear';
   }
-  const inSlot = local.z < -(dockZ - SLOT_DEPTH)
-    && Math.abs(local.x) < SLOT_HALF_WIDTH && Math.abs(local.y) < SLOT_HALF_HEIGHT;
+  const inSlot = local.z < -(dockZ - SLOT_DEPTH) && inSlotChannel(local.x, local.y);
   if (!inSlot) return 'hull';
 
   scratch.q.copy(station.quaternion).invert().multiply(quat);
   const right = scratch.r.set(1, 0, 0).applyQuaternion(scratch.q);
-  const rollOff = Math.atan2(Math.abs(right.y), Math.abs(right.x));
-  return rollOff < ROLL_TOLERANCE ? 'docked' : 'slotMiss';
+  return rollAlignedWithSlot(right.x, right.y) ? 'docked' : 'slotMiss';
 }

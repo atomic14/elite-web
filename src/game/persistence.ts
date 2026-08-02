@@ -31,7 +31,8 @@ import { generateGalaxy, type MarketEntry } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
 import type { CommanderData, Contract } from './commander.ts';
 import type { PirateThreat } from './threat.ts';
-import { CONSTRICTOR_SPEC, pirateSpecForTier } from './ship-specs.ts';
+import { CONSTRICTOR_SPEC, pirateSpecForTier, specForDesign } from './ship-specs.ts';
+import type { NpcRole } from './ship-roles.ts';
 import { migratedPlayerHullId } from './ship-identity.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { Ordnance } from './ordnance.ts';
@@ -185,16 +186,26 @@ export class Persistence {
     s.player.rollRate = snap.player.rollRate;
     Object.assign(s.sys, snap.systems);
 
-    // Which hull each ship gets is a GAME rule — the tier tables and the
-    // Constrictor — so the World asks rather than deciding. Both inputs are
-    // in the state about to be applied, so no extra snapshot field is needed;
-    // without this a restored tier-2 ship came back as the default hull, with
-    // a different flight envelope and a fraction of the bounty.
+    // Which hull each ship gets is a GAME rule — the roster, the tier tables
+    // and the Constrictor — so the World asks rather than deciding.
+    //
+    // THE SAVED DESIGN WINS. This used to send every pirate straight through
+    // `pirateSpecForTier`, which is right for one spawned by the galaxy and
+    // wrong for one that never came from a tier table: the combat trainer's
+    // hull picker can put any pirate hull in the sky, and such a ship came back
+    // wearing a tier hull while keeping its saved identity — so what it WAS and
+    // what it looked like disagreed for the rest of the session. Looking the
+    // roster row up by the design the snapshot recorded cannot disagree with
+    // it. The tier is still the answer for a save written before ships had ids,
+    // which carries no design to look up.
     this.ordnance.clear();
-    s.world.restoreNpcs(snap.npcs, (n) => (
-      n.state.isMissionTarget ? CONSTRICTOR_SPEC
-        : n.role === 'pirate' ? pirateSpecForTier(Number(n.state.threatTier ?? 0), n.seed)
-          : undefined));
+    s.world.restoreNpcs(snap.npcs, (n) => {
+      if (n.state.isMissionTarget) return CONSTRICTOR_SPEC;
+      const role = n.role as NpcRole;
+      return specForDesign(role, n.designId)
+        ?? (role === 'pirate'
+          ? pirateSpecForTier(Number(n.state.threatTier ?? 0), n.seed) : undefined);
+    });
     s.world.cargo.restoreAll(snap.canisters);
     this.ordnance.restoreAll(snap.missiles, (i) => s.world.npcs[i] ?? null);
 

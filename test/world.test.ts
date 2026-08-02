@@ -116,6 +116,10 @@ console.log('\nencounters');
 // has NO roll test, and a re-implementation in game.ts checkStation() with a
 // bounding box, a slot channel and a roll test. An NPC could thread a
 // letterbox the player could not, and only the NPC's half was testable.
+//
+// The letterbox stands UPRIGHT in station-local coordinates — the released
+// Coriolis slot is 20 wide by 60 tall — so a ship docks with its wings along
+// the station's local Y, and a level ship is the one that misses.
 
 console.log('\ndocking');
 {
@@ -124,23 +128,33 @@ console.log('\ndocking');
   const DOCK_Z = 160;
   const scratch = { v: new THREE.Vector3(), q: new THREE.Quaternion(), r: new THREE.Vector3() };
   const level = new THREE.Quaternion();
-  const rolled = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 1.2);
-  const at = (x: number, y: number, z: number, q = level) =>
+  /** wings across the slot's long axis: the roll a Coriolis approach wants */
+  const quarter = new THREE.Quaternion()
+    .setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+  const rolledFrom = (off: number) => new THREE.Quaternion()
+    .setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2 + off);
+  const at = (x: number, y: number, z: number, q = quarter) =>
     dockingOutcome(new THREE.Vector3(x, y, z), q, station, DOCK_Z, scratch);
 
   check('far away is clear', at(0, 0, 5000) === 'clear');
-  check('lined up in the slot, level, is docked', at(0, 0, -(DOCK_Z - 20)) === 'docked');
-  check('...and rolled 69 degrees is a slot miss',
-    at(0, 0, -(DOCK_Z - 20), rolled) === 'slotMiss');
+  check('lined up in the slot, rolled with it, is docked',
+    at(0, 0, -(DOCK_Z - 20)) === 'docked');
+  check('...and level — across the upright slot — is a slot miss',
+    at(0, 0, -(DOCK_Z - 20), level) === 'slotMiss');
   check('off to the side of the face is the hull', at(120, 0, -(DOCK_Z - 20)) === 'hull');
-  check('too high in the channel is the hull', at(0, 40, -(DOCK_Z - 20)) === 'hull');
+  check('too far along the channel is the hull', at(0, 90, -(DOCK_Z - 20)) === 'hull');
+  check('...and a little off it either way is not',
+    at(0, 40, -(DOCK_Z - 20)) === 'docked' && at(20, 0, -(DOCK_Z - 20)) === 'docked');
   check('the far side of the station is the hull', at(0, 0, DOCK_Z - 20) === 'hull');
   {
     // the roll tolerance is a real edge, not a formality
-    const just = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), ROLL_TOLERANCE - 0.05);
-    const over = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), ROLL_TOLERANCE + 0.05);
-    check('just inside the roll tolerance docks', at(0, 0, -(DOCK_Z - 20), just) === 'docked');
-    check('just outside it does not', at(0, 0, -(DOCK_Z - 20), over) === 'slotMiss');
+    check('just inside the roll tolerance docks',
+      at(0, 0, -(DOCK_Z - 20), rolledFrom(ROLL_TOLERANCE - 0.05)) === 'docked');
+    check('just outside it does not',
+      at(0, 0, -(DOCK_Z - 20), rolledFrom(ROLL_TOLERANCE + 0.05)) === 'slotMiss');
+    check('...and the tolerance is unchanged either side of the quarter turn',
+      at(0, 0, -(DOCK_Z - 20), rolledFrom(-(ROLL_TOLERANCE - 0.05))) === 'docked'
+      && at(0, 0, -(DOCK_Z - 20), rolledFrom(-(ROLL_TOLERANCE + 0.05))) === 'slotMiss');
   }
 }
 

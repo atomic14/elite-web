@@ -50,9 +50,8 @@ import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip } from './npc.ts';
 import { DEFEND_BRAIN } from './brains.ts';
-import {
-  type NpcSpec, type NpcRole,
-} from './ship-specs.ts';
+import { type NpcSpec } from './ship-specs.ts';
+import { type NpcRole } from './ship-roles.ts';
 import { spawnPopulation, launchStationDefence } from './spawning.ts';
 import { dumpCargo, offerBribe } from './jettison.ts';
 import {

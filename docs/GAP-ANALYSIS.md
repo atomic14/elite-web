@@ -5,7 +5,7 @@ Wikipedia's Elite article, and the byte-level algorithm references used for
 the galaxy/market code. Completed items are listed as capability, not as
 history — the build story lives in [DEVLOG.md](DEVLOG.md).
 
-*Current as of 2026-07-26.*
+*Current as of 2026-08-02.*
 
 ## Implemented
 
@@ -23,7 +23,7 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
 | Equipment | The manual's price/tech-level table: cargo bay, ECM, four laser mounts, beam/military lasers with old-laser refund, fuel scoops, escape pod, energy bomb, extra energy unit, docking computer, mining laser, galactic hyperdrive — plus a Combat Computer (see deviations). |
 | Mining & scooping | Mining laser fragments asteroids into ore canisters; fuel scoops collect cargo canisters and sun-skim for fuel. |
 | Legal system | CLEAN → OFFENDER → FUGITIVE; police contraband scans; bounty hunters stalk offenders; fines on docking; escape pod launders your record. |
-| Ship roster | 21 hulls: Cobra Mk III, Sidewinder, Viper, Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle, Transporter, Thargoid, Thargon, Constrictor, missile, cargo canister — every one of them the released vertex/edge/face table rather than an approximation, at one scale, with the released targetable radius driving hit registration. All 38 source designs are built and viewable (`/viewer`, `G`); bringing the ten missing named ships into the roster is still to come. |
+| Ship roster | All 38 released designs are built, profile-resolvable and viewable (`/viewer`), and 31 of them fly: Cobra Mk III, Cobra Mk I, Sidewinder, Viper, Adder, Krait, Mamba, Asp, Fer-de-Lance, Python, Anaconda, Boa, Gecko, Moray, Worm, Shuttle, Shuttle Mk II, Transporter, Dragon, Monitor, Ophidian, Ghavial, Bushmaster, Rattler, Iguana, Chameleon, Thargoid, Thargon, Constrictor, plus the missile and the cargo canister — every one the released vertex/edge/face table rather than an approximation, at one scale, with the released targetable radius driving hit registration. Which role may fly which hull is read off the released blueprint slots (`src/game/ship-roles.ts`), not chosen by eye. |
 | NPC ecosystem | Traders arrive from deep space, work the station lane and jump out; pirates hunt the player and prey on traders; police hunt pirates; lone bounty hunters; NPC-vs-NPC combat. Piracy scales with government type, traffic with productivity. |
 | Missions | Station bulletin board (cargo, courier and bounty contracts with day-based deadlines) available from the first landing, plus the Constrictor hunt and the classified courier run (16+ kills, galaxy 1). |
 | Living galaxy | A level-1 simulation runs trade between all 256 systems while you play: convoys depart on productivity, are lost to piracy in lawless space, and arrive as real traders in whatever system you're in. Prices drift ±25% from the 1984 baseline with supply, pirate hotspots emerge along lawless routes, and system news reports it. |
@@ -101,18 +101,33 @@ history — the build story lives in [DEVLOG.md](DEVLOG.md).
   dependent, and now it is not. Constants recalibrated so 60Hz is bit-identical
   to what shipped.
 - **Stations are drawn four times larger, relative to ships, than the source
-  tables place them.** In the released data a Coriolis is 160 units and a Cobra
-  is 95 — 1.7 Cobras wide; here the station is 160 world units against the
-  Cobra's 23.75, or 4.7. Everything about docking is built on the wider one
-  (`src/game/docking.ts` gates at five station half-widths and tests a 124x52
-  slot channel), and the released slot is a *vertical* 20x60 letterbox where
-  ours is a horizontal 96x20. The hulls are in `src/ships/harmless-hulls.ts`
-  and the exact source stations are in the viewer for comparison.
-- **Asteroids are generated, not tabulated.** The released Asteroid is one
-  fixed 80-unit lump; rocks here are jittered icosahedra with a size drawn from
-  their seed (`buildAsteroid`), because a field where every rock is identical
-  is worse to fly through. The Boulder, Splinter and exact Asteroid designs are
-  all built and viewable.
+  tables place them.** The *hulls* are exact — the Coriolis and the Dodo are
+  released vertex tables like every ship — but they are the only objects in the
+  game that do not go through the one geometry conversion. Through it a Coriolis
+  would be 40 world units against the Cobra's 23.75, or 1.7 Cobras wide; here it
+  is 160, or 4.7. `STATION_PRESENTATION_SCALE` in `src/ships/station-hulls.ts`
+  is the single named place that says so. It exists because everything about
+  docking is built on the wider station — `src/game/docking.ts` gates five
+  station half-widths out, the launch standoff and the Vipers' stack are
+  absolute distances — and shrinking the station fourfold would move all of them
+  at once, which is a docking change and not a geometry one. The Dodo grew with
+  it: its slot face is 196 world units out where the old hand-built
+  dodecahedron's was 135.
+- **The docking slot stands upright, and always did in the source.** Harmless
+  drew a horizontal 96x20 letterbox for years; the released Coriolis slot is a
+  vertical 20x60 (the Dodo's a 32x64), so the exact hulls turned the letterbox
+  a quarter turn and the roll you hold to fly it turned with them. The approach
+  is no more demanding: the tolerance channel is the same 52x124 rectangle
+  rotated to match, and the roll tolerance is the same 0.65 rad, so over a
+  uniform sample of approach offsets and rolls the fraction that docks is
+  6.68% against the old rule's 6.62%.
+- **Asteroids are generated, not tabulated.** The released Asteroid, Boulder and
+  Splinter all fix a rock at radius 20; here they are jittered icosahedra with a
+  size drawn from their seed between 25 and 70 (`buildAsteroid`), because a
+  field where every rock is identical is worse to fly through and the size
+  variety is what makes one worth aiming at. The three exact designs stay
+  registered, profile-resolvable and viewable — the deviation is which mesh the
+  `asteroid` role spawns, not which designs exist.
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
   The rate is `FUEL_PRICE` in `src/game/commander.ts` — change it there.
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands

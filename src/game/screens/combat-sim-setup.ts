@@ -318,7 +318,11 @@ export function setupCells(d: SimDraft): SetupCell[] {
     cells.push(
       {
         label: `GROUP ${k + 1} HULL`,
-        value: `${hull.name.toUpperCase()} (${hull.role})`,
+        // The position is on the front because the roster is 40-odd hulls
+        // wide now and one arrow key steps one hull: without it you cannot tell
+        // whether you are near the end of the list or the start of it.
+        value: `${(g.hull % hulls.length) + 1}/${hulls.length}`
+          + ` ${hull.name.toUpperCase()} (${hull.role})`,
         change: (n) => { g.hull = cycle(g.hull, hulls.length, n); },
       },
       {

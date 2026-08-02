@@ -98,6 +98,23 @@ export function requireShipDef(id: ShipDesignId): ShipDef {
 }
 
 /**
+ * What to CALL a design — the released ship name, or the overlay's own.
+ *
+ * A label, and only a label. It used to be read off `ShipDef.name` at four call
+ * sites, which made the mesh the place a ship's name lived; two roster rows
+ * sharing a hull then shared a name by accident rather than by identity. Ask
+ * here, with the id, and the answer is the design's.
+ */
+export function shipDisplayName(id: ShipDesignId): string {
+  return registeredHull(id).name;
+}
+
+/** Whether this design has a tabulated hull at all — false only for the rock hermit. */
+export function hasShipDef(id: ShipDesignId): boolean {
+  return registeredHull(id).def !== null;
+}
+
+/**
  * The radius the guns and the collision loops use, in world units.
  *
  * One number per design, from the catalogue. Ships of the same design are the

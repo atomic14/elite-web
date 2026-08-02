@@ -3,8 +3,7 @@ import { slotNormal } from './slot.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { createSun, type Sun } from './sun.ts';
 import { createPlanet, type Planet } from './planet.ts';
-import { buildShip } from '../ships/geometry.ts';
-import { buildDodoStation, CORIOLIS, CORIOLIS_DOCK_Z } from '../ships/harmless-hulls.ts';
+import { buildStation, STATION_DESIGNS } from '../ships/station-hulls.ts';
 
 // Assembles the static in-system world deterministically from the system
 // seed: sun, planet, station. Ships and rocks are NPCs, owned by the game.
@@ -52,20 +51,15 @@ export function buildSystemScene(sys: StarSystem): SystemScene {
     .normalize()
     .lerp(sunDir, 0.35)
     .normalize();
-  // High-tech systems get the dodecahedral "Dodo" station.
-  let station: THREE.Object3D;
-  let stationDockZ: number;
-  if (sys.techLevel + 1 >= 10) {
-    const dodo = buildDodoStation(0xd8ffe0);
-    station = dodo.group;
-    stationDockZ = dodo.dockZ;
-  } else {
-    station = buildShip(CORIOLIS, 0xd8ffe0);
-    stationDockZ = CORIOLIS_DOCK_Z;
-  }
+  // High-tech systems get the dodecahedral "Dodo" station. Both hulls are the
+  // released tables at the station scale — see ships/station-hulls.ts.
+  const built = buildStation(
+    sys.techLevel + 1 >= 10 ? STATION_DESIGNS.dodo : STATION_DESIGNS.coriolis, 0xd8ffe0);
+  const station: THREE.Object3D = built.object;
+  const stationDockZ = built.dockZ;
   station.position.copy(stationDir).multiplyScalar(planetRadius * 2.4);
-  // The builder mirrors Z (slot on local -Z); lookAt leaves that pointing away
-  // from the planet, so flip: the slot must face the planet, as in the original.
+  // The builder turns the def half a turn (slot on local -Z); lookAt leaves that
+  // pointing away from the planet, so flip: the slot must face the planet.
   station.lookAt(0, 0, 0);
   station.rotateY(Math.PI);
   root.add(station);

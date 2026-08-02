@@ -19,6 +19,7 @@ import {
   BRAIN_RATE_DECAY,
 } from '../src/game/npc.ts';
 import { PLAYER_SPEED_KEPT, NPC_SPEED_KEPT, RAM_DAMAGE } from '../src/game/collisions.ts';
+import { shipTargetRadius } from '../src/ships/registry.ts';
 import {
   SPECS,
   type NpcSpec,
@@ -91,10 +92,12 @@ console.log('\none combat model (the trainer flies the game)');
   // and ship-identity.ts is the only thing that says what a ship is.
   const cobraSpec = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(10))!;
   const sideSpec = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(17))!;
-  check(`episode pirate 1 is the roster Cobra (hp ${cobraSpec.hp}, r ${cobraSpec.radius})`,
-    gangEp.pirates[0].hp === cobraSpec.hp && gangEp.pirates[0].radius === cobraSpec.radius);
-  check(`episode pirate 2 is the roster Sidewinder (hp ${sideSpec.hp}, r ${sideSpec.radius})`,
-    gangEp.pirates[1].hp === sideSpec.hp && gangEp.pirates[1].radius === sideSpec.radius);
+  const cobraR = shipTargetRadius(cobraSpec.designId);
+  const sideR = shipTargetRadius(sideSpec.designId);
+  check(`episode pirate 1 is the roster Cobra (hp ${cobraSpec.hp}, r ${cobraR})`,
+    gangEp.pirates[0].hp === cobraSpec.hp && gangEp.pirates[0].radius === cobraR);
+  check(`episode pirate 2 is the roster Sidewinder (hp ${sideSpec.hp}, r ${sideR})`,
+    gangEp.pirates[1].hp === sideSpec.hp && gangEp.pirates[1].radius === sideR);
 
   // 3. Per-hull accel — the omission the merge exposed.
   //

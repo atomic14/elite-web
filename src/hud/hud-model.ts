@@ -13,6 +13,9 @@ import * as THREE from 'three';
 import type { HudState, ScannerContact, ScreenTarget } from './hud.ts';
 import type { NpcShip } from '../game/npc.ts';
 import { isHostileToPlayer } from '../game/npc.ts';
+import {
+  inSlotChannel, rollAlignedWithSlot, slotRollOffset,
+} from '../game/docking.ts';
 
 /** Everything on the scanner: the station, ships, missiles and cargo. */
 export function scannerContacts(
@@ -144,9 +147,12 @@ export function dockingAid(
     dockAid: {
       x: local.x,
       y: local.y,
-      roll: Math.atan2(right.y, right.x),
-      inSlot: Math.abs(local.x) < 62 && Math.abs(local.y) < 26,
-      rollOk: Math.atan2(Math.abs(right.y), Math.abs(right.x)) < 0.65,
+      // The slot's own rules, not a copy of them: this used to hardcode the
+      // channel and the roll tolerance, so the aid and the dock test could —
+      // and, when the letterbox turned upright, would — disagree.
+      roll: slotRollOffset(right.x, right.y),
+      inSlot: inSlotChannel(local.x, local.y),
+      rollOk: rollAlignedWithSlot(right.x, right.y),
     },
   };
 }

@@ -8,6 +8,7 @@
 import { COMMODITIES, type StarSystem } from '../galaxy/galaxy.ts';
 import { isContraband } from './law.ts';
 import { random } from './rng.ts';
+import { npcCombatProfileById, type NpcCombatProfileId } from './ship-identity.ts';
 
 // --- who's worth robbing ----------------------------------------------------
 //
@@ -104,6 +105,73 @@ export function markOf(
 export function memberTier(groupTier: number, memberIndex: number): number {
   const leaders = groupTier >= 2 ? 2 : 1;
   return memberIndex < leaders ? groupTier : Math.max(0, groupTier - 1);
+}
+
+// --- which tier a HULL belongs to -------------------------------------------
+//
+// Threat tiers are a Harmless invention: the source has one pirate band, and
+// splitting it into opportunists, professionals and an organised gang is our
+// selection policy, not a recovered rule. What is NOT ours is how tough each
+// hull is, and the tiers used to be three hand-written lists that said so
+// again in their own words. So the lists are gone and the tier is read off
+// three NAMED source fields instead — a hull moves tier when the pack says it
+// is tougher, and never because someone retyped a table.
+
+/**
+ * How dangerous one released build looks, from the pack's own numbers.
+ *
+ * Three fields, because three things decide whether a pirate is a nuisance or
+ * a problem: how much shooting it survives (`maxEnergy`), how much of each hit
+ * it shrugs off (`perHitDefence` — the subtraction, so a point of it is worth
+ * far more than a point of energy), and how hard it hits back (`laserPower`).
+ * Speed is deliberately absent: a fast hull is harder to catch, not harder to
+ * beat, and weighting it made the Sidewinder outrank the Cobra.
+ *
+ * The weights are Harmless's and the numbers they multiply are the source's.
+ */
+const DEFENCE_WEIGHT = 12;
+const LASER_WEIGHT = 8;
+
+/** Score at or above which a hull is a professional's, then a gang's. */
+const PROFESSIONAL_SCORE = 110;
+const GANG_SCORE = 160;
+
+/**
+ * Hulls held at a tier the score alone would not give them, and why.
+ *
+ * ONE entry, and it has to exist: the released Sidewinder and Krait are the
+ * same ship in every field that matters — energy 73, defence 1, laser 4,
+ * weapon byte 32 — so no classification over source data can separate them.
+ * The Sidewinder is the cheap hull an opportunist flies in every version of
+ * this game and the Krait is what turns up when someone means it, and that
+ * distinction is worth keeping. It is a curated exception, stated here rather
+ * than smuggled in as a tie-break nobody would find.
+ */
+const CURATED_TIER: Record<string, 0 | 1 | 2> = {
+  'elite-a:design:17': 0, // Sidewinder — see above
+};
+
+/** The threat score of an exact released build. Exported for the tests. */
+export function sourceThreatScore(profileId: NpcCombatProfileId): number {
+  const record = npcCombatProfileById(profileId);
+  if (record.source !== 'elite-a') return 0;
+  const p = record.profile;
+  return p.maxEnergy + p.perHitDefence * DEFENCE_WEIGHT + p.laserPower * LASER_WEIGHT;
+}
+
+/**
+ * Which tier a hull flies in, from what the pack says it is.
+ *
+ * `designId` is only consulted for the curated exception above; everything
+ * else comes off the exact build's own combat fields.
+ */
+export function hullThreatTier(
+  designId: string, profileId: NpcCombatProfileId,
+): 0 | 1 | 2 {
+  const curated = CURATED_TIER[designId];
+  if (curated !== undefined) return curated;
+  const score = sourceThreatScore(profileId);
+  return score >= GANG_SCORE ? 2 : score >= PROFESSIONAL_SCORE ? 1 : 0;
 }
 
 export interface PirateThreat {

@@ -22,6 +22,7 @@ import {
   SPECS, pirateSpecForTier, CONSTRICTOR_SPEC, type NpcSpec,
 } from './ship-specs.ts';
 import { markOf, memberTier, pirateThreat, type PirateThreat } from './threat.ts';
+import { hasShipDef, shipDisplayName } from '../ships/registry.ts';
 import { random } from './rng.ts';
 
 // --- what an opponent is ----------------------------------------------------
@@ -188,7 +189,7 @@ export function shipCount(list: readonly Opposition[]): number {
 export function describeOpposition(list: readonly Opposition[]): string {
   return list.map((o) => {
     const ships = oppositionShips(o);
-    const hulls = [...new Set(ships.map((s) => s.spec.def?.name ?? 'rock'))];
+    const hulls = [...new Set(ships.map((s) => shipDisplayName(s.spec.designId)))];
     return `${o.count} × ${hulls.join('/')}`
       + ` (tier ${o.tier}${o.organised ? ', organised' : ''})`;
   }).join(' + ');
@@ -205,9 +206,13 @@ export function describeOpposition(list: readonly Opposition[]): string {
  */
 export function simHulls(): { role: OppositionRole; spec: NpcSpec; name: string }[] {
   const out = OPPOSITION_ROLES.flatMap((role) => SPECS[role]
-    .filter((spec) => spec.def)
-    .map((spec) => ({ role, spec, name: spec.def!.name })));
-  out.push({ role: 'pirate', spec: CONSTRICTOR_SPEC, name: CONSTRICTOR_SPEC.def!.name });
+    .filter((spec) => hasShipDef(spec.designId))
+    .map((spec) => ({ role, spec, name: shipDisplayName(spec.designId) })));
+  out.push({
+    role: 'pirate',
+    spec: CONSTRICTOR_SPEC,
+    name: shipDisplayName(CONSTRICTOR_SPEC.designId),
+  });
   return out;
 }
 

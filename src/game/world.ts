@@ -15,7 +15,8 @@
 
 import * as THREE from 'three';
 import { NpcShip } from './npc.ts';
-import type { NpcRole, NpcSpec } from './ship-specs.ts';
+import type { NpcSpec } from './ship-specs.ts';
+import type { NpcRole } from './ship-roles.ts';
 import { savedShipIdentity, type ShipIdentity } from './ship-identity.ts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
 import { CargoField } from './cargo.ts';

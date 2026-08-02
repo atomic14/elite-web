@@ -7,6 +7,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { SPECS, CONSTRICTOR_SPEC } from '../src/game/ship-specs.ts';
+import { hasShipDef, shipDisplayName } from '../src/ships/registry.ts';
 import {
   SCENARIOS,
   MODES,
@@ -111,8 +112,9 @@ console.log('\ncombat trainer scenarios');
           if (!brainFileExists(o.brain)) badBrain.push(`${where} ${o.brain}`);
           for (const ship of oppositionShips(o)) {
             ships += 1;
-            if (!ship.spec.def || ship.spec.hp <= 0 || ship.spec.maxSpeed <= 0) {
-              badHull.push(`${where} ${ship.spec.def?.name ?? 'nothing'}`);
+            if (!hasShipDef(ship.spec.designId) || ship.spec.hp <= 0
+                || ship.spec.maxSpeed <= 0) {
+              badHull.push(`${where} ${shipDisplayName(ship.spec.designId)}`);
             }
           }
         }
@@ -145,15 +147,17 @@ console.log('\ncombat trainer scenarios');
   // 2 — the individual fights are what the spec says they are
   {
     const hunter = scenarioOpposition(spec({ scenario: 'lone-hunter' }), 3);
-    const hull = oppositionShips(hunter[0])[0].spec.def?.name;
-    check(`a lone bounty hunter is one Fer-de-Lance or Asp (${hull})`,
+    const hunterShip = oppositionShips(hunter[0])[0];
+    const hull = shipDisplayName(hunterShip.spec.designId);
+    check(`a lone bounty hunter is one ship off the hunter roster (${hull})`,
       hunter.length === 1 && hunter[0].count === 1
-      && (hull === 'Fer-de-Lance' || hull === 'Asp Mk II'));
+      && SPECS.hunter.some((s) => s.designId === hunterShip.spec.designId));
 
     const police = scenarioOpposition(spec({ scenario: 'police' }), 3);
     check('police interdiction is two Vipers',
       police[0].count === 2
-      && oppositionShips(police[0]).every((s) => s.spec.def?.name === 'Viper'));
+      && oppositionShips(police[0]).every(
+        (s) => shipDisplayName(s.spec.designId) === 'Viper'));
 
     const pair = oppositionShips(scenarioOpposition(spec({ scenario: 'pirate-pair', tier: 1 }), 3)[0]);
     check('a pirate pair is two of the SAME tier',
@@ -255,11 +259,12 @@ console.log('\ncombat trainer scenarios');
       // ...and against the SAME hull each round, which is the mode's whole
       // point: you are learning what one ship does, not sampling the roster.
       check('...against the same hull every round',
-        new Set(rounds.map((r) => oppositionShips(r[0])[0].spec.def?.name)).size === 1);
+        new Set(rounds.map(
+          (r) => shipDisplayName(oppositionShips(r[0])[0].spec.designId))).size === 1);
       check('...the hull a lone opponent of that fight would be',
-        oppositionShips(rounds[0][0])[0].spec.def?.name
+        oppositionShips(rounds[0][0])[0].spec.designId
         === oppositionShips({ ...scenarioOpposition(sp, sp.seed, undefined)[0], count: 1 })[0]
-          .spec.def?.name);
+          .spec.designId);
       check('a sparring kill starts another round',
         roundOutcome(session({ spec: sp, spawned: 1, alive: 0 })) === 'roundOver');
       check('...and death still ends it',
@@ -317,8 +322,8 @@ console.log('\ncombat trainer scenarios');
     const b = JSON.stringify(nextOpposition(s));
     check('the same seed sends the same opposition', a === b);
     check('...down to the hulls',
-      JSON.stringify(allShips(nextOpposition(s)!).map((x) => x.spec.def?.name))
-      === JSON.stringify(allShips(nextOpposition(s)!).map((x) => x.spec.def?.name)));
+      JSON.stringify(allShips(nextOpposition(s)!).map((x) => x.spec.designId))
+      === JSON.stringify(allShips(nextOpposition(s)!).map((x) => x.spec.designId)));
     const other = nextOpposition(session({
       spec: spec({ scenario: 'pirate-gang', tier: 2, seed: 999 }),
     }));
@@ -344,7 +349,7 @@ console.log('\ncombat trainer scenarios');
     };
     const built = oppositionShips(custom);
     check('a custom hull overrides the roster pick',
-      built.every((x) => x.spec.def?.name === 'Constrictor'));
+      built.every((x) => shipDisplayName(x.spec.designId) === 'Constrictor'));
     check('...and the fit overrides the hull',
       built.every((x) => x.spec.missiles === 4 && x.spec.ecmChance === 1));
     check('...without editing the roster entry',
@@ -354,13 +359,13 @@ console.log('\ncombat trainer scenarios');
     {
       const hulls = simHulls();
       const rostered = OPPOSITION_ROLES
-        .flatMap((r) => SPECS[r]).filter((s) => s.def).length;
+        .flatMap((r) => SPECS[r]).filter((s) => hasShipDef(s.designId)).length;
       check(`the picker offers the whole roster plus the Constrictor `
         + `(${hulls.length} hulls)`,
       hulls.length === rostered + 1
         && hulls.some((h) => h.name === 'Constrictor')
         && hulls.some((h) => h.name === 'Cobra Mk III')
-        && hulls.every((h) => !!h.spec.def));
+        && hulls.every((h) => hasShipDef(h.spec.designId)));
     }
     check('a custom exercise wins over the scenario table',
       nextOpposition(session({ spec: spec({ custom: [custom] }) }))![0].hull !== undefined);

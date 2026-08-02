@@ -31,6 +31,7 @@ import {
   NpcShip, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
 } from '../game/npc.ts';
 import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
+import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
 import {
   LASERS, LASER_RANGE, hitCone, canFire, chargeShot,
   npcHitChance, npcShotDamage, npcTriggerPull,
@@ -134,7 +135,7 @@ function traderHull(): TargetHull {
   return {
     name: 'Cobra Mk III',
     hp: s.hp,
-    radius: s.radius,
+    radius: shipTargetRadius(s.designId),
     maxSpeed: s.maxSpeed,
     accel: shipAccel(s),
     maxPitch: s.turnRate * TURN.pitch,
@@ -163,7 +164,7 @@ function playerHull(maxSpeed: number, accel: number): TargetHull {
   return {
     name: 'Cobra Mk III (player)',
     hp: 1.0,
-    radius: TRADER_COBRA.radius,
+    radius: shipTargetRadius(TRADER_COBRA.designId),
     maxSpeed,
     accel,
     maxPitch: PLAYER_FLIGHT.maxPitch,
@@ -258,8 +259,8 @@ class PirateShip implements EpisodeShip {
 
   constructor(spec: NpcSpec, position: THREE.Vector3, variantSeed: number) {
     this.npc = new NpcShip('pirate', position, variantSeed, spec);
-    this.radius = spec.radius;
-    this.name = spec.def?.name ?? 'ship';
+    this.radius = this.npc.radius;
+    this.name = shipDisplayName(spec.designId);
   }
 
   get pos(): THREE.Vector3 { return this.npc.object.position; }

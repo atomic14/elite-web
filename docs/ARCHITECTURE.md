@@ -191,7 +191,11 @@ src/
     encounters.ts           what turns up later: traders, pirate waves, drones
     npc.ts                  NPC ships: scripted behaviour + trained-brain flight
     npc-targeting.ts        who hunts whom among the NPCs
-    ship-specs.ts           the roster: which hull flies which role, and its stats
+    ship-specs.ts           the roster: which hull flies which role, and its
+                            stats — all of them Harmless's, none copied from
+                            the pack
+    ship-roles.ts           what a ship is FOR, and which released designs the
+                            blueprint slots allow to be it
     ship-identity.ts        the three ids — player hull, design, exact variant —
                             what they resolve to, what a save without one
                             becomes, and the two Harmless-only overlays
@@ -274,8 +278,11 @@ src/
   ships/geometry.ts         the ShipDef contract and the two mesh builders
   ships/elite-a-hulls.ts    the 38 released hulls, at the one world scale
   ships/elite-a-faces.ts    closed polygons, rebuilt from source face adjacency
-  ships/harmless-hulls.ts   the shapes that are OURS: generation ship, stations
-  ships/registry.ts         design id -> hull and target radius; the only way in
+  ships/harmless-hulls.ts   the shapes that are OURS: the generation ship
+  ships/station-hulls.ts    the two released stations, at the one scale that is
+                            not sourceGeometryToWorld — and why
+  ships/registry.ts         design id -> hull, name and target radius; the only
+                            way in
   world/                    per-system scenery: shader sun and planet, station
 
   ai-training/              neural policies + the scenarios they train in
@@ -288,6 +295,8 @@ src/
 
 test/harness.ts             check(), the counters and the shared fixtures
 test/*.test.ts              invariant + unit tests, one file per subsystem
+test/ship-roles.test.ts     the roster's gate: role bands, the whole catalogue,
+                            the tiers, and hulls surviving a reload
 test/run.ts                 the index: imports them all, one total (npm test)
 test/harness.ts             check/eq and the counters
 test/fixtures.ts            data two or more test files share
@@ -350,10 +359,13 @@ renderer must **not** use a logarithmic depth buffer (log-depth writes
 gl_FragDepth, which disables polygon offset).
 
 Scale: planets are ~4,500-6,500 radius and the sun sits ~320,000 out. The
-**stations** are the one thing still at 1 unit ≈ 1 source unit (320 across)
-rather than at the ship scale: `game/docking.ts` is built on that width and on
-a horizontal slot, and the released Coriolis is 40 world units with a vertical
-one. `ships/harmless-hulls.ts` says so at the top.
+**stations** are the one thing at 1 unit ≈ 1 source unit (320 across) rather
+than at the ship scale — `STATION_PRESENTATION_SCALE` in
+`ships/station-hulls.ts`, which says why: their hulls are the exact released
+tables, but `game/docking.ts` gates five station half-widths out and the launch
+standoff is an absolute distance, so shrinking them fourfold would be a docking
+change. The slot itself is the source's own upright letterbox now, and the
+tolerance channel turned with it.
 
 ### 3. One orchestrator, many dumb parts — and one rule, one home
 

@@ -18,7 +18,7 @@ import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer, NpcShip } from '../src/game/npc.ts';
 import {
   SPECS,
-  pirateSpecForTier,
+  PIRATE_TIERS,
   CONSTRICTOR_SPEC,
   type NpcSpec,
 } from '../src/game/ship-specs.ts';
@@ -112,11 +112,12 @@ console.log('\ncombat arena');
       ships.every((n) => n.state.organised) &&
       ships.every((n) => pirateBrainFor(n.state.threatTier, n.state.organised)?.pack === true));
 
-    // hulls come from the roster for that tier and nowhere else
-    const tierHulls = (tier: number): NpcSpec[] =>
-      [0, 1, 2, 3].map((k) => pirateSpecForTier(tier, k));
+    // hulls come from the roster for that tier and nowhere else. The sample is
+    // the whole tier, not the first four seeds: the tiers are derived from the
+    // pirate roster now (ship-specs.ts) and there are more than four of some.
+    const tierHulls = (tier: number): NpcSpec[] => PIRATE_TIERS[tier];
     const fromRoster = (n: NpcShip, tier: number) => tierHulls(tier).some((s) =>
-      s.radius === n.radius && s.hp === n.maxHp);
+      s.designId === n.designId && s.hp === n.maxHp);
     check('...and hulls from the tier roster',
       fromRoster(ships[0], 2) && ships.slice(1).every((n) => fromRoster(n, 1)));
 
@@ -182,7 +183,8 @@ console.log('\ncombat arena');
         return rel.dot(facing) > Math.cos(1.0);
       }));
     check('...out of the role\'s own roster',
-      ships.every((n) => SPECS.hunter.some((s) => s.radius === n.radius && s.hp === n.maxHp)));
+      ships.every((n) => SPECS.hunter.some(
+        (s) => s.designId === n.designId && s.hp === n.maxHp)));
   }
 
   // The three ways to say which hull, and the fit-out overrides.
