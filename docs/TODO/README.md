@@ -38,6 +38,14 @@ rest and can go at any point.
 - [x] 38 — [The console still shows four energy banks](38-energy-reads-as-one-bank.md) — UI/UX · low · small
 - [x] 39 — [Make the wave ramp keep getting harder](39-waves-keep-getting-harder.md) — gameplay · high · medium
 
+## Saves
+
+Progress: **0 / 1 complete**. Spec written from Chris's proposal; the design
+question in it — whether a name can be an identity when every commander starts
+as JAMESON — wants settling before anyone writes code.
+
+- [ ] 40 — [Named save files, and an autosave that cannot eat one](40-named-save-files.md) — save model/UI · high · large
+
 ## Elite-A damage and ship-catalogue alignment
 
 Progress: **10 / 10 complete**. Start with the
