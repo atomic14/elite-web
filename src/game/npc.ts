@@ -13,6 +13,7 @@ import {
   type Brain, type ObservableMate,
 } from '../ai-training/policy.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
+import { BREAK_OFF_RANGE } from './break-off.ts';
 import type { BrainSelection } from './brain-names.ts';
 import {
   npcPrefersMissile, npcMissileLastStand, npcTriggerPull, npcWeaponByte,
@@ -545,7 +546,8 @@ export class NpcShip {
           choice.targetSpeed(player.speed),
           distPlayer, 'player',
           choice.pack ? fleet : null)
-        // Inside knife range the scripted break-off takes over — see RAM_GUARD.
+        // Inside knife range the scripted break-off takes over the FLYING — and
+        // only the flying, since attack() keeps its gun. See break-off.ts.
         : this.attack(dt, player.position, distPlayer, true);
       return this.chooseWeapon(shot, dt, distPlayer, player.position);
     }
@@ -846,6 +848,10 @@ export class NpcShip {
    * PUBLIC for the same reason as brainFly: it is the baseline every training
    * table is read against ("scripted pirate"), and a baseline that is a second
    * implementation of the thing it baselines is worth nothing.
+   *
+   * It is also the path every police ship, bounty hunter, Thargoid and
+   * knife-range pirate fires on, so it has ONE flight decision (close, or break
+   * off — see break-off.ts) and then ONE gun, taken on every frame either way.
    */
   attack(
     dt: number,
@@ -854,21 +860,26 @@ export class NpcShip {
     isPlayer: boolean,
     npcTarget?: NpcShip,
   ): FireEvent | null {
-    if (dist < 220) {
-      // break off before ramming
+    // WHERE TO BE and WHETHER TO SHOOT are two decisions, and this used to be
+    // one. Inside the break-off the ship turned away and `return null`ed, so
+    // steering away and holding fire were the same statement — and every police
+    // ship, bounty hunter, Thargoid and knife-range pirate went silent at the
+    // range a human actually fights at. See break-off.ts, which owns the
+    // distance and the argument.
+    if (dist < BREAK_OFF_RANGE) {
+      // break off before ramming — and keep shooting while doing it
       this.steerToward(
         this.tmpDir.copy(this.object.position).multiplyScalar(2).sub(targetPos), dt);
       this.state.speed = approach(this.state.speed, this.maxSpeed * 0.8, this.accel * dt);
-      this.advance(dt);
-      return null;
+    } else {
+      // pack ships approach offset bearings until close, then converge
+      const aim = dist > 900
+        ? this.tmpDir.copy(targetPos).add(this.state.packOffset)
+        : this.tmpDir.copy(targetPos);
+      this.steerToward(aim, dt);
+      this.state.speed = approach(this.state.speed, dist > 700 ? this.maxSpeed : this.maxSpeed * 0.45,
+        this.accel * dt);
     }
-    // pack ships approach offset bearings until close, then converge
-    const aim = dist > 900
-      ? this.tmpDir.copy(targetPos).add(this.state.packOffset)
-      : this.tmpDir.copy(targetPos);
-    this.steerToward(aim, dt);
-    this.state.speed = approach(this.state.speed, dist > 700 ? this.maxSpeed : this.maxSpeed * 0.45,
-      this.accel * dt);
     this.advance(dt);
     this.state.fireCooldown -= dt;
     // The SAME gun brainFly uses — and now literally the same call, so it

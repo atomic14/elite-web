@@ -177,12 +177,15 @@ export const BRAINS: Readonly<Record<NamedBrain, BrainProfile>> = Object.freeze(
     character: 'BREAKS OFF AND COMES BACK MORE THAN ANY OTHER — 0.93 ATTACK RUNS AN EPISODE AT '
       + 'SPEED 182, MEDIAN RANGE 706.',
   },
-  // probe: speed 262, range 185/254/1166 · the 220-unit dead zone is RAM_GUARD
-  // in brains.ts, and 220 is inside the range a human fights at (median 260)
+  // probe: speed 262, range 185/254/1166 · it is the one brain that still hands
+  // the flying over at the full BREAK_OFF_RANGE (break-off.ts), because it is
+  // the one that kamikazes. It USED to read "guns cut out inside 220 units",
+  // which was true of every hostile in the game and is true of none of them
+  // now: breaking off no longer holds fire (TODO 42).
   'pirate-attack-r2': {
-    name: 'FAST, GUNS CUT OUT',
-    character: 'THE GAME BEFORE ANY OF THIS — FASTEST AT SPEED 262 AND CLOSES TO 254, BUT ITS '
-      + 'GUNS CUT OUT INSIDE 220 UNITS, WHICH IS WHERE A HUMAN FIGHTS.',
+    name: 'FAST, BREAKS OFF EARLY',
+    character: 'THE GAME BEFORE ANY OF THIS — FASTEST AT SPEED 262 AND CLOSES TO 254, BUT HANDS '
+      + 'THE FLYING TO THE SCRIPTED CHASE AT 220 WHERE THE OTHERS FLY ON TO 150.',
   },
   // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
   // ships an episode to a commander who fights back

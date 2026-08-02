@@ -24,6 +24,10 @@ import {
   appliesTo, defenceBrainNameFor, isPackBrain, pirateBrainNameFor,
   SHIPPED_BRAINS, type BrainName, type BrainSelection,
 } from './brain-names.ts';
+// The break-off distance has ONE home, and it is neither this file nor npc.ts —
+// it was a constant here and a literal there, and only one of them ever got
+// fixed. See break-off.ts.
+import { BRAIN_HANDOVER_RANGE, BREAK_OFF_RANGE } from './break-off.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import sharpBrainFile from '../ai-training/brains/pirate-attack-g2.json' with { type: 'json' };
@@ -275,58 +279,6 @@ export function brainByName(name: BrainName): Brain | null {
 }
 
 /**
- * Range at which trained pilots hand back to the scripted break-off.
- *
- * The simulator the pre-generation policies were trained in had NO collision
- * model, so flying straight through the target was free and the optimal
- * learned behaviour was to close to zero range and sit there shooting. In the
- * game, where ships are solid, that reads as deliberate ramming: the pirate
- * slides past you and kamikazes.
- *
- * Collisions were added to the simulator and then, with the simulator's
- * deletion, stopped being a model at all — episodes call collisions.ts. The
- * guard remains for brains fitted before either (docs/TRAINING-LOG.md).
- */
-const RAM_GUARD = 220;
-
-/**
- * Knife-range guard for a brain that does not ram.
- *
- * RAM_GUARD hands control to attack(), which steers away and returns no fire
- * event, so a pirate inside 220 units has its guns switched off. That was the
- * right trade when the brains kamikazed.
- *
- * It is the wrong trade against a human. Chris's recorded flying: median
- * engagement range 260 units, 10th percentile 214, median speed 66 with the
- * pitch held at 1.36 of a possible 1.45. He turns on the spot at knife range
- * while pirates come past at 290-310, so every pass crosses the dead zone and
- * three tier-1 ships managed ZERO shots in 33 seconds.
- *
- * The generation-1 brains do not need the guard: they destroy themselves in
- * 1-9% of engagements, against 36-73% for the brain they replace. So they get
- * the tight guard — it shrinks to the point where a collision is actually
- * imminent, and the ship keeps its guns until then.
- *
- * This matters more than it looks. Fixing the gun would have achieved nothing
- * if pirates still went silent inside 220 units, because 220 units is where
- * Chris fights.
- *
- * 150, and the number is arithmetic rather than taste. It was 90 for one
- * wave and both of Chris's arena fights had ships fly into him. A pirate
- * re-decides at 10 Hz, so a head-on closure — 300 for the pirate against the
- * player's 400 — covers 70 units between decisions, and the two hulls are 68
- * units of radius before they touch. A 90-unit guard leaves 22 units of
- * margin: less than one decision tick, so breaking off is not something the
- * ship is physically able to do. 150 gives it a tick to turn, and still
- * clears the range Chris actually fights at (median 260, 10th percentile
- * 214), which is the dead zone the wide guard created.
- *
- * The sim cannot catch this: it has no ram guard, so its 1-9% collision rate
- * says nothing about what the guard should be.
- */
-const RAM_GUARD_NO_RAM = 150;
-
-/**
  * Floor under the target speed handed to the brains. See the call site in
  * update() — below roughly 150 the attack policies stop throttling forward,
  * and a commander who slows to fight gets pirates that hang in space.
@@ -350,7 +302,10 @@ export interface BrainChoice {
   brain: Brain;
   /** the pack policy sees its fleet; the solo ones do not */
   pack: boolean;
-  /** it stops flying the brain and breaks off inside this range */
+  /**
+   * Inside this range it stops flying the brain and hands over to the scripted
+   * break-off — the FLYING only. `attack()` keeps the gun (break-off.ts).
+   */
   guard: number;
   /**
    * What the brain is told the target's speed is.
@@ -408,9 +363,10 @@ export function pirateBrainFor(
   return {
     brain: loaded ?? PIRATE_BRAIN,
     pack: !!loaded && isPackBrain(name),
-    // r2 kamikazes and needs the wide guard; the generation brains do not,
-    // and keep their guns down to knife range.
-    guard: legacy ? RAM_GUARD : RAM_GUARD_NO_RAM,
+    // r2 kamikazes, so it hands the flying over at the full break-off range;
+    // the generation brains do not, and keep flying their own policy to knife
+    // range. Neither hands over its GUN any more — see break-off.ts.
+    guard: legacy ? BREAK_OFF_RANGE : BRAIN_HANDOVER_RANGE,
     targetSpeed: legacy ? () => 300 : (a) => Math.max(TARGET_SPEED_FLOOR, a),
   };
 }

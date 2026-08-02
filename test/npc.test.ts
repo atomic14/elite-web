@@ -5,11 +5,14 @@
 // subsystem, as the rest of the suite is organised.
 
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
+import { BREAK_OFF_RANGE } from '../src/game/break-off.ts';
 import { playerLaser } from '../src/game/gunnery.ts';
 import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
+import type { NpcRole } from '../src/game/ship-roles.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { check } from './harness.ts';
 
@@ -201,6 +204,89 @@ console.log('\nNPC flight');
       check(`most die having launched, not holding (${20 - armedToTheEnd}/20 launched)`,
         armedToTheEnd < 10);
     }
+  }
+}
+
+// --- the break-off does not switch the guns off -----------------------------
+//
+// TODO 42, and the measurement that found it: a hostile PINNED nose-on to a
+// stationary commander, shots in 20 seconds, by range. Pinning takes the flight
+// out of the measurement, so what is left is the gun — the gate, the range and
+// the cooldown — which is the thing that was broken. Before the fix:
+//
+//   range :   120  180  210  240  300  500  900 1500 2500 3400
+//   police:     0    0    0   16   16   16   16   16   16   16
+//
+// Zero inside 220, because `attack()` steered away and `return null`ed in one
+// statement. Chris's recorded median engagement range is 260 and his 10th
+// percentile 214, so the dead zone was exactly where he fights.
+
+console.log('\nNPC break-off');
+{
+  const origin = new THREE.Vector3(0, 0, 0);
+  const station = new THREE.Object3D();
+  /** Shots this role gets away in 20s, held nose-on at `range`. */
+  const pinnedShots = (role: NpcRole, range: number, seed: number): number => {
+    seedWorld(seed);
+    const npc = new NpcShip(role, new THREE.Vector3(0, 0, range), seed % 17);
+    // Lasers only: a missile REPLACES the bolt it was going to fire
+    // (chooseWeapon), so a loaded rack would undercount the gun.
+    npc.state.missiles = 0;
+    const player = { position: origin, quaternion: new THREE.Quaternion(), speed: 0 } as never;
+    // A fugitive, so police and hunters are hostile too — one rule, every role.
+    const view = {
+      station, dockZ: 160, fleet: [npc], playerLegal: 2, brains: SHIPPED_BRAINS,
+    };
+    let n = 0;
+    for (let i = 0; i < 20 * 60; i++) {
+      npc.object.position.set(0, 0, range);   // pin: hold the range...
+      npc.faceToward(origin);                 // ...and the firing line
+      const ev = npc.update(1 / 60, player, view);
+      if (ev && ev.at === 'player' && ev.weapon === 'laser') n += 1;
+    }
+    return n;
+  };
+
+  // Inside the break-off, at it, and well outside it. The first three are the
+  // ranges that read zero.
+  const BANDS = [120, 180, 210, 240, 900, 3400];
+  for (const role of ['pirate', 'police', 'hunter', 'thargoid'] as const) {
+    const row = BANDS.map((r) => pinnedShots(role, r, 4200 + r));
+    check(`a ${role} shoots at every range a fight happens at (${row.join('/')} at ${BANDS.join('/')})`,
+      row.every((n) => n > 0));
+  }
+  // ...and it is the SAME rule for all four: nobody has a range band of their
+  // own. A Thargoid still shoots more often, which is THARGOID_FIRE_RATE on the
+  // shared cooldown and not a second range.
+  //
+  // ...and it is still a BREAK-OFF: the ship turns its nose off the target,
+  // which is the half of the old `return null` that was always right. Measured
+  // as the nose swinging away rather than as ground covered, because a ship
+  // that starts pointed at you covers ground TOWARDS you while it turns.
+  {
+    seedWorld(99);
+    const npc = new NpcShip('police', new THREE.Vector3(0, 0, BREAK_OFF_RANGE - 40), 3);
+    npc.faceToward(origin);
+    let shots = 0;
+    for (let i = 0; i < 30; i++) {
+      if (npc.attack(1 / 60, origin, npc.object.position.distanceTo(origin), true)) shots += 1;
+    }
+    check(`a ship inside the break-off turns its nose away (${npc.facing(origin).toFixed(2)} rad)`,
+      npc.facing(origin) > 0.5);
+    check(`...and shot on the way round (${shots})`, shots > 0);
+  }
+
+  // THE BREAK-OFF DISTANCE HAS ONE HOME. It was a literal in npc.ts and a
+  // constant in brains.ts, and only the constant ever got corrected — this
+  // fails if the number grows a second home in either.
+  const code = (path: string) =>
+    readFileSync(new URL(`../src/game/${path}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const literal = new RegExp(`\\b${BREAK_OFF_RANGE}\\b`);
+  check('break-off.ts states the break-off distance', literal.test(code('break-off.ts')));
+  for (const f of ['npc.ts', 'brains.ts']) {
+    check(`${f} takes it from break-off.ts rather than restating it`,
+      /break-off\.ts/.test(code(f)) && !literal.test(code(f)));
   }
 }
 

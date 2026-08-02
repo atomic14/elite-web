@@ -198,8 +198,8 @@ console.log('\ncollision rates');
     // r2 got worse rather than better, and deliberately: pirate hulls now
     // carry ShipClass.minSpeed and cannot brake below ~43% of top speed, so a
     // brain trained before that rule cannot slow out of a collision. r2 ships
-    // only behind window.__legacyPirates, and in the game RAM_GUARD breaks it
-    // off at 220 units, which the sim does not model.
+    // only behind `state.brains.legacy`, and in the game it hands the flying to
+    // the break-off (break-off.ts), which an episode drives straight past.
     const shipped = load('pirate-attack-g3');
     const vEvader = rams(() => ({
       pirates: [{ kind: 'policy', brain: shipped }], trader: { kind: 'policy', brain: evader },

@@ -210,6 +210,10 @@ src/
     encounters.ts           what turns up later: traders, pirate waves, drones
     npc.ts                  NPC ships: scripted behaviour + trained-brain flight
     npc-targeting.ts        who hunts whom among the NPCs
+    break-off.ts            how close a hostile lets itself get before it turns
+                            away, and where a trained pilot hands the flying
+                            over — ONE distance, shared by npc.ts and brains.ts,
+                            and breaking off does not hold fire
     ship-specs.ts           the roster: which hull flies which role, and its
                             stats — all of them Harmless's, none copied from
                             the pack
