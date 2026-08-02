@@ -188,7 +188,10 @@ src/
     state.ts                GameState: everything the step may change, in one
                             object. freshState() builds it with no browser
     session.ts              SessionState: the flight flags and timers
-    snapshot.ts             that state as plain JSON — save anywhere, replay
+    snapshot.ts             that state as plain JSON — save anywhere, replay.
+                            It says WHERE and WHEN, never whose: which career a
+                            save belongs to is SaveRecord.career and nothing
+                            else (docs/TODO/43)
     persistence.ts          that JSON taken from a running world, and put back
     rng.ts                  THE seeded generator. Math.random is banned in
                             world code and npm test enforces it
@@ -311,7 +314,9 @@ src/
       saves.ts              the commander file: the list, the save prompt and
                             renaming a commander
       save-transfer.ts      a save leaving the browser as a JSON file, and
-                            coming back without landing on an existing one
+                            coming back without landing on an existing save OR
+                            an existing career. The Blob and the picker are the
+                            only DOM in it; the rule is three pure functions
       briefing.ts           a mission, several pages, read with left and right
       combat-sim.ts         the trainer's front of house: pick a fight, read the
                             report, hold two records against each other

@@ -195,10 +195,20 @@ export class Station {
     s.contractOffers = generateContractOffers(this.system, s.systems, c.day);
     this.host.resetContractSelection();
     c.galaxyState = s.living.save();
-    // HALF of decision 1: the docked autosave is written on docking. The other
-    // half is in `launch()`, and between them they are the checkpoint.
-    effects.push({ kind: 'persistence', action: 'checkpoint' });
     if (!booting) {
+      // HALF of decision 1: the docked autosave is written on docking. The
+      // other half is in `launch()`, and between them they are the checkpoint.
+      //
+      // ONLY ON A REAL ARRIVAL, and that is data loss rather than tidiness
+      // (docs/TODO/43). A boot has not docked — nothing arrived, which is why
+      // none of the theatre below plays either — and the world it is holding
+      // CAME from a save. Writing it back put the save you just loaded on top
+      // of `save:auto:<career>:dock`: pick a day-5 file out of the commander
+      // file and the day-300 checkpoint the screen had just written to protect
+      // you was gone before the first frame, on one Enter with no confirmation.
+      // Booting now leaves the checkpoint exactly as it found it, so the run
+      // you stepped out of is still on the shelf and still loadable.
+      effects.push({ kind: 'persistence', action: 'checkpoint' });
       effects.push(
         { kind: 'dockingMusic', on: false },
         heard('dock'),

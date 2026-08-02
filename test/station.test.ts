@@ -100,7 +100,22 @@ function setup() {
 
 {
   const x = setup();
-  x.station.dock(true);
+  const events = x.station.dock(true);
   eq('the docked base screen is a presentation outcome',
     x.station.showBaseScreen().map(label).join('|'), 'presentation:screen:docked');
+
+  // docs/TODO/43. A BOOT HAS NOT DOCKED — nothing arrived, which is why none of
+  // the theatre plays — and the world it is holding CAME OFF THE SHELF. Writing
+  // it back put the save just loaded over `save:auto:<career>:dock`, so picking
+  // a day-5 file out of the commander file destroyed the day-300 checkpoint the
+  // screen had written to protect it, on one Enter with no confirmation.
+  const kinds = events.map(label);
+  check(`a boot writes no checkpoint — nothing arrived (${kinds.join('|')})`,
+    !kinds.includes('persistence:checkpoint'));
+  check('...nor drops the in-flight ring, for the same reason',
+    !kinds.includes('persistence:forgetFlight'));
+  // ...and the check is not vacuous: a real arrival still writes both.
+  const real = setup().station.dock().map(label);
+  check('...while a real arrival still writes both',
+    real.includes('persistence:checkpoint') && real.includes('persistence:forgetFlight'));
 }

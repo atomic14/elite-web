@@ -18,6 +18,15 @@
 // Everything here is JSON: no THREE objects, no class instances, no
 // functions. That is the point — `structuredClone` gives you a save, a replay
 // checkpoint and a test fixture from the same call.
+//
+// WHAT A SNAPSHOT DELIBERATELY DOES NOT SAY IS WHOSE IT IS (docs/TODO/43). A
+// world is a place and a moment; which CAREER's autosave group it belongs to is
+// the shelf's question, and the shelf answers it in `SaveRecord.career`
+// (save-file.ts), which is what `save:auto:<CAREER>:*` is keyed by. This file
+// carried a `career` too, and `restore()` assigned it over the one the boot
+// record had already decided — one step after boot, silently. Importing a
+// stranger's file therefore pointed your autosaves at whatever career THEY
+// exported under, and everybody's default is JAMESON. One home: the record.
 
 import type { CommanderData } from './commander.ts';
 import type { ShipSystems } from './systems.ts';
@@ -154,13 +163,9 @@ export interface WorldSnapshot {
   mode: 'flight' | 'docked';
   /** the persistent commander, exactly as a station save holds it */
   commander: CommanderData;
-  /**
-   * Which career's autosaves the run was writing (state.ts, `career`).
-   *
-   * Optional because a world written before named saves existed has none; a
-   * migrated save falls back to the career its record was given.
-   */
-  career?: string;
+  // NO `career` HERE, and that is the rule rather than an omission — see the
+  // header. A world knows where it is, not whose autosave group it is in.
+  // Saves written before TODO 43 still carry the key; nothing reads it.
   /** the level-1 galaxy sim, so prices and danger resume too */
   galaxyState: unknown;
   player: ShipSnapshot;

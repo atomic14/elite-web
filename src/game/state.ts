@@ -43,10 +43,15 @@ export interface GameState {
    * Which career's autosaves this session writes — see save-file.ts.
    *
    * STATE and not a module variable, for invariant 12's reason: it decides
-   * where an automatic write LANDS, and a copy of that living outside the
-   * snapshot is exactly how a reload ends up autosaving into a career it is not
-   * playing. Set at boot from the save that was resumed, carried in the
-   * snapshot, restored with everything else.
+   * where an automatic write LANDS, and a rule read from ambient state is a
+   * rule nothing can test as an argument.
+   *
+   * It is a READ of `SaveRecord.career`, not a second home for it (TODO 43).
+   * `bootCareer()` takes it off the record this session booted from, once, and
+   * nothing writes it again — not even `restore()`, which used to assign the
+   * snapshot's copy over it one step after boot and so let an imported file
+   * redirect a stranger's autosaves onto your career. The snapshot carries no
+   * career at all now; the record it lives in is the answer.
    *
    * It is deliberately not the commander's name: two careers can be called
    * JAMESON, and then a global — or a name-keyed — autosave group would belong

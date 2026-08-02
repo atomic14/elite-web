@@ -35,47 +35,18 @@ import {
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
 import { SavePromptScreen, type SavesContext } from '../src/game/screens/saves.ts';
 import type { Input } from '../src/engine/input.ts';
+import { type FakeStore, installStore } from './save-fixtures.ts';
 import { check, eq } from './harness.ts';
 
-// --- a store we can watch ----------------------------------------------------
-
-interface FakeStore {
-  held: Map<string, string>;
-  /** setItem throws from this call onward — a full disk, mid-run */
-  failFrom: number;
-  writes: number;
-}
-
-function installStore(): { store: FakeStore; restore: () => void } {
-  const store: FakeStore = { held: new Map(), failFrom: Infinity, writes: 0 };
-  const fake = {
-    get length() { return store.held.size; },
-    key: (i: number) => [...store.held.keys()][i] ?? null,
-    getItem: (k: string) => store.held.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.writes += 1;
-      if (store.writes >= store.failFrom) throw new Error('QuotaExceededError');
-      store.held.set(k, v);
-    },
-    removeItem: (k: string) => { store.held.delete(k); },
-    clear: () => { store.held.clear(); },
-  };
-  const globals = globalThis as unknown as { localStorage?: unknown };
-  const had = 'localStorage' in globals;
-  const previous = globals.localStorage;
-  globals.localStorage = fake;
-  return {
-    store,
-    restore: () => {
-      if (had) globals.localStorage = previous;
-      else delete globals.localStorage;
-    },
-  };
-}
-
-/** A world snapshot that is only as real as the storage layer needs. */
+/**
+ * A world snapshot that is only as real as the storage layer needs.
+ *
+ * No `career` in it, because a world has none: which career a save belongs to
+ * is the RECORD's, and every `makeRecord` call below passes it — see
+ * test/career-identity.test.ts.
+ */
 const stubWorld = (c: CommanderData, mode: 'docked' | 'flight' = 'docked'): WorldSnapshot =>
-  ({ version: 1, mode, commander: c, career: 'X' } as unknown as WorldSnapshot);
+  ({ version: 1, mode, commander: c } as unknown as WorldSnapshot);
 
 // --- the name rules ----------------------------------------------------------
 

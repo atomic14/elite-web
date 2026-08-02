@@ -346,11 +346,17 @@ export function bootCommander(): CommanderData {
 }
 
 /**
- * Which career's autosaves this session writes.
+ * Which career's autosaves this session writes. THE ONE HOME FOR THE ANSWER.
  *
  * The boot save's career, or a name no existing career is using — so starting
  * a fresh commander can never adopt an old one's autosave group and evict its
  * docked checkpoint.
+ *
+ * That promise held for exactly one step, because `WorldSnapshot` carried a
+ * career too and `restore()` assigned it over this one (docs/TODO/43). The
+ * snapshot has none now: the RECORD decides, because the record is what the
+ * `save:auto:<CAREER>:*` keys are built from, and `state.career` is a read of
+ * it rather than a second copy.
  */
 export function bootCareer(commander: CommanderData): string {
   const boot = bootSave();

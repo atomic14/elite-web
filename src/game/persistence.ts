@@ -122,7 +122,8 @@ export class Persistence {
       version: SNAPSHOT_VERSION,
       mode: this.host.baseMode() === 'flight' ? 'flight' : 'docked',
       commander: structuredClone(s.commander),
-      career: s.career,
+      // `s.career` is NOT written down here. It is the record's, not the
+      // world's — see the note on `career` below and snapshot.ts's header.
       galaxyState: s.living.save(),
       player: {
         pos: v3(s.player.position),
@@ -182,9 +183,15 @@ export class Persistence {
     // Same rule as the station save (storage.ts): missing or unresolvable means
     // the Cobra Mk III every legacy career flew, never a failure to load.
     s.commander.shipId = migratedPlayerHullId(s.commander.shipId);
-    // A world written before named saves carries no career; the one the boot
-    // record gave us is the answer for those, and it is already in place.
-    if (snap.career) s.career = snap.career;
+    // `s.career` IS NOT TOUCHED HERE, and that is the fix in docs/TODO/43.
+    // Restoring a world does not change whose autosave group this session
+    // writes: that was decided at boot by `bootCareer()` from the record the
+    // save came off the shelf in, and for a snapshot handed straight to a
+    // running session (the combat trainer, a console harness) the answer is
+    // simply the career already flying. A `snap.career` assignment here
+    // overwrote the record's answer one step later, so an imported file — whose
+    // record is given a career nothing else is using precisely so it cannot
+    // collide — pointed its autosaves at the exporting career instead.
     s.systems = generateGalaxy(s.commander.galaxy);
     s.living = new LivingGalaxy(s.systems);
     s.living.load(snap.galaxyState as Parameters<LivingGalaxy['load']>[0]);
@@ -260,7 +267,15 @@ export class Persistence {
     return this.host.withoutSaving(() => this.restore(snap)).refused;
   }
 
-  /** Which career's autosaves this session writes. One home for the read. */
+  /**
+   * Which career's autosaves this session writes. One home for the read.
+   *
+   * And one home for the VALUE, which is `SaveRecord.career` — `state.career`
+   * is `bootCareer()`'s answer, read off the record this session booted from
+   * and never written again. Every automatic write below addresses a key built
+   * from it, which is why a second home for it is data loss rather than
+   * untidiness: the loser of the two decides where the bytes land.
+   */
   private get career(): string {
     return this.state.career;
   }

@@ -82,11 +82,28 @@ console.log('\nbehaviour-driving values are state');
     // `world` and `player` are objects the snapshot saves piecewise under
     // other names; every other field must appear by name on BOTH sides.
     const piecewise = new Set(['world', 'player']);
+    /**
+     * Fields the snapshot deliberately does NOT carry, each naming the home it
+     * has instead — never "we could not make it fit".
+     *
+     * An exclusion is a claim about somewhere else, so each one is enforced
+     * there rather than waived here: `career`'s home is `SaveRecord.career`,
+     * and test/save-transfer.test.ts is what fails if a second appears. It had
+     * two, and the snapshot's copy beat the record's by one step, which is how
+     * an imported file redirected a stranger's autosaves onto a live career
+     * (docs/TODO/43).
+     */
+    const elsewhere: Record<string, string> = {
+      career: 'SaveRecord.career — the shelf key; see test/save-transfer.test.ts',
+    };
     for (const key of Object.keys(st)) {
       if (piecewise.has(key)) continue;
+      if (key in elsewhere) continue;
       check(`snapshot saves state.${key}`, capture.includes(key));
       check(`...and restores state.${key}`, restore.includes(key));
     }
+    check('every excluded field is a real field of the state, named with its home',
+      Object.keys(elsewhere).every((k) => k in st && elsewhere[k].length > 20));
   }
 }
 
