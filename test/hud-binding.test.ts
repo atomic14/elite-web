@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { buildHudFrame, compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
-import { ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY } from '../src/game/systems.ts';
+import { ENERGY_BANKS, energyLow, LOW_ENERGY, MAX_ENERGY } from '../src/game/systems.ts';
 import { check } from './harness.ts';
 
 console.log('\nhud binding');
@@ -140,13 +140,14 @@ console.log('\nhud binding');
     check('...and an exercise\'s own strip reaches the painter unchanged',
       flown.exercise === strip);
 
-    // THE ENERGY GAUGE AND THE WARNING ARE ONE NUMBER SEEN TWICE (TODO 38).
-    // The console draws the pool in banks and turns the last one red when
-    // `energyFrac < energyLowFrac`; the world step says ENERGY LOW when
-    // `sys.energy < LOW_ENERGY`. Both fractions are made here by dividing by
-    // the same MAX_ENERGY, so the red and the warning cannot arrive a frame —
-    // or a rounding — apart. Before this, the console drew four segments of a
-    // model that no longer had four of anything.
+    // THE GAUGE READS THE RULE, IT DOES NOT RESTATE IT (TODO 38, TODO 48).
+    // The console draws the pool in banks and turns the last one red when the
+    // frame says the pilot is into it — `energyLow` from systems.ts, the same
+    // call the world step and the shield cut-off make. It used to arrive as a
+    // THRESHOLD the painter compared a fraction against, which was a third
+    // opinion about the boundary and differed from the other two at exactly
+    // LOW_ENERGY. That all three agree at every point of the bank is asserted
+    // one point at a time in test/energy-low.test.ts.
     const gauge = (energy: number) => buildHudFrame({
       commander: state.commander, sys: { ...state.sys, energy }, world,
       camera: new THREE.PerspectiveCamera(), playerPos, playerQuat,
@@ -160,13 +161,15 @@ console.log('\nhud binding');
     check('the console is told how many banks the pool reads as',
       full.energyBanks === ENERGY_BANKS);
     check('a full pool lights every bank and reads nothing low',
-      full.energyFrac === 1 && !(full.energyFrac < full.energyLowFrac));
-    check('the threshold reaches the painter as the same point count the step uses',
-      Math.round(full.energyLowFrac * MAX_ENERGY) === LOW_ENERGY);
+      full.energyFrac === 1 && !full.energyLow);
+    check('the painter is handed the ANSWER, never a threshold of its own',
+      typeof full.energyLow === 'boolean' && !('energyLowFrac' in full));
+    check('and it is systems.ts\'s answer, at every corner of the bank',
+      [0, 1, LOW_ENERGY - 1, LOW_ENERGY, LOW_ENERGY + 1, MAX_ENERGY]
+        .every((e) => gauge(e).energyLow === energyLow(e)));
     const at = gauge(LOW_ENERGY);
-    const under = gauge(LOW_ENERGY - 1);
-    check('the gauge goes low at exactly the point ENERGY LOW fires',
-      !(at.energyFrac < at.energyLowFrac) && under.energyFrac < under.energyLowFrac);
+    check('the gauge is red with one bank left, not a point later',
+      at.energyLow && !gauge(LOW_ENERGY + 1).energyLow);
     check('...and that point is one bank, not a number the painter was told twice',
       at.energyFrac <= 1 / ENERGY_BANKS + 0.5 / MAX_ENERGY
       && at.energyFrac >= 1 / ENERGY_BANKS - 0.5 / MAX_ENERGY);

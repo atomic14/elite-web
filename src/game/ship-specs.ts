@@ -352,12 +352,21 @@ export const CONSTRICTOR_SPEC: NpcSpec = {
  *
  * The Constrictor is included under `pirate` because that is the role it flies
  * with; it is not in `SPECS.pirate` for the reason `ship-roles.ts` gives.
+ *
+ * `KEY_SEP` joins the two halves of a key, and it is written as an ESCAPE. It
+ * used to be a raw NUL byte in the source, which made this file `data` to
+ * file(1) — and both `grep -r` and ripgrep skip a binary file in silence, so
+ * the roster was invisible to every repo-wide search anybody ran over it. The
+ * key's bytes are unchanged; only the way the source spells them is, and
+ * test/ship-roles.test.ts fails if a raw one comes back.
  */
+const KEY_SEP = '\u0000';
+
 const BY_ROLE_AND_DESIGN = new Map<string, NpcSpec>(
   [
     ...Object.entries(SPECS).flatMap(
-      ([role, list]) => list.map((s) => [`${role} ${s.designId}`, s] as const)),
-    [`pirate ${CONSTRICTOR_SPEC.designId}`, CONSTRICTOR_SPEC] as const,
+      ([role, list]) => list.map((s) => [`${role}${KEY_SEP}${s.designId}`, s] as const)),
+    [`pirate${KEY_SEP}${CONSTRICTOR_SPEC.designId}`, CONSTRICTOR_SPEC] as const,
   ],
 );
 
@@ -384,5 +393,5 @@ export function specForDesign(
   role: NpcRole, designId: ShipDesignId | undefined,
 ): NpcSpec | undefined {
   return designId === undefined
-    ? undefined : BY_ROLE_AND_DESIGN.get(`${role} ${designId}`);
+    ? undefined : BY_ROLE_AND_DESIGN.get(`${role}${KEY_SEP}${designId}`);
 }

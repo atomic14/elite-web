@@ -7,8 +7,9 @@
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { seedWorld } from '../src/game/rng.ts';
-import { NpcShip } from '../src/game/npc.ts';
+import { NpcShip, hostilesNear } from '../src/game/npc.ts';
 import { BREAK_OFF_RANGE } from '../src/game/break-off.ts';
+import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
 import { playerLaser } from '../src/game/gunnery.ts';
 import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
@@ -276,18 +277,38 @@ console.log('\nNPC break-off');
     check(`...and shot on the way round (${shots})`, shots > 0);
   }
 
-  // THE BREAK-OFF DISTANCE HAS ONE HOME. It was a literal in npc.ts and a
-  // constant in brains.ts, and only the constant ever got corrected — this
-  // fails if the number grows a second home in either.
+  // TWO DISTANCES, ONE HOME EACH — the same bug one rule apart. Break-off was
+  // a literal in npc.ts and a constant in brains.ts, and only the constant got
+  // corrected. 9,000 had THREE names for whether a hostile engages, whether the
+  // light is red, and whether the combat computer you paid for flies your ship.
   const code = (path: string) =>
-    readFileSync(new URL(`../src/game/${path}`, import.meta.url), 'utf8')
+    readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  const literal = new RegExp(`\\b${BREAK_OFF_RANGE}\\b`);
-  check('break-off.ts states the break-off distance', literal.test(code('break-off.ts')));
-  for (const f of ['npc.ts', 'brains.ts']) {
-    check(`${f} takes it from break-off.ts rather than restating it`,
-      /break-off\.ts/.test(code(f)) && !literal.test(code(f)));
+  const ONE_HOME = [
+    ['game/break-off.ts', BREAK_OFF_RANGE, ['game/npc.ts', 'game/brains.ts']],
+    ['game/player-interest.ts', PLAYER_INTEREST_RANGE,
+      ['game/npc.ts', 'game/npc-targeting.ts', 'hud/hud-model.ts']],
+  ] as const;
+  for (const [home, value, consumers] of ONE_HOME) {
+    const literal = new RegExp(`\\b${value}\\b`), base = home.split('/').pop()!;
+    check(`${home} states its distance`, literal.test(code(home)));
+    for (const f of consumers) {
+      // Match the file NAME: the import is relative ('./break-off.ts').
+      check(`${f} takes it from ${home} rather than restating it`,
+        code(f).includes(base) && !literal.test(code(f)));
+    }
+    // ...and it can say no: the file allowed to state it fails both terms.
+    check(`...and the ban is not vacuous — ${home} fails both halves of it`,
+      !code(home).includes(`from './${base}'`) && literal.test(code(home)));
   }
+  // And the light really reads the value rather than agreeing by coincidence.
+  seedWorld(4242);
+  const hostile = new NpcShip('pirate', new THREE.Vector3(0, 0, 0), 0);
+  Object.assign(hostile.state, { provoked: true, provokedByPlayer: true });
+  check('the condition light is red just inside the range',
+    hostilesNear([hostile], new THREE.Vector3(0, 0, PLAYER_INTEREST_RANGE - 10), 0));
+  check('...and yellow just outside it',
+    !hostilesNear([hostile], new THREE.Vector3(0, 0, PLAYER_INTEREST_RANGE + 10), 0));
 }
 
 // --- who hunts whom ---------------------------------------------------------

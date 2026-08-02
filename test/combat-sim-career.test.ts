@@ -733,5 +733,15 @@ console.log('\ncombat simulator: nothing leaves the exercise');
   else delete globals.localStorage;
 }
 
+// A FOURTH THING AN EXERCISE COULD LEAVE BEHIND is asserted in
+// test/persistence.test.ts rather than here, and it is the exception that
+// names its home: the room reaching OUT and rerolling the station's market and
+// bulletin board on the way past (docs/TODO/46). It is a claim about
+// `Persistence.restore` beating the `Station.dock` that follows it — the rig
+// below has a persistence host that sets `baseMode` itself and never reaches
+// the station, which is exactly why this file could not have caught it — and
+// it needs a whole Game, which cannot be built after test/ui.test.ts installs
+// its partial `document`.
+
 
 // --- result -----------------------------------------------------------------

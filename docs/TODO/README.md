@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **3 / 10 complete**. Five reviewers with separate lenses; every
+Progress: **7 / 10 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -57,17 +57,40 @@ delete — and NEW COMMANDER aims the boot pointer AWAY from the shelf instead o
 clearing it, because a cleared pointer means "lost" and `bootSave` answers that
 with the career you just asked to put down.
 
-Order: 46 corrupts player data. 47 and 48 are wrong numbers a player or a
-playtest will act on. 49 is why several of these survived, so it is worth doing
-early rather than last.
+46 is done. A restore now beats the dock that follows it: `Station.dock` takes
+a `DockArrival` — you flew in, you booted with nothing to resume, or a world
+came off the shelf — and only the last of the three declines to roll a market
+and a bulletin board, because the restore stocked both from the snapshot four
+lines earlier. That closes the combat trainer's reroll button with no special
+case for the trainer, which tears down through the same restore. The skipped
+draws move no seeded outcome: `Persistence.restore` assigns `snap.rng` on the
+line after the one that reaches the station, so a resumed dock's stream is
+replaced whatever it drew. `test/persistence.test.ts` is the coverage that
+module never had, and it asserts the property the name-presence grep in
+`test/state.test.ts` cannot see — that the VALUE came back.
+
+48 is done, and it was two halves of one boundary. `energyLow()` in
+`systems.ts` is now the only test for "into the last bank", so the shield
+cut-off, the ENERGY LOW flash and the red segment cannot disagree — they did,
+at exactly 64, where the shields froze and the console stayed quiet. And
+`destroyed` is a fact about THIS hit (`reachedHull && energy <= 0`) rather than
+about the bank, with the E.C.M. refusing at `<=` its cost so no path can leave
+the bank at zero with the ship still flying. `test/energy-low.test.ts` walks
+all 256 values of the bank through the real `regenerate`, a real `WorldStep`
+frame and a real HUD frame; the campaign is byte-identical.
+
+Order: 47 is a wrong number a playtest will act on. 49 is
+why several of these survived — 46 is item 1 on its list, a guard that greps
+persistence.ts for a field NAME while the value is clobbered four lines later —
+so it is worth doing early rather than last.
 
 - [x] 43 — [Loading or importing a save eats a career's checkpoint](43-career-identity-has-two-homes.md) — data loss · critical · medium
 - [x] 44 — [A full store deletes a pre-slots commander](44-a-full-store-deletes-a-legacy-commander.md) — data loss · critical · small
 - [x] 45 — ["NEW COMMANDER" does nothing](45-new-commander-does-nothing.md) — save model · high · small
-- [ ] 46 — [Docking rerolls the board a restore just loaded](46-docking-rerolls-the-board-a-restore-just-loaded.md) — save integrity · high · medium
+- [x] 46 — [Docking rerolls the board a restore just loaded](46-docking-rerolls-the-board-a-restore-just-loaded.md) — save integrity · high · medium
 - [ ] 47 — [The trainer credits no damage for ordnance](47-the-trainer-credits-no-damage-for-ordnance.md) — trainer · high · medium
-- [ ] 48 — [The energy dead band, and dying at full shields](48-the-energy-dead-band.md) — combat · high · small
-- [ ] 49 — [Guards that do not guard](49-guards-that-do-not-guard.md) — test integrity · high · medium
+- [x] 48 — [The energy dead band, and dying at full shields](48-the-energy-dead-band.md) — combat · high · small
+- [x] 49 — [Guards that do not guard](49-guards-that-do-not-guard.md) — test integrity · high · medium
 - [ ] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium
 - [ ] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
 - [ ] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium

@@ -155,9 +155,13 @@ console.log('\ncombat simulator — the four homes of a key binding');
   const menu = painted.join('');
   check('the docked menu offers T', menu.includes('data-key="KeyT"'));
   check('...labelled as the combat trainer', /KeyT"><b>T<\/b> COMBAT TRAINING/.test(menu));
-  check('...and every docked binding with a menu row names a real key',
-    BINDINGS.docked.every((b) => !menu.includes(`data-key="${b.key}"`)
-      || b.key.startsWith('Key')));
+  check('...and the table really answers it', BINDINGS.docked
+    .some((b) => b.key === 'KeyT' && b.command === 'openCombatSim'));
+  // The general claim — that EVERY row on that menu names a key the table has —
+  // was here, as `BINDINGS.docked.every((b) => !menu.includes(...)
+  // || b.key.startsWith('Key'))`, which cannot fail: every key in the table
+  // starts with `Key`. It is in test/ui.test.ts now, with the tables, and it
+  // reads menu-first — the failure is a ROW WITH NO BINDING.
 
   // Home 4a: the `?` help panel. This is one of the two homes the audit found
   // 13 disagreements in, and the first time either is checked from a test.

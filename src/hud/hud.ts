@@ -60,17 +60,17 @@ export interface HudState {
   aftShield: number; // 0..1
   energyFrac: number; // 0..1
   /**
-   * How many BANKS the energy pool reads as, and the fraction at which it reads
-   * LOW — both from systems.ts (`ENERGY_BANKS`, `LOW_ENERGY`), normalized at
-   * the boundary like every other bank value.
+   * How many BANKS the energy pool reads as, and whether the pilot is into the
+   * last of them — both from systems.ts (`ENERGY_BANKS`, `energyLow`).
    *
    * The console draws one segment per bank and turns the last one red at
-   * exactly the moment the world step says ENERGY LOW. It arrives as data
-   * because the painter must not be the second place that knows a quarter is a
-   * quarter: it is one constant in the rules, and the gauge is a reading of it.
+   * exactly the moment the world step says ENERGY LOW. The ANSWER arrives, not
+   * the threshold: the painter must not be the second place that knows where a
+   * quarter ends — it was, and it read the boundary one point differently from
+   * the step and from the shield cut-off (TODO 48).
    */
   energyBanks: number;
-  energyLowFrac: number; // 0..1
+  energyLow: boolean;
   fuelFrac: number;
   laserTemp: number; // 0..1
   altitudeFrac: number;
@@ -263,15 +263,15 @@ export class Hud {
    * brings it as a fraction — but a player reads energy the way the original's
    * console showed it, in banks, and "three banks left" is a decision where
    * "0.74" is a number. So the segments are a READING of one pool: how many of
-   * them there are and where the last one starts both arrive in the frame from
-   * systems.ts, which is why the red can never come on at a different moment
-   * from the ENERGY LOW the world step announces.
+   * them there are, and whether this is the last, both arrive in the frame
+   * already decided by systems.ts, which is why the red can never come on at a
+   * different moment from the ENERGY LOW the world step announces.
    */
   private drawEnergy(frame: HudState): void {
     if (this.energySegs.length !== frame.energyBanks) {
       this.energySegs = fillWith(this.energyEl, 'i', frame.energyBanks);
     }
-    this.energyEl.classList.toggle('low', frame.energyFrac < frame.energyLowFrac);
+    this.energyEl.classList.toggle('low', frame.energyLow);
     const lit = frame.energyFrac * frame.energyBanks;
     this.energySegs.forEach((seg, i) => {
       seg.style.setProperty('--fill', String(Math.max(0, Math.min(1, lit - i))));

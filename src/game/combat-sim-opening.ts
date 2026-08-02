@@ -108,7 +108,7 @@ export interface OpeningPlan {
  *    already pointed at you, so anything closer than 3,500 / 0.85 = 4,118 lets
  *    the nearest of them open fire on the first frame. That is the bug: being
  *    shot before you have found what is shooting.
- *  * **Inside their interest.** `CONDITION_RED_RANGE` is 9,000 — an NPC does not
+ *  * **Inside their interest.** `PLAYER_INTEREST_RANGE` is 9,000 — an NPC does not
  *    care about you at all beyond it — so a longer opening would buy a stare
  *    rather than an approach.
  *  * **Clear of the attack-run thresholds.** TODO 34 counts a pass as closing

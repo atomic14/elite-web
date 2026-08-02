@@ -82,7 +82,9 @@ import { MAX_NAMED_SAVES } from './save-file.ts';
 import { type WorldSnapshot } from './snapshot.ts';
 import { showMessage as setMessage, tickBeam, tickMessage } from './session.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';
-import { Station, type StationHost, type StationEvent } from './station.ts';
+import {
+  Station, type DockArrival, type StationHost, type StationEvent,
+} from './station.ts';
 import { CombatSim, type ExerciseFit, type SimHost } from './combat-sim.ts';
 import type { CombatSimReport } from './combat-sim-report.ts';
 import type { ExerciseSpec } from './combat-sim-scenarios.ts';
@@ -499,7 +501,7 @@ export class Game {
     this.buildWorld();
     // Resume mid-flight if the last session ended there; otherwise the
     // station, as Elite always did.
-    if (!this.resumeSavedWorld()) this.enterDocked(true);
+    if (!this.resumeSavedWorld()) this.enterDocked('fresh');
     refreshHelpPanel();
     this.showMessage(
       `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
@@ -762,8 +764,8 @@ export class Game {
   }
 
   /** @internal — driven by test/playtest.js */
-  enterDocked(booting = false): void {
-    this.applyStation(this.station.dock(booting));
+  enterDocked(arrival: DockArrival = 'arrived'): void {
+    this.applyStation(this.station.dock(arrival));
   }
 
   /** @internal — driven by test/playtest.js */
@@ -821,7 +823,10 @@ export class Game {
       enterMode: (mode) => {
         this.baseMode = mode;
         this.screens.exit();
-        if (mode === 'docked') this.enterDocked(true);
+        // 'resumed', and the word is load-bearing: `restore` has already put
+        // this station's market and bulletin board back, and a dock that rolls
+        // over them is a reload-to-reroll exploit (docs/TODO/46).
+        if (mode === 'docked') this.enterDocked('resumed');
         else hideScreen();
       },
       buildWorld: () => this.buildWorld(),
@@ -920,7 +925,9 @@ export class Game {
     this.state.living = new LivingGalaxy(this.state.systems);
     this.state.living.load(this.state.commander.galaxyState);
     this.buildWorld();
-    this.enterDocked(true);
+    // 'fresh', not 'resumed': there was no checkpoint to come back to, so
+    // nothing has stocked this station and `bootCommander` brought no market.
+    this.enterDocked('fresh');
   }
 
   // --- contracts (station bulletin board) ----------------------------------

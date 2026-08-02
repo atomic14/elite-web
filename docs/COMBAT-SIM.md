@@ -127,7 +127,7 @@ also owns `arenaCentre` (where the fight happens at all):
 
 4,500 is not a preference. It is outside `NPC_LASER_RANGE` (3,500) even after
 the spawner's -15% scatter, so nobody shoots before the approach; inside
-`CONDITION_RED_RANGE` (9,000), where an NPC starts caring about you at all, so
+`PLAYER_INTEREST_RANGE` (9,000), where an NPC starts caring about you at all, so
 it is an approach and not a stare; and far outside `PASS_FAR` (900), which
 matters because TODO 34's attack-run count starts a fight "outside" — a ship
 that STARTS inside `PASS_CLOSE` would score a completed run the first time it

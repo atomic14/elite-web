@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import type { HudState, ScannerContact, ScreenTarget } from './hud.ts';
 import type { NpcShip } from '../game/npc.ts';
 import { isHostileToPlayer } from '../game/npc.ts';
+import { PLAYER_INTEREST_RANGE } from '../game/player-interest.ts';
 import {
   inSlotChannel, rollAlignedWithSlot, slotRollOffset,
 } from '../game/docking.ts';
@@ -98,7 +99,7 @@ export function nearestHostile(
   for (const npc of npcs) {
     if (!isHostileToPlayer(npc, legalStatus)) continue;
     const d = npc.object.position.distanceTo(playerPos);
-    if (d > 9000) continue;
+    if (d > PLAYER_INTEREST_RANGE) continue;
     count += 1;
     if (d < best) { best = d; nearest = npc; }
   }

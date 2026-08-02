@@ -19,6 +19,13 @@
 // they were made before. The order of the four draws in a dock — the mission's
 // target, the market's seed, the offers — is the order the stream saw them in.
 //
+// A RESUMED DOCK IS THE ONE PLACE TWO OF THOSE DRAWS DO NOT HAPPEN, and it is
+// the exception that proves the rule rather than a hole in it. See
+// `DockArrival` below: the stream a resume ends on is `snap.rng`, assigned by
+// `Persistence.restore` on the line AFTER the one that reaches this method, so
+// nothing downstream can observe whether the two rolls were made. Every other
+// way onto the pad draws exactly what it drew before.
+//
 // What this file is NOT: it does not own the rules. The fine is law.ts, the
 // market is contracts.ts, the mission is missions.ts, the save is storage.ts.
 
@@ -47,6 +54,28 @@ const LAUNCH_SPEED = 120;
  * scramble along it. Both used to compute it themselves.
  */
 
+
+/**
+ * How the ship came to be on the pad. Three ways in, and they differ.
+ *
+ * - `arrived` — you flew in. The whole transition: the flight it ended is
+ *   forgotten, the checkpoint is written, the bay-door theatre plays, and the
+ *   station rolls today's prices and bulletin board.
+ * - `fresh` — a boot with nothing to resume, and the fallback of a respawn for
+ *   a career that has never docked. Nothing arrived, so no checkpoint and no
+ *   theatre, but `freshState` leaves the market and the board EMPTY and
+ *   somebody has to stock them.
+ * - `resumed` — a world came off the shelf, or out of the combat simulator's
+ *   entry snapshot, and was stocked FROM it a few lines earlier. Rolling here
+ *   overwrites what the restore just put back, which is docs/TODO/46: it made
+ *   the market and the board rerollable by reloading, and rerollable ON DEMAND
+ *   through the simulator, whose seed the player picks and whose promise is
+ *   that nothing which happens inside it leaves.
+ *
+ * The distinction the last two need is not "did we arrive" — neither did — but
+ * "is the state we are dressing already dressed", and only the caller knows.
+ */
+export type DockArrival = 'arrived' | 'fresh' | 'resumed';
 
 /** What the station reports for the orchestrator to say out loud. */
 export type StationEvent =
@@ -105,14 +134,19 @@ export class Station {
   }
 
   /**
-   * Down on the pad.
+   * Down on the pad. `arrival` says which of the three ways in this is.
    *
-   * `booting` is the load path — the world blob is not cleared (there may not
-   * be one) and none of the arrival theatre plays, because nothing arrived.
+   * Anything but `arrived` is a load path — the world blob is not cleared
+   * (there may not be one) and none of the arrival theatre plays, because
+   * nothing arrived.
    */
-  dock(booting = false): StationEvent[] {
+  dock(arrival: DockArrival = 'arrived'): StationEvent[] {
     const s = this.state;
     const c = s.commander;
+    const arrived = arrival === 'arrived';
+    // A resume was handed a market and a board; every other way in has to roll
+    // one. See DockArrival.
+    const stocked = arrival === 'resumed';
     // Direct platform effects used to happen during this method, while HUD
     // messages were applied only after it returned. Preserve that observable
     // order by returning effects first and messages second.
@@ -128,7 +162,7 @@ export class Station {
     // gone, and the next dock wrote that rolled-back commander over the good
     // one. It cannot touch the docked checkpoint or a named save — different
     // ids, see save-file.ts.
-    if (!booting) effects.push({ kind: 'persistence', action: 'forgetFlight' });
+    if (arrived) effects.push({ kind: 'persistence', action: 'forgetFlight' });
     s.world.clearNpcs();
     this.ordnance.clear();
     // Full pools and a cold laser, and what "full" is belongs to systems.ts —
@@ -184,18 +218,28 @@ export class Station {
       }
     }
     s.session.hermitTrading = false;
-    // SECOND draw: the market's seed.
-    s.market = makeLocalMarket(this.system,
-      (i) => s.living.priceMultiplier(c.systemIndex, i));
+    // SECOND draw: the market's seed. Skipped only for a `resumed` dock, where
+    // the restore two lines up assigned the market this would overwrite — and
+    // where the stream it draws from is replaced wholesale a line later, so
+    // skipping it moves no seeded outcome. THE ROLL STILL HAS ONE HOME.
+    if (!stocked) {
+      s.market = makeLocalMarket(this.system,
+        (i) => s.living.priceMultiplier(c.systemIndex, i));
+    }
     for (const event of this.host.settleContracts()) {
       if (event.kind === 'message') messages.push(event);
       else effects.push(event);
     }
-    // THIRD: the bulletin board.
-    s.contractOffers = generateContractOffers(this.system, s.systems, c.day);
+    // THIRD: the bulletin board, and the same rule for the same reason. This
+    // is the half of docs/TODO/46 with teeth — a market rerolls prices, but a
+    // board rerolls the WORK, and the simulator let you ask for a new one as
+    // often as you liked and then persisted it at the next checkpoint.
+    if (!stocked) {
+      s.contractOffers = generateContractOffers(this.system, s.systems, c.day);
+    }
     this.host.resetContractSelection();
     c.galaxyState = s.living.save();
-    if (!booting) {
+    if (arrived) {
       // HALF of decision 1: the docked autosave is written on docking. The
       // other half is in `launch()`, and between them they are the checkpoint.
       //

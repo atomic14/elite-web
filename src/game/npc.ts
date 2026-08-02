@@ -14,6 +14,7 @@ import {
 } from '../ai-training/policy.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
 import { BREAK_OFF_RANGE } from './break-off.ts';
+import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
 import type { BrainSelection } from './brain-names.ts';
 import {
   npcPrefersMissile, npcMissileLastStand, npcTriggerPull, npcWeaponByte,
@@ -44,9 +45,6 @@ export const MIN_CRUISE_FRACTION = 0.43;
  */
 export const BRAIN_RATE_RAMP = 4.1396;
 export const BRAIN_RATE_DECAY = 5.2207;
-
-/** A hostile this close puts the condition light on RED. */
-export const CONDITION_RED_RANGE = 9000;
 
 /**
  * Everything about a ship that can CHANGE.
@@ -240,13 +238,19 @@ export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
   );
 }
 
-/** Is anything close enough and cross enough to turn the condition light red? */
+/**
+ * Is anything close enough and cross enough to turn the condition light red?
+ *
+ * The same range the ship itself engages at, from `player-interest.ts` — the
+ * light reports the rule rather than restating it, which is what stops the
+ * console going red at a ship that has not decided anything.
+ */
 export function hostilesNear(
   npcs: readonly NpcShip[], playerPos: THREE.Vector3, legalStatus: number,
 ): boolean {
   return npcs.some((npc) =>
     isHostileToPlayer(npc, legalStatus)
-    && npc.object.position.distanceTo(playerPos) < CONDITION_RED_RANGE);
+    && npc.object.position.distanceTo(playerPos) < PLAYER_INTEREST_RANGE);
 }
 
 export type TraderPhase = 'arriving' | 'trading' | 'departing' | 'docking';
@@ -534,7 +538,8 @@ export class NpcShip {
     const toPlayer = this.tmpDir.copy(player.position).sub(this.object.position);
     const distPlayer = toPlayer.length();
 
-    const aggressiveToPlayer = isHostileToPlayer(this, playerLegal) && distPlayer < 9000;
+    const aggressiveToPlayer =
+      isHostileToPlayer(this, playerLegal) && distPlayer < PLAYER_INTEREST_RANGE;
 
     if (aggressiveToPlayer) {
       // Which brain, and the two numbers that come with it — see brains.ts.

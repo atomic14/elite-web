@@ -237,7 +237,10 @@ export class Ordnance {
     if (!commander.equipment.ecm) {
       return outcome('noEcm');
     }
-    if (energy < ECM_ENERGY_COST) {
+    // `<=`, so the burst can never spend the LAST point: a bank at exactly 0
+    // with the ship still flying is a state nothing else in the model can
+    // reach, and it used to make an absorbed hit read as a kill (TODO 48).
+    if (energy <= ECM_ENERGY_COST) {
       return outcome('noEnergy');
     }
     for (const m of [...this.missiles]) this.destroy(m);

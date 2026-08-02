@@ -54,7 +54,7 @@ now exactly two damage scales in the project and both are the released game's.
 | 15 | sun proximity (cabin heat) | commander | none | none — **outcome, not damage** | `systems.ts` `updateCabinTemp` | Harmless: `cabinTemp >= 0.99` ends the run outright; it never touches a pool |
 | 16 | flying into the sun | commander | none | none — outcome | `world-step.ts` `SUN_KILL_DIST` | Harmless |
 | 17 | flying into the planet | commander | none | none — outcome | `world-step.ts` `checkHazards` | Harmless |
-| 18 | E.C.M. discharge | commander's own bank | `1` of 4 | `PlayerPoolPoints`-scale 64 (`ECM_ENERGY_COST`) | `ordnance.ts` / `game.ts` | Harmless: a **cost**, not damage — it is spent, never applied through `applyDamage`, and it cannot destroy the ship |
+| 18 | E.C.M. discharge | commander's own bank | `1` of 4 | `PlayerPoolPoints`-scale 64 (`ECM_ENERGY_COST`) | `ordnance.ts` / `game.ts` | Harmless: a **cost**, not damage — it is spent, never applied through `applyDamage`, and it cannot destroy the ship. Structurally, since TODO 48: the burst is refused at `<=` its cost, so it can never spend the last point, and `destroyed` is a fact about a HIT rather than about the bank |
 | 19 | missions (Constrictor) | — | — | — | `missions.ts` | no damage of any kind: it pays a bounty on a kill resolved by rows 1/4/6 |
 | 20 | headless campaign | — | — | — | `test/campaign.ts` | flight is abstracted; it never applies damage |
 | 21 | combat simulator | commander and opponents | — | rows 1–10, unchanged | `combat-sim.ts` via `exerciseStepHost` | it flies the **real** step; there is no simulator damage model |

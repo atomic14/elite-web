@@ -300,7 +300,14 @@ console.log('\nordnance');
     const low = ord.triggerEcm(cmdr, ECM_ENERGY_COST - 0.01);
     check('E.C.M. needs energy',
       low.reply === 'noEnergy' && ord.missiles.length === 1);
-    const fired = ord.triggerEcm(cmdr, ECM_ENERGY_COST);
+    // ...and it may not spend the LAST of it. A burst at exactly its cost left
+    // the bank at 0 with the ship still flying — a state nothing else in the
+    // model can reach, and one in which a hit a full shield swallowed read as a
+    // kill (TODO 48). The whole walk is test/energy-low.test.ts.
+    const exact = ord.triggerEcm(cmdr, ECM_ENERGY_COST);
+    check('...and will not spend the last point of the bank',
+      exact.reply === 'noEnergy' && ord.missiles.length === 1);
+    const fired = ord.triggerEcm(cmdr, ECM_ENERGY_COST + 1);
     check('...and clears the sky when it has it',
       fired.reply === 'ecmFired' && ord.missiles.length === 0);
     eq('E.C.M. reports its named outcome without raw audio details',

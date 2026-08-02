@@ -302,7 +302,7 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
 
 - **Tests are organised like `src/`.** One file per subsystem in `test/` —
   the world (`galaxy`, `economy`, `contracts`, `trade`, `world`, `world-step`,
-  `station`, `game`, `state`, `snapshot`), the ships and being shot at
+  `station`, `game`, `state`, `snapshot`, `persistence`), the ships and being shot at
   (`flight`, `geometry`, `npc`, `systems`, `combat`, `gunnery`,
   `instrumentation`, `damage-paths`, four `elite-a-*`, `ship-identity`,
   `ship-roles`, `role-variants`), the brains (`ai`, `combat-model`, `arena`),

@@ -74,11 +74,39 @@ console.log('\nbehaviour-driving values are state');
     // It reads persistence.ts now: the two methods left game.ts, and that is
     // the point of them leaving — the save is a module with a name rather than
     // two private methods only a grep could find.
-    const src = readFileSync(new URL('../src/game/persistence.ts', import.meta.url), 'utf8');
+    //
+    // TWO THINGS THIS SCAN GOT WRONG, both fixed here, because a guard cited in
+    // CLAUDE.md as THE guarantee has to be able to fail:
+    //
+    //   1. It read the file WITH ITS COMMENTS. `career` is discussed at length
+    //      in both halves of persistence.ts and captured in neither, so the
+    //      prose alone satisfied a name-presence test.
+    //   2. It matched a bare SUBSTRING. `sys` — the commander's shields, energy
+    //      bank, laser heat and cabin temperature — was satisfied by the `sys`
+    //      inside `snap.systems`, so `Object.assign(s.sys, ...)` could be
+    //      deleted from the restore and this would still have passed. And
+    //      `systems`, the galaxy, passed against `systems: { ...s.sys }`, which
+    //      is the SHIP's systems under the same name.
+    //
+    // So: comments stripped, and the match is `s.<field>` as a whole word —
+    // the state being read on the way out and written on the way back — rather
+    // than the word appearing anywhere at all.
+    //
+    // It is still a source scan and it still cannot see whether the VALUE
+    // survives; a field captured, restored and then clobbered two lines later
+    // passes (that is TODO 46, and what caught it was a behavioural test).
+    // What it does catch is a field that nothing on one side of the round trip
+    // so much as mentions, which is the way this project has actually shipped
+    // the bug five times.
+    const raw = readFileSync(new URL('../src/game/persistence.ts', import.meta.url), 'utf8');
+    const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     const capture = src.slice(src.indexOf('capture(): WorldSnapshot {'),
       src.indexOf('restore(snap'));
     const restore = src.slice(src.indexOf('restore(snap'),
       src.indexOf('autoSave(): void'));
+    /** The state being read, or written, by name — not the name in passing. */
+    const touches = (half: string, field: string): boolean =>
+      new RegExp(`\\bs\\.${field}\\b`).test(half);
     // `world` and `player` are objects the snapshot saves piecewise under
     // other names; every other field must appear by name on BOTH sides.
     const piecewise = new Set(['world', 'player']);
@@ -95,15 +123,36 @@ console.log('\nbehaviour-driving values are state');
      */
     const elsewhere: Record<string, string> = {
       career: 'SaveRecord.career — the shelf key; see test/save-transfer.test.ts',
+      systems: 'the 256 stars are DERIVED, not stored: restore rebuilds them with'
+        + ' generateGalaxy(commander.galaxy), which is byte-matched to 1984 and'
+        + ' therefore cannot disagree with what was saved (CLAUDE.md invariant 4).'
+        + ' It was passing this scan against the SHIP systems, a different field.',
     };
     for (const key of Object.keys(st)) {
       if (piecewise.has(key)) continue;
       if (key in elsewhere) continue;
-      check(`snapshot saves state.${key}`, capture.includes(key));
-      check(`...and restores state.${key}`, restore.includes(key));
+      check(`snapshot saves state.${key}`, touches(capture, key));
+      check(`...and restores state.${key}`, touches(restore, key));
     }
     check('every excluded field is a real field of the state, named with its home',
       Object.keys(elsewhere).every((k) => k in st && elsewhere[k].length > 20));
+    // An exclusion is a claim about somewhere else, so it is enforced rather
+    // than waived: the galaxy really is regenerated, and `career` really is
+    // touched by neither half.
+    check('...and the galaxy really is regenerated on restore, as its exclusion claims',
+      /s\.systems = generateGalaxy\(/.test(restore) && !touches(capture, 'systems'));
+    check('...and the career is written by neither half of the snapshot',
+      !touches(capture, 'career') && !touches(restore, 'career'));
+
+    // THE SCAN CAN SAY NO. Both slices are non-empty, a field the state does
+    // not have is not found in either, and — the specific vacuity this
+    // replaced — `sys` is no longer satisfied by the `sys` inside `systems`.
+    check(`the two halves were really found (${capture.length} + ${restore.length} chars)`,
+      capture.length > 500 && restore.length > 500);
+    check('...and a field that does not exist is not found in either',
+      !touches(capture, 'notAFieldOfTheState') && !touches(restore, 'notAFieldOfTheState'));
+    check('...and a longer field name no longer satisfies a shorter one',
+      !touches('const x = s.systems;', 'sys') && touches('const x = s.sys;', 'sys'));
   }
 }
 

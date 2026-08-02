@@ -17,9 +17,8 @@
 // module that owns the rule and by nothing else: an NPC laser through
 // `gunnery.ts`'s `npcLaserDamageToPlayer` (its power, less this hull's armour,
 // once), and a ram, a canister, the Coriolis wall or a warhead through
-// `impact-damage.ts`. TODO 28 deleted the conversion that used to stand here —
-// `legacyDamageToPlayer`, and its NPC twin — along with the normalized scale it
-// converted from. There is no scale left to convert.
+// `impact-damage.ts`. TODO 28 deleted the conversion that stood here, and the
+// normalized scale it converted from: there is no scale left to convert.
 //
 // RECHARGE IS HARMLESS POLICY, stated as ours: the pack gives each hull an
 // `energyRechargeRating` and no clock, and what a rating is worth in seconds is
@@ -68,25 +67,27 @@ export const LEGACY_MAX_ENERGY = 4;
 export const LEGACY_MAX_SHIELD = 1;
 
 /**
- * How many BANKS the console reads the energy pool as — four, as the original's
- * console did, and the reason `LOW_ENERGY` is a quarter.
- *
- * TODO 27 made energy one 255-point pool, but the console still divides it into
- * four and a player still flies by "how many banks left". So the reading and
- * the warning are one constant apart rather than two numbers that happen to
- * agree: the console draws this many segments (hud.ts, via the frame) and the
- * warning fires as the LAST of them empties. Change this and the gauge, the
- * warning and the shield cut-off all move together.
+ * How many BANKS the console reads the energy pool as, and where the last of
+ * them begins. Four, as the original's console did: TODO 27 made energy one
+ * 255-point pool, but a player still flies by "how many banks left", so the
+ * console draws this many segments (hud.ts, via the frame) and `energyLow`
+ * below is the last of them emptying — change ENERGY_BANKS and the gauge, the
+ * warning and the shield cut-off move together. LOW_ENERGY is a point COUNT.
  */
 export const ENERGY_BANKS = 4;
+export const LOW_ENERGY = Math.round(MAX_ENERGY / ENERGY_BANKS);
 
 /**
- * Below this the console flashes ENERGY LOW and the shields stop recovering:
- * the last bank of ENERGY_BANKS, exactly what the literal `1` meant when the
- * pool held 4. Two rules shared that literal across two files; they share this
- * instead, and the gauge shares it too.
+ * You are down to your last bank: the shields stop recovering (below), the step
+ * flashes ENERGY LOW and the gauge's last segment goes red. ONE comparison, so
+ * all three arrive at the same point count — TODO 38 claimed that and shipped
+ * three (`>` here, `<` in the step, `<` on fractions in the painter), leaving 64
+ * a dead band: shields frozen, console quiet. Inclusive because the shield
+ * cut-off already was, and it is the one of the three a fight can feel.
  */
-export const LOW_ENERGY = Math.round(MAX_ENERGY / ENERGY_BANKS);
+export function energyLow(energy: number): boolean {
+  return energy <= LOW_ENERGY;
+}
 
 /**
  * The fraction of a full pool the Cobra Mk III recovers each second — HARMLESS
@@ -146,14 +147,12 @@ export function repairAtStation(sys: ShipSystems): void {
 }
 
 /**
- * How much damage this ship can absorb before energy reaches zero.
- *
- * In POOL POINTS: one shield face (or both, for a commander manoeuvring so hits
- * land front and back) plus the whole energy bank. There is no longer a
- * multiplier on the way into energy — the released model subtracts a hit from
- * the facing shield and spills the remainder straight into the bank — so this
- * is a plain sum. Used by the balance harness, which previously hard-coded 3.0
- * and 4.0 from a comment.
+ * How much damage this ship can absorb before energy reaches zero, in POOL
+ * POINTS: one shield face (or both, for a commander manoeuvring so hits land
+ * front and back) plus the whole energy bank. There is no longer a multiplier
+ * on the way into energy — the released model subtracts a hit from the facing
+ * shield and spills the remainder straight into the bank — so this is a plain
+ * sum, read by the balance harness that used to hard-code 3.0 and 4.0.
  */
 export function durability(bothFaces = false): number {
   return (bothFaces ? MAX_SHIELD * 2 : MAX_SHIELD) + MAX_ENERGY;
@@ -164,7 +163,7 @@ export interface DamageResult {
   reachedHull: boolean;
   /** and should therefore roll for wrecking a fitting */
   wreckedSomething: boolean;
-  /** energy is gone */
+  /** THIS hit emptied the bank — deliberately not "the bank is empty" */
   destroyed: boolean;
 }
 
@@ -213,7 +212,12 @@ export function applyDamage(
     sys.energy = Math.max(0, sys.energy - remaining);
     wreckedSomething = roll() < EQUIPMENT_DAMAGE_CHANCE;
   }
-  return { reachedHull: remaining > 0, wreckedSomething, destroyed: sys.energy <= 0 };
+  // DESTROYED IS ABOUT THIS HIT. The absolute `sys.energy <= 0` agreed only
+  // while a hit was the one way to empty the bank, and the E.C.M. is not one:
+  // fired at exactly its cost it left the bank at 0 with the ship flying, and a
+  // hit a full shield swallowed read as a kill (docs/DAMAGE-PATHS.md, row 18).
+  return { reachedHull: remaining > 0, wreckedSomething,
+    destroyed: remaining > 0 && sys.energy <= 0 };
 }
 
 export interface RegenOptions {
@@ -263,10 +267,9 @@ export function regenerate(sys: ShipSystems, dt: number, opts: RegenOptions): vo
   const ticks = eliteARegenTicks(dt);
   [sys.energy, sys.energyCarry] = recharge(sys.energy, sys.energyCarry, MAX_ENERGY,
     energyRegenPerSecond(opts.shipId, opts.energyUnit), ticks);
-  // shields only recover once energy is out of its last bank — a beaten ship
-  // has to disengage before it gets its shields back, and that is the same
-  // moment the console reads ENERGY LOW
-  if (sys.energy > LOW_ENERGY) {
+  // shields only recover once energy is out of its last bank: a beaten ship has
+  // to disengage, and `energyLow` makes that the moment the console says so
+  if (!energyLow(sys.energy)) {
     [sys.foreShield, sys.foreShieldCarry] =
       recharge(sys.foreShield, sys.foreShieldCarry, MAX_SHIELD, SHIELD_REGEN, ticks);
     [sys.aftShield, sys.aftShieldCarry] =

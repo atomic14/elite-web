@@ -22,7 +22,7 @@ import {
 import { hostilesNear, type NpcShip } from '../game/npc.ts';
 import type { CommanderData } from '../game/commander.ts';
 import {
-  ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY, MAX_SHIELD, type ShipSystems,
+  ENERGY_BANKS, energyLow, MAX_ENERGY, MAX_SHIELD, type ShipSystems,
 } from '../game/systems.ts';
 import type { World } from '../game/world.ts';
 import type { Missile } from '../game/ordnance.ts';
@@ -165,12 +165,13 @@ export function buildHudFrame(s: HudSources, scratch: HudScratch): HudFrame {
     foreShield: s.sys.foreShield / MAX_SHIELD,
     aftShield: s.sys.aftShield / MAX_SHIELD,
     energyFrac: s.sys.energy / MAX_ENERGY,
-    // The gauge's shape, from the rules that own it: how many banks the pool
-    // reads as, and the fraction below which the step says ENERGY LOW. Divided
-    // here by the same MAX_ENERGY as the value itself, so "the last bank is
-    // lit" and "the warning is up" are the same comparison and cannot drift.
+    // The gauge's shape and its one reading, from the rules that own them: how
+    // many banks the pool reads as, and whether this is the last of them. The
+    // ANSWER travels, not a threshold for the painter to compare against — that
+    // comparison was a third opinion about the boundary, and it disagreed with
+    // the other two at exactly 64 (TODO 48).
     energyBanks: ENERGY_BANKS,
-    energyLowFrac: LOW_ENERGY / MAX_ENERGY,
+    energyLow: energyLow(s.sys.energy),
     fuelFrac: commander.fuel / MAX_FUEL,
     laserTemp: s.sys.laserTemp,
     altitudeFrac: altitude / (world.planetRadius * 2),

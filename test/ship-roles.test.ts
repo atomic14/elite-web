@@ -18,7 +18,7 @@
 //     carried-over TODO 23 defect, where restore rebuilt a pirate from the tier
 //     table instead of from the design its own snapshot recorded.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 import * as THREE from 'three';
 
@@ -359,4 +359,41 @@ console.log('\nrestore rebuilds a ship from the design its snapshot recorded');
   eq('a legacy pirate still falls back to its tier',
     world.npcs.map((n) => n.designId).join('|'),
     saved.map((s) => pirateSpecForTier(2, s.seed).designId).join('|'));
+}
+
+// --- the roster is findable -------------------------------------------------
+
+// A data file nobody can grep is a data file nobody reviews. `ship-specs.ts`
+// joined its map keys with a RAW NUL byte — deliberate, correct, and enough to
+// make file(1) call the file `data`, after which `grep -r` and ripgrep both
+// SKIP it in silence: every repo-wide search over the roster's colours, cruise
+// speeds, turn rates, bounties and rack counts came back empty and looked like
+// an answer. It is an ESCAPE now; the ban below is over all of src/.
+console.log('\nevery source file is searchable text');
+{
+  /** The byte file(1), grep and ripgrep all use to decide a file is binary. */
+  const NUL = String.fromCharCode(0);
+  /** The predicate under test, named so it can be aimed at a known-bad string. */
+  const readsAsBinary = (contents: string): boolean => contents.includes(NUL);
+  const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
+      : /\.(ts|json)$/.test(e.name) ? [new URL(e.name, dir)] : []));
+  const files = walk(new URL('../src/', import.meta.url));
+  const binary = files.filter((u) => readsAsBinary(readFileSync(u, 'utf8')))
+    .map((u) => u.pathname.slice(u.pathname.indexOf('/src/') + 1));
+  check(`no file under src/ reads as binary to grep (${files.length} scanned)`,
+    binary.length === 0, binary.join(', '));
+  // ...and it can say no: an empty walk, or a dead predicate, passes as loudly.
+  check('...and the scan is not vacuous', files.length > 100
+    && files.some((u) => u.pathname.endsWith('/game/ship-specs.ts'))
+    && readsAsBinary(`pirate${NUL}elite-a:design:22`)
+    && !readsAsBinary('pirate\\u0000elite-a:design:22'));
+  // The roster still needs a separator neither half of a key can contain.
+  const roster = readFileSync(new URL('../src/game/ship-specs.ts', import.meta.url), 'utf8');
+  check('ship-specs.ts states its map separator as an escape',
+    /const KEY_SEP = '\\u0000';/.test(roster) && !readsAsBinary(roster));
+  check('...and the keys it builds still find a row by role and design',
+    specForDesign('pirate', CONSTRICTOR_SPEC.designId) === CONSTRICTOR_SPEC
+    && specForDesign('trader', SPECS.trader[0].designId) === SPECS.trader[0]
+    && specForDesign('trader', shipDesignIdOf(0)) === undefined);
 }

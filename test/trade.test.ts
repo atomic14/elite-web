@@ -19,6 +19,7 @@ import {
   newCommander, MAX_FUEL, MAX_MISSILES, type CommanderData,
 } from '../src/game/commander.ts';
 import { generateMarket } from '../src/galaxy/galaxy.ts';
+import { EQUIPMENT_CATALOGUE } from '../src/game/shop.ts';
 import { withoutSaving, writeDockSave } from '../src/game/storage.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
 import { check, eq } from './harness.ts';
@@ -104,23 +105,39 @@ console.log('\noutfitting');
   }
 
   // --- the laser refunds, which are the fiddly half -------------------------
+  //
+  // A trade-in is worth WHAT THE OLD GUN COST, so the refund for a beam is the
+  // beam's own catalogue price and nothing else. This used to be written down
+  // here as `10000`, a copy of that price with nothing holding the two
+  // together: raise the beam to 12,000 and the game would refund 10,000 for a
+  // gun the player had just paid 12,000 for, with this test still green. The
+  // pulse's 4,000 has no catalogue row of its own — it is the starting gun, so
+  // nobody buys one — and `trade.ts` is its only home; it is named here rather
+  // than typed twice.
   {
     const { ctx, commander } = ctxFor();
     commander.credits = 100_000;
+    const priceOf = (id: string): number =>
+      EQUIPMENT_CATALOGUE.find((e) => e.id === id)?.price ?? 0;
+    const PULSE_TRADE_IN = 4000;
     const beamRow = equipRows(ctx.system, commander, false).find((r: EquipRow) => r.id === 'beam');
     if (beamRow && beamRow.status === '') {
       buy('beam', ctx);
       eq('a beam laser refunds the pulse laser it replaces',
-        commander.credits, 100_000 - beamRow.price + 4000);
+        commander.credits, 100_000 - beamRow.price + PULSE_TRADE_IN);
       eq('...and is fitted', commander.equipment.laser, 'beam');
 
       const milRow = equipRows(ctx.system, commander, false).find((r: EquipRow) => r.id === 'military');
       if (milRow && milRow.status === '') {
         const before = commander.credits;
         buy('military', ctx);
-        eq('a military laser refunds 10000 when it replaces a BEAM, not 4000',
-          commander.credits, before - milRow.price + 10000);
+        eq('a military laser refunds what the BEAM cost, not what a pulse cost',
+          commander.credits, before - milRow.price + priceOf('beam'));
       }
+      // ...and the two refunds are actually different, so the line above is
+      // distinguishing them rather than passing on a coincidence.
+      check('the beam is worth more as a trade-in than the pulse it replaced',
+        priceOf('beam') > PULSE_TRADE_IN && priceOf('beam') > 0);
     }
   }
 

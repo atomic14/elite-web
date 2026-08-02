@@ -10,7 +10,10 @@ import { newCommander } from '../src/game/commander.ts';
 import { defenceBrain } from '../src/game/brains.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
-import { globalCommands, BINDINGS, type ControlMode } from '../src/game/controls.ts';
+import {
+  globalCommands, BINDINGS, GLOBAL_BINDINGS, type ControlMode,
+} from '../src/game/controls.ts';
+import { renderDockedMenu } from '../src/ui/screens.ts';
 import {
   Autopilot,
   DOCK_COMPUTER_RANGE,
@@ -195,6 +198,79 @@ console.log('\ncommand layer');
         !BINDINGS[mode].slice(0, n).some((o) => o.key === b.key && o.shift === undefined));
     }
   }
+}
+
+// --- the menu is the third home of a binding, and it can lie -----------------
+
+// A row that renders, highlights, accepts a click and does NOTHING.
+//
+// That is the failure this section exists for, and it is not hypothetical: the
+// station menu advertised "D DATA ON SYSTEM" for months with no KeyD binding
+// while docked, which src/game/controls.ts:218 still says out loud. `data-key`
+// IS the click path — screen-host.ts turns it into a keystroke (invariant 13) —
+// so a row naming a key the table does not have is a dead control that looks
+// alive, and the cursor will happily park on it.
+//
+// The check that was here before, in test/combat-sim.test.ts, read
+//
+//   BINDINGS.docked.every((b) => !menu.includes(`data-key="${b.key}"`)
+//     || b.key.startsWith('Key'))
+//
+// and could not fail: every key in the table starts with `Key`, so the second
+// disjunct is always true. It also looked the harmless way round — from the
+// table to the menu — and the direction that hurts is from the MENU to the
+// table. So this goes menu-first, and is paired with a control below that aims
+// the same predicate at a row known to be dead.
+
+console.log('\nthe docked menu names keys the table has');
+{
+  const globals = globalThis as unknown as { document?: unknown };
+  const previous = globals.document;
+  const painted: string[] = [];
+  globals.document = {
+    getElementById: () => ({
+      set innerHTML(html: string) { painted.push(html); },
+      classList: { add: () => {}, remove: () => {}, toggle: () => {} },
+    }),
+    body: { classList: { add: () => {}, remove: () => {} } },
+  };
+  renderDockedMenu({ name: 'Lave', economy: 0, government: 5, techLevel: 4 } as never,
+    newCommander());
+  globals.document = previous;
+  const menu = painted.join('');
+
+  /** Every key the markup offers as a click, in order. */
+  const rowKeys = (html: string): string[] =>
+    [...html.matchAll(/data-key="([^"]+)"/g)].map((m) => m[1]);
+  /** The predicate under test: which of those keys the table will not answer. */
+  const dead = (html: string, table: readonly { key: string }[]): string[] =>
+    rowKeys(html).filter((k) => !table.some((b) => b.key === k));
+
+  check(`every row on the station menu names a docked binding (${rowKeys(menu).length} rows)`,
+    dead(menu, BINDINGS.docked).length === 0, dead(menu, BINDINGS.docked).join(', '));
+  // ...and the predicate can say no. It is aimed at a table of its own here, so
+  // the control cannot be turned green or red by the live one — a changed
+  // attribute name, or a renderer that quietly stopped painting, leaves an
+  // empty list and an `ok`, which is exactly how the version this replaced
+  // passed for its whole life.
+  const oneRow = '<div data-key="KeyW"><b>W</b> A ROW</div>';
+  check('...and the check is not vacuous', rowKeys(menu).length >= 8
+    && dead(oneRow, [{ key: 'KeyW' }]).length === 0
+    && dead(oneRow, [{ key: 'KeyL' }]).length === 1);
+
+  // The keyline under the menu advertises six more keys without a `data-key`,
+  // so they are not clickable and the scan above never sees them. They are
+  // still a promise the table has to keep. `?` is the global help binding
+  // rather than a docked one, which is why it is asked for separately.
+  const keyline = (menu.match(/<div class="keyline">([^<]*)</) ?? ['', ''])[1];
+  const advertised = [...keyline.matchAll(/(?:^|·|&middot;)\s*([A-Z?])\s/g)].map((m) => m[1]);
+  const unanswered = advertised.filter((letter) => letter !== '?'
+    && !BINDINGS.docked.some((b) => b.key === `Key${letter}`));
+  check(`every letter the keyline promises is a docked binding (${advertised.join('')})`,
+    unanswered.length === 0, unanswered.join(', '));
+  check('...and that one is not vacuous either',
+    advertised.length >= 5 && advertised.includes('?')
+    && GLOBAL_BINDINGS.some((b) => b.key === 'Question'));
 }
 
 // --- the ship's autopilots --------------------------------------------------

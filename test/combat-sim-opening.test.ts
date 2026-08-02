@@ -32,7 +32,7 @@ import {
 } from '../src/game/combat-sim-opening.ts';
 import { SCENARIOS, type ExerciseSpec, type ScenarioId } from '../src/game/combat-sim-scenarios.ts';
 import { LASER_RANGE, NPC_LASER_RANGE } from '../src/game/gunnery.ts';
-import { CONDITION_RED_RANGE } from '../src/game/npc.ts';
+import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { readFileSync } from 'node:fs';
 import { check, eq } from './harness.ts';
@@ -78,8 +78,8 @@ console.log('\ncombat simulator — the opening each scenario asks for');
       p.range * NEAR > PASS_FAR);
     check('...and nowhere near inside PASS_CLOSE, which would be a free pass',
       p.range * NEAR > PASS_CLOSE);
-    check(`...and inside ${CONDITION_RED_RANGE}, where an NPC starts caring at all`,
-      p.range * FAR < CONDITION_RED_RANGE);
+    check(`...and inside ${PLAYER_INTEREST_RANGE}, where an NPC starts caring at all`,
+      p.range * FAR < PLAYER_INTEREST_RANGE);
   }
 
   // The arcs: six in view, one deliberately not.
@@ -98,7 +98,7 @@ console.log('\ncombat simulator — the opening each scenario asks for');
     check('...and outside their gun, so nobody is shot before they have looked',
       p.range * NEAR > NPC_LASER_RANGE);
     check('...but not outside your own, which would be a stare and not a fight',
-      p.range * NEAR < CONDITION_RED_RANGE && p.range > LASER_RANGE);
+      p.range * NEAR < PLAYER_INTEREST_RANGE && p.range > LASER_RANGE);
   }
   const ambush = planFor('thargoids');
   check('the ambush opens INSIDE their gun, which is the point of one',

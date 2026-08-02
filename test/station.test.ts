@@ -100,7 +100,7 @@ function setup() {
 
 {
   const x = setup();
-  const events = x.station.dock(true);
+  x.station.dock('fresh');
   eq('the docked base screen is a presentation outcome',
     x.station.showBaseScreen().map(label).join('|'), 'presentation:screen:docked');
 
@@ -109,13 +109,85 @@ function setup() {
   // it back put the save just loaded over `save:auto:<career>:dock`, so picking
   // a day-5 file out of the commander file destroyed the day-300 checkpoint the
   // screen had written to protect it, on one Enter with no confirmation.
-  const kinds = events.map(label);
-  check(`a boot writes no checkpoint — nothing arrived (${kinds.join('|')})`,
-    !kinds.includes('persistence:checkpoint'));
-  check('...nor drops the in-flight ring, for the same reason',
-    !kinds.includes('persistence:forgetFlight'));
+  //
+  // BOTH load paths, because 43's argument is about arriving and neither of
+  // them did: a boot with nothing to resume, and a world put back from a
+  // snapshot (docs/TODO/46 split them apart for a different reason).
+  for (const arrival of ['fresh', 'resumed'] as const) {
+    const kinds = setup().station.dock(arrival).map(label);
+    check(`a ${arrival} dock writes no checkpoint — nothing arrived (${kinds.join('|')})`,
+      !kinds.includes('persistence:checkpoint'));
+    check('...nor drops the in-flight ring, for the same reason',
+      !kinds.includes('persistence:forgetFlight'));
+  }
   // ...and the check is not vacuous: a real arrival still writes both.
   const real = setup().station.dock().map(label);
   check('...while a real arrival still writes both',
     real.includes('persistence:checkpoint') && real.includes('persistence:forgetFlight'));
+}
+
+// --- docs/TODO/46: a restore beats the dock that follows it -----------------
+//
+// `Persistence.restore` assigns the market and the bulletin board out of the
+// snapshot and THEN enters the docked mode, which reaches this method. While
+// every dock rolled, the roll landed on top of the restore — so a reload
+// rerolled prices and work until you liked them, and the combat trainer, which
+// tears down through the same path on a seed the player picks, turned that into
+// a reroll button. `DockArrival` is the fact the restore has and the dock did
+// not.
+{
+  const stocked = () => {
+    const x = setup();
+    seedWorld(4_601);
+    x.station.dock();               // arrive once, so there is a board to keep
+    return x;
+  };
+
+  const x = stocked();
+  const market = JSON.stringify(x.state.market);
+  const board = JSON.stringify(x.state.contractOffers);
+  check('the fixture has something to lose', market.length > 2 && board.length > 2);
+
+  x.station.dock('resumed');
+  eq('a resumed dock leaves the market the restore just put back',
+    JSON.stringify(x.state.market), market);
+  eq('...and the bulletin board with it', JSON.stringify(x.state.contractOffers), board);
+
+  // Not vacuous in the direction that matters: arriving is still a new day at
+  // a new station, and it still rolls.
+  const y = stocked();
+  y.station.dock();
+  check('...while actually arriving still rolls a fresh board',
+    JSON.stringify(y.state.contractOffers) !== board
+    && JSON.stringify(y.state.market) !== market);
+
+  // And a boot with nothing to resume is the third case: `freshState` leaves
+  // both EMPTY, so a station that did not stock them would open on nothing.
+  const z = setup();
+  eq('a fresh state starts with no market at all', z.state.market.length, 0);
+  seedWorld(4_601);
+  z.station.dock('fresh');
+  check('a fresh boot stocks the station it has no snapshot for',
+    z.state.market.length > 0 && z.state.contractOffers.length > 0);
+}
+
+// The draw fixture above covers an arrival. A `fresh` dock makes the same four
+// draws in the same order — it is the same code path — and a `resumed` one
+// makes two fewer, which is safe ONLY because `Persistence.restore` assigns
+// `snap.rng` on the line after the one that gets here. Pin both readings, so
+// that moving a draw across the new branch is a failing test rather than a
+// silently different galaxy.
+{
+  const x = setup();
+  seedWorld(190_019);
+  x.station.dock('fresh');
+  eq('a fresh dock draws exactly what an arrival draws',
+    random().toFixed(12), '0.643952403218');
+
+  const y = setup();
+  seedWorld(190_019);
+  y.station.dock('resumed');
+  const resumed = random().toFixed(12);
+  check('a resumed dock skips the two rolls it would have overwritten',
+    resumed !== '0.643952403218', resumed);
 }

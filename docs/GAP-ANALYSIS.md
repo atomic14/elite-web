@@ -157,10 +157,13 @@ one table in [ELITE-A.md](ELITE-A.md).
   four-bank console is one of the most recognisable things about the 1984
   screen. So the segments are quarters of one pool, and nothing about the pool
   changed. `ENERGY_BANKS` in `src/game/systems.ts` is the single place that
-  says four: `LOW_ENERGY` is derived from it, so the segment the gauge turns
+  says four: `LOW_ENERGY` is derived from it, and `energyLow()` is the single
+  place that says where the last bank BEGINS, so the segment the gauge turns
   red, the ENERGY LOW the step announces and the point at which shields stop
-  recharging are one number seen three ways, and the gauge's own segments are
-  built from it rather than written into `play.html`.
+  recharging are one comparison read three times — inclusive, so there is no
+  value at which the shields are frozen and the console is quiet (TODO 48
+  found one: 64 exactly). The gauge's own segments are built from
+  `ENERGY_BANKS` rather than written into `play.html`.
 - **The mining laser is still a fitting, not a mount.** The pack gives every
   flyable hull a mining-laser byte and `playerLaserHit()` answers for it, but
   Harmless has no fourth mount to select: `miningLaser` is equipment that

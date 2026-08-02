@@ -43,7 +43,7 @@ import { stepEncounters, AMBUSH_STANDOFF } from './encounters.ts';
 import { spawnArrivingTrader } from './spawning.ts';
 import { TRADER_ARRIVAL_RANGE } from './world.ts';
 import { planDocking, dockingOutcome } from './docking.ts';
-import { regenerate, updateCabinTemp, scoopFuel, LOW_ENERGY } from './systems.ts';
+import { regenerate, updateCabinTemp, scoopFuel, energyLow } from './systems.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { npcHitChance, npcLaserDamageToPlayer, NPC_VS_NPC_HIT } from './gunnery.ts';
 import { npcCrossfireDamage } from './npc-energy.ts';
@@ -497,8 +497,9 @@ export class WorldStep {
       }
     }
 
-    // flashing low-energy warning
-    if (sys.energy < LOW_ENERGY) {
+    // flashing low-energy warning — `energyLow` and nothing else, so the console
+    // cannot be quiet at a bank the shields have already stopped recovering at
+    if (energyLow(sys.energy)) {
       session.energyLowTimer -= dt;
       if (session.energyLowTimer <= 0) {
         session.energyLowTimer = 1.2;

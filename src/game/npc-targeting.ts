@@ -12,17 +12,17 @@
 import type { NpcShip } from './npc.ts';
 import type { NpcRole } from './ship-roles.ts';
 import type * as THREE from 'three';
+// A pirate this close to the player has a better prospect in front of it and
+// will not wander off after a trader. It is the SAME 9,000 the ship engages at
+// and the condition light reports, so it is imported rather than restated —
+// see player-interest.ts for what a second copy of it costs.
+import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
 
 /** How far a pirate will look for a trader to rob. */
 export const PIRATE_HUNT_RANGE = 6000;
 /** Police sweep a little wider — they are looking for trouble on purpose. */
 export const POLICE_HUNT_RANGE = 6500;
 export const HUNTER_RANGE = 6000;
-/**
- * A pirate this close to the player has a better prospect in front of it and
- * will not wander off after a trader.
- */
-export const PLAYER_INTEREST_RANGE = 9000;
 
 /** Nearest living NPC of `role` to `from`, within `range`. */
 function nearest(
