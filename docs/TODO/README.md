@@ -10,23 +10,24 @@ were completed through commit `09278b7`.
 
 ## The combat trainer
 
-Progress: **4 / 9 complete**. `T` at any station is where Chris playtests, so
+Progress: **5 / 9 complete**. `T` at any station is where Chris playtests, so
 this is the room that has to be good. The findings came from a walk through the
 live panel plus the screens' own code, after the Elite-A phase changed what the
 numbers mean.
 
-31 to 34 are done: the panel is grouped, the career switch is fenced, a brain
+31 to 35 are done: the panel is grouped, the career switch is fenced, a brain
 row says what that brain does in a fight, you can tell you are in an exercise,
-and the report now shows how the OPPOSITION flew — their speed, the spread of
-ranges they held and their completed attack runs, on the same definitions
-`train/flight-probe.ts` reads. Do 35 next. 37 is independent of the rest and can
-go at any point.
+the report shows how the OPPOSITION flew — their speed, the spread of ranges
+they held and their completed attack runs, on the same definitions
+`train/flight-probe.ts` reads — and ENTER on the report now holds two records
+side by side, refusing to difference a pair that is not one fight flown twice.
+Do 36 next. 37 is independent of the rest and can go at any point.
 
 - [x] 31 — [Give the setup panel a shape, and fence the career switch](31-trainer-setup-panel-hierarchy.md) — UI/UX · high · medium
 - [x] 32 — [Make choosing a brain a real choice](32-trainer-brain-choice-is-legible.md) — UI/UX · high · medium
 - [x] 33 — [Tell the pilot they are in an exercise](33-exercise-hud.md) — UI/UX · high · medium
 - [x] 34 — [Put the turret tell in the report](34-report-shows-how-they-flew.md) — UI/UX · high · medium
-- [ ] 35 — [Compare two records without leaving the room](35-compare-two-records.md) — UI/UX · medium · medium
+- [x] 35 — [Compare two records without leaving the room](35-compare-two-records.md) — UI/UX · medium · medium
 - [ ] 36 — [Start the exercise where the pilot can see it](36-exercise-opening-geometry.md) — UI/UX · medium · small
 - [ ] 37 — [Do not throw away a tap that arrived in a busy frame](37-input-taps-are-not-lost.md) — correctness · medium · small
 - [ ] 38 — [The console still shows four energy banks](38-energy-reads-as-one-bank.md) — UI/UX · low · small

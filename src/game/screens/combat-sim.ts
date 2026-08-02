@@ -1,17 +1,21 @@
-// The combat trainer's front of house: pick a fight, then read the report.
+// The combat trainer's front of house: pick a fight, read the report, hold two
+// of them against each other.
 //
-// The last piece of docs/COMBAT-SIM.md, and the smallest, because the three
-// modules underneath it already answer everything — combat-sim-scenarios.ts says
-// who can be sent at you, combat-sim.ts runs the exercise, combat-sim-report.ts
-// counts what happened — and combat-sim-setup.ts beside it owns the draft. What
-// is left here is the keyboard, the two panels, and the export.
+// The last piece of docs/COMBAT-SIM.md, and the smallest, because the modules
+// underneath it already answer everything — combat-sim-scenarios.ts says who can
+// be sent at you, combat-sim.ts runs the exercise, combat-sim-report.ts counts
+// what happened, combat-sim-compare.ts decides what two records may honestly be
+// said to show — and combat-sim-setup.ts beside it owns the draft. What is left
+// here is the keyboard, the three panels, and the export.
 //
 // **The exercise is NOT this screen**, and that correction is in the spec.
 // `Game.mode` is derived (`screens.topId ?? baseMode`) and `updateFlight()` runs
 // only while it is `'flight'`, so the world does not step at all while an
-// overlay is open. So one screen id holds two PANELS with the fight in between:
-// pick a fight, launch, fly it as ordinary flight with a different `StepHost`,
-// and the Game re-opens this screen on the report panel when it tears down.
+// overlay is open. So one screen id holds three PANELS with the fight in
+// between: pick a fight, launch, fly it as ordinary flight with a different
+// `StepHost`, and the Game re-opens this screen on the report panel when it
+// tears down. Compare is the report panel's own second view — ENTER, from the
+// record you want as the baseline.
 //
 // It obeys the Screen contract like every other overlay: it never sets the mode,
 // never touches the Game, and returns an outcome. What it needs from the Game is
@@ -21,6 +25,9 @@
 import type { CommanderData } from '../commander.ts';
 import type { ExerciseFit } from '../combat-sim.ts';
 import { combatSimJson, type CombatSimReport } from '../combat-sim-report.ts';
+import {
+  compareReports, comparisonJson, type SimComparison,
+} from '../combat-sim-compare.ts';
 import type { ExerciseSpec } from '../combat-sim-scenarios.ts';
 import {
   defaultGroup, fitFrom, freshDraft, freshSeed, setupCells, specFrom,
@@ -30,7 +37,9 @@ import {
   brainNote, brainNoteReserve, careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
 } from './combat-sim-notes.ts';
 import type { LiveBrainId } from '../brain-names.ts';
-import { renderCombatSimSetup, renderCombatSimReport } from '../../ui/screens.ts';
+import {
+  renderCombatSimSetup, renderCombatSimReport, renderCombatSimCompare,
+} from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import type { Input } from '../../engine/input.ts';
 import { sfx } from '../../audio.ts';
@@ -70,11 +79,19 @@ export class CombatSimScreen implements Screen {
 
   private readonly ctx: () => CombatSimContext;
 
-  /** setup or report — two panels, one screen id, the fight in between */
-  private panel: 'setup' | 'report' = 'setup';
+  /** setup, report or compare — three panels, one screen id, the fight in between */
+  private panel: 'setup' | 'report' | 'compare' = 'setup';
   private row = 0;
-  /** which of the exercise's records the report panel is showing */
+  /** which of the exercise's records the report panel is showing — THIS */
   private record = 0;
+  /**
+   * The OTHER record the compare panel is holding this one against — THAT.
+   *
+   * Kept beside `record` rather than derived, because the compare panel's whole
+   * gesture is to pin one record and walk the other: `←/→` moves this index and
+   * leaves `record` where it was.
+   */
+  private other = 0;
   /**
    * What has been picked, or null until the screen is first opened.
    *
@@ -106,13 +123,26 @@ export class CombatSimScreen implements Screen {
     // launches of the same setup), and a console or an exercise teardown can
     // have moved `state.brains` underneath it since.
     this.draft.live = this.ctx().liveBrain;
-    if (this.panel === 'report' && this.ctx().reports.length === 0) this.panel = 'setup';
+    const n = this.ctx().reports.length;
+    if (this.panel === 'report' && n === 0) this.panel = 'setup';
+    // A pair needs two. The ring only grows while this screen is closed, but a
+    // panel that reopened onto one record would have nothing to compare it with.
+    if (this.panel === 'compare' && n < 2) this.panel = n ? 'report' : 'setup';
     this.render();
   }
 
   render(): void {
+    const reports = this.ctx().reports;
+    if (this.panel === 'compare') {
+      renderCombatSimCompare({
+        compare: this.pair(),
+        thisIndex: this.record,
+        thatIndex: this.other,
+        total: reports.length,
+      });
+      return;
+    }
     if (this.panel === 'report') {
-      const reports = this.ctx().reports;
       this.record = clamp(this.record, 0, reports.length - 1);
       renderCombatSimReport(reports[this.record], this.record, reports.length);
       return;
@@ -137,12 +167,13 @@ export class CombatSimScreen implements Screen {
 
   /** A click on a row selects it — the same path the arrow keys take. */
   select(row: number): void {
-    if (this.panel === 'report' || !this.draft) return;
+    if (this.panel !== 'setup' || !this.draft) return;
     this.row = clamp(row, 0, setupCells(this.draft).length - 1);
     this.render();
   }
 
   input(i: Input): ScreenOutcome {
+    if (this.panel === 'compare') return this.compareInput(i);
     return this.panel === 'report' ? this.reportInput(i) : this.setupInput(i);
   }
 
@@ -220,6 +251,18 @@ export class CombatSimScreen implements Screen {
       this.panel = 'setup';
       return this.repaint();
     }
+    // ENTER is the launch key on the setup panel and free here, so comparing
+    // costs no new binding: the report's own keys already spend ←/→, C and X,
+    // and ESC is the way back. The gesture reads the same on both panels —
+    // ENTER is what you press when you have chosen something.
+    if (i.pressed('Enter')) {
+      if (n < 2) return this.refuse('NEED TWO RECORDS TO COMPARE');
+      // The one before it: two records flown back to back on one setup is the
+      // A/B, so the pair the pilot most likely wants is already made.
+      this.other = cycle(this.record, n, -1);
+      this.panel = 'compare';
+      return this.repaint();
+    }
     const left = i.pressed('ArrowLeft');
     const right = i.pressed('ArrowRight');
     if (left || right) {
@@ -227,9 +270,54 @@ export class CombatSimScreen implements Screen {
       return this.repaint();
     }
     const all = i.held('ShiftLeft', 'ShiftRight');
-    if (i.pressed('KeyC')) return this.copy(all);
-    if (i.pressed('KeyX')) return this.download(all);
+    if (i.pressed('KeyC')) return this.copy(this.json(all), plural(all ? n : 1));
+    if (i.pressed('KeyX')) return this.download(this.json(all), this.stem(all), plural(all ? n : 1));
     return 'stay';
+  }
+
+  // --- the compare panel ----------------------------------------------------
+
+  private compareInput(i: Input): ScreenOutcome {
+    const n = this.ctx().reports.length;
+    // ESC goes back to the record you opened it from, and so does ENTER: the
+    // key that opened the pair closes it again.
+    if (i.pressed('Escape') || i.pressed('Enter')) {
+      this.panel = 'report';
+      return this.repaint();
+    }
+    const left = i.pressed('ArrowLeft');
+    const right = i.pressed('ArrowRight');
+    if (left || right) {
+      // The same key that walks the ring on the report panel, walking THAT and
+      // leaving THIS pinned — and never landing on THIS, because a record
+      // compared with itself is not a comparison.
+      do {
+        this.other = cycle(this.other, n, right ? 1 : -1);
+      } while (this.other === this.record && n > 1);
+      return this.repaint();
+    }
+    if (i.pressed('KeyC')) return this.copy(comparisonJson(this.pair()), 'PAIR');
+    if (i.pressed('KeyX')) {
+      const c = this.pair();
+      return this.download(comparisonJson(c),
+        `pair-seed${c.a.seed}-vs-seed${c.b.seed}`, 'PAIR');
+    }
+    return 'stay';
+  }
+
+  /**
+   * The two records the compare panel is showing, held against each other.
+   *
+   * Derived on demand and kept nowhere: `compareReports` is a pure function of
+   * two finished records, so there is no comparison state to go stale when the
+   * ring grows.
+   */
+  private pair(): SimComparison {
+    const reports = this.ctx().reports;
+    this.record = clamp(this.record, 0, reports.length - 1);
+    this.other = clamp(this.other, 0, reports.length - 1);
+    if (this.other === this.record) this.other = cycle(this.record, reports.length, -1);
+    return compareReports(reports[this.record], reports[this.other]);
   }
 
   /** The shown record, or the whole set — the JSON is the deliverable. */
@@ -238,7 +326,14 @@ export class CombatSimScreen implements Screen {
     return all ? JSON.stringify(reports, null, 1) : combatSimJson(reports[this.record]);
   }
 
-  private copy(all: boolean): ScreenOutcome {
+  /** What a downloaded file of records is called. */
+  private stem(all: boolean): string {
+    const reports = this.ctx().reports;
+    const r = reports[this.record];
+    return all ? `${reports.length}-records` : `${r.mode}-${r.outcome}-seed${r.seed}`;
+  }
+
+  private copy(json: string, what: string): ScreenOutcome {
     // Say it NOW, and correct it if the write is refused.
     //
     // Not `.then(() => message('COPIED'))`, which is what this was, because the
@@ -248,27 +343,27 @@ export class CombatSimScreen implements Screen {
     // pilot got no feedback whatsoever. X is the fallback and the records are on
     // `window.__simLog` either way, but silence is the one thing a key must not
     // do.
-    this.ctx().message(`${plural(all ? this.ctx().reports.length : 1)} TO CLIPBOARD`, 3);
-    navigator.clipboard?.writeText(this.json(all))
+    this.ctx().message(`${what} TO CLIPBOARD`, 3);
+    navigator.clipboard?.writeText(json)
       .catch(() => this.ctx().message('CLIPBOARD REFUSED — PRESS X FOR A FILE', 5));
     return 'stay';
   }
 
   /**
-   * The record as a file. `screens/saves.ts`'s `exportCommanderFile` is the
-   * idiom — a Blob, an anchor, a click, and revoke it again.
+   * JSON as a file. `screens/saves.ts`'s `exportCommanderFile` is the idiom — a
+   * Blob, an anchor, a click, and revoke it again.
+   *
+   * One record, every record or the PAIR: what is being written is the caller's
+   * question, and this is the one place that knows how to write it.
    */
-  private download(all: boolean): ScreenOutcome {
-    const reports = this.ctx().reports;
-    const r = reports[this.record];
-    const stem = all ? `${reports.length}-records` : `${r.mode}-${r.outcome}-seed${r.seed}`;
-    const blob = new Blob([this.json(all)], { type: 'application/json' });
+  private download(json: string, stem: string, what: string): ScreenOutcome {
+    const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `combat-sim-${stem}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    this.ctx().message(`${plural(all ? reports.length : 1)} EXPORTED`, 3);
+    this.ctx().message(`${what} EXPORTED`, 3);
     return 'stay';
   }
 

@@ -200,6 +200,15 @@ source, engagement ranges, time on each other's six, your own flight
 envelope) which exports as JSON to the clipboard or a file, and lands on
 `window.__simLog` for a console session or an agent to read.
 
+**←→** walks the recent records and **ENTER** holds two of them side by side —
+this, that, and the difference — because the method is an A/B: same seed, same
+scenario, two brains. It only subtracts them when they really are one fight
+flown twice. Two records on different seeds, scenarios, modes, waves, hulls or
+fit-outs are not an A/B, so it names exactly which fields differ and shows no
+difference column at all; different **brains** is the point, different anything
+else is a confound. **C** and **X** then take the pair, since the pair is the
+finding.
+
 ### Market
 
 ↑↓ select · B buy · V sell · ESC exit

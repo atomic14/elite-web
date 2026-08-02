@@ -203,6 +203,23 @@ recent exercises on `window.__simLog`, so a console session or an agent can read
 them without going through the DOM. The JSON is the deliverable: it is what gets
 fed back into judging a training run.
 
+**Two records, side by side** (TODO 35). The method above is an A/B — same seed,
+same scenario, two brains — and doing it by memory across two screens was the
+one part of it the tool did not help with. `←/→` walks the ring; ENTER holds the
+record you are on against another one, as this / that / difference, and `C` /
+`X` take the PAIR because the pair is the finding.
+
+It is `combat-sim-compare.ts`, it is derived from two finished records, and it
+adds no accumulation and no sampling. The load-bearing half is the REFUSAL: two
+records on different seeds, scenarios, modes, waves, player fit-outs, opponent
+counts, hulls, builds, tiers or roles — or from either side of a `schema`
+change — are not an A/B, so it names exactly which fields differ, with both
+values, and paints no difference column at all. Different BRAINS is the point;
+different anything else is a confound. Matching brains are not refused but are
+called what they are: a repeat of one fight, not a comparison of two. And there
+is no verdict, no score and no colour by sign — the same refusal as the turret
+index, for the same reason.
+
 ## Why it is a good agent test
 
 Deterministic from a seed, ends by itself, emits a structured report, drivable

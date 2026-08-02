@@ -264,6 +264,9 @@ src/
                             flew, and the JSON that exports
     combat-sim-strip.ts     how it is going, WHILE it is going: the cockpit
                             strip's model, read off the round's own recorder
+    combat-sim-compare.ts   two records held against each other — and what may
+                            NOT be differenced: a confound is named, not shown
+                            as a result
     combat-sim-safety.ts    the three layers of "nothing that happens in the
                             simulator leaves it"
 
@@ -292,7 +295,8 @@ src/
       data.ts               the 1984 manual entry, plus today's local news
       saves.ts              commander files, and the saves/naming screens
       briefing.ts           a mission, several pages, read with left and right
-      combat-sim.ts         the trainer's front of house: pick a fight, read it
+      combat-sim.ts         the trainer's front of house: pick a fight, read the
+                            report, hold two records against each other
       combat-sim-setup.ts   what the pilot picked, and the rows that show it
       combat-sim-notes.ts   what the panel says under the rows, and the tallest
                             it can ever say it — the reserve that stops a note

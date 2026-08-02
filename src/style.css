@@ -472,6 +472,17 @@ body.screen-open #exercise { display: none; }
 }
 #screen .fence .keyline { margin-top: 6px; }
 
+/*
+ * A cell in the compare view that says the two records agree.
+ *
+ * Quietened rather than hidden, because the eye is meant to land on the rows
+ * where the two fights actually diverged — and a blank cell reads as a missing
+ * measurement, which is a different thing entirely. No colour by SIGN: more
+ * damage taken is worse for a pilot and exactly what a playtester is hunting
+ * for, and a green-and-red column would be deciding which of those you are.
+ */
+#screen td.same { opacity: 0.4; }
+
 /* a hint line that breaks BETWEEN items, never inside one */
 #screen .hints span { white-space: nowrap; }
 #screen .hints span + span::before { content: "\00b7"; margin-right: 6px; }

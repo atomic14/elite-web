@@ -17,6 +17,9 @@ import type { ChartState } from '../game/chart-state.ts';
 import {
   PASS_CLOSE, PASS_FAR, type CombatSimReport,
 } from '../game/combat-sim-report.ts';
+import type {
+  CompareGroup, SimComparePanel,
+} from '../game/combat-sim-compare.ts';
 import type { SimSetupPanel, SimSetupRow } from '../game/screens/combat-sim-setup.ts';
 import { elementById, inertElement } from '../engine/inert-dom.ts';
 
@@ -1055,8 +1058,87 @@ export function renderCombatSimReport(
     </div>
     <div class="keyline">
       RECORD ${index + 1} OF ${total}${total > 1 ? ' &middot; &larr;&rarr; ANOTHER' : ''}
+      ${total > 1 ? '&middot; ENTER COMPARE TWO' : ''}
       &middot; C COPY &middot; X EXPORT (&#8679;X ALL ${total})
       &middot; ALSO ON __simLog &middot; ESC BACK
+    </div>
+  `);
+}
+
+/** `RECORD 3 &middot; SEED 90210 &middot; 34.2s &middot; CLEARED` — which record a column is. */
+const compareColumn = (which: string, r: CombatSimReport, index: number): string => `
+    <div>${which}: RECORD ${index + 1} &middot; ${r.scenario.toUpperCase()}
+      &middot; ${r.mode.toUpperCase()}${r.wave === undefined ? '' : ` &middot; WAVE ${r.wave}`}
+      &middot; SEED ${r.seed} &middot; ${r.seconds.toFixed(1)}s
+      &middot; ${r.outcome.toUpperCase()}</div>`;
+
+/**
+ * Two records side by side — the A/B the trainer's whole method is.
+ *
+ * A dumb painter over `compareReports()`, which has already decided whether the
+ * pair may be subtracted at all and formatted every figure in its own unit. The
+ * one rule this renderer holds is that a null `delta` is painted as NOTHING: on
+ * a mismatched pair the difference column does not exist, rather than existing
+ * with dashes in it, because a column that is there is a column that gets read.
+ */
+export function renderCombatSimCompare(p: SimComparePanel): void {
+  const c = p.compare;
+  const cols = c.comparable ? 4 : 3;
+  const table = (groups: readonly CompareGroup[]): string => `<table>
+      <tr><th>&nbsp;</th><th class="num">THIS</th><th class="num">THAT</th>
+        ${c.comparable ? '<th class="num">&Delta;</th>' : ''}</tr>
+      ${groups.map((g) => `
+      <tr class="grouphead"><td colspan="${cols}">${g.heading}</td></tr>
+      ${g.rows.map((r) => `<tr><td>${r.label}</td>
+        <td class="num">${r.a}</td><td class="num">${r.b}</td>
+        ${r.delta === null ? '' : `<td class="num${r.delta === 'SAME' ? ' same' : ''}">${r.delta}</td>`}
+      </tr>`).join('')}`).join('')}
+    </table>`;
+  const half = Math.ceil(c.groups.length / 2);
+  const respects = `IN ${c.confounds.length} `
+    + `${c.confounds.length === 1 ? 'RESPECT' : 'RESPECTS'}`;
+  const confounds = `
+    <div class="fence">
+      <div class="keyline note-warn">NOT AN A/B &mdash; THESE TWO RECORDS ARE OF
+        DIFFERENT FIGHTS, ${respects}.
+        NO DIFFERENCE IS SHOWN, BECAUSE IT WOULD NOT MEAN ANYTHING.</div>
+      <table>
+        <tr><th>WHAT DIFFERS</th><th class="num">THIS</th><th class="num">THAT</th></tr>
+        ${c.confounds.map((f) => `<tr><td>${f.field}</td>
+          <td class="num">${f.a}</td><td class="num">${f.b}</td></tr>`).join('')}
+      </table>
+    </div>`;
+  const brains = `
+    <table>
+      <tr><th>WHAT FLEW</th><th class="num">THIS</th><th class="num">THAT</th></tr>
+      ${c.brains.map((b) => `<tr><td>${b.index + 1} ${b.hull}</td>
+        <td class="num">${b.a}</td>
+        <td class="num${b.same ? ' same' : ''}">${b.b}</td></tr>`).join('')}
+    </table>
+    ${c.sameBrains ? `<div class="keyline note-calm">THE SAME BRAINS BOTH TIMES
+      &mdash; THIS IS A REPEAT OF ONE FIGHT, NOT AN A/B</div>` : ''}`;
+  show(`
+    <h2>COMPARE &mdash; RECORD ${p.thisIndex + 1} AND ${p.thatIndex + 1}</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center">
+      ${compareColumn('THIS', c.a, p.thisIndex)}
+      ${compareColumn('THAT', c.b, p.thatIndex)}
+    </div>
+    ${c.comparable ? brains : confounds}
+    <div class="chartrow">
+      ${table(c.groups.slice(0, half))}
+      ${table(c.groups.slice(half))}
+    </div>
+    <div class="buttons">
+      <button data-key="KeyC">C &mdash; COPY PAIR</button>
+      <button data-key="KeyX">X &mdash; EXPORT PAIR</button>
+      <button data-key="Escape">ESC &mdash; BACK</button>
+    </div>
+    <div class="keyline hints">
+      <span>&larr;&rarr; THE OTHER RECORD (${p.total} IN THE RING)</span>
+      <span>C COPY PAIR</span><span>X EXPORT PAIR</span>
+      ${c.comparable ? '<span>&Delta; IS THAT MINUS THIS</span><span>PP IS PERCENTAGE POINTS</span>' : ''}
+      <span>ESC BACK</span>
     </div>
   `);
 }
