@@ -9,7 +9,7 @@
 // snapshot carries none, and `state.career` is a read of the record with one
 // writer.
 //
-// Three things are asserted, and the first two are the reproductions from the
+// Four things are asserted, and the first two are the reproductions from the
 // item, driven through the real `Game`:
 //
 //   1. IMPORTING A FILE. The importer goes to trouble to give the record a
@@ -20,7 +20,13 @@
 //      leaving before it leaves (saves.ts) — and the boot's own `Station.dock`
 //      wrote the save you had just loaded straight back over it. A day-300
 //      career, one Enter, no confirmation, gone.
-//   3. ONE HOME, held by a source scan. A scan is blunt, so each one is paired
+//   3. STARTING A NEW ONE, which is the THIRD way a career comes into
+//      existence and the only one a player can ask for (docs/TODO/45). It
+//      cleared the boot pointer, and a cleared pointer means "lost", which
+//      `bootSave` answers with the newest record on the shelf — so NEW
+//      COMMANDER resumed the career it had just promised to put down, name
+//      included, and went on autosaving into the same keys.
+//   4. ONE HOME, held by a source scan. A scan is blunt, so each one is paired
 //      with a proof that it can still fail — the idiom is
 //      test/damage-paths.test.ts:22, and docs/TODO/49 is the catalogue of what
 //      happens without it.
@@ -32,9 +38,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { Game } from '../src/game/game.ts';
 import { headlessShell } from '../src/engine/shell.ts';
 import { seedWorld } from '../src/game/rng.ts';
-import { newCommander } from '../src/game/commander.ts';
+import { DEFAULT_NAME, newCommander } from '../src/game/commander.ts';
 import { MAX_NAMED_SAVES, commanderOf, dockId, fileId } from '../src/game/save-file.ts';
-import { bootSave, makeRecord, readSave, writeNamedSave } from '../src/game/storage.ts';
+import {
+  bootSave, listSaves, makeRecord, readSave, writeNamedSave,
+} from '../src/game/storage.ts';
 import { importSaveFile } from '../src/game/screens/save-transfer.ts';
 import type { SavesContext } from '../src/game/screens/saves.ts';
 import { autoKeys, installLocation, installStore, sameKeys } from './save-fixtures.ts';
@@ -181,7 +189,71 @@ console.log('\nloading a named save leaves the checkpoint it came from');
   }
 }
 
-// --- 3. one home ------------------------------------------------------------
+// --- 3. starting a new commander --------------------------------------------
+
+console.log('\nNEW COMMANDER starts a career, and puts the old one down whole');
+{
+  const { store, restore } = installStore();
+  const loc = installLocation();
+  try {
+    seedWorld(20_260_805);
+    const g = new Game(() => headlessShell());
+    const career = g.state.career;
+    g.state.commander.name = 'CHRIS';
+    g.state.commander.credits = 999_999;
+    g.state.commander.kills = 42;
+    g.enterDocked();
+    eq('a career worth keeping, with a save of its own on the shelf',
+      writeNamedSave('KEEP ME', career, g.captureSnapshot(), MAX_NAMED_SAVES), 'ok');
+
+    g.newCommanderGame();
+    check('the page reloads, which is how every load in the commander file works',
+      loc.reloads() === 1);
+    // ...and this is the state the panel promises stays where it is: the career
+    // being set aside checkpoints on its way out, so the shelf holds the run
+    // exactly as it was left.
+    const before = autoKeys(career);
+    const kept = JSON.stringify(readSave(fileId('KEEP ME')));
+    eq('...having written the career it is putting down',
+      commanderOf(readSave(dockId(career))!)?.credits, 999_999);
+
+    seedWorld(20_260_805);
+    const fresh = new Game(() => headlessShell());
+    const c = fresh.state.commander;
+    check('the reload is a NEW COMMANDER: Lave, 100.0 Cr, no kills, no name of yours',
+      c.credits === 1_000 && c.kills === 0 && c.systemIndex === 7
+      && c.name === DEFAULT_NAME);
+    check('...on a career no save on the shelf is using',
+      fresh.state.career !== career
+      && listSaves().every((s) => s.record.career !== fresh.state.career));
+
+    fresh.enterDocked();
+    check('...so once it has docked, every autosave key of the old career is '
+      + 'byte-identical', sameKeys(before, autoKeys(career)));
+    eq('...and the save that was named is untouched',
+      JSON.stringify(readSave(fileId('KEEP ME'))), kept);
+    check('...while the new career has a checkpoint of its own',
+      commanderOf(readSave(dockId(fresh.state.career))!)?.credits === 1_000);
+
+    // A store that will not take the pointer has not put anything down, and
+    // reloading anyway would drop the player back into the career they were
+    // just promised they were leaving.
+    store.failKeys = /-boot$/;
+    const reloads = loc.reloads();
+    fresh.newCommanderGame();
+    store.failKeys = null;
+    check('a pointer the store refuses is not reloaded on as though it had landed',
+      loc.reloads() === reloads
+      && bootSave()?.record.career === fresh.state.career);
+    check('...and the player is told, rather than left with the panel\'s promise',
+      fresh.state.session.messageText.includes('STORAGE FULL'));
+  } finally {
+    loc.restore();
+    restore();
+  }
+}
+
+// --- 4. one home ------------------------------------------------------------
 
 // The idiom is test/npc.test.ts:285 — a value that had two homes, banned by
 // name from the file that must not restate it. Here it is a FIELD: which career

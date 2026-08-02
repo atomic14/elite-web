@@ -16,7 +16,8 @@
 //     <ns>save:file:<NAME>            a save the player named
 //     <ns>save:auto:<CAREER>:dock     the docked checkpoint
 //     <ns>save:auto:<CAREER>:fly:<n>  the in-flight ring
-//     <ns>boot                        which of them the next boot resumes
+//     <ns>boot                        which of them the next boot resumes —
+//                                     or `new`, meaning none of them (TODO 45)
 //
 // An autosave cannot overwrite a named save because it cannot ADDRESS one: the
 // two live under different id shapes and the shapes are built here, from a name
@@ -308,8 +309,22 @@ export function clearFlightSaves(career: string): void {
 
 // --- which save the next boot resumes ---------------------------------------
 
-export function setBootId(id: string): void {
-  writeItem(BOOT_KEY(), id);
+/**
+ * The pointer's one value that is not a save id: START A NEW COMMANDER.
+ *
+ * `bootSave()` falls back to the newest record on the shelf when the pointer is
+ * missing, because a LOST pointer is a pointer whose save is still the one you
+ * were playing. Setting a new commander aside is the opposite intent and the
+ * key space could not say it, so clearing the pointer resumed the very career
+ * it meant to put down — career name included, so its autosaves kept landing on
+ * the same keys (docs/TODO/45). "None of them" is now a thing the pointer can
+ * say. It cannot collide with a save: every save id starts `save:`.
+ */
+const NEW_CAREER = 'new';
+
+/** @returns whether the pointer actually moved. */
+export function setBootId(id: string): boolean {
+  return writeItem(BOOT_KEY(), id);
 }
 
 export function clearBootId(): void {
@@ -317,15 +332,30 @@ export function clearBootId(): void {
 }
 
 /**
+ * Put every save on the shelf DOWN: the next boot starts a fresh commander.
+ *
+ * Nothing is written and nothing is removed — a career is set aside by aiming
+ * the pointer away from it, which is why this cannot cost anybody a save.
+ *
+ * @returns false when the store would not take the pointer, so the caller can
+ * say so rather than reload into the career it promised to leave.
+ */
+export function bootNewCareer(): boolean {
+  return writeItem(BOOT_KEY(), NEW_CAREER);
+}
+
+/**
  * The save this session continues.
  *
- * The pointer, when it names something that is still there. Otherwise the
- * newest record on the shelf, which is the best guess left after a pointer is
- * lost — and null when the shelf is empty, which is a new commander.
+ * The pointer, when it names something that is still there — or nothing at all
+ * when it says `NEW_CAREER`. Otherwise the newest record on the shelf, which is
+ * the best guess left after a pointer is LOST, and null when the shelf is
+ * empty, which is a new commander.
  */
 export function bootSave(): { id: string; record: SaveRecord } | null {
   migrateLegacySaves();
   const id = readItem(BOOT_KEY());
+  if (id === NEW_CAREER) return null;
   if (id) {
     const record = readSave(id);
     if (record) return { id, record };
@@ -432,11 +462,19 @@ function recordFromSlot(n: number): { id: string; record: SaveRecord } | null {
 export function migrateLegacySaves(): void {
   const s = store();
   if (!s) return;
-  // the pre-slots blob, exactly as before: it becomes slot 1 if slot 1 is free
+  // The pre-slots blob: it becomes slot 1 if slot 1 is free, and an occupied
+  // slot 1 means an earlier build already promoted it (and may have been played
+  // since) — the same idempotency signal `recordFromSlot` gives the four slots.
+  //
+  // WRITE, PROVE, AND ONLY THEN REMOVE, as below. This line used to delete the
+  // bare key unconditionally, and `writeItem` swallows a quota throw: on a full
+  // store the commander was read, written nowhere, and removed (docs/TODO/44).
   const bare = readItem(LEGACY_BARE());
   if (bare) {
-    if (!readItem(legacyCommanderKey(1))) writeItem(legacyCommanderKey(1), bare);
-    dropItem(LEGACY_BARE());
+    const promoted = readItem(legacyCommanderKey(1)) !== null
+      || (writeItem(legacyCommanderKey(1), bare)
+        && readItem(legacyCommanderKey(1)) === bare);
+    if (promoted) dropItem(LEGACY_BARE());
   }
 
   const pointer = Number(readItem(LEGACY_SLOT_KEY()));
@@ -463,8 +501,11 @@ export function migrateLegacySaves(): void {
 
   if (bootFrom !== null) {
     const target = recordFromSlot(bootFrom);
-    if (target) setBootId(target.id);
-    dropItem(LEGACY_SLOT_KEY());
+    // Which slot was being played is data too, so the old pointer goes only
+    // once the new one has landed — same order, same reason. A refused write
+    // here used to take the answer with it, leaving the next boot to guess at
+    // the first slot with anything in it.
+    if (target && setBootId(target.id)) dropItem(LEGACY_SLOT_KEY());
   }
 }
 

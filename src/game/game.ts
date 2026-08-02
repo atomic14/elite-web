@@ -480,8 +480,8 @@ export class Game {
     this.resize();
 
     // Which career's autosaves this session writes. It comes off the shelf
-    // before anything can write, and `restore()` may replace it with the one
-    // the resumed snapshot was made under — see state.ts, `career`.
+    // before anything can write, and NOTHING replaces it afterwards — the
+    // record owns it and `restore()` has no opinion (TODO 43). See state.ts.
     this.state.career = bootCareer(this.state.commander);
     this.state.living.load(this.state.commander.galaxyState);
     // catch the galaxy up if this save has been away a while
@@ -768,7 +768,14 @@ export class Game {
 
   /** @internal — driven by test/playtest.js */
   newCommanderGame(): void {
-    startNewCommander();
+    if (startNewCommander(this.savesContext())) return;
+    // The pointer did not move, so this session is still the career it was.
+    // Saying nothing would leave the player looking at a confirm panel that
+    // had just promised them Lave and 100.0 Cr.
+    this.pendingNewGame = false;
+    renderDockedMenu(this.system, this.state.commander, this.station.missionText());
+    this.showMessage('STORAGE FULL — YOU ARE STILL FLYING THIS COMMANDER', 5);
+    sfx.refused();
   }
 
   openSaves(): void {

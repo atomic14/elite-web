@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **1 / 10 complete**. Five reviewers with separate lenses; every
+Progress: **3 / 10 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -49,13 +49,21 @@ the `save:auto:<CAREER>:*` keys are built from — the snapshot carries none, an
 a boot no longer writes a docked checkpoint, because a boot has not docked.
 `test/save-transfer.test.ts` is the coverage that module never had.
 
-Order: 44 and 46 lose or corrupt player data. 45 makes the save model
-usable. 47 and 48 are wrong numbers a player or a playtest will act on. 49 is
-why several of these survived, so it is worth doing early rather than last.
+44 and 45 are done, and they are one job because they are the same sentence
+read twice: a save operation must not act on the strength of a write it never
+checked. Migration now removes a legacy key only once the copy reads back — the
+pre-slots commander included, which a full store used to read, write nowhere and
+delete — and NEW COMMANDER aims the boot pointer AWAY from the shelf instead of
+clearing it, because a cleared pointer means "lost" and `bootSave` answers that
+with the career you just asked to put down.
+
+Order: 46 corrupts player data. 47 and 48 are wrong numbers a player or a
+playtest will act on. 49 is why several of these survived, so it is worth doing
+early rather than last.
 
 - [x] 43 — [Loading or importing a save eats a career's checkpoint](43-career-identity-has-two-homes.md) — data loss · critical · medium
-- [ ] 44 — [A full store deletes a pre-slots commander](44-a-full-store-deletes-a-legacy-commander.md) — data loss · critical · small
-- [ ] 45 — ["NEW COMMANDER" does nothing](45-new-commander-does-nothing.md) — save model · high · small
+- [x] 44 — [A full store deletes a pre-slots commander](44-a-full-store-deletes-a-legacy-commander.md) — data loss · critical · small
+- [x] 45 — ["NEW COMMANDER" does nothing](45-new-commander-does-nothing.md) — save model · high · small
 - [ ] 46 — [Docking rerolls the board a restore just loaded](46-docking-rerolls-the-board-a-restore-just-loaded.md) — save integrity · high · medium
 - [ ] 47 — [The trainer credits no damage for ordnance](47-the-trainer-credits-no-damage-for-ordnance.md) — trainer · high · medium
 - [ ] 48 — [The energy dead band, and dying at full shields](48-the-energy-dead-band.md) — combat · high · small

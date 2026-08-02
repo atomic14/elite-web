@@ -33,9 +33,11 @@ import {
   writeDockSave, writeFlightSave, writeNamedSave, writeSave,
 } from '../src/game/storage.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
-import { SavePromptScreen, type SavesContext } from '../src/game/screens/saves.ts';
+import {
+  SavePromptScreen, SavesScreen, type SavesContext,
+} from '../src/game/screens/saves.ts';
 import type { Input } from '../src/engine/input.ts';
-import { type FakeStore, installStore } from './save-fixtures.ts';
+import { type FakeStore, installLocation, installStore } from './save-fixtures.ts';
 import { check, eq } from './harness.ts';
 
 /**
@@ -277,14 +279,47 @@ console.log('\nmigrating the four numbered slots');
     }
   }
 
+  // --- the pointer that says which slot was being played --------------------
+  {
+    const { store, restore } = installStore();
+    try {
+      seedLegacy(store);                  // four slots, and slot 2 is being played
+      store.failKeys = /-boot$/;          // ...and the store will not take the new pointer
+      migrateLegacySaves();
+      store.failKeys = null;
+      eq('a refused boot pointer does not stop the slots crossing', listSaves().length, 4);
+      eq('...but the old pointer stays until the one replacing it has landed',
+        store.held.get(`${NS}slot`), '2');
+
+      migrateLegacySaves();
+      eq('...so the next boot still knows which slot was being played',
+        commanderOf(bootSave()!.record)?.credits, 2000);
+      check('...and only then is it gone', !store.held.has(`${NS}slot`));
+    } finally {
+      restore();
+    }
+  }
+
   // --- the pre-slots key, which is where all of this started ----------------
   {
     const { store, restore } = installStore();
     try {
-      store.held.set(`${NS}commander`, JSON.stringify({ ...newCommander(), credits: 777 }));
+      const bare = JSON.stringify({ ...newCommander(), credits: 777 });
+      store.held.set(`${NS}commander`, bare);
+
+      // A FULL STORE, and this key is the only copy of that commander there is.
+      // It used to be read, written nowhere, and then deleted (docs/TODO/44).
+      store.failKeys = /commander:1$/;
+      migrateLegacySaves();
+      store.failKeys = null;
+      check('a refused write leaves the pre-slots commander exactly where it was',
+        store.held.get(`${NS}commander`) === bare && listSaves().length === 0);
+
       migrateLegacySaves();
       eq('the pre-slots save still finds its way home',
-        commanderOf(listSaves()[0]!.record)?.credits, 777);
+        listSaves().map((s) => commanderOf(s.record)?.credits).join(), '777');
+      check('...and only once it has is the old key gone',
+        !store.held.has(`${NS}commander`));
     } finally {
       restore();
     }
@@ -366,9 +401,10 @@ console.log('\nfly out of a station, die, and take the way back');
 
 // --- the screens -------------------------------------------------------------
 
-console.log('\nthe save prompt');
+console.log('\nthe save prompt, and the list it sits on top of');
 {
-  const { restore } = installStore();
+  const { store, restore } = installStore();
+  const loc = installLocation();
   try {
     const taps: string[] = [];
     const input = {
@@ -428,7 +464,23 @@ console.log('\nthe save prompt');
     taps.push('Escape');
     check('...or left alone if it is not',
       prompt.input(input) === 'stay' && saved.length === 0);
+
+    // --- and the list, whose Enter is a RELOAD ------------------------------
+    //
+    // Aiming the boot pointer is the whole of a load, so a refused pointer
+    // would reload into the newest save on the shelf instead of the one that
+    // was picked — a load nobody asked for, off the back of an unchecked write.
+    said = [];
+    const list = new SavesScreen(ctx as unknown as () => SavesContext);
+    list.open();
+    store.failKeys = /-boot$/;
+    taps.push('Enter');
+    const outcome = list.input(input);
+    store.failKeys = null;
+    check('a save the store cannot aim the boot at is not loaded, and says so',
+      outcome === 'stay' && loc.reloads() === 0 && said.join().includes('STORAGE FULL'));
   } finally {
+    loc.restore();
     restore();
   }
 }

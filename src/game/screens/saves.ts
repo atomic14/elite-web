@@ -14,7 +14,7 @@
 import { generateGalaxy } from '../../galaxy/galaxy.ts';
 import { DEFAULT_NAME, type CommanderData } from '../commander.ts';
 import {
-  clearBootId, deleteSave, listSaves, namedSaveExists, setBootId,
+  bootNewCareer, deleteSave, listSaves, namedSaveExists, setBootId,
 } from '../storage.ts';
 import {
   MAX_SAVE_NAME, newestFirst, normaliseSaveName, summariseSave,
@@ -85,17 +85,30 @@ export function checkpointSummary(ctx: SavesContext): SaveSummary | null {
 }
 
 /**
- * Start a fresh commander at Lave, WITHOUT erasing anything.
+ * Put the career you are flying DOWN, and start a fresh one beside it.
  *
  * Under numbered slots this deleted the slot you were in, because a slot was
- * the only place a career could be. It is not any more: clearing the boot
- * pointer starts a new career beside the saves you already have, and none of
- * them is touched. Reloads rather than resetting in place, for the reason
- * above.
+ * the only place a career could be. It is not any more — so this writes the
+ * checkpoint of the career being set aside (it is one of the saves the panel
+ * promises stays where it is), and then aims the next boot AWAY from the shelf
+ * rather than at nothing.
+ *
+ * That distinction is the whole of docs/TODO/45. Clearing the pointer looks
+ * like the same act and is not: a missing pointer means "lost", and `bootSave`
+ * answers a lost pointer with the newest record on the shelf — which is the
+ * career you just asked to put down, career name and all, so its autosaves went
+ * on landing on the same keys and the confirm panel's "start again at Lave with
+ * 100.0 Cr" was a lie. `bootNewCareer()` says "none of them", and a boot with
+ * no record takes a fresh commander and `freshCareerName()` (storage.ts).
+ *
+ * @returns false when the store would not take the pointer — nothing has
+ * changed and nothing has been lost, but the caller must not claim otherwise.
  */
-export function startNewCommander(): void {
-  clearBootId();
+export function startNewCommander(ctx: SavesContext): boolean {
+  ctx.checkpoint();
+  if (!bootNewCareer()) return false;
   location.reload();
+  return true;
 }
 
 /** The commander file: everything on the shelf, and what you can do to it. */
@@ -166,7 +179,14 @@ export class SavesScreen implements Screen {
       // Write the career we are leaving before we leave it, then boot the one
       // that was picked. Every load in this file is a reload.
       ctx.checkpoint();
-      setBootId(row.id);
+      if (!setBootId(row.id)) {
+        // A refused pointer would reload into the NEWEST save rather than the
+        // one that was picked, which is a load nobody asked for. Say so and
+        // stay: the shelf is untouched either way.
+        ctx.message('STORAGE FULL — COULD NOT SWITCH SAVES', 4);
+        sfx.refused();
+        return 'stay';
+      }
       location.reload();
       return 'stay';
     }

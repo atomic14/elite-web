@@ -26,12 +26,21 @@ export interface FakeStore {
   held: Map<string, string>;
   /** setItem throws from this call onward — a full disk, mid-run */
   failFrom: number;
+  /**
+   * ...or whenever a matching KEY is written, however many writes have gone
+   * before it. A full store refuses everything, but a test about one refusal
+   * has to name the write it is about, and counting them makes the test depend
+   * on the order of writes it is not asserting anything about.
+   */
+  failKeys: RegExp | null;
   writes: number;
 }
 
 /** A `localStorage` this process can read back, count and make fail. */
 export function installStore(): { store: FakeStore; restore: () => void } {
-  const store: FakeStore = { held: new Map(), failFrom: Infinity, writes: 0 };
+  const store: FakeStore = {
+    held: new Map(), failFrom: Infinity, failKeys: null, writes: 0,
+  };
   const fake = {
     get length() { return store.held.size; },
     key: (i: number) => [...store.held.keys()][i] ?? null,
@@ -39,6 +48,7 @@ export function installStore(): { store: FakeStore; restore: () => void } {
     setItem: (k: string, v: string) => {
       store.writes += 1;
       if (store.writes >= store.failFrom) throw new Error('QuotaExceededError');
+      if (store.failKeys?.test(k)) throw new Error('QuotaExceededError');
       store.held.set(k, v);
     },
     removeItem: (k: string) => { store.held.delete(k); },
