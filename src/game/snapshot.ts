@@ -50,6 +50,15 @@ export interface ShipSnapshot {
 export type NpcSnapshot = {
   role: string;
   seed: number;
+  /**
+   * What it IS — see ship-identity.ts. Immutable, so it is beside the state
+   * rather than in it, and OPTIONAL because a world written before this phase
+   * has neither: `savedShipIdentity` returns undefined for those and the ship
+   * comes back on its design's recommended variant, deterministically, from the
+   * role, seed and hull the save already carried.
+   */
+  designId?: string;
+  profileId?: string;
   /** index into `npcs` of whatever it is hunting, or -1 */
   targetIndex: number;
   state: Record<string, unknown>;

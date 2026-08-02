@@ -45,7 +45,12 @@ import { check, eq } from './harness.ts';
 
 console.log('\ncombat simulator report');
 {
+  // The ids are written out rather than imported, for the same reason the
+  // samples below are: this file states the answer independently. They are the
+  // Cobra Mk III (player hull 7) and the recommended exact variants of the
+  // Sidewinder (design 17) and the Mamba (design 18) — ship-identity.ts.
   const loadout: PlayerLoadout = {
+    shipId: 'elite-a:player:7',
     laser: 'beam', missiles: 4, ecm: true, energyUnit: true, energyBomb: false,
   };
   const setup = (over: Partial<ExerciseSetup> = {}): ExerciseSetup => ({
@@ -55,8 +60,16 @@ console.log('\ncombat simulator report');
     sampleHz: 10,
     player: loadout,
     opponents: [
-      { hull: 'Sidewinder', brain: 'pirate-attack-r2', role: 'pirate', tier: 0 },
-      { hull: 'Mamba', brain: 'scripted', role: 'pirate', tier: 1 },
+      {
+        hull: 'Sidewinder',
+        designId: 'elite-a:design:17', profileId: 'elite-a:variant:D:17',
+        brain: 'pirate-attack-r2', role: 'pirate', tier: 0,
+      },
+      {
+        hull: 'Mamba',
+        designId: 'elite-a:design:18', profileId: 'elite-a:variant:F:18',
+        brain: 'scripted', role: 'pirate', tier: 1,
+      },
     ],
     ...over,
   });

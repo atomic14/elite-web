@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { NpcShip } from './npc.ts';
 import type { NpcRole, NpcSpec } from './ship-specs.ts';
+import { savedShipIdentity, type ShipIdentity } from './ship-identity.ts';
 import { buildSystemScene, type SystemScene } from '../world/system-scene.ts';
 import { CargoField } from './cargo.ts';
 import { Effects } from './effects.ts';
@@ -73,8 +74,11 @@ export class World {
   attach(object: THREE.Object3D): void { this.scene.add(object); }
   detach(object: THREE.Object3D): void { this.scene.remove(object); }
 
-  spawn(role: NpcRole, position: THREE.Vector3, seed: number, spec?: NpcSpec): NpcShip {
-    const npc = new NpcShip(role, position, seed, spec);
+  spawn(
+    role: NpcRole, position: THREE.Vector3, seed: number,
+    spec?: NpcSpec, identity?: ShipIdentity,
+  ): NpcShip {
+    const npc = new NpcShip(role, position, seed, spec, identity);
     this.npcs.push(npc);
     this.scene.add(npc.object);
     return npc;
@@ -99,11 +103,20 @@ export class World {
    * NpcState saves it — there is no list here to keep in step. The spec is
    * NOT stored: threatTier and isMissionTarget are in the state, and the hull
    * is derivable from them plus the seed.
+   *
+   * The IDENTITY is stored, and is the exception that proves that rule. It is
+   * immutable, so it is not in the state; and it is derivable today only
+   * because the roster's recommended variant is the only variant anything
+   * picks. Saving the id rather than re-deriving it is what lets a later
+   * blueprint loader choose a different exact build without every old save
+   * quietly turning back into the recommended one.
    */
   captureNpcs(): NpcSnapshot[] {
     return this.npcs.map((n) => ({
       role: n.role,
       seed: n.variantSeed,
+      designId: n.designId,
+      profileId: n.profileId,
       targetIndex: n.npcTarget ? this.npcs.indexOf(n.npcTarget) : -1,
       state: serialiseState(n.state as unknown as Record<string, unknown>),
     }));
@@ -112,6 +125,12 @@ export class World {
   /**
    * Rebuild the fleet. `specFor` decides which hull each one gets — that is a
    * game rule (tier tables, the Constrictor), not a world one.
+   *
+   * A save written before ships had ids carries none, and `savedShipIdentity`
+   * returns undefined for it — so the ship takes the roster's identity for its
+   * hull, which is that design's recommended variant. One deterministic
+   * migration, from the role, seed and hull the save already had, with no draw
+   * from the rng and nothing rerolled.
    */
   restoreNpcs(
     saved: readonly NpcSnapshot[],
@@ -119,7 +138,8 @@ export class World {
   ): void {
     this.clearNpcs();
     for (const n of saved) {
-      const npc = this.spawn(n.role as NpcRole, new THREE.Vector3(), n.seed, specFor(n));
+      const npc = this.spawn(
+        n.role as NpcRole, new THREE.Vector3(), n.seed, specFor(n), savedShipIdentity(n));
       restoreState(npc.state as unknown as Record<string, unknown>, n.state);
     }
     // second pass: the hunting links, now that every ship exists

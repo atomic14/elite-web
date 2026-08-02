@@ -85,6 +85,26 @@ export function eliteANewbFlags(newbRaw: number): EliteANewbFlags {
   };
 }
 
+/**
+ * Every id there is, in source order — the three enumerations.
+ *
+ * Here rather than at the call site because the flat arrays are this file's
+ * secret: a caller that wanted "all the variants" would otherwise import
+ * `ELITE_A_VARIANTS` and map it, which is the one thing the header asks nobody
+ * to do. Copies, so a caller cannot reorder the catalogue by accident.
+ */
+export function eliteAPlayerHullIds(): EliteAPlayerHullId[] {
+  return ELITE_A_PLAYER_HULLS.map((hull) => hull.playerShipId);
+}
+
+export function eliteADesignIds(): EliteADesignId[] {
+  return ELITE_A_DESIGNS.map((design) => design.designId);
+}
+
+export function eliteAVariantIds(): EliteAVariantId[] {
+  return ELITE_A_VARIANTS.map((variant) => variant.variantId);
+}
+
 /** Every slot in one blueprint set, in slot order. */
 export function eliteASlotsForSet(blueprintSet: string): EliteASlot[] {
   return ELITE_A_SLOTS.filter((slot) => slot.blueprintSet === blueprintSet);

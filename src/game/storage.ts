@@ -22,6 +22,7 @@ import {
   newCommander, defaultEquipment, DEFAULT_NAME,
   type CommanderData,
 } from './commander.ts';
+import { migratedPlayerHullId } from './ship-identity.ts';
 
 const SAVE_KEY = 'elite-web-commander';
 
@@ -239,6 +240,10 @@ export function loadCommander(slot = currentSlot()): CommanderData {
     }
     // saves from before weighted ratings: every past kill counts as one
     if (typeof parsed.combatScore !== 'number') parsed.combatScore = parsed.kills ?? 0;
+    // ...and from before ships had ids: every one of them flew a Cobra Mk III.
+    // The rule is migratedPlayerHullId's, not this file's — persistence.ts
+    // restores a commander out of a world save and has to make the same choice.
+    parsed.shipId = migratedPlayerHullId(stored.shipId);
     if (typeof parsed.name !== 'string' || !parsed.name) parsed.name = DEFAULT_NAME;
     return parsed;
   } catch {

@@ -44,6 +44,7 @@ import './gunnery.test.ts';
 import './instrumentation.test.ts';
 import './elite-a-catalogue.test.ts';
 import './elite-a-oracle.test.ts';
+import './ship-identity.test.ts';
 
 // --- the trained brains -----------------------------------------------------
 import './ai.test.ts';

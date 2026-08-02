@@ -35,6 +35,9 @@
 import * as THREE from 'three';
 import { LASER_RANGE, NPC_FIRE_GATE, NPC_LASER_RANGE } from './gunnery.ts';
 import type { DamageSource } from './combat.ts';
+import type {
+  NpcCombatProfileId, PlayerHullId, ShipDesignId,
+} from './ship-identity.ts';
 
 /**
  * The shape of an exported record. Bump it when a field changes meaning or
@@ -149,6 +152,16 @@ export interface OpponentSetup {
   /** the hull's display name, from ship-specs.ts */
   hull: string;
   /**
+   * What it was, in ids — see ship-identity.ts.
+   *
+   * The display name is for a human reading the record; these are for a record
+   * read by something else. "Moray" is a name two projects spell differently
+   * and a later TODO may re-hull entirely; `elite-a:variant:A:25` is the exact
+   * released build the fight was against, and stays true.
+   */
+  designId: ShipDesignId;
+  profileId: NpcCombatProfileId;
+  /**
    * Which policy it flies — a brain id, or the scripted baseline. This is the
    * field that turns the report into an A/B rig: the same scenario against
    * `pirate-attack-r2` and against `e1`, and the numbers side by side.
@@ -163,11 +176,19 @@ export interface OpponentSetup {
  *
  * Description, not simulation: the report carries it through to the JSON so a
  * record can be read months later without guessing what "you" had fitted. The
- * hull is deliberately absent — v1 of the simulator overrides the fit-out only
- * (docs/COMBAT-SIM.md), because the player's hull is four constants in player.ts
- * and every pirate brain was fitted against them.
+ * hull is RECORDED but not overridden — v1 of the simulator changes the fit-out
+ * only (docs/COMBAT-SIM.md), because the player's hull is four constants in
+ * player.ts and every pirate brain was fitted against them.
  */
 export interface PlayerLoadout {
+  /**
+   * Which hull the commander flew, as a `PlayerHullId`.
+   *
+   * Description, like everything else here: the exercise does not change your
+   * hull, and this phase does not fly its stats. It is recorded because a
+   * report compared across a shipyard's arrival is worthless without it.
+   */
+  shipId: PlayerHullId;
   /** the front mount: 'pulse' | 'beam' | 'military' */
   laser: string;
   rearLaser?: boolean;
@@ -204,6 +225,9 @@ export interface SimEvent {
 export interface OpponentReport {
   index: number;
   hull: string;
+  /** what it was, in ids — carried through from the setup, see OpponentSetup */
+  designId: ShipDesignId;
+  profileId: NpcCombatProfileId;
   brain: string;
   role?: string;
   tier?: number;
@@ -687,6 +711,8 @@ export class CombatSimRecorder {
     return {
       index: i,
       hull: setup.hull,
+      designId: setup.designId,
+      profileId: setup.profileId,
       brain: setup.brain,
       ...(setup.role === undefined ? {} : { role: setup.role }),
       ...(setup.tier === undefined ? {} : { tier: setup.tier }),

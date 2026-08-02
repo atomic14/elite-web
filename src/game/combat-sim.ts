@@ -500,6 +500,10 @@ export class CombatSim {
     const endless = MODES[spec.mode].endless;
     const opponents: OpponentSetup[] = ships.map((sh) => ({
       hull: sh.spec.def?.name ?? sh.role,
+      // From the roster entry that is about to be flown, not from the mesh:
+      // the display name above is a label, these two say what it IS.
+      designId: sh.spec.designId,
+      profileId: sh.spec.profileId,
       brain: this.flownBrain(sh),
       role: sh.role,
       tier: sh.tier,
@@ -531,6 +535,7 @@ export class CombatSim {
   private loadout(): PlayerLoadout {
     const c = this.state.commander;
     return {
+      shipId: c.shipId,
       laser: c.equipment.laser,
       rearLaser: c.equipment.rearLaser,
       missiles: c.missiles,

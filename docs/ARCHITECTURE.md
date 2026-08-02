@@ -192,6 +192,9 @@ src/
     npc.ts                  NPC ships: scripted behaviour + trained-brain flight
     npc-targeting.ts        who hunts whom among the NPCs
     ship-specs.ts           the roster: which hull flies which role, and its stats
+    ship-identity.ts        the three ids — player hull, design, exact variant —
+                            what they resolve to, what a save without one
+                            becomes, and the two Harmless-only overlays
     brains.ts               the five trained policies, and who flies which
 
     combat.ts               what happens when something is shot: bounties, kills,

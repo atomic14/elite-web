@@ -1,5 +1,6 @@
 import { COMMODITIES } from '../galaxy/galaxy.ts';
 import type { GalaxyStateSave } from '../galaxy/living.ts';
+import { COBRA_MK_3_HULL_ID, type PlayerHullId } from './ship-identity.ts';
 
 // Commander Jameson: who you are, what you are carrying, and how you rank.
 //
@@ -105,6 +106,16 @@ const RATINGS: [number, string][] = [
 export interface CommanderData {
   /** what this commander is called — Elite's own default was Jameson */
   name: string;
+  /**
+   * Which hull you are flying, as a `PlayerHullId` (ship-identity.ts).
+   *
+   * The ONE piece of player identity a later shipyard changes, which is why it
+   * is saved as an id rather than as a copied stat block. It does not drive
+   * flight yet: this phase records what you are in, and the TODOs that resolve
+   * lasers and armour through it come after. Absent in every save written
+   * before it existed, and those all migrate to the Cobra Mk III.
+   */
+  shipId: PlayerHullId;
   galaxy: number;
   systemIndex: number;
   credits: number; // in tenths of a credit, integer
@@ -144,6 +155,10 @@ export interface CommanderData {
 export function newCommander(): CommanderData {
   return {
     name: 'JAMESON',
+    // Elite-A started you in an Adder; this phase deliberately does not, because
+    // switching the starting hull is a balance change and not an identity one
+    // (docs/TODO/ELITE-A-COMBAT-PLAN.md defers it).
+    shipId: COBRA_MK_3_HULL_ID,
     galaxy: 1,
     systemIndex: 7, // Lave
     credits: 1000, // 100.0 Cr

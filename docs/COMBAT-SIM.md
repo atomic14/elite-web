@@ -140,6 +140,9 @@ Per exercise: the seed, the scenario, both loadouts, then —
 - time you spent on their six versus theirs on yours
 - shield and energy low-water marks
 - a per-opponent line: hull, brain, how long it lived, what it landed
+- and, beside every hull NAME, the ids it resolves to — your `shipId` and each
+  opponent's `designId`/`profileId` (`src/game/ship-identity.ts`), so a record
+  still says what was flown after a shipyard or a re-hulling exists
 
 Also absorb `test/arena.js`'s `envelope()` — the spec first omitted it and
 should not have. It is the only measurement of the PLAYER's flight envelope

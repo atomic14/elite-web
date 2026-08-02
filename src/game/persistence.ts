@@ -32,6 +32,7 @@ import { LivingGalaxy } from '../galaxy/living.ts';
 import type { CommanderData, Contract } from './commander.ts';
 import type { PirateThreat } from './threat.ts';
 import { CONSTRICTOR_SPEC, pirateSpecForTier } from './ship-specs.ts';
+import { migratedPlayerHullId } from './ship-identity.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { Ordnance } from './ordnance.ts';
 import { rngState, restoreRng } from './rng.ts';
@@ -166,6 +167,10 @@ export class Persistence {
     }
     const s = this.state;
     s.commander = structuredClone(snap.commander);
+    // A world written before ships had ids carries a commander that has none.
+    // Same rule as the station save (storage.ts): missing or unresolvable means
+    // the Cobra Mk III every legacy career flew, never a failure to load.
+    s.commander.shipId = migratedPlayerHullId(s.commander.shipId);
     s.systems = generateGalaxy(s.commander.galaxy);
     s.living = new LivingGalaxy(s.systems);
     s.living.load(snap.galaxyState as Parameters<LivingGalaxy['load']>[0]);

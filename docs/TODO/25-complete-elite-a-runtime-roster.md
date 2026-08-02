@@ -44,6 +44,16 @@ Ghavial, Bushmaster, Rattler, Iguana, Shuttle Mk II and Chameleon.
   tables hold only deliberate Harmless presentation/motion/selection policy.
 - Custom ships cannot accidentally enter an Elite-A parity matrix.
 
+## Carried over from TODO 23
+
+`persistence.ts` restores every pirate through `pirateSpecForTier`, so a pirate
+spawned from the plain `SPECS.pirate` roster — reachable only through the
+trainer's hull picker, which never autosaves — would come back on a tier-table
+hull while keeping its saved identity. Hull and identity could then disagree.
+TODO 23 deliberately did not add a cross-check, because that turns such a save
+into a throw; fix it here, where restore learns to rebuild from the saved
+design.
+
 ## Verify
 
 Add role-membership, complete-catalogue, seeded spawning, snapshot and simulator

@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { buildShip, buildAsteroid } from '../ships/geometry.ts';
 import {
-  SPECS, TURN, shipAccel, type NpcSpec, type NpcRole,
+  ASTEROID_IDENTITY, SPECS, TURN, shipAccel, type NpcSpec, type NpcRole,
 } from './ship-specs.ts';
+import type {
+  NpcCombatProfileId, ShipDesignId, ShipIdentity,
+} from './ship-identity.ts';
 import {
   observeFor, act, makeScratch, shipView, writeView, PACK_WIDE_OBS_SIZE,
   type Brain, type ObservableMate,
@@ -311,6 +314,19 @@ export class NpcShip {
   /** the seed its hull and stats were generated from — kept so a snapshot can rebuild it */
   readonly variantSeed: number;
 
+  /**
+   * What this ship IS — see ship-identity.ts.
+   *
+   * Immutable, so it is not in `NpcState`: the state is what can CHANGE, and a
+   * ship does not become another design mid-flight. It is saved beside the role
+   * and the seed instead (`NpcSnapshot`), because a save must carry the id
+   * rather than re-derive it: today the roster's recommended variant is the
+   * only answer, and the moment a blueprint loader picks by system it will not
+   * be.
+   */
+  readonly designId: ShipDesignId;
+  readonly profileId: NpcCombatProfileId;
+
   /** All serialisable mutable state, exposed through this one public path. */
   readonly state: NpcState;
 
@@ -325,9 +341,25 @@ export class NpcShip {
     this.state.brainControl = v;
   }
 
-  constructor(role: NpcRole, position: THREE.Vector3, variantSeed: number, specOverride?: NpcSpec) {
+  /**
+   * @param identity what a RESTORED ship was — omitted for a fresh spawn, which
+   * takes the roster's, and omitted by a save written before ships had ids,
+   * which is what migrates such a ship onto its design's recommended variant.
+   * Deterministic either way: nothing here draws from the rng to decide it.
+   */
+  constructor(
+    role: NpcRole, position: THREE.Vector3, variantSeed: number,
+    specOverride?: NpcSpec, identity?: ShipIdentity,
+  ) {
     this.role = role;
     this.variantSeed = variantSeed;
+    // The roster entry this ship flies, resolved once: the hull branches below
+    // read it, and so does its identity. An asteroid has no roster entry —
+    // ASTEROID_IDENTITY is the roster's answer for it.
+    const rostered = role === 'asteroid'
+      ? null : specOverride ?? SPECS[role][variantSeed % SPECS[role].length];
+    this.designId = identity?.designId ?? rostered?.designId ?? ASTEROID_IDENTITY.designId;
+    this.profileId = identity?.profileId ?? rostered?.profileId ?? ASTEROID_IDENTITY.profileId;
     // Built before anything else. `pos` and `quat` are filled in once the mesh
     // exists — they are the
     // mesh's own vectors, so the renderer reads this state rather than being
@@ -379,8 +411,7 @@ export class NpcShip {
       this.state.hasEcm = false;
       this.armed = false;
     } else {
-      const options = SPECS[role];
-      const spec = specOverride ?? options[variantSeed % options.length];
+      const spec = rostered!;
       this.object = buildShip(spec.def!, spec.color);
       this.radius = spec.radius;
       this.state.hp = this.maxHp = spec.hp;
