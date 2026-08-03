@@ -31,6 +31,7 @@ import {
 } from '../src/ai-training/policy.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
+import type { LaserType } from '../src/game/commander.ts';
 
 const args = process.argv.slice(2);
 const PHASES = ['attack', 'evade', 'pack', 'defend'];
@@ -103,9 +104,72 @@ function loadBrain(name: string): Brain {
 // default naming a file that is not there is a training run that dies on line
 // one, and training a defender against a pirate no player meets was the older
 // and quieter bug.
+//
+// `scripted` IS THE DEFAULT NOW, and by that same argument. What a pirate flies
+// since d563e3d is the scripted attack run: it closes, goes through the pass,
+// extends to a range it rolls per run and comes back. `pirate-attack-g3` holds
+// a median range of 240 and makes 0.00 passes, so a defender fitted against it
+// was fitted against a threat that no longer exists — the quiet bug above,
+// wearing the name of the brain that used to be the fix for it.
+//
+// It is a NAME rather than a file, so it loads nothing; `opponentController`
+// below is the one place that turns either kind into an Episode controller.
 const opponentName = getStrArg('opponent',
-  phase === 'evade' || phase === 'defend' ? 'pirate-attack-g3' : '');
-const opponent: Brain | null = opponentName ? loadBrain(opponentName) : null;
+  phase === 'evade' || phase === 'defend' ? 'scripted' : '');
+const SCRIPTED = 'scripted';
+const opponent: Brain | null =
+  opponentName && opponentName !== SCRIPTED ? loadBrain(opponentName) : null;
+if (opponentName === SCRIPTED) console.log('opponent: the scripted attack run (what ships)');
+
+/**
+ * WHAT A DEFENDER MEETS, varied by seed.
+ *
+ * Chris: "we should train against all the different scenarios and ships. Let's
+ * make sure our combat computer sees everything that could be thrown at it."
+ *
+ * `jameson-defend-g1` and the first g2 both trained against EXACTLY two pirates
+ * flying at EXACTLY one hull, so what they were fitted for was a single
+ * scenario repeated with different dice. The game does not do that: a wave is
+ * one ship or six, the tiers climb, and the same policy flies the combat
+ * computer in whatever the commander happens to be sitting in.
+ *
+ * Three things vary and one already did:
+ *
+ *   - HOW MANY, 1 to 4. One pirate is a duel and four is a gang, and they are
+ *     not the same problem — a policy fitted only against two learns a spacing
+ *     that is wrong for both.
+ *   - WHICH SHIP IT IS FLYING, across every hull the episode can field. The
+ *     combat computer flies the commander's ship, so a policy that only works
+ *     in one is a policy that stops working when he buys a better one.
+ *   - WHICH PIRATES, which `pirateSpecFor` already keys off the seed — hull and
+ *     tier both — so this was the one axis that was already honest.
+ *
+ * One function because the episode builder AND `scriptedReference` must field
+ * the same fight, or the baseline the run is judged against is a different
+ * fight from the run.
+ */
+function defenceSetup(seed: number): { count: number; hull: TargetHullId; laser: LaserType } {
+  const HULLS: TargetHullId[] = ['playerCobra', 'traderCobra', 'playerCobraSlow'];
+  // Pulse is deliberately NOT in the rotation. A commander who has bought the
+  // combat computer has bought a gun to go with it, and pulse reloads at 0.24s
+  // against 0.09 for the other two — a policy fitted at that rate learns a
+  // trigger discipline that is wrong for the ship it will actually be flying.
+  const LASERS: LaserType[] = ['beam', 'military'];
+  return {
+    // `>>> 3` and `>>> 9` so the count, the hull and `pirateSpecFor`'s own
+    // `seed % 3` tier read different bits: taken off the low bits they would
+    // move in lockstep and "vary by seed" would mean three axes with one value.
+    // The shifts are the ones that come out even over the seed stride actually
+    // used (7919) — `>>> 5` gave the hulls a 44/38/38 lean over 120 episodes.
+    count: 1 + ((seed >>> 3) % 4),
+    hull: HULLS[(seed >>> 9) % HULLS.length]!,
+    laser: LASERS[(seed >>> 15) % LASERS.length]!,
+  };
+}
+
+/** The opponent as an Episode controller — a policy, or the scripted run. */
+const opponentController = (): Controller =>
+  (opponentName === SCRIPTED ? { kind: 'scripted' } : { kind: 'policy', brain: opponent! });
 
 // --- round-4 experiment flags -----------------------------------------------
 // All three default OFF so runs 4 and 6 rerun bit-identically.
@@ -264,17 +328,20 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
   if (phase === 'evade') {
     return new Episode({
       seed,
-      pirates: [{ kind: 'policy', brain: opponent! }],
+      pirates: [opponentController()],
       trader: { kind: 'policy', brain: genome },
     });
   }
   if (phase === 'defend') {
-    // armed Jameson vs two of the shipped attack pirates
+    // an armed Jameson against whatever the seed throws at it
+    const { count, hull, laser } = defenceSetup(seed);
     return new Episode({
       seed,
-      pirates: [{ kind: 'policy', brain: opponent! }, { kind: 'policy', brain: opponent! }],
+      pirates: Array.from({ length: count }, () => opponentController()),
       trader: { kind: 'policy', brain: genome },
       traderArmed: true,
+      traderClass: hull,
+      traderLaser: laser,
     });
   }
   // pack: 2-4 ships sharing one policy vs an armed scripted trader. Pack
@@ -344,13 +411,15 @@ function scriptedReference(gen: number): number {
     const seed = gen * 977 + e * 131 + 7;
     let ep: Episode;
     if (phase === 'evade') {
-      ep = new Episode({ seed, pirates: [{ kind: 'policy', brain: opponent! }], trader: { kind: 'scripted' } });
+      ep = new Episode({ seed, pirates: [opponentController()], trader: { kind: 'scripted' } });
     } else if (phase === 'defend') {
       ep = new Episode({
         seed,
-        pirates: [{ kind: 'policy', brain: opponent! }, { kind: 'policy', brain: opponent! }],
+        pirates: Array.from({ length: defenceSetup(seed).count }, () => opponentController()),
         trader: { kind: 'scripted' },
         traderArmed: true,
+        traderClass: defenceSetup(seed).hull,
+        traderLaser: defenceSetup(seed).laser,
       });
     } else if (phase === 'pack') {
       ep = new Episode({

@@ -45,6 +45,7 @@ import {
 } from '../game/ship-identity.ts';
 import { npcLaserDamageToPlayer } from '../game/gunnery.ts';
 import { memberTier } from '../game/threat.ts';
+import type { LaserType } from '../game/commander.ts';
 import { pirateSpecForTier } from '../game/ship-specs.ts';
 import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
 import {
@@ -272,13 +273,25 @@ export const EPISODE_SCHEMA = 1;
 // real fight ends belongs.
 
 /**
- * The commander's pulse laser, from the commander's hull.
+ * The commander's laser, from the commander's hull — one entry per type.
  *
- * Resolved once because it is a constant of the world the episode models: the
- * Cobra Mk III is the ship a fresh career flies (`COBRA_MK_3_HULL_ID`), and
- * there is no shipyard yet to change it.
+ * It was a single `PLAYER_PULSE` constant, resolved once "because it is a
+ * constant of the world the episode models". The hull still is; the GUN never
+ * was. A commander who has bought the combat computer has almost certainly
+ * bought a better laser than the one he launched with, so a policy fitted at
+ * pulse rate is fitted for a ship nobody flying it is in — Chris: "we should
+ * give the combat computer a full fit out - ECM, Beam lasers at a minimum -
+ * probably more like to have military lasers."
+ *
+ * It matters more than a damage number. `beam` and `military` reload at 0.09s
+ * against pulse's 0.24, so the trigger discipline that pays is a different
+ * discipline, and heat is what limits them rather than the clock.
  */
-const PLAYER_PULSE = playerLaser(COBRA_MK_3_HULL_ID, 'pulse');
+const PLAYER_LASERS: Record<LaserType, ReturnType<typeof playerLaser>> = {
+  pulse: playerLaser(COBRA_MK_3_HULL_ID, 'pulse'),
+  beam: playerLaser(COBRA_MK_3_HULL_ID, 'beam'),
+  military: playerLaser(COBRA_MK_3_HULL_ID, 'military'),
+};
 
 /**
  * The packed weapon byte an armed freighter fires with — the trader Cobra's
@@ -355,6 +368,11 @@ export interface EpisodeOptions {
   traderClass?: TargetHullId;
   /** armed traders shoot back (used for pack scenarios) */
   traderArmed?: boolean;
+  /**
+   * Which laser an armed target fires. Pulse unless a caller says otherwise,
+   * so every existing episode and every archived run means what it did.
+   */
+  traderLaser?: LaserType;
   /**
    * Which of the 15 flyable hulls the target IS — its per-hit armour and the
    * size of its three pools. The Cobra Mk III unless a caller says otherwise,
@@ -518,6 +536,8 @@ export class Episode {
   /** the target got clear — the pirates lost it, and no one gets paid */
   escaped = false;
   readonly escapeRange: number;
+  /** the gun the armed target fires — see PLAYER_LASERS */
+  private readonly playerLaser: typeof PLAYER_LASERS[LaserType];
   /** proximity shaping accumulator per pirate */
   readonly engagedTime: number[];
   /**
@@ -544,6 +564,7 @@ export class Episode {
 
   constructor(opts: EpisodeOptions) {
     this.opts = opts;
+    this.playerLaser = PLAYER_LASERS[opts.traderLaser ?? 'pulse'];
     this.maxTime = opts.maxTime ?? 45;
     // 6000 against a 3500 laser and a 1500-2700 spawn: comfortably outside
     // weapons reach, and reachable in a few seconds of running flat out.
@@ -751,7 +772,7 @@ export class Episode {
 
     // the commander's trigger, and the same two calls the game's makes
     if (!canFire(t)) return null;
-    chargeShot(t, PLAYER_PULSE);
+    chargeShot(t, this.playerLaser);
     t.shotsFired += 1;
     if (dist > LASER_RANGE || angle >= hitCone(threat.radius, dist)) {
       return { from: t, to: threat, hit: false };
@@ -760,7 +781,7 @@ export class Episode {
     // is the TARGET's business — its own defence, immunity and multiplier. The
     // ship applies it, exactly as `Combat.fire` does in the game.
     const before = threat.npc.state.energy;
-    threat.npc.takeLaserHit(PLAYER_PULSE.hit, this.trader.pos, true);
+    threat.npc.takeLaserHit(this.playerLaser.hit, this.trader.pos, true);
     const damage = before - threat.npc.state.energy;
     t.shotsHit += 1;
     t.damageDealt += damage;

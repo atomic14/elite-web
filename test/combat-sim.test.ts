@@ -177,9 +177,15 @@ console.log('\ncombat simulator — the setup draft');
   eq('...flying whatever the live game flies', draft.brain, AS_THE_GAME_FLIES);
   eq('...and it starts from the ship you actually own',
     draft.fit.laser, newCommander().equipment.laser);
+  // FIT ONLY, and the list is exact so a hull, a bay or a galactic drive cannot
+  // arrive here by being added to `Equipment`. `combatComputer` is the newest
+  // and belongs for the same reason the rest do: it changes how the FIGHT goes,
+  // and it is the one brain the game flies on your behalf rather than at you —
+  // fit it, launch, press K, and the trained defence policy is watchable
+  // instead of only measurable.
   eq('the fit-out is FIT ONLY — the hull is not offered',
     Object.keys(fitFrom(draft).equipment ?? {}).sort().join(','),
-    'ecm,energyBomb,energyUnit,laser,rearLaser');
+    'combatComputer,ecm,energyBomb,energyUnit,laser,rearLaser');
 
   // Every row round-trips: a cell reads the draft, and its change() writes it.
   const cells = setupCells(draft);

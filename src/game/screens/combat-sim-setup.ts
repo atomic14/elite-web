@@ -129,6 +129,12 @@ export interface FitDraft {
   ecm: boolean;
   energyUnit: boolean;
   energyBomb: boolean;
+  /**
+   * Whether the exercise lends you the combat computer — the ONE brain the game
+   * flies on your behalf rather than at you, and until now the one you could
+   * not watch. Fit it, launch, press K.
+   */
+  combatComputer: boolean;
   missiles: number;
 }
 
@@ -255,6 +261,7 @@ export function freshDraft(c: CommanderData, live: LiveBrainId | null = AS_SHIPP
       ecm: c.equipment.ecm,
       energyUnit: c.equipment.energyUnit,
       energyBomb: c.equipment.energyBomb,
+      combatComputer: c.equipment.combatComputer,
       missiles: c.missiles,
     },
   };
@@ -361,6 +368,7 @@ export function fitFrom(d: SimDraft): ExerciseFit {
       ecm: d.fit.ecm,
       energyUnit: d.fit.energyUnit,
       energyBomb: d.fit.energyBomb,
+      combatComputer: d.fit.combatComputer,
     },
     missiles: d.fit.missiles,
   };
@@ -534,6 +542,15 @@ export function setupCells(d: SimDraft): SetupCell[] {
       label: 'YOUR MISSILES',
       value: String(f.missiles),
       change: (n) => { f.missiles = clamp(f.missiles + n, 0, MAX_MISSILES); },
+    },
+    {
+      // Fitted here so the trained defence policy can be WATCHED. It is the one
+      // brain the game flies on the commander's behalf rather than against him,
+      // so the only way to judge it was to be attacked by nothing and read a
+      // number afterwards. Fit it, launch, and press K.
+      label: 'YOUR COMBAT COMPUTER',
+      value: yesNo(f.combatComputer),
+      change: () => { f.combatComputer = !f.combatComputer; },
     },
   );
   // LAST, alone, and fenced. It used to sit sixth, between the exercise brain

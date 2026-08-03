@@ -233,6 +233,24 @@ needs two Escapes.
 
 - [x] 60 — [The playtest agent strands itself after two or three legs](60-the-playtest-agent-strands-itself.md) — verification · medium · medium
 
+## Training fidelity, and one decision the guard is forcing
+
+Chris, 2026-08-03: *"Training should match the 'real world' otherwise it's
+always going to be wrong."*
+
+Three items from one question — why a scripted NPC can fire a missile in the
+game and not in a training episode. The answer is that invariant 5's "one
+combat model" covers the DECISION half of combat and not the RESOLUTION half:
+`world-step.ts` and `ai-training/scenario.ts` are two implementations of
+invariant 15's contract, and they have silently diverged on the weapon, the
+missile rack and shield regeneration. 62 and 63 are the two known divergences;
+64 is the mechanism that would have caught them and stops the next one.
+
+- [ ] 61 — [Promote or delete the attack-run candidate](61-decide-the-attack-run-candidate.md) — decision · medium · small
+- [ ] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
+- [ ] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
+- [ ] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
+
 ## Follow-ups
 
 - [x] 41 — [Name the opposition, not the file](41-name-the-opposition-not-the-file.md) — UI/UX · high · medium
