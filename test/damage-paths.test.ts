@@ -260,7 +260,8 @@ console.log('\nthe old scale is gone, and cannot come back');
   const files = [
     'game/world-step.ts', 'game/game.ts', 'game/combat.ts', 'game/npc.ts',
     'game/systems.ts', 'game/gunnery.ts', 'game/npc-energy.ts',
-    'game/impact-damage.ts', 'game/damage-units.ts', 'game/collisions.ts',
+    'game/impact-damage.ts', 'game/damage-units.ts', 'game/damage-dealt.ts',
+    'game/collisions.ts',
     'game/ordnance.ts', 'game/cargo.ts', 'game/combat-sim.ts',
     'ai-training/scenario.ts',
   ];
@@ -440,8 +441,22 @@ console.log('\nthe inventory doc is the code\'s own list');
     .matchAll(/^\s*\|\s*'(laser|missile|ram|station|cargo)'/gm)].map((m) => m[1]);
   check(`all five DamageSource values are still the list (${sources.join('/')})`,
     sources.length === 5);
+  // Twice now: TODO 28 changed what the `them` figures mean, TODO 47 what the
+  // `you` figures COVER — laser only, before it credited the ordnance.
   check('...and the report versions its numbers where they changed meaning',
-    /COMBAT_SIM_SCHEMA = 2/.test(src('game/combat-sim-report.ts')));
+    /COMBAT_SIM_SCHEMA = 3/.test(src('game/combat-sim-report.ts')));
+  // The outbound direction is its own closed list, for the same reason the
+  // inbound one is: what you hit something WITH is a static fact where it is
+  // spent, and a fifth thing to hit it with has to be added here first.
+  const dealt = [...(/export type DealtSource =([^;]+);/
+    .exec(src('game/damage-dealt.ts'))?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+  check(`all four DealtSource values are still the list (${dealt.join('/')})`,
+    dealt.join('/') === 'laser/missile/ram/bomb');
+  // ...and each of them has a bucket to land in. A source the report does not
+  // name goes to `unknown` with a warning, which is a hit nobody attributed.
+  const buckets = /const SOURCES[^=]*=\s*([^;]+);/.exec(src('game/combat-sim-report.ts'))?.[1] ?? '';
+  check('...and the report has a bucket for every one of them',
+    dealt.every((s) => buckets.includes(`'${s}'`)), `${dealt.join('/')} vs ${buckets.trim()}`);
 }
 
 // One live spend of each unit, so the two scales are exercised and not merely

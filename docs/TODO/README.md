@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **7 / 11 complete**. Five reviewers with separate lenses; every
+Progress: **8 / 11 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -69,6 +69,19 @@ replaced whatever it drew. `test/persistence.test.ts` is the coverage that
 module never had, and it asserts the property the name-presence grep in
 `test/state.test.ts` cannot see — that the VALUE came back.
 
+47 is done, and the shape it wanted was already in the file: the world step
+reports `playerDealt` the way it reports `npcFired`, and the exercise credits
+it. The two directions have separate closed lists now — `DamageSource` for the
+five things that can hurt you, `DealtSource` for the four you can hurt a ship
+with — and one function, `damage-dealt.ts`'s `dealToNpc`, spends the points and
+measures what came OFF the bank, so a 250-point warhead into a Sidewinder
+credits the 73 it had rather than the 250 it spent, which is what the laser
+path always did. The energy bomb is the one path that never touches the step,
+so game.ts hands it over beside the kill it already handed over. No damage
+number moved: the campaign is byte-identical and the ai gates are unmoved. The
+export schema is at 3, because `damageDealt` kept its name and changed what it
+covers.
+
 48 is done, and it was two halves of one boundary. `energyLow()` in
 `systems.ts` is now the only test for "into the last bank", so the shield
 cut-off, the ENERGY LOW flash and the red segment cannot disagree — they did,
@@ -79,16 +92,15 @@ the bank at zero with the ship still flying. `test/energy-low.test.ts` walks
 all 256 values of the bank through the real `regenerate`, a real `WorldStep`
 frame and a real HUD frame; the campaign is byte-identical.
 
-Order: 47 is a wrong number a playtest will act on. 49 is
-why several of these survived — 46 is item 1 on its list, a guard that greps
-persistence.ts for a field NAME while the value is clobbered four lines later —
-so it is worth doing early rather than last.
+Order: 49 is why several of these survived — 46 is item 1 on its list, a guard
+that greps persistence.ts for a field NAME while the value is clobbered four
+lines later — so it is worth doing early rather than last.
 
 - [x] 43 — [Loading or importing a save eats a career's checkpoint](43-career-identity-has-two-homes.md) — data loss · critical · medium
 - [x] 44 — [A full store deletes a pre-slots commander](44-a-full-store-deletes-a-legacy-commander.md) — data loss · critical · small
 - [x] 45 — ["NEW COMMANDER" does nothing](45-new-commander-does-nothing.md) — save model · high · small
 - [x] 46 — [Docking rerolls the board a restore just loaded](46-docking-rerolls-the-board-a-restore-just-loaded.md) — save integrity · high · medium
-- [ ] 47 — [The trainer credits no damage for ordnance](47-the-trainer-credits-no-damage-for-ordnance.md) — trainer · high · medium
+- [x] 47 — [The trainer credits no damage for ordnance](47-the-trainer-credits-no-damage-for-ordnance.md) — trainer · high · medium
 - [x] 48 — [The energy dead band, and dying at full shields](48-the-energy-dead-band.md) — combat · high · small
 - [x] 49 — [Guards that do not guard](49-guards-that-do-not-guard.md) — test integrity · high · medium
 - [ ] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium

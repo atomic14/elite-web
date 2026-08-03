@@ -123,3 +123,19 @@ Changed, and deliberately:
   `elite-a/*.generated.ts` (source data) or `impact-damage.ts` (ours).
 - **Minting is restricted.** Only `gunnery.ts`, `npc-energy.ts` and
   `impact-damage.ts` may call the two point constructors; the test asserts it.
+- **Both directions name their cause, and the two lists are not the same
+  list.** What can hurt the commander is `DamageSource` in `combat.ts` — the
+  five `applyPlayerDamage` sites, rows 2, 5, 8, 9 and 10. What the commander can
+  hurt a ship with is `DealtSource` in `damage-dealt.ts` — rows 1, 4, 6 and 7.
+  A station scrape and a canister have no outbound version and the energy bomb
+  has no inbound one, so one list would have to carry members that can never
+  occur in one of the directions. The three words they share are the same words
+  by construction (`Extract`).
+- **What is REPORTED is what came off the bank.** `dealToNpc` reads the
+  target's energy either side of the hit, so the figure in a training record is
+  the damage the ship took and never the points the impact spent: a 250-point
+  warhead into a Sidewinder with 73 energy is 73. That is the same measurement
+  the laser path has always made (`combat-sim.ts` `pullTrigger`), which is what
+  makes the four buckets addable. It changes no rule and no outcome — the
+  points spent are unchanged, and a warhead still destroys everything but the
+  five heaviest builds.

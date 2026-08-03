@@ -91,6 +91,7 @@ import {
   type BrainId, type ExerciseSession, type ExerciseSpec, type Opposition,
   type SimShip, type ThreatContext,
 } from './combat-sim-scenarios.ts';
+import type { DealtEvent } from './damage-dealt.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import type { NpcShip } from './npc.ts';
 import type { Ordnance } from './ordnance.ts';
@@ -360,9 +361,11 @@ export class CombatSim {
 
     // Only the step knows a shot was fired at all: it rolls the hit itself and
     // the host hears about the hits alone. Shots are every accuracy denominator
-    // in the report.
+    // in the report — and `playerDealt` is the same argument in the other
+    // direction: the host is told a ship DIED, never what it cost to kill it.
     for (const e of events) {
       if (e.kind === 'npcFired') this.npcFired(e.npc, e.weapon, e.atPlayer);
+      else if (e.kind === 'playerDealt') this.playerDealt(e);
     }
     this.reap();
     this.recorder?.tick(dt, () => this.sample());
@@ -412,6 +415,25 @@ export class CombatSim {
    */
   destroyNpc(npc: NpcShip): void {
     this.applySimCombat(this.combat.destroy(this.state.commander, npc), true);
+  }
+
+  /**
+   * Damage the commander did to a ship, for the record.
+   *
+   * The step's own hits arrive through `tick` above. This is the public door
+   * for the one that does not go through the step at all — the ENERGY BOMB,
+   * which the Game applies from `runCommand` and hands here beside the kill
+   * that follows it, for exactly the reason `destroyNpc` above is public.
+   *
+   * Safe when nothing is running and safe for a ship that is not an opponent:
+   * either way there is no line to credit it to, and a career fight has no
+   * record to write. Attribution is by IDENTITY — the event carries the ship
+   * itself — so nothing is inferred from a position or a magnitude.
+   */
+  playerDealt(hit: DealtEvent): void {
+    if (hit.damage <= 0) return;    // a hit that took nothing off is not damage
+    const o = this.opponents.find((x) => x.ship === hit.npc);
+    if (o) this.recorder?.dealt(o.index, hit.damage, hit.source);
   }
 
   // --- the alternative StepHost --------------------------------------------

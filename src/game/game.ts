@@ -50,6 +50,7 @@ import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
 import { NpcShip } from './npc.ts';
 import { IMPACT, npcImpactDamage } from './impact-damage.ts';
+import { dealToNpc } from './damage-dealt.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import { DEFEND_BRAIN } from './brains.ts';
 import { liveBrainId, liveBrainSelection } from './brain-names.ts';
@@ -445,10 +446,17 @@ export class Game {
     this.shell.flashBomb();
     for (const npc of outcome.caught) {
       // The bomb is a stated `IMPACT` like every other non-laser source, and it
-      // is spent through the same `takeDamage` — 255 points, above every
+      // is spent through the same `dealToNpc` — 255 points, above every
       // released bank, so everything it caught is gone. It used to reach for a
       // "certainly fatal" number on a scale nothing else in the game spoke.
-      npc.takeDamage(npcImpactDamage(IMPACT.energyBomb), this.state.player.position, true);
+      //
+      // The two lines are the same pair as the step's: what it cost the ship,
+      // then the kill. The bomb is the one damage path that never touches the
+      // world step, so both have to be handed to a running exercise here — the
+      // wire `destroyNpc` below has needed since the trainer shipped.
+      const hit = dealToNpc(
+        npc, npcImpactDamage(IMPACT.energyBomb), this.state.player.position, 'bomb');
+      this.combatSim.playerDealt(hit.event);
       this.destroyNpc(npc);
     }
   }
@@ -1364,13 +1372,15 @@ export class Game {
    * and for the same reason: a phase that called the HUD — or the AudioContext
    * — could not run in a trainer.
    *
-   * `npcFired` is deliberately dropped here: it is for a measuring caller
-   * (combat-sim.ts), and the cockpit already hears the shot.
+   * `npcFired` and `playerDealt` are deliberately dropped here: both are for a
+   * measuring caller (combat-sim.ts), which has already read them out of the
+   * same array. The cockpit hears the shot and sees the explosion either way,
+   * and a career keeps no record to credit.
    */
   private applyStep(events: readonly StepEvent[]): void {
     for (const e of events) {
       if (e.kind === 'message') this.showMessage(e.text, e.seconds);
-      else if (e.kind !== 'npcFired') this.playSound(e);
+      else if (e.kind !== 'npcFired' && e.kind !== 'playerDealt') this.playSound(e);
     }
   }
 

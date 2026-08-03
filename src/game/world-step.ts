@@ -50,6 +50,7 @@ import { npcCrossfireDamage } from './npc-energy.ts';
 import { IMPACT, npcImpactDamage, playerImpactDamage } from './impact-damage.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import type { DamageSource } from './combat.ts';
+import { dealToNpc, type DealtEvent } from './damage-dealt.ts';
 import { viewDirection } from './views.ts';
 import { Ordnance, ordnanceMessage, type OrdnanceOutcome } from './ordnance.ts';
 import type { NpcShip, FireEvent, WorldView } from './npc.ts';
@@ -123,7 +124,21 @@ export type StepEvent =
    * simulator reports (combat-sim-report.ts), and test/combat-recorder.js could
    * only get at them by monkey-patching a method that has since moved twice.
    */
-  | { kind: 'npcFired'; npc: NpcShip; weapon: 'laser' | 'missile'; atPlayer: boolean };
+  | { kind: 'npcFired'; npc: NpcShip; weapon: 'laser' | 'missile'; atPlayer: boolean }
+  /**
+   * The commander landed something on a ship, and what it cost the ship.
+   *
+   * The mirror of `applyPlayerDamage`, and reported rather than asked for
+   * because it is a measurement and not a consequence: a kill still comes
+   * through `destroyNpc` below. The step is again the only place that knows —
+   * `damage-dealt.ts` reads the target's bank either side of the hit, where a
+   * host downstream sees a ship that is either alive or gone.
+   *
+   * The career drops it (there is nothing to do with it); an exercise credits
+   * it to the record, which is where `you.damageBySource` comes from. Without
+   * it, every kill by missile, ram or bomb was reported as zero damage dealt.
+   */
+  | DealtEvent;
 
 const say = (text: string, seconds: number): StepEvent => ({ kind: 'message', text, seconds });
 /** A tone, in hertz. The occasions with a name of their own are `heard()`. */
@@ -342,7 +357,11 @@ export class WorldStep {
       player.position, (k) => { player.speed *= k; }, world.npcs, this.scratch)) {
       this.host.applyPlayerDamage(ramPlayer, npc.object.position, 'ram');
       out.push(say('COLLISION', 2));
-      if (npc.takeDamage(ramEnergy, player.position, true)) this.host.destroyNpc(npc);
+      // Both halves of the same collision are reported: what it cost you
+      // through the host, what it cost the ship through the event.
+      const hit = dealToNpc(npc, ramEnergy, player.position, 'ram');
+      out.push(hit.event);
+      if (hit.destroyed) this.host.destroyNpc(npc);
     }
 
     const wrecked: NpcShip[] = [];
@@ -430,7 +449,9 @@ export class WorldStep {
         // whose banks are heavier than it, and those survive one by a sliver. So
         // the kill is conditional, and only a kill pays a bounty.
         world.effects.explosion(e.at, 0xff8866);
-        if (e.npc.takeDamage(npcImpactDamage(IMPACT.warhead), e.at, true)) {
+        const hit = dealToNpc(e.npc, npcImpactDamage(IMPACT.warhead), e.at, 'missile');
+        out.push(hit.event);
+        if (hit.destroyed) {
           // no sound here: `destroyNpc` -> `Combat.wreck` plays the ship going up
           this.host.destroyNpc(e.npc);
         } else {

@@ -74,6 +74,7 @@ import './combat-sim.test.ts';
 import './combat-sim-panel.test.ts';
 import './combat-sim-scenarios.test.ts';
 import './combat-sim-report.test.ts';
+import './combat-sim-dealt.test.ts';
 import './combat-sim-compare.test.ts';
 import './combat-sim-flight.test.ts';
 import './combat-sim-opening.test.ts';

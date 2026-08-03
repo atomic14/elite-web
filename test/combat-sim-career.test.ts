@@ -41,6 +41,7 @@ import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { check } from './harness.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
 import { IMPACT, npcImpactDamage } from '../src/game/impact-damage.ts';
+import { dealToNpc } from '../src/game/damage-dealt.ts';
 
 // --- the exercise cannot touch the career ------------------------------------
 //
@@ -398,12 +399,16 @@ console.log('\ncombat simulator: nothing leaves the exercise');
 
     // 4. An ENERGY BOMB kill — which reaches `Game.destroyNpc` from
     //    `runCommand`, not through the step at all. This is what the Game's
-    //    one-line redirect into the exercise is for.
+    //    two-line redirect into the exercise is for: the damage, then the kill.
+    //    Both lines are copied from `Game.detonateEnergyBomb`, because a bomb
+    //    resolved any other way here would be testing this harness.
     park(foes[3], s.player.position.clone().addScaledVector(fwd, 1500));
     const bomb = r.ordnance.detonateEnergyBomb(r.sim.commander!, s.player.position);
     check('the bomb came off the exercise commander\'s hull', bomb.reply === 'bombFired');
     for (const npc of bomb.caught) {
-      npc.takeDamage(npcImpactDamage(IMPACT.energyBomb), s.player.position, true);
+      const hit = dealToNpc(
+        npc, npcImpactDamage(IMPACT.energyBomb), s.player.position, 'bomb');
+      r.sim.playerDealt(hit.event);
       r.sim.destroyNpc(npc);
     }
     beat(r, 2);
@@ -466,6 +471,15 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     check(`the record is of a real fight (${rec.you.kills} kills, `
       + `${rec.you.shots} shots, ${rec.them.damageToYou} damage taken)`,
       rec.you.kills >= 1 && rec.you.shots >= 1 && rec.them.damageToYou > 0);
+    // Four kills by four routes, and the damage that bought each of them is on
+    // the record — the laser is the only one that used to be (TODO 47). The
+    // figures themselves are asserted in test/combat-sim-dealt.test.ts; what
+    // this adds is that all four routes credit in ONE fight.
+    check(`...with the damage that won it, by source `
+      + `(${Object.keys(rec.you.damageBySource).join('/') || 'none'})`,
+      rec.you.damageDealt > 0
+      && (['laser', 'ram', 'missile', 'bomb'] as const)
+        .every((k) => (rec.you.damageBySource[k]?.damage ?? 0) > 0));
     check('...that the commander lost', rec.outcome === 'destroyed');
     check('...with the exercise commander\'s kills above the career\'s',
       clone.kills > before.kills && clone.kills === before.kills + 4);

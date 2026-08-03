@@ -207,7 +207,14 @@ console paste and become part of the game.
 Per exercise: the seed, the scenario, both loadouts, then —
 
 - your accuracy and theirs; shots fired and hits
-- damage both ways, **by source** (laser / missile / ram / collision)
+- damage both ways, **by source**. The two lists differ, because the two
+  directions do: what can hurt YOU is laser / missile / ram / station /
+  canister (`DamageSource`), and what you can hurt a SHIP with is laser /
+  missile / ram / energy bomb (`DealtSource`, in `game/damage-dealt.ts`).
+  Both are measured the same way — the points that actually came off the bank,
+  so a warhead into a Sidewinder credits the 73 it had rather than the 250 it
+  spent. The outbound half was LASER ONLY until TODO 47, which is why the
+  schema is at 3: every kill by ordnance read as zero damage dealt
 - time to first kill, time to last
 - median and closest engagement range
 - share of the fight each side spent lined up on the other
@@ -241,11 +248,14 @@ defence brain — a bot — and `npm run survivability` remains the bot answer.
 
 **Version the JSON from day one** (`schema`, as `SNAPSHOT_VERSION` does). It
 is an interface with an external consumer; the first shape change would
-otherwise silently break whatever reads `__simLog`. It is at **2**: TODO 28
-changed what the damage figures MEAN — a warhead is 250 pool points where it was
-332, and a crossfire hit is the firing build's own gun rather than a flat 11 —
-so records exported before it cannot be compared with records after it. See
-docs/DAMAGE-PATHS.md.
+otherwise silently break whatever reads `__simLog`. It is at **3**, and both
+bumps were the same kind of change — a figure that kept its name and changed
+what it meant. TODO 28: a warhead is 250 pool points where it was 332, and a
+crossfire hit is the firing build's own gun rather than a flat 11 (see
+docs/DAMAGE-PATHS.md). TODO 47: `you.damageDealt` and its buckets were laser
+only, so a record of a fight won with ordnance understates it by everything the
+ordnance did. Records from either side of a bump cannot be compared, and
+`combat-sim-compare.ts` refuses to try.
 
 **Export** as JSON — clipboard and downloadable file — plus an in-memory ring of
 recent exercises on `window.__simLog`, so a console session or an agent can read

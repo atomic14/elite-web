@@ -35,6 +35,7 @@
 import * as THREE from 'three';
 import { LASER_RANGE, NPC_FIRE_GATE, NPC_LASER_RANGE } from './gunnery.ts';
 import type { DamageSource } from './combat.ts';
+import type { DealtSource } from './damage-dealt.ts';
 import type {
   NpcCombatProfileId, PlayerHullId, ShipDesignId,
 } from './ship-identity.ts';
@@ -52,8 +53,15 @@ import type {
  * `damageFromYou` moved too, because a crossfire hit is the firing build's own
  * laser against the target's own defence rather than a flat 11 points. Records
  * exported before this cannot be compared with records exported after it.
+ *
+ * 2 -> 3 (TODO 47): `you.damageDealt`, `you.damageBySource` and every
+ * `damageFromYou` were LASER ONLY. `dealt()` had one caller — the gun — so a
+ * fight won with a missile, a ram or the energy bomb exported `damageDealt: 0`
+ * beside its kills, and the field silently meant "damage you dealt with the
+ * laser". It means what it says now (damage-dealt.ts), so a record from before
+ * this understates the outbound half and cannot be held against one from after.
  */
-export const COMBAT_SIM_SCHEMA = 2;
+export const COMBAT_SIM_SCHEMA = 3;
 
 /**
  * How often geometry is sampled, in Hz. Every duration this module reports is
@@ -139,8 +147,17 @@ export type SimOutcome =
 
 /** Where the source of a hit could not be named. See `taken()`. */
 const UNKNOWN = 'unknown';
-type SourceKey = DamageSource | typeof UNKNOWN;
-const SOURCES: readonly DamageSource[] = ['laser', 'missile', 'ram', 'station', 'cargo'];
+/**
+ * One bucket of `damageBySource`, in either direction.
+ *
+ * The union of the two lists rather than one per direction: the buckets are
+ * printed by the same renderer and exported under the same key, and the
+ * directions already differ in which of them can ever appear — nothing can drop
+ * a `bomb` on you, and you cannot deal a `station` scrape.
+ */
+type SourceKey = DamageSource | DealtSource | typeof UNKNOWN;
+const SOURCES: readonly SourceKey[] =
+  ['laser', 'missile', 'ram', 'station', 'cargo', 'bomb'];
 
 /** Damage from one cause, and how many times it landed. */
 export interface SourceTally {
@@ -790,10 +807,15 @@ export class CombatSimRecorder {
   }
 
   /**
-   * Damage the commander did, by cause. `playerShot` routes its own through here
-   * as `laser`; a missile or a collision comes straight in.
+   * Damage the commander did, by cause.
+   *
+   * `playerShot` routes its own through here as `laser`; a missile, a ram and
+   * the energy bomb arrive as the `DealtEvent`s that the world step and the
+   * bomb report (damage-dealt.ts), which the exercise turns into this call.
+   * Every one of them is what came OFF the target's bank, so overkill is not
+   * credited and the four buckets are one measurement rather than four.
    */
-  dealt(opponent: number, amount: number, source: DamageSource): void {
+  dealt(opponent: number, amount: number, source: DealtSource): void {
     add(this.damageOut, this.key(source), amount);
     const o = this.tally[opponent];
     if (!o) { this.unknownOpponent(opponent); return; }
@@ -1065,11 +1087,11 @@ export class CombatSimRecorder {
     };
   }
 
-  private key(source: DamageSource): SourceKey {
+  private key(source: DamageSource | DealtSource): SourceKey {
     if (SOURCES.includes(source)) return source;
-    this.warn(`a hit arrived with the source '${String(source)}', which `
-      + 'DamageSource does not name — the game has grown a new way to hurt you. '
-      + 'Do not read damageBySource as complete.');
+    this.warn(`a hit arrived with the source '${String(source)}', which neither `
+      + 'DamageSource nor DealtSource names — the game has grown a new way to '
+      + 'hurt something. Do not read damageBySource as complete.');
     return UNKNOWN;
   }
 

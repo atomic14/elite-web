@@ -237,6 +237,9 @@ src/
     impact-damage.ts        the ONE Harmless rule for everything that is not a
                             laser: a ram, a canister, the Coriolis wall, a
                             warhead, the energy bomb
+    damage-dealt.ts         the OTHER direction: the four things you can hurt a
+                            ship with, and the one function that spends them and
+                            reports what came off its bank
     brains.ts               the nine trained policies, loaded — and the two
                             flight numbers that come with each
     brain-names.ts          WHICH policy flies, by name, given a
