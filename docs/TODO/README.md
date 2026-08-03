@@ -57,6 +57,17 @@ delete — and NEW COMMANDER aims the boot pointer AWAY from the shelf instead o
 clearing it, because a cleared pointer means "lost" and `bootSave` answers that
 with the career you just asked to put down.
 
+53 then deleted the migration 44 had just hardened, which is not a reversal: 44
+fixed a live bug in code that was shipping, and 53 asked who the code was for.
+Nobody but us has ever played, so the answer was nobody, and a careful migration
+serving nobody is still a hazard — 44 is the proof. `migrateLegacySaves` and its
+two helpers are gone, `SaveRecord.from` with them, and the old keys are LEFT in
+whatever browser holds them: a delete has no write to verify itself against, so
+clearing them would be the one shape 44 says not to write. Nothing reads them,
+and a store holding only them boots a fresh commander because `parseSaveId`
+refuses their shape. The write-then-verify-then-delete order survives everywhere
+a delete still follows a write.
+
 46 is done. A restore now beats the dock that follows it: `Station.dock` takes
 a `DockArrival` — you flew in, you booted with nothing to resume, or a world
 came off the shelf — and only the last of the three declines to roll a market
@@ -106,7 +117,7 @@ lines later — so it is worth doing early rather than last.
 - [ ] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium
 - [ ] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
 - [ ] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium
-- [ ] 53 — [Delete the legacy save migration](53-delete-the-legacy-save-migration.md) — simplification · medium · small
+- [x] 53 — [Delete the legacy save migration](53-delete-the-legacy-save-migration.md) — simplification · medium · small
 
 ## Follow-ups
 

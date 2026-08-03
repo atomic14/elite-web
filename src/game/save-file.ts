@@ -64,9 +64,9 @@ export type SaveKind = 'file' | 'dock' | 'fly';
  * lands or does not.
  *
  * The commander lives INSIDE the world snapshot; `commander` at the top level
- * is only for a record that has no world — which today means a legacy slot
- * migrated from a save written before mid-flight worlds existed. `commanderOf`
- * is the one place that knows which is which.
+ * is only for a record that has no world — which today means a file imported
+ * from the old bare-commander export (`save-transfer.ts`). `commanderOf` is the
+ * one place that knows which is which.
  */
 export interface SaveRecord {
   v: number;
@@ -77,12 +77,10 @@ export interface SaveRecord {
   kind: SaveKind;
   /** epoch milliseconds, for "when" and for picking the oldest ring slot */
   savedAt: number;
-  /** the whole world; null only for a migrated commander-only save */
+  /** the whole world; null only for an imported commander-only save */
   world: WorldSnapshot | null;
   /** the commander alone, and ONLY when `world` is null */
   commander: CommanderData | null;
-  /** the legacy slot this was migrated from — what makes migration idempotent */
-  from?: number;
 }
 
 /** The commander a record describes, wherever it is kept. */
@@ -96,8 +94,8 @@ export function commanderOf(rec: SaveRecord): CommanderData | null {
  * A typed name, as it will be stored: upper case, letters/digits/space only,
  * single-spaced, trimmed, and no longer than `MAX_SAVE_NAME`.
  *
- * One home for it because three callers need the same answer — the prompt, the
- * importer, and the migration that has to disambiguate four JAMESONs.
+ * One home for it because the prompt, the importer and the id encoder all need
+ * the same answer — a name that normalises two ways is two saves.
  */
 export function normaliseSaveName(raw: string): string {
   return raw
@@ -116,8 +114,9 @@ export function isValidSaveName(raw: string): boolean {
 /**
  * `base`, or the first of `base 2`, `base 3`… that is not in `taken`.
  *
- * Deterministic, because migration runs it: a re-run must land on the name it
- * landed on last time rather than inventing a second one.
+ * Deterministic, because an import runs it: everybody's commander is JAMESON,
+ * so a file has to land beside the career you are playing rather than on it,
+ * and re-importing the same file must count up rather than invent a name.
  */
 export function uniqueSaveName(base: string, taken: Iterable<string>): string {
   const used = new Set([...taken].map((n) => normaliseSaveName(n)));

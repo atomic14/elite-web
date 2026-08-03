@@ -285,9 +285,14 @@ console.log('\npurity');
   // moves one way. A second literal key would be a way round both.
   check('...and every key is built from the namespace',
     store.includes("'elite-web-'") && store.includes("'elite-web-harness-'"));
-  check('...and the legacy keys migration reads are still spelled out',
-    /\$\{ns\}commander/.test(store) && /\$\{ns\}world:/.test(store)
-    && /\$\{ns\}slot/.test(store));
+  // This used to assert the OPPOSITE — that the numbered-slot keys were still
+  // spelled out, because migration had to read them. There is no migration
+  // (docs/TODO/53), so the acceptance criterion inverted with it: no code path
+  // reads an old key, and the way to keep that true is that no expression in
+  // the file can build one. Comments stripped, or the prose explaining the
+  // deletion would fail the check it exists to state.
+  check('...and no expression builds a numbered-slot key',
+    !/\$\{ns\}(commander|world|slot)/.test(store.replace(/^\s*(\/\/|\*|\/\*).*$/gm, '')));
   check('...with no way back out of the harness namespace',
     !/ns\s*=\s*PLAYER_NS/.test(store.split('let ns = PLAYER_NS;')[1] ?? ''));
 }

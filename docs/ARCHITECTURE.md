@@ -297,7 +297,7 @@ src/
     commander.ts            who you are: stats, cargo, rank — PURE, no browser
     shop.ts                 what things cost and what you may fit
     storage.ts              the ONLY file that touches localStorage: the save
-                            shelf, the namespace, and the slot migration
+                            shelf, the namespace, and the boot pointer
     save-file.ts            what a save IS — its name, its id, and the one line
                             a player tells two of them apart by. PURE
     cargo.ts                canisters and capsules adrift, scooping them, and

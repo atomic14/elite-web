@@ -1,22 +1,22 @@
-// Named saves: the name rules, the key space, the migration, and the way back
-// from a death.
+// Named saves: the name rules, the key space, and the way back from a death.
 //
 // This is the enforcement half of docs/TODO/40 and of CLAUDE.md invariant 3.
-// Four claims are load-bearing and each is asserted against the REAL storage
+// Three claims are load-bearing and each is asserted against the REAL storage
 // path, driven through a fake `localStorage` (node has none):
 //
 //   1. An autosave cannot overwrite a save the player named. Not "does not" —
 //      CANNOT, because the two live under id shapes a typed name cannot reach.
-//   2. Every pre-existing numbered slot survives with its commander AND its
-//      world, and the migration is idempotent, recovers from being interrupted,
-//      and never removes an old key it has not proved it copied.
-//   3. A failed write changes nothing. One save is one key and one `setItem`,
+//   2. A failed write changes nothing. One save is one key and one `setItem`,
 //      so there is no half-written save to recover from.
-//   4. A harness cannot address a player's save at all — `test/harness.ts` has
+//   3. A harness cannot address a player's save at all — `test/harness.ts` has
 //      already switched this process into the harness namespace, one way.
 //
 // And the acceptance case the whole item exists for: fly out of a station, die,
 // and take the offered save back to exactly the station you left.
+//
+// There was a fourth, about migrating the four numbered slots. The migration is
+// gone (docs/TODO/53) and so are its cases: nothing reads an old key, so there
+// is nothing left to assert about one that could fail.
 
 import * as THREE from 'three';
 import { Game } from '../src/game/game.ts';
@@ -28,8 +28,8 @@ import {
   flightIds, normaliseSaveName, parseSaveId, uniqueSaveName,
 } from '../src/game/save-file.ts';
 import {
-  bootSave, clearFlightSaves, harnessSaves, listSaves, makeRecord,
-  migrateLegacySaves, namedSaves, readSave, saveNamespace, withoutSaving,
+  bootCommander, bootSave, clearFlightSaves, harnessSaves, listSaves, makeRecord,
+  namedSaves, readSave, saveNamespace,
   writeDockSave, writeFlightSave, writeNamedSave, writeSave,
 } from '../src/game/storage.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
@@ -37,7 +37,7 @@ import {
   SavePromptScreen, SavesScreen, type SavesContext,
 } from '../src/game/screens/saves.ts';
 import type { Input } from '../src/engine/input.ts';
-import { type FakeStore, installLocation, installStore } from './save-fixtures.ts';
+import { installLocation, installStore } from './save-fixtures.ts';
 import { check, eq } from './harness.ts';
 
 /**
@@ -65,7 +65,7 @@ console.log('\nsave names and the ids they make');
 
   eq('a free name is used as it stands', uniqueSaveName('JAMESON', []), 'JAMESON');
   eq('...and a taken one counts up', uniqueSaveName('JAMESON', ['JAMESON']), 'JAMESON 2');
-  eq('...deterministically, which is what makes migration idempotent',
+  eq('...deterministically, which is what makes re-importing a file idempotent',
     uniqueSaveName('JAMESON', ['JAMESON', 'JAMESON 2']), 'JAMESON 3');
   check('...and it never grows past the limit',
     uniqueSaveName('ABCDEFGHIJKLMNOP', ['ABCDEFGHIJKLMNOP']).length <= MAX_SAVE_NAME);
@@ -161,168 +161,42 @@ console.log('\nthe save shelf');
   }
 }
 
-// --- migration ---------------------------------------------------------------
+// --- a store from before named saves -----------------------------------------
+//
+// There is no migration off the four numbered slots (docs/TODO/53), so this is
+// what one of those stores is worth now: nothing, and it costs nothing to say
+// so. The first save record below is BYTE-PERFECT — it would load — and the
+// only reason it is not on the shelf is the shape of the key it is under.
+//
+// Both halves matter. A boot that read those keys fails the first three checks;
+// a boot that tidied them away fails the fourth, and tidying is a destructive
+// write with no read-back to prove itself, which is the shape docs/TODO/44 is
+// about. Reintroducing `migrateLegacySaves` fails this block, which is the
+// point of keeping it.
 
-console.log('\nmigrating the four numbered slots');
+console.log('\na store holding nothing but the keys of the old scheme');
 {
-  const NS = saveNamespace();
-  const legacyCommander = (slot: number): CommanderData => ({
-    ...newCommander(), credits: 1000 * slot, kills: slot, day: slot,
-  });
-  /** A fixture written in the OLD key shape, exactly as a player's store had it. */
-  const seedLegacy = (store: FakeStore, world?: unknown, pointer = '2') => {
-    for (let slot = 1; slot <= 4; slot++) {
-      store.held.set(`${NS}commander:${slot}`, JSON.stringify(legacyCommander(slot)));
-    }
-    if (world) store.held.set(`${NS}world:2`, JSON.stringify(world));
-    store.held.set(`${NS}slot`, pointer);
-  };
+  const { store, restore } = installStore();
+  try {
+    const NS = saveNamespace();
+    const legacy = new Map<string, string>([
+      [`${NS}commander:1`, JSON.stringify(makeRecord('JAMESON', 'JAMESON', 'file',
+        stubWorld({ ...newCommander(), credits: 987 })))],
+      [`${NS}world:1`, '{"version":1,"mode":"flight"}'],
+      [`${NS}commander`, JSON.stringify({ ...newCommander(), credits: 987 })],
+      [`${NS}slot`, '1'],
+    ]);
+    for (const [k, v] of legacy) store.held.set(k, v);
 
-  // A REAL world snapshot, taken from a real Game, so "the world survives" is a
-  // claim about the bytes a player actually has and not about a stub.
-  const shell = headlessShell();
-  seedWorld(4242);
-  const probe = installStore();
-  const realWorld = withoutSaving(() => {
-    const g = new Game(() => shell);
-    g.launch();
-    for (let i = 0; i < 60; i++) g.update(1 / 60, i / 60);
-    g.state.commander.credits = 2000;   // slot 2's, so the fixture is consistent
-    g.state.commander.kills = 2;
-    g.state.commander.day = 2;
-    return g.captureSnapshot();
-  }).value;
-  probe.restore();
-
-  {
-    const { store, restore } = installStore();
-    try {
-      seedLegacy(store, realWorld);
-      migrateLegacySaves();
-
-      const saves = listSaves();
-      eq('every pre-existing slot became a named save', saves.length, 4);
-      eq('...disambiguated, because all four are JAMESON',
-        saves.map((s) => s.record.name).sort().join(),
-        'JAMESON,JAMESON 2,JAMESON 3,JAMESON 4');
-      check('...each keeping its own commander',
-        [1000, 2000, 3000, 4000].every((credits) =>
-          saves.some((s) => commanderOf(s.record)?.credits === credits)));
-      const withWorld = saves.find((s) => s.record.world);
-      check('...and the slot that had a mid-flight world kept the WORLD too',
-        !!withWorld && withWorld.record.world!.mode === 'flight'
-        && withWorld.record.world!.npcs.length > 0
-        && commanderOf(withWorld.record)?.credits === 2000);
-      check('...so a player who never saw this build loses nothing',
-        saves.every((s) => !!commanderOf(s.record)));
-
-      eq('the slot that was being played is the one that boots',
-        commanderOf(bootSave()!.record)?.credits, 2000);
-      check('the old keys are gone — one home for a career, not two',
-        ![...store.held.keys()].some((k) => /commander:\d|world:\d|-slot$/.test(k)));
-
-      const idsBefore = saves.map((s) => s.id).sort().join();
-      migrateLegacySaves();
-      migrateLegacySaves();
-      const after = listSaves();
-      check('migration is idempotent: twice does not duplicate a save',
-        after.length === 4 && after.map((s) => s.id).sort().join() === idsBefore);
-    } finally {
-      restore();
-    }
-  }
-
-  // --- interrupted, and resumed -------------------------------------------
-  {
-    const { store, restore } = installStore();
-    try {
-      seedLegacy(store);
-      // Every write refused: the store is exactly as full as a crash before the
-      // first setItem would leave it.
-      withoutSaving(() => migrateLegacySaves());
-      check('a migration that could not write left every old key where it was',
-        [1, 2, 3, 4].every((n) => store.held.has(`${NS}commander:${n}`))
-        && listSaves().length === 0);
-
-      // ...and a store that throws mid-way: some slots copied, some not.
-      store.failFrom = store.writes + 3;
-      migrateLegacySaves();
-      store.failFrom = Infinity;
-      const half = listSaves().length;
-      check(`a half-migrated store keeps the slots it could not copy (${half} copied)`,
-        half > 0 && half < 4
-        && [1, 2, 3, 4].filter((n) => store.held.has(`${NS}commander:${n}`)).length === 4 - half);
-
-      migrateLegacySaves();
-      const done = listSaves();
-      eq('...and running again finishes the job', done.length, 4);
-      eq('...without duplicating what had already been copied',
-        new Set(done.map((s) => s.record.from)).size, 4);
-      check('...leaving no old key behind',
-        ![...store.held.keys()].some((k) => /commander:\d|world:\d/.test(k)));
-    } finally {
-      restore();
-    }
-  }
-
-  // --- a slot whose world is unreadable ------------------------------------
-  {
-    const { store, restore } = installStore();
-    try {
-      seedLegacy(store, { version: 999, commander: legacyCommander(2) });
-      migrateLegacySaves();
-      const two = listSaves().find((s) => s.record.from === 2);
-      check('a world from an older format costs the slot its world, never its career',
-        !!two && two.record.world === null && commanderOf(two.record)?.credits === 2000);
-    } finally {
-      restore();
-    }
-  }
-
-  // --- the pointer that says which slot was being played --------------------
-  {
-    const { store, restore } = installStore();
-    try {
-      seedLegacy(store);                  // four slots, and slot 2 is being played
-      store.failKeys = /-boot$/;          // ...and the store will not take the new pointer
-      migrateLegacySaves();
-      store.failKeys = null;
-      eq('a refused boot pointer does not stop the slots crossing', listSaves().length, 4);
-      eq('...but the old pointer stays until the one replacing it has landed',
-        store.held.get(`${NS}slot`), '2');
-
-      migrateLegacySaves();
-      eq('...so the next boot still knows which slot was being played',
-        commanderOf(bootSave()!.record)?.credits, 2000);
-      check('...and only then is it gone', !store.held.has(`${NS}slot`));
-    } finally {
-      restore();
-    }
-  }
-
-  // --- the pre-slots key, which is where all of this started ----------------
-  {
-    const { store, restore } = installStore();
-    try {
-      const bare = JSON.stringify({ ...newCommander(), credits: 777 });
-      store.held.set(`${NS}commander`, bare);
-
-      // A FULL STORE, and this key is the only copy of that commander there is.
-      // It used to be read, written nowhere, and then deleted (docs/TODO/44).
-      store.failKeys = /commander:1$/;
-      migrateLegacySaves();
-      store.failKeys = null;
-      check('a refused write leaves the pre-slots commander exactly where it was',
-        store.held.get(`${NS}commander`) === bare && listSaves().length === 0);
-
-      migrateLegacySaves();
-      eq('the pre-slots save still finds its way home',
-        listSaves().map((s) => commanderOf(s.record)?.credits).join(), '777');
-      check('...and only once it has is the old key gone',
-        !store.held.has(`${NS}commander`));
-    } finally {
-      restore();
-    }
+    eq('none of it is a save', listSaves().length, 0);
+    eq('...so there is nothing for the next boot to resume', bootSave(), null);
+    eq('...and the commander that boots is a fresh one, not the slot\'s',
+      bootCommander().credits, newCommander().credits);
+    check('...and every old key is exactly as it was: a boot neither reads nor tidies',
+      store.held.size === legacy.size
+      && [...legacy].every(([k, v]) => store.held.get(k) === v));
+  } finally {
+    restore();
   }
 }
 
@@ -335,7 +209,7 @@ console.log('\nfly out of a station, die, and take the way back');
     seedWorld(20_260_802);
     const g = new Game(() => headlessShell());
     const career = g.state.career;
-    check('a fresh career is named, and it is not a numbered slot', career.length > 0);
+    check('a fresh career has a name of its own', career.length > 0);
 
     g.state.commander.credits = 54_321;
     g.state.commander.missiles = 2;

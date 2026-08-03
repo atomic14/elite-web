@@ -33,8 +33,15 @@
 // play again. `withoutSaving()` is the other tool: it refuses writes for a span
 // rather than redirecting them.
 //
-// The legacy key strings are still here, VERBATIM, because migration has to
-// read them (see `migrateLegacySaves`). They are read once and removed once.
+// THE OLD KEYS ARE NOT SPELLED OUT HERE, and there is no migration off them
+// (docs/TODO/53) — nobody was ever playing but us. A store left over from the
+// slot era boots as a fresh commander, and structurally rather than by a check:
+// `listSaves()` scans for `<ns>save:` and hands every id to `parseSaveId`, so a
+// key of any other shape is not a save and cannot become one. No expression in
+// the program can name `<ns>commander:1`. Whatever is still sitting in a
+// browser under those keys stays there, unread — deleting it would be a
+// destructive write with nothing to verify it against, which is the shape TODO
+// 44 was about.
 
 import { COMMODITIES } from '../galaxy/galaxy.ts';
 import {
@@ -42,7 +49,7 @@ import {
   type CommanderData,
 } from './commander.ts';
 import { migratedPlayerHullId } from './ship-identity.ts';
-import { SNAPSHOT_VERSION, type WorldSnapshot } from './snapshot.ts';
+import type { WorldSnapshot } from './snapshot.ts';
 import {
   SAVE_ID_PREFIX, SAVE_RECORD_VERSION, FLIGHT_RING,
   dockId, fileId, flightId, flightIds, parseSaveId, uniqueSaveName,
@@ -353,7 +360,6 @@ export function bootNewCareer(): boolean {
  * empty, which is a new commander.
  */
 export function bootSave(): { id: string; record: SaveRecord } | null {
-  migrateLegacySaves();
   const id = readItem(BOOT_KEY());
   if (id === NEW_CAREER) return null;
   if (id) {
@@ -399,22 +405,15 @@ export function freshCareerName(base: string): string {
   return uniqueSaveName(base || DEFAULT_NAME, listSaves().map((s) => s.record.career));
 }
 
-// --- migration --------------------------------------------------------------
-
-/** The pre-slots key: one commander, no number after it. */
-const LEGACY_BARE = (): string => `${ns}commander`;
-const LEGACY_SLOT_KEY = (): string => `${ns}slot`;
-const legacyCommanderKey = (slot: number): string => `${ns}commander:${slot}`;
-const legacyWorldKey = (slot: number): string => `${ns}world:${slot}`;
-/** How many numbered slots the old scheme had. */
-const LEGACY_SLOTS = 4;
+// --- what comes off the shelf, repaired --------------------------------------
 
 /**
  * Every commander that comes off the shelf, repaired the same way.
  *
- * Unchanged from the slot era: fields added since a save was written get their
- * defaults, and a hull id that is missing or unresolvable becomes the Cobra Mk
- * III every legacy career flew — never a failure to load.
+ * Fields added since a save was written get their defaults, and a hull id that
+ * is missing or unresolvable becomes the Cobra Mk III every early career flew —
+ * never a failure to load. This is a repair of a RECORD's contents and has
+ * nothing to do with the key it was found under.
  */
 function repairCommander(stored: Partial<CommanderData>): CommanderData {
   const parsed = { ...newCommander(), ...stored };
@@ -437,124 +436,6 @@ function repairCommander(stored: Partial<CommanderData>): CommanderData {
   parsed.shipId = migratedPlayerHullId(stored.shipId);
   if (typeof parsed.name !== 'string' || !parsed.name) parsed.name = DEFAULT_NAME;
   return parsed;
-}
-
-/** Has slot `n` already been migrated? Then the record says so. */
-function recordFromSlot(n: number): { id: string; record: SaveRecord } | null {
-  return listSaves().find((s) => s.record.from === n) ?? null;
-}
-
-/**
- * Turn the four numbered slots into named saves, once, safely, and repeatably.
- *
- * THE ORDER IS THE SAFETY, and it is per slot: write the new record, READ IT
- * BACK and check it carries the same commander, and only then remove the old
- * keys. A crash, a refused write or a full store therefore leaves the old keys
- * exactly where they were, and the next boot tries again. A slot that has
- * already been migrated is recognised by `from`, so running twice cannot
- * produce a second copy — which is also why the disambiguated name has to be
- * derived deterministically rather than invented per run.
- *
- * The old keys ARE removed once the copy is proven, rather than kept as a
- * fallback: two homes for the same career is the failure this project is
- * organised against, and the proof-before-delete is the insurance instead.
- */
-export function migrateLegacySaves(): void {
-  const s = store();
-  if (!s) return;
-  // The pre-slots blob: it becomes slot 1 if slot 1 is free, and an occupied
-  // slot 1 means an earlier build already promoted it (and may have been played
-  // since) — the same idempotency signal `recordFromSlot` gives the four slots.
-  //
-  // WRITE, PROVE, AND ONLY THEN REMOVE, as below. This line used to delete the
-  // bare key unconditionally, and `writeItem` swallows a quota throw: on a full
-  // store the commander was read, written nowhere, and removed (docs/TODO/44).
-  const bare = readItem(LEGACY_BARE());
-  if (bare) {
-    const promoted = readItem(legacyCommanderKey(1)) !== null
-      || (writeItem(legacyCommanderKey(1), bare)
-        && readItem(legacyCommanderKey(1)) === bare);
-    if (promoted) dropItem(LEGACY_BARE());
-  }
-
-  const pointer = Number(readItem(LEGACY_SLOT_KEY()));
-  let bootFrom: number | null =
-    Number.isInteger(pointer) && pointer >= 1 && pointer <= LEGACY_SLOTS ? pointer : null;
-
-  for (let slot = 1; slot <= LEGACY_SLOTS; slot++) {
-    const commanderRaw = readItem(legacyCommanderKey(slot));
-    const worldRaw = readItem(legacyWorldKey(slot));
-    if (!commanderRaw && !worldRaw) continue;
-
-    let migrated = recordFromSlot(slot);
-    if (!migrated) {
-      const made = migrateOneSlot(slot, commanderRaw, worldRaw);
-      if (!made) continue;   // refused or unreadable — leave the old keys alone
-      migrated = made;
-    }
-    // proven present: only now do the originals go
-    dropItem(legacyCommanderKey(slot));
-    dropItem(legacyWorldKey(slot));
-    if (bootFrom === null) bootFrom = slot;
-    if (bootFrom === slot && !readItem(BOOT_KEY())) setBootId(migrated.id);
-  }
-
-  if (bootFrom !== null) {
-    const target = recordFromSlot(bootFrom);
-    // Which slot was being played is data too, so the old pointer goes only
-    // once the new one has landed — same order, same reason. A refused write
-    // here used to take the answer with it, leaving the next boot to guess at
-    // the first slot with anything in it.
-    if (target && setBootId(target.id)) dropItem(LEGACY_SLOT_KEY());
-  }
-}
-
-/**
- * One slot into one record, written and then PROVEN.
- *
- * @returns the record as it reads back, or null if it did not land.
- */
-function migrateOneSlot(
-  slot: number, commanderRaw: string | null, worldRaw: string | null,
-): { id: string; record: SaveRecord } | null {
-  let commander: CommanderData | null = null;
-  try {
-    if (commanderRaw) commander = repairCommander(JSON.parse(commanderRaw) as CommanderData);
-  } catch { commander = null; }
-
-  let world: WorldSnapshot | null = null;
-  try {
-    if (worldRaw) {
-      const snap = JSON.parse(worldRaw) as WorldSnapshot;
-      // A snapshot from a different format is not loadable and never was: the
-      // commander beside it still is, so the slot keeps its career either way.
-      if (snap && snap.version === SNAPSHOT_VERSION && snap.commander) {
-        snap.commander = repairCommander(snap.commander);
-        // The old boot refused a world whose commander was not the slot's, and
-        // fell back to the station save. Same answer here.
-        if (!commander || snap.commander.name === commander.name) world = snap;
-      }
-    }
-  } catch { world = null; }
-
-  if (!world && !commander) return null;
-  const base = (world?.commander ?? commander)?.name ?? DEFAULT_NAME;
-  const taken = listSaves().map((r) => r.record.name);
-  const name = uniqueSaveName(base, taken);
-  const record: SaveRecord = {
-    ...makeRecord(name, name, 'file', world, commander),
-    // Carries the slot it came from, which is what makes a second run a no-op.
-    from: slot,
-  };
-  const id = fileId(name);
-  if (!writeSave(id, record)) return null;
-  const back = readSave(id);
-  const kept = commanderOf(back ?? ({} as SaveRecord));
-  const wanted = commanderOf(record);
-  if (!back || !kept || !wanted) return null;
-  if (kept.name !== wanted.name || kept.credits !== wanted.credits) return null;
-  if (back.from !== slot) return null;
-  return { id, record: back };
 }
 
 // --- what the console and the harnesses need ---------------------------------

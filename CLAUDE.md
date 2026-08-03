@@ -120,12 +120,14 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
      cannot be forgotten, cannot be undone by a missing `finally`, and covers
      the running game as well as the harness.
 
-   **The old keys** — `elite-web-commander[:slot]`, `elite-web-world:<slot>`,
-   `elite-web-slot` — are still spelled out in `storage.ts` because migration
-   reads them, and are removed only per slot, only after the new record has been
-   written AND read back. A crash, a refused write or a full store therefore
-   leaves them exactly where they were and the next boot tries again;
-   `test/saves.test.ts` proves it against a fixture of the old shape.
+   **There is no migration off the old keys** and no code names them
+   (docs/TODO/53) — we are the only ones playing, so the numbered-slot import
+   was risk with nobody to serve, and TODO 44 was a data-loss bug inside it. A
+   store still holding `elite-web-commander:*` boots a fresh commander by the
+   same structure as everything else here: the scan takes `<ns>save:` and every
+   id through `parseSaveId`, so a key of another shape is not a save and cannot
+   become one. Whatever is left in a browser stays there, unread; deleting it
+   would be a destructive write with nothing to verify against.
    `elite-web-keymap` is `engine/keymap.ts`'s and is not a save.
 4. **Galaxy fidelity**: `generateGalaxy(1)[7]` is LAVE, TL:5, Rich Agricultural
    Dictatorship. Never "fix" `galaxy.ts` maths; it is byte-matched to the 1984
