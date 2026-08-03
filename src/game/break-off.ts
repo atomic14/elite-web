@@ -1,5 +1,9 @@
-// How close a hostile lets itself get before it turns away — and where a
-// trained pilot hands the flying over.
+// How close a hostile lets itself get before it turns away, how far it runs out
+// before coming back, and where a trained pilot hands the flying over.
+//
+// The RANGES and the PHASES of an attack run, in other words. Where the closing
+// leg aims is `pass-aim.ts` next door — a different rule, and one that had
+// grown to a third of this file by the time docs/TODO/66 was done with it.
 //
 // ONE distance, in ONE file, because it had two homes and they drifted. The
 // number lived as a hardcoded `dist < 220` at the top of `NpcShip.attack` and
@@ -224,34 +228,6 @@ export const UNDER_FIRE_SECONDS = 1.2;
  * thing that catches a bug.
  */
 export const CLOSING_THROTTLE_MIN = 0.45;
-
-/**
- * How far to the SIDE of its target a ship aims its attack run.
- *
- * An attack run passes BESIDE the target, not through it. The first cut of the
- * three-phase run aimed at the target itself and then committed to the heading
- * — "go through, no steering" — which is correct for the steering and wrong for
- * the aim point, because the heading it commits to is the one pointed at the
- * hull. Measured over 60 episodes against a target that holds still, that is
- * not a near miss:
- *
- *   scripted, aiming at the target   collision damage 104.1 per episode
- *   scripted, aiming 110 to the side              (see the test)
- *   the old 180-degree break-off                             5.1
- *
- * The old reversal took almost no contact damage because it never went in — it
- * orbited at exactly 220 units at 137 speed, which is the turret reading
- * `train/flight-probe.ts` exists to catch. So both of the first two attempts
- * were wrong in opposite directions and the miss distance is what separates
- * them: commit to the run, but commit to a line that clears the hull.
- *
- * 110 units. The two hulls in a knife fight are about 68 units of radius before
- * they touch, so this clears contact with roughly half again as much room, and
- * it is small enough that the gun's gate — which is an angle, not an offset —
- * still opens on the way in.
- */
-export const PASS_MISS_DISTANCE = 110;
-
 
 /**
  * How hard a closing ship pulls the throttle back, given how far off its nose

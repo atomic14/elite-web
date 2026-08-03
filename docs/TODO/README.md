@@ -270,10 +270,30 @@ migrated and flies the shipped brains, which is TODO 57's precedent, and
 it left open — two measured faults in the run's geometry, the design it makes
 possible, and one piece of wording nobody could read.
 
-- [ ] 66 — [The pass aims where you were, not where you will be](66-the-pass-aims-where-you-were.md) — combat bug · medium · small
+- [x] 66 — [The pass aims where you were, not where you will be](66-the-pass-aims-where-you-were.md) — combat bug · medium · small
 - [ ] 67 — [Short attack runs are not flyable, so the rhythm is fixed at ~9s](67-short-attack-runs-are-not-flyable.md) — combat feel · medium · medium
 - [ ] 68 — [A vocabulary of tactics, not one behaviour](68-a-vocabulary-of-tactics.md) — combat feel/design · medium · large
 - [x] 69 — [The setup panel says "HULL (0)" and means "ask the hull"](69-the-panel-says-hull-zero.md) — UI/UX · low · small
+
+66 is done, and it needed a tool before it needed a fix. Nothing in the training
+world both TRANSLATED and stayed in the fight — `holding` sits at 42, and
+`scripted` and `runner` both settle at ~397 against a pirate's ~240 and are
+never caught again — so there was no way to ask the question the item is about.
+`train/ram-probe.ts` and a `weaving` target are that way: five ships, contact
+counted where the ram is billed rather than divided out of a damage total.
+
+The aim point now leads (`game/pass-aim.ts`, which is where the run's aim went
+when it had grown to a third of `break-off.ts`) and the miss distance stretches
+with the range and the closure, so a pass opens the gap it always claimed to.
+Against five ships and a target that holds — the closest model of how Chris
+actually flies — contact fell from 1.15 to 0.42 an episode, 132 points to 48;
+ship-on-ship contact fell 67%; the passes count did not move. It cost 1.5 points
+of the commander's pools in `defence-probe`, where simply raising the constant
+to 130 for the same result costs 3.6. The honest caveat is in the item's own
+report: the geometry the item PREDICTED — a fast head-on merge eating the offset
+— is real but is not what was producing Chris's rams, and against a target
+translating at 400 the fix buys a quarter more merges at the same contact per
+merge rather than less contact.
 
 69 is done: a delegated row reads `FROM THE HULL — NONE` / `FROM THE HULL — 60%`
 and a set one reads `0` / `60%`, so the mode is words and the number after it is

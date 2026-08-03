@@ -14,9 +14,10 @@ import {
 } from '../ai-training/policy.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
 import {
-  UNDER_FIRE_SECONDS, PASS_MISS_DISTANCE,
+  UNDER_FIRE_SECONDS,
   EXTEND_RANGE_MAX, nextAttackPhase, closingThrottle, rollExtendRange, type AttackPhase,
 } from './break-off.ts';
+import { leadTime, passMissDistance } from './pass-aim.ts';
 import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
 import { separationFrom, SEPARATION_PUSH } from './separation.ts';
 import type { BrainSelection } from './brain-names.ts';
@@ -405,6 +406,8 @@ export class NpcShip {
   private readonly tmpDir2 = new THREE.Vector3();
   private readonly tmpSide = new THREE.Vector3();
   private readonly tmpAway = new THREE.Vector3();
+  private readonly tmpLead = new THREE.Vector3();
+  private readonly tmpVel = new THREE.Vector3();
   private readonly mateSlots: THREE.Vector3[] = [];
   private readonly tmpMat = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
@@ -633,7 +636,8 @@ export class NpcShip {
           choice.pack ? fleet : null)
         // Inside knife range the scripted break-off takes over the FLYING — and
         // only the flying, since attack() keeps its gun. See break-off.ts.
-        : this.attack(dt, player.position, distPlayer, true, undefined, view.fleet);
+        : this.attack(dt, player.position, distPlayer, true, undefined, view.fleet,
+          this.velocityOf(player.quaternion, player.speed));
       return this.chooseWeapon(shot, dt, distPlayer, player.position, view, matesLost(view));
     }
 
@@ -641,7 +645,8 @@ export class NpcShip {
       const d = this.npcTarget.object.position.distanceTo(this.object.position);
       if (d < 7000) {
         return this.attack(
-          dt, this.npcTarget.object.position, d, false, this.npcTarget, view.fleet);
+          dt, this.npcTarget.object.position, d, false, this.npcTarget, view.fleet,
+          this.velocityOf(this.npcTarget.object.quaternion, this.npcTarget.state.speed));
       }
       this.npcTarget = null;
     }
@@ -956,6 +961,16 @@ export class NpcShip {
      * avoidance, which is exactly right for a one-on-one episode.
      */
     fleet: readonly NpcShip[] = [],
+    /**
+     * How the target is MOVING, if the caller knows.
+     *
+     * Optional because the aim below degrades to what it always did without it
+     * — a run laid on where the target is now — and because a stationary
+     * fixture has nothing to say. Every live caller passes it: the aim point is
+     * the thing docs/TODO/66 is about, and a pass laid on a stale position is
+     * mostly spent before the hulls meet. See `leadTime`.
+     */
+    targetVel?: THREE.Vector3,
   ): FireEvent | null {
     // WHERE TO BE and WHETHER TO SHOOT are two decisions, and this used to be
     // one. Inside the break-off the ship turned away and `return null`ed, so
@@ -1009,20 +1024,30 @@ export class NpcShip {
       // `nextAttackPhase` puts it back on `closing` and it comes round again.
       this.state.speed = approach(this.state.speed, this.maxSpeed, this.accel * dt);
     } else {
+      // AIM BESIDE WHERE IT WILL BE, not beside where it is. Two rules, and
+      // they compose: the offset is what stops the run being aimed at the hull
+      // (104 points of contact damage an episode when it was — see
+      // PASS_MISS_DISTANCE), and the lead is what stops the offset being spent
+      // on the target's own travel before the two ships meet.
+      //
+      // The offset is perpendicular to the run and lies in the attacker's own
+      // roll plane, so it is a sidestep from the pilot's point of view rather
+      // than a world-axis one, and it turns with the ship instead of swapping
+      // sides as the geometry crosses an axis. It is taken against the
+      // PREDICTED point for the same reason the aim is: perpendicular to the
+      // line the ship is actually going to fly.
+      //
+      // ONE closing speed feeds both halves — how far ahead to aim, and how
+      // wide — because they are two answers to the same question and reading it
+      // twice is how one rule grows two homes.
+      const closing = this.closingRate(targetPos, targetVel, dist);
+      const mark = this.tmpLead.copy(targetPos);
+      if (targetVel) mark.addScaledVector(targetVel, leadTime(dist, closing));
       // pack ships approach offset bearings until close, then converge
       const aim = dist > this.state.extendRange
         ? this.tmpDir.copy(targetPos).add(this.state.packOffset)
-        // AIM BESIDE IT, not at it. The pass commits to whatever heading the
-        // closing phase built, so a run aimed at the hull commits to a
-        // collision — measured at 104 points of contact damage an episode
-        // against 5 for the old orbit. See PASS_MISS_DISTANCE.
-        //
-        // The offset is perpendicular to the run and lies in the attacker's own
-        // roll plane, so it is a sidestep from the pilot's point of view rather
-        // than a world-axis one, and it turns with the ship instead of swapping
-        // sides as the geometry crosses an axis.
-        : this.tmpDir.copy(targetPos).addScaledVector(
-          this.passOffset(targetPos), PASS_MISS_DISTANCE);
+        : this.tmpDir.copy(mark).addScaledVector(
+          this.passOffset(mark), passMissDistance(dist, closing, this.state.speed));
       // ...and bend that line away from any wingman in the way, so a gang picks
       // different runs in rather than discovering each other at the merge.
       // Prevention; the nudge in `passing` above is the cure.
@@ -1114,6 +1139,19 @@ export class NpcShip {
   }
 
   /**
+   * How something with this attitude and this speed is travelling.
+   *
+   * Nose and thrust are the same direction for everything that flies in this
+   * game — `advance()` above is the same two lines, and the commander's
+   * `update()` is a third — so a target's velocity is not a thing anybody has
+   * to store. Written into this ship's own scratch and handed straight to
+   * `attack()`, which is the only caller.
+   */
+  private velocityOf(quat: THREE.Quaternion, speed: number): THREE.Vector3 {
+    return this.tmpVel.set(0, 0, -1).applyQuaternion(quat).multiplyScalar(speed);
+  }
+
+  /**
    * The muzzle: where a bolt or missile should visually leave this ship.
    * Lasers are nose-mounted, so this is the hull's front, not its centre —
    * without it a big hull (Anaconda 55, Thargoid 60) appears to fire from
@@ -1143,6 +1181,28 @@ export class NpcShip {
       out.push(m.object.position);
     }
     return out;
+  }
+
+  /**
+   * How fast the RANGE to the target is shutting.
+   *
+   * Our own speed, less however much of the target's motion is carrying it away
+   * down the same line — so a target crossing the nose contributes nothing to
+   * this and everything to where it will be, which is the case the old aim
+   * point got worst. It is the one number the attack run's aim is built from:
+   * `leadTime` turns it into when the two meet, `passMissDistance` into how far
+   * that leaves to step aside in.
+   *
+   * With no velocity from the caller, and at zero range where there is no line
+   * of sight to resolve along, it is our own speed — which is what a target
+   * standing still gives, so the aim degrades to exactly the one that shipped.
+   */
+  private closingRate(
+    targetPos: THREE.Vector3, targetVel: THREE.Vector3 | undefined, dist: number,
+  ): number {
+    if (!targetVel || dist < 1e-3) return this.state.speed;
+    const to = this.tmpDir2.copy(targetPos).sub(this.object.position).divideScalar(dist);
+    return this.state.speed - targetVel.dot(to);
   }
 
   /**

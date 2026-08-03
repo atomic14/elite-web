@@ -9,6 +9,9 @@
 // TODO 42 regression), that the ship flies THROUGH the pass rather than
 // attempting a 180 it has no room for, that the cycle comes back round, and
 // that being shot at while extending breaks the straight line.
+//
+// WHERE the closing leg aims is `pass-aim.test.ts`, beside `game/pass-aim.ts`,
+// for the same reason this file exists: it is its own module now.
 
 
 import * as THREE from 'three';
@@ -17,7 +20,7 @@ import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip, hostilesNear, MIN_CRUISE_FRACTION } from '../src/game/npc.ts';
 import {
   nextAttackPhase, closingThrottle, describeFlight, type AttackPhase,
-  BREAK_OFF_RANGE, CLOSING_THROTTLE_MIN, PASS_MISS_DISTANCE,
+  BREAK_OFF_RANGE, CLOSING_THROTTLE_MIN,
   EXTEND_RANGE_MIN, EXTEND_RANGE_MAX, rollExtendRange, UNDER_FIRE_SECONDS,
 } from '../src/game/break-off.ts';
 import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
@@ -208,29 +211,6 @@ check('closingThrottle: monotone — more off-line is never more throttle', (() 
 check('closingThrottle: its slowest stays ABOVE the turret floor',
   CLOSING_THROTTLE_MIN > MIN_CRUISE_FRACTION,
   `${CLOSING_THROTTLE_MIN} vs cruise floor ${MIN_CRUISE_FRACTION}`);
-
-// --- the run passes BESIDE the target --------------------------------------
-//
-// The miss distance is the difference between an attack run and a ram, and it
-// was found the hard way: the first cut aimed the run at the target and then
-// committed to that heading, which is a collision by construction. 60 episodes
-// against a target that holds still, contact damage per episode:
-//
-//   the old 180-degree break-off      5.1   (but it never went in — a turret)
-//   aimed AT the target             104.1   (20x worse — a ram every time)
-//   aimed PASS_MISS_DISTANCE aside    2.2   (and 5.2 real passes an episode)
-
-check('PASS_MISS_DISTANCE clears two hulls in contact',
-  // Ships in this roster run to about 34 units of radius each, so a run has to
-  // clear roughly 68 to be a pass rather than a collision.
-  PASS_MISS_DISTANCE > 68,
-  `${PASS_MISS_DISTANCE} must clear the contact radius of two hulls`);
-
-check('PASS_MISS_DISTANCE stays inside the break-off',
-  // Wider than the break-off and the ship would be steering away from a target
-  // it has not reached yet, which is the orbit this replaced.
-  PASS_MISS_DISTANCE < BREAK_OFF_RANGE,
-  `${PASS_MISS_DISTANCE} vs break-off ${BREAK_OFF_RANGE}`);
 
 // --- every run is a different length ----------------------------------------
 //

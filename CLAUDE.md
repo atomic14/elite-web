@@ -71,6 +71,10 @@ npm run evaluate   # held-out tournament
 npm run survivability # can a shielded commander survive a gang? (a BOT answer)
 npm run flight-probe  # is it FLYING or is it a turret? — passes, range spread,
                    # speed and rams, per attacking policy. `-- <episodes>`
+npm run ram-probe  # the other half: does the attack run still MISS a target
+                   # that moves? Five ships, contact counted where the ram is
+                   # billed, against a target that holds / evades / weaves.
+                   # `-- <episodes>`. TODO 66 is what it was built for
 npm run defence-probe # is the defender fighting or just surviving? — pools left
                    # AND kills, broken down by pirate count, hull and laser, on
                    # held-out seeds. `-- <episodes> [brain...]`. The breakdown is

@@ -237,9 +237,13 @@ src/
     npc.ts                  NPC ships: scripted behaviour + trained-brain flight
     npc-targeting.ts        who hunts whom among the NPCs
     break-off.ts            how close a hostile lets itself get before it turns
-                            away, and where a trained pilot hands the flying
-                            over — ONE distance, shared by npc.ts and brains.ts,
-                            and breaking off does not hold fire
+                            away, how far it runs out before coming back, and
+                            where a trained pilot hands the flying over — ONE
+                            distance, shared by npc.ts and brains.ts, and
+                            breaking off does not hold fire
+    pass-aim.ts             where the closing leg AIMS: beside the target, and
+                            ahead of it. The miss distance, the lead and the
+                            stretch that makes a run pass by what it meant to
     ship-specs.ts           the roster: which hull flies which role, and its
                             stats — all of them Harmless's, none copied from
                             the pack
@@ -472,6 +476,9 @@ train/flight-probe.ts       is it flying, or is it a turret? the SHAPE of a
                             brain's fight, not its score — measured by the
                             game's own CombatSimRecorder, so the tool and the
                             in-game report cannot disagree about what a pass is
+train/ram-probe.ts          the other half of the probe above: contact against
+                            a target that MOVES, five ships, counted where the
+                            ram is billed rather than divided out of a total
 train/jameson-autopilot.js  the browser-console economy harness behind
                             docs/JAMESON-TRIALS.md
 train/profile-sweep.ts      the catalogue rather than the policies: all 15

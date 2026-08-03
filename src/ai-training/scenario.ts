@@ -117,7 +117,46 @@ export type Controller =
    * hangs at ~430 units and pivots instead of making attack runs, which is
    * exactly what Chris reported flying it: "they now sit still spinning".
    */
-  | { kind: 'holding' };
+  | { kind: 'holding' }
+  /**
+   * A target that TRANSLATES, flat out, and never points at anybody.
+   *
+   * It exists as an instrument rather than as a pilot, and docs/TODO/66 is the
+   * reason. Every other target here is either stationary (`holding`, 42 mean
+   * speed) or leaving (`scripted` and `runner`, which both settle at ~397
+   * against a pirate's ~240 and are never caught again — 0.01 passes a pirate).
+   * So the training world had no way at all to ask the question that item is
+   * about: does an attack run, whose aim point is committed against where the
+   * target was AT THAT INSTANT, still clear a target that has MOVED by the time
+   * the two ships meet?
+   *
+   * Two properties, and both are what make it a measurement:
+   *
+   *   - It never steers at a pirate, so a contact is entirely the pirate's
+   *     doing. A target that charges would ram ships that flew perfectly.
+   *   - Its waypoints are rolled around the ORIGIN, not around itself, so it
+   *     sweeps the arena at 400 instead of leaving it. That is the whole
+   *     difference from `scripted`, which random-walks away and takes the fight
+   *     with it.
+   *
+   * It is not a claim about how a human flies — Chris's own median is 66, and
+   * `holding` is much closer to that. It is the geometry, isolated.
+   */
+  | { kind: 'weaving' };
+
+/**
+ * How far from the arena's centre a `weaving` target's waypoints are rolled.
+ *
+ * Pirates spawn 1,500 to 2,700 out, so a target sweeping a sphere this size
+ * stays inside the volume they are already converging on. Bigger and it starts
+ * outrunning them the way `runner` does; much smaller and it is doing tight
+ * circles rather than translating, which is `holding` with extra steps.
+ */
+const WEAVE_RADIUS = 900;
+
+/** How often a `weaving` target picks somewhere new to be. */
+const WEAVE_MIN_SECONDS = 2.5;
+const WEAVE_MAX_SECONDS = 4;
 
 /**
  * The hulls a target can fly, and the envelope each one is flown at.
@@ -535,6 +574,24 @@ export class Episode {
   done = false;
   /** the target got clear — the pirates lost it, and no one gets paid */
   escaped = false;
+  /**
+   * How many times a pirate has flown into the TARGET — the count, not a
+   * quotient.
+   *
+   * `train/flight-probe.ts` derives its `rams` column by dividing the pirates'
+   * `damageTaken` by `IMPACT.ram.ship`, which is exact only in the one case
+   * that tool flies: a single pirate against an unarmed target, where contact
+   * is the only thing that can hurt it. Add a second pirate and ship-on-ship
+   * contact is in the same total; arm the target and so is its laser. So a
+   * measurement of "how often did something hit the commander" cannot be taken
+   * that way, and `train/ram-probe.ts` — which flies five pirates against a
+   * target that MOVES — needs exactly that number (docs/TODO/66).
+   *
+   * Counted where the ram is billed, so it cannot disagree with the damage.
+   * Multiply by `IMPACT.ram.commander` for the points, which is the figure a
+   * `CombatSimReport` calls `damageBySource.ram`.
+   */
+  traderRams = 0;
   readonly escapeRange: number;
   /** the gun the armed target fires — see PLAYER_LASERS */
   private readonly playerLaser: typeof PLAYER_LASERS[LaserType];
@@ -558,6 +615,7 @@ export class Episode {
   private readonly scratchVecs = { a: new THREE.Vector3(), b: new THREE.Vector3() };
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
+  private readonly traderVel = new THREE.Vector3();
   private readonly traderWaypoint = new THREE.Vector3();
   private traderWaypointTimer = 0;
   private traderFireCooldown = 1.5;
@@ -628,12 +686,14 @@ export class Episode {
         ? p.npc.brainFly(
           ctrl.brain, dt, this.trader.pos, this.trader.quat, this.trader.speed,
           range, 'player', this.fleet)
-        // THE FLEET GOES IN. Without it a scripted pirate in an episode flies
-        // with no idea its wingmen exist, while the same ship in the game
-        // avoids them — which is a second physics by omission, and the one
-        // thing this file is organised against. It also made the collision
-        // probe read identically with avoidance on and off.
-        : p.npc.attack(dt, this.trader.pos, range, true, undefined, this.fleet);
+        // THE FLEET GOES IN, and so does the target's VELOCITY. Without the
+        // first a scripted pirate in an episode flies with no idea its wingmen
+        // exist; without the second it lays its attack run on where the target
+        // was rather than where it will be. Either omission is a second physics
+        // — the same ship flying differently here from in the game — and that
+        // is the one thing this file is organised against.
+        : p.npc.attack(dt, this.trader.pos, range, true, undefined, this.fleet,
+          this.traderVelocity());
       if (shot && this.trader.alive) {
         events.push(this.resolveNpcShot(p, range));
       }
@@ -663,6 +723,8 @@ export class Episode {
         this.runningTrader(dt);
       } else if (tCtrl.kind === 'holding') {
         this.holdingTrader(dt);
+      } else if (tCtrl.kind === 'weaving') {
+        this.weavingTrader(dt);
       } else {
         this.scriptedTrader(dt);
       }
@@ -723,6 +785,18 @@ export class Episode {
       this.trader.takeDamage(damage, this.hitFromFront(p));
     }
     return { from: p, to: this.trader, hit };
+  }
+
+  /**
+   * How the target is travelling, for a pirate laying its attack run.
+   *
+   * `NpcShip.attack` wants a velocity and the target carries a heading and a
+   * speed, which is the same pair every ship in the game carries — the nose and
+   * the thrust are one direction. Its own scratch, because the two the pirate
+   * loop already uses are live across the call.
+   */
+  private traderVelocity(): THREE.Vector3 {
+    return this.trader.forward(this.traderVel).multiplyScalar(this.trader.speed);
   }
 
   /**
@@ -811,6 +885,7 @@ export class Episode {
       for (const npc of playerVsNpcs(
         pos, (k) => { this.trader.ship.speed *= k; }, this.fleet, this.scratchVecs)) {
         const p = this.pirates.find((x) => x.npc === npc)!;
+        this.traderRams += 1;
         this.trader.takeDamage(ramPool, true);
         this.hurtSelf(p, ramEnergy);
       }
@@ -846,6 +921,27 @@ export class Episode {
       this.steerTrader(
         this.tmp2.copy(this.trader.pos).multiplyScalar(2).sub(threat.pos), dt);
     }
+    this.coast(dt, 1);
+  }
+
+  /**
+   * Sweep the arena flat out, indifferent to the pirates. See `weaving`.
+   *
+   * Waypoints are absolute — a sphere around the origin the fight starts at —
+   * rather than relative to the ship, which is the one line that stops this
+   * being `scriptedTrader` with the throttle nailed down and the fleeing taken
+   * out. And it does not consult `nearestPirate` at all, on purpose: that is
+   * what makes a contact the pirate's fault and not the instrument's.
+   */
+  private weavingTrader(dt: number): void {
+    this.traderWaypointTimer -= dt;
+    if (this.traderWaypointTimer <= 0
+        || this.trader.pos.distanceTo(this.traderWaypoint) < 300) {
+      this.traderWaypointTimer =
+        WEAVE_MIN_SECONDS + random() * (WEAVE_MAX_SECONDS - WEAVE_MIN_SECONDS);
+      this.traderWaypoint.copy(randomDirection(this.tmp2).multiplyScalar(WEAVE_RADIUS));
+    }
+    this.steerTrader(this.traderWaypoint, dt);
     this.coast(dt, 1);
   }
 
