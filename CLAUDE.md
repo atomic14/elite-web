@@ -291,6 +291,21 @@ To keep it that way:
   `game.ts` names no DOM API at all, because TypeScript will not (the DOM types
   are ambient, so `window.innerWidth` type-checks fine in a file that can never
   run — that is how it hid in `tunnel.ts`).
+- **three.js is NOT platform.** `import * as THREE` in a rule module is fine and
+  43 files in `src` do it: `Vector3`, `Quaternion`, `Object3D`, `Raycaster`,
+  `BufferGeometry` are all plain JavaScript and all construct under node with no
+  DOM. `NpcState.pos` and `.quat` being the mesh's own vectors is the whole
+  point — one representation, no sync pass. The single class that needs a
+  browser is `WebGLRenderer`, which throws `document is not defined` under node,
+  and it is behind the shell already.
+
+  Written down because the opposite was concluded once, from a knowledge graph
+  showing 43 `src` files importing three and eleven of them in `game/`. It reads
+  like renderer contamination the portability gate is not measuring. It is not:
+  a "shell" here is another implementation of `engine/shell.ts`, and three.js
+  travels with any JavaScript one. The gate measures what it says it measures.
+  If you are about to widen `PLATFORM` in `tools/portability.mjs` to include
+  `three`, this paragraph is the answer to why not.
 - **A painter with no DOM is inert, not broken** — `engine/inert-dom.ts`. Same
   bargain as `storage.ts` with localStorage and `sun.ts` with the canvas: the
   file that knows about the platform copes with it being absent. Nothing reads a

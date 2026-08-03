@@ -207,3 +207,39 @@ console.log('\nthe game, headless');
       'a screen that files a save the moment you open it is a screen you cannot open to check something');
   }
 }
+
+// --- three.js is not the browser -------------------------------------------
+
+// The shell hides the platform, and the question this file exists to answer is
+// which parts of the rendering stack that actually means. CLAUDE.md's answer:
+// three.js may be imported by a rule module, because only `WebGLRenderer`
+// needs a browser. That is a claim about a third-party library, and it is the
+// kind that rots quietly — so it is asserted here rather than trusted.
+//
+// It is asserted at all because the opposite was concluded once. A knowledge
+// graph of this repo showed 43 `src` files importing three, eleven of them in
+// `game/` touching Object3D and Raycaster, and that reads like renderer
+// contamination the portability gate is failing to measure. It is not: those
+// classes are plain JavaScript, and a "shell" here is another implementation of
+// engine/shell.ts, which three.js travels with.
+{
+  const THREE = await import('three');
+  const o = new THREE.Object3D();
+  o.position.set(1, 2, 3);
+  o.updateMatrixWorld();
+  eq('three.js Object3D constructs and transforms under node', o.position.x, 1);
+  check('three.js Raycaster constructs under node',
+    typeof new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, 0, 1))
+      .intersectObject === 'function');
+  check('three.js BufferGeometry constructs under node',
+    new THREE.BufferGeometry().attributes !== undefined);
+
+  // The one class that genuinely is platform, and the reason the rest are not.
+  // If this ever stops throwing, three.js has changed what it needs and the
+  // paragraph in CLAUDE.md needs rereading.
+  let renderer: unknown = null;
+  let threw = false;
+  try { renderer = new THREE.WebGLRenderer(); } catch { threw = true; }
+  check('...but WebGLRenderer needs a browser, and that is what the shell hides',
+    threw && renderer === null);
+}
