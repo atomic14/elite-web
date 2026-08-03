@@ -84,7 +84,7 @@ for (const [index, entry] of Object.entries(g1Overlay?.entries ?? {})) {
   broken.push(
     ...faults(entry.description, 'description').map((f) => `${entry.system}: ${f}`),
     ...faults(entry.inhabitants, 'inhabitants').map((f) => `${entry.system}: ${f}`),
-    ...foreignSystemNames(`${entry.description} ${entry.inhabitants}`, entry.system)
+    ...foreignSystemNames(`${entry.description} ${entry.inhabitants}`, entry.system, want.facts)
       .map((n) => `${entry.system}: names another system (${n})`),
   );
 }
@@ -111,6 +111,13 @@ check('a banned word is a fault',
   faults(`A ${BANNED[0]} world of salt. The wind never stops.`, 'description').length > 0);
 check('a line break is a fault',
   faults('A cold world.\nThe wind never stops.', 'description').length > 0);
+// A generation run really did close both of Tiraor's fields with `</br>`, and
+// the render site interpolates this text into innerHTML. Markup in a field is
+// content deciding how the page is built, so it never reaches the file.
+check('markup is a fault',
+  faults('A cold world of salt.</br> The wind never stops.', 'description').length > 0);
+check('an angle bracket alone is a fault',
+  faults('A cold world of salt. <b>The wind never stops.', 'description').length > 0);
 check('one sentence is too few for a description',
   faults('A cold world of salt flats.', 'description').length > 0);
 eq('one sentence is enough for inhabitants',
@@ -124,9 +131,43 @@ eq('naming yourself is not', foreignSystemNames('Lave is warm.', 'Lave').length,
 eq('ordinary words are not mistaken for system names',
   foreignSystemNames('Rain falls for most of the year.', 'Lave').length, 0);
 
+// The regression the first taste run found. The goat-soup grammar builds its
+// nouns from the name pool, so Tibedied's own canon line is "most notable for
+// Tibediedian Vees brandy" — and Vees is a system. Rejecting the entry for
+// repeating the single fact it was given was the checker being wrong, not the
+// model. Assert both halves: canon passes, the same name unprompted does not.
+const tibedied = systemPrompts(1)[0];
+check('Tibedied is the system whose canon line names Vees',
+  tibedied.system === 'Tibedied' && /\bVees\b/.test(tibedied.facts));
+eq('a name from the system own canon line is allowed',
+  foreignSystemNames('The Vees brandy is shipped out young.', 'Tibedied', tibedied.facts).length, 0);
+eq('the same name is still caught without that canon',
+  foreignSystemNames('The Vees brandy is shipped out young.', 'Tibedied')[0], 'Vees');
+
 // --- the shape the renderer relies on ---------------------------------------
 
 const sample: SystemDescription | undefined = systemDescription(g1[7], 1);
 check('a description, when present, carries both fields',
   sample === undefined
   || (typeof sample.description === 'string' && typeof sample.inhabitants === 'string'));
+
+// --- the travelogue formula -------------------------------------------------
+
+// The first full run of galaxy 1 read well one entry at a time and read as a
+// template in bulk: 207 of 256 descriptions mentioned arrival, 96 ended on the
+// literal words "Arrival brings", 159 of the inhabitants fields said a visitor
+// noticed something. The prompt caused it and the prompt was fixed, but a
+// prompt is a request — this is the gate, and it is what sends a repeat back
+// for another attempt.
+check('an arrival sentence is a fault',
+  faults('A cold world of salt. Arrival brings the smell of brine.', 'description').length > 0);
+check('a first impression from orbit is a fault',
+  faults('A cold world. From orbit it shows only white.', 'description').length > 0);
+check('framing the people around a visitor is a fault',
+  faults('Visitors notice their reserve.', 'inhabitants').length > 0);
+check('so is the same framing at a distance',
+  faults('Visitors to the port often remark on their reserve.', 'inhabitants').length > 0);
+// Narrow on purpose: a world may still be hard to reach, it just may not be
+// described from the cockpit on the way in.
+eq('a world can still be hard to get to',
+  faults('The only landing field lies inland. Ships put down twice a week.', 'description').length, 0);

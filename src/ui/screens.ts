@@ -925,6 +925,21 @@ export function portraitUrl(sys: StarSystem, galaxy: number): string {
 }
 
 /**
+ * Text that came from outside this codebase, made safe for innerHTML.
+ *
+ * Everything else on these screens is either a literal or a number the game
+ * computed, so this is the one string in the file whose author is not us. It
+ * is not hypothetical: a generation run closed both of Tiraor's fields with a
+ * literal `</br>`, which without this would have been markup rather than the
+ * five characters it is. The generator refuses `<` and `>` too — one guard is
+ * the gate on what gets committed, the other is the render boundary refusing
+ * to trust its input, and neither makes the other redundant.
+ */
+function escapeText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
  * The original's "DATA ON <SYSTEM>" page: the full statistics block plus
  * the procedurally generated planet description.
  */
@@ -940,8 +955,8 @@ export function renderSystemData(
   const more = systemDescription(sys, galaxy);
   const extended = more ? `
     <div class="info sysdesc sysmore">
-      <p>${more.description}</p>
-      <p>${more.inhabitants}</p>
+      <p>${escapeText(more.description)}</p>
+      <p>${escapeText(more.inhabitants)}</p>
     </div>` : '';
   // onerror rather than a manifest: 256 files exist today, but a half-finished
   // regeneration should degrade to the old text-only page, not a broken icon.

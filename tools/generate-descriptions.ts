@@ -62,11 +62,51 @@ interface Entry {
   inhabitants: string;
 }
 
+/**
+ * What the run actually cost.
+ *
+ * TOKENS are the durable fact and are what gets committed; the money is
+ * derived and printed, never stored, because a price list goes stale and a
+ * token count does not. Counted over EVERY result including the dropped ones —
+ * a refused or over-length record was still paid for, and a cost record that
+ * only counts what shipped would understate the next run.
+ */
+export interface Usage {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/**
+ * Batch rates, USD per million tokens, already halved for the 50% batch
+ * discount. As of 2026-08-03; Sonnet 5 is on its introductory rate ($2/$10
+ * standard) until 2026-08-31, after which it is $1.50/$7.50 batched.
+ */
+const BATCH_RATES: Record<string, { in: number; out: number }> = {
+  'claude-haiku-4-5': { in: 0.50, out: 2.50 },
+  'claude-sonnet-5': { in: 1.00, out: 5.00 },
+  'claude-opus-5': { in: 2.50, out: 12.50 },
+};
+
+function reportCost(u: Usage, model: string, ofTotal: number): void {
+  const per = (n: number) => (n / Math.max(u.requests, 1)).toFixed(0);
+  console.log(`descriptions: ${u.inputTokens} in + ${u.outputTokens} out over `
+    + `${u.requests} requests (${per(u.inputTokens)}/${per(u.outputTokens)} each)`);
+
+  const rate = BATCH_RATES[model];
+  if (!rate) return;
+  const cost = (u.inputTokens * rate.in + u.outputTokens * rate.out) / 1e6;
+  const full = cost * (ofTotal / Math.max(u.requests, 1));
+  console.log(`descriptions: $${cost.toFixed(4)} at batch rates`
+    + (ofTotal > u.requests ? ` — all ${ofTotal} would be about $${full.toFixed(2)}` : ''));
+}
+
 interface Overlay {
   galaxy: number;
   promptVersion: number;
   model: string;
   generated: string;
+  usage: Usage;
   entries: Record<string, Entry>;
 }
 
@@ -136,18 +176,40 @@ function check(galaxy: number, name: string): number {
 
 // ------------------------------------------------------------- the generator
 
-/** One batch request per system. `custom_id` is the index — results come back in any order. */
-function requestsFor(prompts: SystemPrompt[], model: string) {
-  return prompts.map((p) => ({
-    custom_id: `sys-${p.index}`,
-    params: {
-      model,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      output_config: { format: { type: 'json_schema' as const, schema: SCHEMA } },
-      messages: [{ role: 'user' as const, content: p.facts }],
-    },
-  }));
+/**
+ * One batch request per system. `custom_id` is the index — results come back
+ * in any order, so nothing may be matched by position.
+ *
+ * `max_tokens` is 2048 rather than the 1024 it started at, because it caps
+ * THINKING plus response and Sonnet 5 thinks by default. The first taste run
+ * showed exactly that: Sonnet spent 506 output tokens per request against
+ * Haiku's 205 and truncated two of twelve entries mid-sentence, while the
+ * prose it did finish was well inside any sane length. Truncation was the
+ * ceiling being sized for the answer alone.
+ *
+ * `retryNote` carries the reason a previous attempt was thrown away. Naming
+ * the fault is the whole point — "avoid banned words" gets ignored, "you used
+ * sprawling" does not.
+ */
+function requestsFor(prompts: SystemPrompt[], model: string, retryNote = new Map<number, string>()) {
+  return prompts.map((p) => {
+    const note = retryNote.get(p.index);
+    return {
+      custom_id: `sys-${p.index}`,
+      params: {
+        model,
+        max_tokens: 2048,
+        system: SYSTEM_PROMPT,
+        output_config: { format: { type: 'json_schema' as const, schema: SCHEMA } },
+        messages: [{
+          role: 'user' as const,
+          content: note
+            ? `${p.facts}\n\nA previous attempt at this system was rejected: ${note}. Write it again and do not repeat that fault.`
+            : p.facts,
+        }],
+      },
+    };
+  });
 }
 
 /**
@@ -181,7 +243,9 @@ function entryFrom(result: any, want: SystemPrompt): { entry?: Entry; why?: stri
   const bad = [
     ...faults(description, 'description'),
     ...faults(inhabitants, 'inhabitants'),
-    ...foreignSystemNames(`${description} ${inhabitants}`, want.system)
+    // The facts block is the canon it was handed, goat-soup line included —
+    // anything named in there is not the model wandering off.
+    ...foreignSystemNames(`${description} ${inhabitants}`, want.system, want.facts)
       .map((n) => `names another system (${n})`),
   ];
   if (bad.length) return { why: bad.join('; ') };
@@ -221,33 +285,66 @@ async function generate(
   const prompts = systemPrompts(galaxy).slice(0, limit);
   const byId = new Map(prompts.map((p) => [`sys-${p.index}`, p]));
 
-  let batchId = existingBatch;
-  if (!batchId) {
-    console.log(`descriptions: submitting ${prompts.length} systems to ${model}...`);
-    const batch = await client.messages.batches.create({
-      requests: requestsFor(prompts, model) as any,
-    });
-    batchId = batch.id;
-    console.log(`descriptions: batch ${batchId} — resume with --batch ${batchId}`);
-  }
-
-  // Most batches land inside an hour; the cap is 24. Poll gently.
-  for (;;) {
-    const batch = await client.messages.batches.retrieve(batchId);
-    if (batch.processing_status === 'ended') break;
-    const c = batch.request_counts;
-    console.log(`descriptions: ${batch.processing_status} — ${c.succeeded} done, ${c.processing} running`);
-    await new Promise((r) => { setTimeout(r, 30_000); });
-  }
-
   const entries: Record<string, Entry> = {};
-  const dropped: string[] = [];
-  for await (const result of await client.messages.batches.results(batchId)) {
-    const want = byId.get(result.custom_id);
-    if (!want) { dropped.push(`${result.custom_id}: not in this galaxy`); continue; }
-    const { entry, why } = entryFrom(result, want);
-    if (entry) entries[String(want.index)] = entry;
-    else dropped.push(`${want.index} ${want.system}: ${why}`);
+  const usage: Usage = { requests: 0, inputTokens: 0, outputTokens: 0 };
+  let todo = prompts;
+  let notes = new Map<number, string>();
+  let dropped: string[] = [];
+
+  /**
+   * Up to three passes. A dropped record is not a lost cause — the faults are
+   * almost all a banned word or a length overrun, and a model told which word
+   * it used does not use it again. Without this, roughly one system in eight
+   * would silently have no description forever, which the fallback makes
+   * invisible rather than harmless.
+   */
+  for (let pass = 0; pass < 3 && todo.length; pass += 1) {
+    let batchId = pass === 0 ? existingBatch : '';
+    if (!batchId) {
+      const what = pass === 0 ? `${todo.length} systems` : `${todo.length} retries`;
+      console.log(`descriptions: submitting ${what} to ${model}...`);
+      const batch = await client.messages.batches.create({
+        requests: requestsFor(todo, model, notes) as any,
+      });
+      batchId = batch.id;
+      console.log(`descriptions: batch ${batchId} — resume with --batch ${batchId}`);
+    }
+
+    // Most batches land inside an hour; the cap is 24. Poll gently.
+    for (;;) {
+      const batch = await client.messages.batches.retrieve(batchId);
+      if (batch.processing_status === 'ended') break;
+      const c = batch.request_counts;
+      console.log(`descriptions: ${batch.processing_status} — ${c.succeeded} done, ${c.processing} running`);
+      await new Promise((r) => { setTimeout(r, 30_000); });
+    }
+
+    const failed: SystemPrompt[] = [];
+    notes = new Map();
+    dropped = [];
+
+    for await (const result of await client.messages.batches.results(batchId)) {
+      // Count the tokens before deciding whether to keep the prose: a dropped
+      // record was still generated and still billed, retries included.
+      const u = (result.result as any).message?.usage;
+      if (u) {
+        usage.requests += 1;
+        usage.inputTokens += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)
+          + (u.cache_read_input_tokens ?? 0);
+        usage.outputTokens += u.output_tokens ?? 0;
+      }
+
+      const want = byId.get(result.custom_id);
+      if (!want) { dropped.push(`${result.custom_id}: not in this galaxy`); continue; }
+      const { entry, why } = entryFrom(result, want);
+      if (entry) { entries[String(want.index)] = entry; continue; }
+      failed.push(want);
+      notes.set(want.index, why ?? 'unknown');
+      dropped.push(`${want.index} ${want.system}: ${why}`);
+    }
+
+    if (failed.length) console.log(`descriptions: ${failed.length} to retry`);
+    todo = failed;
   }
 
   const overlay: Overlay = {
@@ -255,6 +352,7 @@ async function generate(
     promptVersion: PROMPT_VERSION,
     model,
     generated: new Date().toISOString().slice(0, 10),
+    usage,
     // Sorted numerically so the committed file diffs cleanly between runs.
     entries: Object.fromEntries(
       Object.entries(entries).sort((a, b) => Number(a[0]) - Number(b[0])),
@@ -267,6 +365,7 @@ async function generate(
   if (dropped.length) {
     console.log(`descriptions: dropped ${dropped.length} —\n  ${dropped.join('\n  ')}`);
   }
+  reportCost(usage, model, systemPrompts(galaxy).length);
   return 0;
 }
 

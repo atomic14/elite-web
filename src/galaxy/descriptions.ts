@@ -34,6 +34,14 @@ export interface Overlay {
   /** Which model wrote these, for the record. '' while unpopulated. */
   model: string;
   generated: string;
+  /**
+   * What the run cost, in tokens. Committed because it is the durable half of
+   * the answer to "what would regenerating this cost?" — a token count stays
+   * true, a price does not, so the money is printed by the generator and never
+   * stored. Counted over every request including the ones whose prose was
+   * dropped: those were billed too.
+   */
+  usage: { requests: number; inputTokens: number; outputTokens: number };
   entries: Record<string, Entry>;
 }
 
