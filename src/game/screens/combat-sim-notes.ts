@@ -151,9 +151,10 @@ export function brainNote(id: string | null | undefined): string | null {
   const character = brainCharacter(id);
   if (!character) return null;
   // The stem last, and only here. It is a build artefact and a pilot choosing
-  // between `pirate-attack-g3` and `pirate-attack-e1` is choosing between file
-  // names — so it is out of the value column entirely and lives at the end of
-  // the sentence, for whoever is cross-referencing docs/TRAINING-LOG.md.
+  // between `pirate-attack-g3` and `pirate-pack-r4-selectonly` is choosing
+  // between file names — so it is out of the value column entirely and lives at
+  // the end of the sentence, for whoever is cross-referencing
+  // docs/TRAINING-LOG.md.
   return `${character} (${id.toUpperCase()})`;
 }
 

@@ -143,14 +143,15 @@ const ON_DISK = readdirSync(BRAINS).filter((f) => f.endsWith('.json'))
 // Every policy the game can BE PUT INTO, asked of brain-names.ts rather than
 // restated. `scripted` is not here because it is a code path with no weights.
 //
-// This used to be the three the SHIPPED rule flies, and that was too narrow by
-// exactly one case: a CANDIDATE. TODO 61 restored `pirate-attack-e1` to fly it
-// against the shipped brain, and a candidate is selectable from the trainer's
-// LIVE BRAINS row — so it is flown, just not by default. Under the old wording
-// the only ways to satisfy the guard were to promote the candidate (which
-// pre-judges the comparison it exists to settle) or to delete it.
+// This used to be the three the SHIPPED rule flies, and that is too narrow —
+// SELECTABLE and SHIPPED are not the same list. Since `d563e3d` the shipped
+// solo and gang policy is `scripted`, a code path with no weights, so the
+// shipped rule names exactly one weights file (`jameson-defend-g1`): under the
+// old wording `pirate-attack-g3` and `pirate-pack-r4-selectonly` — the two
+// trained policies the trainer's LIVE BRAINS row exists to fly — would both
+// read as weights nothing ships. They are flown, just not by default.
 //
-// So the claim is now "no weights in the bundle that nothing can select", which
+// So the claim is "no weights in the bundle that nothing can select", which
 // is what the guard was always protecting: a file no selection reaches still
 // fails, and the viewer's two mislabelled pack policies would still be caught.
 // `LIVE_BRAIN_IDS` is the picker's own list, so this cannot drift from what the

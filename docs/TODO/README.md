@@ -246,7 +246,19 @@ invariant 15's contract, and they have silently diverged on the weapon, the
 missile rack and shield regeneration. 62 and 63 are the two known divergences;
 64 is the mechanism that would have caught them and stops the next one.
 
-- [ ] 61 — [Promote or delete the attack-run candidate](61-decide-the-attack-run-candidate.md) — decision · medium · small
+61 is decided and done: **deleted**. Chris, 2026-08-03. `pirate-attack-e1` was
+restored to be compared against `pirate-attack-g3` as the solo pirate policy, and
+`d563e3d` retired that job — the scripted attack run is what ships for solo
+pirates and gangs alike, so the candidate was a candidate for a post that no
+longer exists. The weights, the `BrainName`, the character line, both pickers'
+rows, the `brains.ts` import and the `BrainSelection.passes` flag are all gone;
+`train/evaluate.ts`'s `CANDIDATES` is empty again. docs/TRAINING-LOG.md keeps
+every figure `e1` ever measured, with a dated note saying the file is no longer
+there to re-run them against. A save carrying `passes` still loads, is not
+migrated and flies the shipped brains, which is TODO 57's precedent, and
+`test/brain-names.test.ts` now asserts it for `passes` too.
+
+- [x] 61 — [Promote or delete the attack-run candidate](61-decide-the-attack-run-candidate.md) — decision · medium · small
 - [ ] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
 - [ ] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
 - [ ] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large

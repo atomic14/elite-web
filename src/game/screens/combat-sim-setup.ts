@@ -482,9 +482,9 @@ export function setupCells(d: SimDraft): SetupCell[] {
       {
         label: pad('THIS GROUP FLIES'),
         // The VALUE is what you picked, and only that. It used to append what
-        // the sentinel resolves to — `SAME AS OUTSIDE — MAKES RUNS
-        // (pirate-attack-e1)` — which put a choice, a consequence and a file
-        // stem in one cell and read as two selections at once. The consequence
+        // the sentinel resolves to — `SAME AS OUTSIDE — HOLDS OFF
+        // (pirate-pack-r4-selectonly)` — which put a choice, a consequence and a
+        // file stem in one cell and read as two selections at once. The consequence
         // is a sentence, so it belongs in the note under the panel with the
         // other sentences; `brain` below is what puts it there.
         value: `${position(BRAIN_CHOICES.indexOf(g.brain), BRAIN_CHOICES.length)} `

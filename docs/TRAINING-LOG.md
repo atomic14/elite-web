@@ -2026,3 +2026,44 @@ and `__game.state.brains.pack = true`. A save carrying one of the deleted flags
 still loads; nothing reads it, so that career flies the shipped brains, and the
 combat trainer's LIVE BRAINS row says the selection cannot be named and offers
 to take it back.
+
+## 2026-08-03 — the attack-run candidate was deleted (TODO 61)
+
+**Nothing above was re-measured, re-run or rewritten**, and that includes every
+`pirate-attack-e1` figure in this file: run 18's 100% validation kill rate, run
+19's probe line (speed 182, range 222/**706**/1740, **0.93** passes, 20.7% of its
+own bank), and the argument in *"`pirate-attack-e1` is now loadable, and still
+not shipped"* all stand as the record of what was measured. `train/logs/` is
+untouched. What this entry records is that **the weights file is gone**, so
+those numbers can no longer be re-run without retraining the phase
+(`npm run train -- attack --validate-select --out pirate-attack-e1 ...`, the
+command run 18 states).
+
+`e1` was restored from `15330cb` after TODO 57 for one job: to be compared,
+in a fight Chris flies, against `pirate-attack-g3` as the solo pirate policy.
+**That job stopped existing.** `d563e3d` made the scripted attack run what ships
+for solo pirates and organised gangs alike, so neither `e1` nor `g3` is the solo
+default any more, and a candidate to replace a default that no longer exists is
+being kept by inertia rather than by an argument. Chris, 2026-08-03: delete it.
+
+Gone with the file: its `BrainName`, its character line (`MAKES RUNS`), its row
+in `SIM_BRAINS` and in `LIVE_BRAIN_IDS`, the `candidateBrainFile` import in
+`src/game/brains.ts`, `CANDIDATE_SOLO` / `CANDIDATE_SOLO_BRAIN`, and its entry in
+`CANDIDATES` in `train/evaluate.ts` — which is empty again, its resting state.
+`src/ai-training/brains/` is back to exactly the three the game loads, and
+`npm test` still fails if a fourth appears or one goes missing.
+
+The A/B flag went too: `BrainSelection.passes` is deleted, so the translation
+table at the top of this file has three live rows —
+`__game.state.brains.scripted = true`, `.pack = true` and `.trained = true`.
+A save carrying `passes` still loads and is **not** migrated, exactly as a save
+carrying one of TODO 57's six does: nothing reads the key, the career flies the
+shipped brains, and the trainer's LIVE BRAINS row reports a selection it cannot
+name and offers to take it back. `test/brain-names.test.ts` asserts that for
+`passes` beside the six, because `passes` was the one deleted flag
+`pirateBrainNameFor` itself read.
+
+Putting a candidate back is still the one move TODO 57's entry describes, and
+this run is the worked example of the guard doing its job: it reported the extra
+file for as long as the decision was open, and the decision — not the guard —
+is what closed it.

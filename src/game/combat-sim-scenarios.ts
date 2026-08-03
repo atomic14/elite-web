@@ -82,9 +82,6 @@ export type BrainId = BrainName;
 export const SHIPPED_SOLO_BRAIN: BrainId = pirateBrainNameFor(0, false, SHIPPED_BRAINS);
 export const SHIPPED_PACK_BRAIN: BrainId = pirateBrainNameFor(0, true, SHIPPED_BRAINS);
 export const SHIPPED_DEFENCE_BRAIN: BrainId = defenceBrainNameFor(SHIPPED_BRAINS);
-/** The solo candidate under comparison — brain-names.ts `BrainSelection.passes`. */
-export const CANDIDATE_SOLO_BRAIN: BrainId =
-  pirateBrainNameFor(0, false, { passes: true });
 
 /**
  * Every brain the picker may choose, in the order it should be listed: the three
@@ -97,12 +94,14 @@ export const CANDIDATE_SOLO_BRAIN: BrainId =
  * docs/TRAINING-LOG.md is measured against. A future candidate joins this list
  * by having its weights put back and its name added, which is one row.
  *
- * `pirate-attack-e1` is that candidate today (TODO 61). Adding it to the career
- * picker and NOT here was a real bug for the two commits it lasted: the two
- * pickers are separate lists, so the candidate could only be flown from the
- * fenced row that changes the whole career — the one thing a scoped A/B must
- * not touch. If it is promoted, `SHIPPED_SOLO_BRAIN` becomes it and this entry
- * goes; if it loses, both go.
+ * There is no candidate today. `pirate-attack-e1` was one, restored to be
+ * compared against the shipped solo policy, and TODO 61 deleted it: the job it
+ * was a candidate for stopped existing when `d563e3d` made the scripted attack
+ * run what ships for solo pirates and gangs alike. The rule it left behind is
+ * BOTH PICKERS OR NEITHER — adding it to the career row and not here was a real
+ * bug for the two commits it lasted, because the two pickers are separate lists
+ * and the candidate could then only be flown from the fenced row that changes
+ * the whole career, which is the one thing a scoped A/B must not touch.
  */
 export const SIM_BRAINS: readonly BrainId[] = [
   // NAMED, not derived from what ships — and that is the correction rather than
@@ -116,7 +115,6 @@ export const SIM_BRAINS: readonly BrainId[] = [
   // never produce. A policy is offered here because it EXISTS, and
   // `SHIPPED_*_BRAIN` still says which of them the game currently flies.
   'pirate-attack-g3',
-  'pirate-attack-e1',
   'pirate-pack-r4-selectonly',
   'jameson-defend-g1',
   'scripted',

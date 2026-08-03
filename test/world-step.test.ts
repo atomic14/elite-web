@@ -608,12 +608,14 @@ console.log('\nheadless world step');
       check('...as a copy the step can move, not the snapshot\'s own object',
         back.state.brains !== (JSON.parse(wirePack) as WorldSnapshot).brains);
 
-      // ...and a save made before TODO 57 deleted six of the flags still LOADS.
-      // Not migrated (Chris, 2026-08-03): the flag names weights that are not in
-      // the bundle, so nothing reads it and the career flies the shipped brains.
-      // What it must not do is throw, and the restore is where it would.
+      // ...and a save made before TODO 57 deleted six of the flags — or before
+      // TODO 61 deleted `passes` with the `pirate-attack-e1` candidate — still
+      // LOADS. Not migrated (Chris, 2026-08-03): the flag names weights that are
+      // not in the bundle, so nothing reads it and the career flies the shipped
+      // brains. What it must not do is throw, and the restore is where it would.
       const old = arrival(31_337);
-      old.state.brains = { t29: true, legacy: 'pro' } as unknown as BrainSelection;
+      old.state.brains =
+        { t29: true, legacy: 'pro', passes: true } as unknown as BrainSelection;
       const wireOld = JSON.stringify(
         new Persistence(old.state, old.ordnance, new CombatComputer(),
           stubHost(old.state, [])).capture());
@@ -622,7 +624,8 @@ console.log('\nheadless world step');
         stubHost(revived.state, []))
         .restore(JSON.parse(wireOld) as WorldSnapshot);
       check('a save carrying a deleted A/B flag restores rather than throwing',
-        JSON.stringify(revived.state.brains) === '{"t29":true,"legacy":"pro"}');
+        JSON.stringify(revived.state.brains)
+          === '{"t29":true,"legacy":"pro","passes":true}');
       check('...and the galaxy in it flies the shipped brains',
         pirateBrainNameFor(1, false, revived.state.brains) === pirateBrainNameFor(1, false)
         && defenceBrainNameFor(revived.state.brains) === defenceBrainNameFor());

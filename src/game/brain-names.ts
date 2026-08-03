@@ -46,7 +46,6 @@
  */
 export type BrainName =
   | 'pirate-attack-g3'
-  | 'pirate-attack-e1'
   | 'pirate-pack-r4-selectonly'
   | 'jameson-defend-g1'
   | 'scripted';
@@ -107,15 +106,6 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
     name: 'CLOSES IN',
     character: 'CLOSES AND STAYS THERE — SPEED 216, MEDIAN RANGE 234, 0.20 COLLISIONS AN EPISODE. '
       + 'THE FIGHT THE GAME SHIPS.',
-  },
-  // probe: speed 182, range 222/706/1740, 0.93 passes, 20.7% of its own bank
-  // lost — the most attack runs of any brain measured, and the only solo policy
-  // that reliably leaves. A CANDIDATE, not shipped: restored for the TODO 61
-  // comparison against g3, which fights inside the range a player can track.
-  'pirate-attack-e1': {
-    name: 'MAKES RUNS',
-    character: 'CLOSES, SHOOTS AND BREAKS OFF — 0.93 COMPLETED PASSES AN EPISODE, MEDIAN RANGE 706. '
-      + 'TRADES ITS OWN HULL FOR THE OVERSHOOT: 20.7% OF ITS BANK AGAINST THE SHIPPED BRAIN\'S 6.1%.',
   },
   // probe: speed 144, range 393/1447/2905, 0.83 passes · tournament: a gang of
   // three takes 23.7% of her pools and kills her in 0% of episodes
@@ -199,29 +189,22 @@ export function isNamedBrain(brain: string): brain is BrainName {
  * `__game.state.brains.pack = true`. In the game, the LIVE BRAINS row on the
  * combat trainer's setup panel (`T` at any station) writes the same field.
  *
- * **It is two flags now, and it used to be eight.** `legacy`, `sharp`, `engine`,
- * `t29`, `packT29` and `defendT29` each named one experiment's weights file, and
- * TODO 57 deleted the weights: a flag whose policy is not in the bundle has
- * nothing to select. An OLD SAVE may still carry one, and that is deliberately
- * not a migration (Chris, 2026-08-03) — an unknown key rides along in the
- * snapshot, nothing reads it, so the career flies the shipped brains and the
- * trainer's LIVE BRAINS row reports a selection it cannot name and offers to
- * take it back. `npm test` restores one and checks exactly that.
+ * **It is three flags now, and it used to be nine.** `legacy`, `sharp`,
+ * `engine`, `t29`, `packT29` and `defendT29` each named one experiment's weights
+ * file, and TODO 57 deleted the weights; `passes` named the restored solo
+ * candidate `pirate-attack-e1`, and TODO 61 deleted that one too — a flag whose
+ * policy is not in the bundle has nothing to select. An OLD SAVE may still carry
+ * one, and that is deliberately not a migration (Chris, 2026-08-03) — an unknown
+ * key rides along in the snapshot, nothing reads it, so the career flies the
+ * shipped brains and the trainer's LIVE BRAINS row reports a selection it cannot
+ * name and offers to take it back. `npm test` restores one and checks exactly
+ * that.
  */
 export interface BrainSelection {
   /** fly NO brains — the pre-neuroevolution scripted AI, i.e. the A/B control */
   scripted?: boolean;
   /** force the pack policy onto solo pirates as well as gangs */
   pack?: boolean;
-  /**
-   * fly `pirate-attack-e1` as the solo pirate — the candidate that breaks off.
-   *
-   * A THIRD flag, after TODO 57 got it down to two, and it is here to be
-   * removed again: either e1 is promoted and this becomes the default, or it
-   * loses the comparison and both the flag and the weights go. It is not a
-   * permanent option.
-   */
-  passes?: boolean;
   /**
    * Fly the trained solo policy instead of the scripted attack run.
    *
@@ -252,8 +235,6 @@ export interface BrainSelection {
  * is still one row away in the trainer.
  */
 const SHIPPED_SOLO: BrainName = 'scripted';
-/** The solo candidate under comparison — see `BrainSelection.passes`. */
-const CANDIDATE_SOLO: BrainName = 'pirate-attack-e1';
 
 /**
  * The policy an organised gang flies with no overrides.
@@ -336,7 +317,7 @@ export function pirateBrainNameFor(
   if (sel.pack) return PACK_POLICY;
   if (sel.trained) return TRAINED_SOLO;
   if (organised) return SHIPPED_PACK;
-  return sel.passes ? CANDIDATE_SOLO : SHIPPED_SOLO;
+  return SHIPPED_SOLO;
 }
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
@@ -361,7 +342,6 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
  */
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
   'pirate-attack-g3': { trained: true },
-  'pirate-attack-e1': { passes: true },
   'pirate-pack-r4-selectonly': { pack: true },
   'jameson-defend-g1': {},
   scripted: { scripted: true },

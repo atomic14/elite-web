@@ -326,14 +326,16 @@ To keep it that way:
   Drive the game headlessly by calling `g.update(1/60, t)` in a loop — background
   tabs throttle rAF, so manual stepping is the reliable way.
 - **A/B switches are STATE, not globals.** `state.brains` picks which brains fly
-  — two flags now, `scripted` (fly none of them) and `pack` (the gang policy for
-  everybody), see `BrainSelection` in `game/brain-names.ts` — and `state.cheat`
+  — three flags now, `scripted` (fly none of them), `pack` (the gang policy for
+  everybody) and `trained` (the trained solo policy instead of the scripted run),
+  see `BrainSelection` in `game/brain-names.ts` — and `state.cheat`
   fits anything from the catalogue free. They were five `window.__` flags; a rule
   read from ambient state is not in the snapshot, so a reload changed the game. In
   game, the **CHANGE THE DEFAULT ENEMY AI** row on the combat trainer's setup panel (`T`
   at any station) picks one; from a console go through the handle:
   `__game.state.brains.pack = true`. A save carrying one of the six flags TODO 57
-  deleted still loads, is not migrated, and flies the shipped brains — the row
+  deleted — or `passes`, which TODO 61 deleted with the `pirate-attack-e1`
+  candidate — still loads, is not migrated, and flies the shipped brains: the row
   says the selection cannot be named and arrowing it takes it back.
   `npm test` bans the globals' return, and
   `src/game/console.ts` is the only file allowed to touch `globalThis` — it

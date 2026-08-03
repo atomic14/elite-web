@@ -231,8 +231,8 @@ check('...so no exercise setting sits below it',
 d.live = 'pirate-pack-r4-selectonly';
 // How it flies, and ONLY that. The file stem used to be appended here in a
 // quieter face; it is in the note under the panel now, because a pilot choosing
-// between `pirate-attack-g3` and `pirate-attack-e1` is choosing between build
-// artefacts in the one column they read to make the choice.
+// between `pirate-attack-g3` and `pirate-pack-r4-selectonly` is choosing between
+// build artefacts in the one column they read to make the choice.
 eq('a picked policy reads back on the row as how it flies', row().value,
   `(${LIVE_BRAIN_IDS.indexOf('pirate-pack-r4-selectonly') + 1} OF ${LIVE_BRAIN_IDS.length})`
   + ' HOLDS OFF');
@@ -325,23 +325,37 @@ console.log('\nbrain selection');
       pirateBrainFor(0, false, { pack: true })?.pack === true);
   }
   {
-    // A SAVE FROM BEFORE TODO 57 still loads, and flies the shipped brains.
+    // A SAVE FROM BEFORE TODO 57 OR TODO 61 still loads, and flies the shipped
+    // brains.
     //
     // `state.brains` is snapshotted, so a career made when `legacy`, `sharp`,
-    // `engine`, `t29`, `packT29` or `defendT29` existed can hand one back on
-    // restore. Deliberately not migrated (Chris, 2026-08-03): the flag names a
-    // policy that is not in the bundle, nothing reads it, and it must not throw.
-    // The trainer's LIVE BRAINS row says the selection cannot be named and
-    // arrowing it takes it back — test/brain-names.test.ts holds that end.
+    // `engine`, `t29`, `packT29` or `defendT29` existed — or when `passes`
+    // selected the `pirate-attack-e1` candidate TODO 61 deleted — can hand one
+    // back on restore. Deliberately not migrated (Chris, 2026-08-03): the flag
+    // names a policy that is not in the bundle, nothing reads it, and it must
+    // not throw. The trainer's LIVE BRAINS row says the selection cannot be
+    // named and arrowing it takes it back — the row block above holds that end.
+    //
+    // `passes` is asserted alongside the six and not instead of them, because
+    // it is the case the shape of the rule could still have got wrong: it was
+    // the ONLY deleted flag read by `pirateBrainNameFor` itself, on the solo
+    // line, so a botched deletion shows up here as a solo pirate flying
+    // something other than the scripted run.
     const stale = { legacy: 'pro', t29: true } as unknown as BrainSelection;
-    check('a save carrying a deleted A/B flag still loads',
-      pirateBrainFor(1, false, stale) === pirateBrainFor(1, false)
-      && pirateBrainFor(0, false, stale) === pirateBrainFor(0, false));
-    check('...and flies what ships, because nothing reads the flag',
-      pirateBrainNameFor(1, false, stale) === pirateBrainNameFor(1, false)
-      && defenceBrain(stale) === defenceBrain());
-    check('...including its gang, which is the one thing a flag could still move',
-      pirateBrainFor(2, true, stale) === pirateBrainFor(2, true));
+    const deletedCandidate = { passes: true } as unknown as BrainSelection;
+    for (const [what, sel] of [['a deleted A/B flag', stale],
+      ['the deleted candidate flag', deletedCandidate]] as const) {
+      check(`a save carrying ${what} still loads`,
+        pirateBrainFor(1, false, sel) === pirateBrainFor(1, false)
+        && pirateBrainFor(0, false, sel) === pirateBrainFor(0, false));
+      check('...and flies what ships, because nothing reads the flag',
+        pirateBrainNameFor(1, false, sel) === pirateBrainNameFor(1, false)
+        && defenceBrain(sel) === defenceBrain());
+      check('...including its gang, which is the one thing a flag could still move',
+        pirateBrainFor(2, true, sel) === pirateBrainFor(2, true));
+      check('...and the picker says it cannot name the selection, rather than throwing',
+        liveBrainId(sel) === null);
+    }
   }
   {
     // The default is the shipped game, and it is frozen — a caller that

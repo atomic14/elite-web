@@ -54,8 +54,12 @@ const SHIPPED_DEFEND = 'jameson-defend-g1';
  *
  * `CANDIDATES` is that line. Drop `pirate-attack-x.json` in the directory, add
  * the stem, and every solo table below grows a row.
+ *
+ * It is EMPTY, and that is the resting state rather than an oversight. It held
+ * `pirate-attack-e1` while TODO 61 was open; TODO 61 deleted that candidate, so
+ * there is nothing under comparison and the tool scores the shipped three.
  */
-const CANDIDATES: readonly string[] = ['pirate-attack-e1'];
+const CANDIDATES: readonly string[] = [];
 
 const brains: Record<string, Brain | null> = {
   [SHIPPED_PIRATE]: tryLoad(SHIPPED_PIRATE),
