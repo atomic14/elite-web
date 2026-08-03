@@ -193,7 +193,7 @@ console.log('\nthe trainer names what the game flies');
 console.log('\ncombat simulator — the live brain row');
 {
 const d = freshDraft(newCommander());
-const row = () => setupCells(d).find((c) => c.label === 'LIVE BRAINS (CAREER)')!;
+const row = () => setupCells(d).find((c) => c.label === 'LIVE BRAINS (COMMANDER)')!;
 eq('the panel offers it, and it starts at the shipped set',
   row().value, `1/${LIVE_BRAIN_IDS.length} AS SHIPPED`);
 eq('...so the draft asks for no override', JSON.stringify(liveSelectionOf(d)), '{}');
@@ -211,7 +211,7 @@ check('the row is fenced off from the exercise settings', row().fenced === true)
 check('...under a heading that says it leaves the room',
   /LEAVES THE ROOM/.test(row().heading ?? ''));
 eq('...and it is the last row on the panel',
-  setupCells(d).at(-1)!.label, 'LIVE BRAINS (CAREER)');
+  setupCells(d).at(-1)!.label, 'LIVE BRAINS (COMMANDER)');
 check('...so no exercise setting sits below it',
   setupCells(d).filter((c) => c.fenced).length === 1);
 

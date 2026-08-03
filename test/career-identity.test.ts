@@ -206,9 +206,9 @@ console.log('\nNEW COMMANDER starts a career, and puts the old one down whole');
     eq('a career worth keeping, with a save of its own on the shelf',
       writeNamedSave('KEEP ME', career, g.captureSnapshot(), MAX_NAMED_SAVES), 'ok');
 
-    g.newCommanderGame();
-    check('the page reloads, which is how every load in the commander file works',
-      loc.reloads() === 1);
+    check('the act is taken, and the page reloads, which is how every load in '
+      + 'the commander file works',
+      g.newCommanderGame('BOWMAN') && loc.reloads() === 1);
     // ...and this is the state the panel promises stays where it is: the career
     // being set aside checkpoints on its way out, so the shelf holds the run
     // exactly as it was left.
@@ -222,10 +222,17 @@ console.log('\nNEW COMMANDER starts a career, and puts the old one down whole');
     const c = fresh.state.commander;
     check('the reload is a NEW COMMANDER: Lave, 100.0 Cr, no kills, no name of yours',
       c.credits === 1_000 && c.kills === 0 && c.systemIndex === 7
-      && c.name === DEFAULT_NAME);
+      && c.name !== 'CHRIS');
+    // ...and they are called what was TYPED, which is the whole of TODO 56: the
+    // name crossed the reload in the boot pointer, and it is not the fallback
+    // `newCommander()` hands out either.
+    check('...called the name that was asked for, not one the game picked',
+      c.name === 'BOWMAN' && newCommander().name === DEFAULT_NAME);
     check('...on a career no save on the shelf is using',
       fresh.state.career !== career
       && listSaves().every((s) => s.record.career !== fresh.state.career));
+    eq('...and their identity IS that name, with no suffix invented for it',
+      fresh.state.career, 'BOWMAN');
 
     fresh.enterDocked();
     check('...so once it has docked, every autosave key of the old career is '
@@ -240,13 +247,13 @@ console.log('\nNEW COMMANDER starts a career, and puts the old one down whole');
     // just promised they were leaving.
     store.failKeys = /-boot$/;
     const reloads = loc.reloads();
-    fresh.newCommanderGame();
+    const took = fresh.newCommanderGame('NOBODY');
     store.failKeys = null;
     check('a pointer the store refuses is not reloaded on as though it had landed',
-      loc.reloads() === reloads
+      !took && loc.reloads() === reloads
       && bootSave()?.record.career === fresh.state.career);
-    check('...and the player is told, rather than left with the panel\'s promise',
-      fresh.state.session.messageText.includes('STORAGE FULL'));
+    // What the player is TOLD about that refusal belongs to the screen that
+    // asked them for the name — test/new-commander.test.ts.
   } finally {
     loc.restore();
     restore();

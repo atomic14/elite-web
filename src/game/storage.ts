@@ -20,7 +20,13 @@
 //     <ns>save:auto:<CAREER>:dock     the docked checkpoint
 //     <ns>save:auto:<CAREER>:fly:<n>  the in-flight ring
 //     <ns>boot                        which of them the next boot resumes —
-//                                     or `new`, meaning none of them (TODO 45)
+//                                     or `new:<NAME>`, meaning none of them and
+//                                     here is who to start instead (TODO 45, 56)
+//
+// `<CAREER>` is WHICH COMMANDER A SAVE BELONGS TO — the name they were created
+// under. The word is CLAUDE.md invariant 3's and it survives in the code for
+// that reason alone; nothing a player reads says it (docs/TODO/56), and
+// `SaveRecord.career` in save-file.ts is where the choice of word is argued.
 //
 // An autosave cannot overwrite a named save because it cannot ADDRESS one: the
 // two live under different id shapes and the shapes are built here, from a name
@@ -320,17 +326,44 @@ export function clearFlightSaves(career: string): void {
 // --- which save the next boot resumes ---------------------------------------
 
 /**
- * The pointer's one value that is not a save id: START A NEW COMMANDER.
+ * The pointer's other value: START A NEW COMMANDER, and who they are.
  *
  * `bootSave()` falls back to the newest record on the shelf when the pointer is
- * missing, because a LOST pointer is a pointer whose save is still the one you
- * were playing. Setting a new commander aside is the opposite intent and the
- * key space could not say it, so clearing the pointer resumed the very career
- * it meant to put down — career name included, so its autosaves kept landing on
- * the same keys (docs/TODO/45). "None of them" is now a thing the pointer can
- * say. It cannot collide with a save: every save id starts `save:`.
+ * MISSING, because a lost pointer is a pointer whose save is still the one you
+ * were playing. Setting a commander aside is the opposite intent and the key
+ * space could not say it, so clearing the pointer resumed the very run it meant
+ * to put down — name included, so its autosaves kept landing on the same keys
+ * (docs/TODO/45). "None of them" is now a thing the pointer can say.
+ *
+ * IT CARRIES THE NAME because there is nowhere else to put it: a new commander
+ * is chosen on one side of a `location.reload()` and created on the other, and
+ * the store is the only thing that survives that (docs/TODO/56). This is the
+ * name's home for exactly one boot — `bootCommander()` reads it, the first
+ * checkpoint writes it into a record, and `SaveRecord.career` is the home from
+ * then on. It is not a second home for identity; it is the only way identity
+ * reaches its first record.
+ *
+ * Telling it from a save id is STRUCTURAL rather than a comparison: every save
+ * id starts `save:` (`SAVE_ID_PREFIX`), so a pointer that does not is a new
+ * commander whatever else it says — a bare `new` from the build before this one
+ * included, which resumes as an unnamed fresh commander rather than as the run
+ * it was asked to put down. The name needs no encoding for the same kind of
+ * reason the ids do: `normaliseSaveName` leaves only `A-Z 0-9 space`, so it
+ * cannot contain the colon it is written after.
  */
-const NEW_CAREER = 'new';
+const NEW_COMMANDER = 'new';
+
+/**
+ * The name the next boot's fresh commander was given, or null when no new
+ * commander is pending. `''` when one is pending with no name, which is a bare
+ * `new` pointer and means "a fresh commander, called whatever the default is".
+ */
+function pendingCommanderName(): string | null {
+  const id = readItem(BOOT_KEY());
+  if (id === null || id.startsWith(SAVE_ID_PREFIX)) return null;
+  const colon = id.indexOf(':');
+  return colon < 0 ? '' : normaliseSaveName(id.slice(colon + 1));
+}
 
 /** @returns whether the pointer actually moved. */
 export function setBootId(id: string): boolean {
@@ -342,29 +375,32 @@ export function clearBootId(): void {
 }
 
 /**
- * Put every save on the shelf DOWN: the next boot starts a fresh commander.
+ * Put every save on the shelf DOWN: the next boot starts `name`.
  *
- * Nothing is written and nothing is removed — a career is set aside by aiming
- * the pointer away from it, which is why this cannot cost anybody a save.
+ * Nothing is written and nothing is removed — a commander is set aside by
+ * aiming the pointer away from them, which is why this cannot cost anybody a
+ * save. The name goes with it because the boot on the other side of the reload
+ * has no other way to learn it.
  *
  * @returns false when the store would not take the pointer, so the caller can
- * say so rather than reload into the career it promised to leave.
+ * say so rather than reload into the commander it promised to leave.
  */
-export function bootNewCareer(): boolean {
-  return writeItem(BOOT_KEY(), NEW_CAREER);
+export function bootNewCommander(name: string): boolean {
+  return writeItem(BOOT_KEY(), `${NEW_COMMANDER}:${normaliseSaveName(name)}`);
 }
 
 /**
  * The save this session continues.
  *
  * The pointer, when it names something that is still there — or nothing at all
- * when it says `NEW_CAREER`. Otherwise the newest record on the shelf, which is
- * the best guess left after a pointer is LOST, and null when the shelf is
- * empty, which is a new commander.
+ * when it names no save, which is what asking for a new commander leaves it
+ * saying. Otherwise the newest record on the shelf, which is the best guess
+ * left after a pointer is LOST, and null when the shelf is empty, which is a
+ * new commander too.
  */
 export function bootSave(): { id: string; record: SaveRecord } | null {
   const id = readItem(BOOT_KEY());
-  if (id === NEW_CAREER) return null;
+  if (id !== null && !id.startsWith(SAVE_ID_PREFIX)) return null;
   if (id) {
     const record = readSave(id);
     if (record) return { id, record };
@@ -379,17 +415,28 @@ export function bootSave(): { id: string; record: SaveRecord } | null {
  *
  * The Game needs a commander before it has anything to capture a world from,
  * which is why this exists beside `bootSave()` rather than inside it.
+ *
+ * A fresh one is called whatever the player typed at the prompt that asked for
+ * it (docs/TODO/56). A FIRST-EVER boot has no pointer at all and so has nobody
+ * to ask: that one is Commander Jameson, as it has been since 1984.
  */
 export function bootCommander(): CommanderData {
-  return commanderOf(bootSave()?.record ?? ({} as SaveRecord)) ?? newCommander();
+  const boot = bootSave();
+  if (boot) return commanderOf(boot.record) ?? newCommander();
+  const c = newCommander();
+  const chosen = pendingCommanderName();
+  if (chosen) c.name = chosen;
+  return c;
 }
 
 /**
- * Which career's autosaves this session writes. THE ONE HOME FOR THE ANSWER.
+ * Which commander's autosaves this session writes. THE ONE HOME FOR THE ANSWER.
  *
- * The boot save's career, or a name no existing career is using — so starting
- * a fresh commander can never adopt an old one's autosave group and evict its
- * docked checkpoint.
+ * The boot save's, or — for a commander who has no save yet — their own name,
+ * which the prompt that created them has already refused to hand out twice
+ * (`commanderNameTaken`, docs/TODO/56). `freshCareerName` is the belt to that
+ * braces: it can never adopt an existing commander's autosave group and evict
+ * their docked checkpoint, whatever the name arrived as.
  *
  * That promise held for exactly one step, because `WorldSnapshot` carried a
  * career too and `restore()` assigned it over this one (docs/TODO/43). The
@@ -403,9 +450,39 @@ export function bootCareer(commander: CommanderData): string {
   return freshCareerName(commander.name);
 }
 
-/** A career name nothing on the shelf is using. */
+/**
+ * `base`, or the first free name after it, so no two commanders share a key.
+ *
+ * IT IS NO LONGER HOW A SECOND COMMANDER GETS NAMED. It was: a fresh run took
+ * the last one's name and appended a 2, so a player who had never typed a name
+ * ended up flying JAMESON 2 — which reads as a second save of JAMESON rather
+ * than as a different pilot (docs/TODO/56). A name is asked for now, and one
+ * already in use is refused rather than suffixed.
+ *
+ * What is left for it is the case that has no player at the keyboard: an
+ * IMPORTED file (`adoptSaveFile`), whose commander is somebody else's JAMESON
+ * and must land beside yours rather than on it. Re-importing the same file has
+ * to count up rather than invent a name, which is what `uniqueSaveName` is for.
+ */
 export function freshCareerName(base: string): string {
   return uniqueSaveName(base || DEFAULT_NAME, listSaves().map((s) => s.record.career));
+}
+
+/**
+ * Is a commander of this name already on the shelf?
+ *
+ * What the new-commander prompt asks before it takes a name. An identity is a
+ * STORAGE KEY — `save:auto:<CAREER>:dock` and the flight ring — so two
+ * commanders of one name would share an autosave group and the second one's
+ * first docking would evict the first one's way back.
+ *
+ * Asked against every record's `career` rather than its `name`, because that is
+ * the field the keys are built from: a named save called LAVE RUN belongs to a
+ * commander and is not one, and its name lives in a different id shape.
+ */
+export function commanderNameTaken(name: string): boolean {
+  const wanted = normaliseSaveName(name);
+  return listSaves().some((s) => normaliseSaveName(s.record.career) === wanted);
 }
 
 // --- what comes off the shelf, repaired --------------------------------------

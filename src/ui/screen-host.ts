@@ -36,7 +36,8 @@ import type { Input } from '../engine/input.ts';
  */
 export type ScreenId =
   | 'market' | 'equip' | 'contracts' | 'status' | 'data'
-  | 'chart' | 'local' | 'saves' | 'save-name' | 'naming' | 'briefing' | 'combat-sim';
+  | 'chart' | 'local' | 'saves' | 'save-name' | 'naming' | 'new-name'
+  | 'briefing' | 'combat-sim';
 
 /** What a screen asks the host to do next. */
 export type ScreenOutcome =

@@ -52,7 +52,7 @@ export interface SimSetupRow {
   /**
    * This row is not about the exercise, and the renderer fences it off.
    *
-   * Exactly one row is: LIVE BRAINS (CAREER) writes `state.brains`, so it is
+   * Exactly one row is: LIVE BRAINS (COMMANDER) writes `state.brains`, so it is
    * still set when you undock. It stays IN this list — it is a cell, it is
    * arrowed and clicked like any other — and the renderer paints it apart.
    */
@@ -535,7 +535,7 @@ export function setupCells(d: SimDraft): SetupCell[] {
   cells.push({
     heading: 'THIS ONE LEAVES THE ROOM',
     fenced: true,
-    label: 'LIVE BRAINS (CAREER)',
+    label: 'LIVE BRAINS (COMMANDER)',
     // No position on the console case, because there is no position: a selection
     // the picker cannot name is not one of the eleven it offers.
     value: d.live === null ? 'SET FROM THE CONSOLE'

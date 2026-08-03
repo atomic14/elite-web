@@ -78,7 +78,7 @@ console.log('\ncombat simulator — the panel has a shape');
     headings().join(' / '),
     'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE LEAVES THE ROOM');
   eq('...and the fenced row stays last',
-    setupCells(d).at(-1)!.label, 'LIVE BRAINS (CAREER)');
+    setupCells(d).at(-1)!.label, 'LIVE BRAINS (COMMANDER)');
 }
 
 // --- and it does not change height while you use it -------------------------
@@ -162,7 +162,7 @@ console.log('\ncombat simulator — a brain row says what it does');
   const named = cells.filter((c) => c.brain !== undefined).map((c) => c.label.trim());
   eq('the three brain rows carry a brain, and nothing else does',
     named.map((l) => l.replace(/&nbsp;/g, '')).join(' / '),
-    'THE OPPOSITION FLIES (THIS FIGHT) / THIS GROUP FLIES / LIVE BRAINS (CAREER)');
+    'THE OPPOSITION FLIES (THIS FIGHT) / THIS GROUP FLIES / LIVE BRAINS (COMMANDER)');
   check('...and each of them has something to say about it',
     cells.filter((c) => c.brain !== undefined).every((c) => !!brainNote(c.brain)));
 
@@ -221,7 +221,7 @@ console.log('\ncombat simulator — a long list is navigable');
     setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
 
   const rows = ['THE OPPOSITION FLIES (THIS FIGHT)', 'THIS GROUP FLIES',
-    'GROUP 1 HULL', 'LIVE BRAINS (CAREER)'];
+    'GROUP 1 HULL', 'LIVE BRAINS (COMMANDER)'];
   for (const label of rows) {
     check(`${label} says where in the list it is`, /^\d+\/\d+ /.test(cell(label).value));
   }

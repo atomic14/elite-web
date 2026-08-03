@@ -40,7 +40,8 @@ export interface GameState {
   systems: StarSystem[];
   commander: CommanderData;
   /**
-   * Which career's autosaves this session writes — see save-file.ts.
+   * Which commander's autosaves this session writes — see save-file.ts, where
+   * the word is argued and where the one home for it lives.
    *
    * STATE and not a module variable, for invariant 12's reason: it decides
    * where an automatic write LANDS, and a rule read from ambient state is a
@@ -50,12 +51,14 @@ export interface GameState {
    * `bootCareer()` takes it off the record this session booted from, once, and
    * nothing writes it again — not even `restore()`, which used to assign the
    * snapshot's copy over it one step after boot and so let an imported file
-   * redirect a stranger's autosaves onto your career. The snapshot carries no
-   * career at all now; the record it lives in is the answer.
+   * redirect a stranger's autosaves onto yours. The snapshot carries none at
+   * all now; the record it lives in is the answer.
    *
-   * It is deliberately not the commander's name: two careers can be called
-   * JAMESON, and then a global — or a name-keyed — autosave group would belong
-   * to whichever of them flew last.
+   * It is the name the player chose for this commander — and still NOT
+   * `commander.name`, which is what they are called today. Renaming changes
+   * that one and leaves this one where it is (TODO 56), so a rename can never
+   * move a save from one group to another underneath a player who only meant
+   * to change what they are called.
    */
   career: string;
   /** level-1 simulation: trade flowing between all 256 systems */

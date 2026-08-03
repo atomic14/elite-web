@@ -164,7 +164,7 @@ IN`, `HANGS BACK`, `HOLDS OFF`, `THE OLD AIMBOT` — with the weights file behin
 it in a quieter face for anyone cross-referencing docs/TRAINING-LOG.md. The row
 itself says which fight it changes: **THE OPPOSITION FLIES (THIS FIGHT)** at the
 top of WHO FLIES WHAT, **THIS GROUP FLIES** on a hand-built group, and the fenced
-**LIVE BRAINS (CAREER)** at the foot. The names live in `game/brain-names.ts`
+**LIVE BRAINS (COMMANDER)** at the foot. The names live in `game/brain-names.ts`
 beside the one-line CHARACTER they were compressed from, which is what the panel
 prints under the selected row — behaviour with the measured number that shows it.
 The figures are the flight probe and the evaluation tournament, archived under

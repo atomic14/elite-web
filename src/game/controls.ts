@@ -59,7 +59,7 @@ export type Command =
   | 'exportSave'
   | 'importSave'
   | 'toggleLayout'
-  // --- erasing a career ---------------------------------------------------
+  // --- putting a commander down --------------------------------------------
   | 'askNewGame'
   | 'newGame'
   | 'cancelNewGame'
@@ -95,7 +95,7 @@ export type Command =
  * Which set of bindings is live.
  *
  * `confirmNewGame` is a mode rather than a flag because that is what it is: the
- * erase-your-career confirmation swallows every other key, and saying so as a
+ * put-this-commander-down confirmation swallows every other key, and saying so as a
  * table is both shorter and harder to get wrong than the early return it
  * replaced. The Game decides which mode it is in; the screen stack owns the
  * rest, so an open overlay never reaches this file at all.

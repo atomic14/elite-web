@@ -719,7 +719,7 @@ export class CombatSim {
         + 'entry snapshot — the career was rebuilt from the snapshot and NOTHING '
         + 'was written to storage. This is a bug in persistence.ts, not in the fight.';
       for (const r of this.records) r.warnings.push(complaint);
-      this.host.message('SIMULATOR: CAREER RESTORED FROM SNAPSHOT', 6);
+      this.host.message('SIMULATOR: COMMANDER RESTORED FROM SNAPSHOT', 6);
     }
 
     const done = this.records;

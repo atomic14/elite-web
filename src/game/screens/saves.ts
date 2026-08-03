@@ -5,7 +5,9 @@
 // What lives here is the half above both: the list, the deliberate act of
 // naming a save, and renaming a commander — plus the keyboard state machine for
 // each, behind the Screen contract (invariant 13). Saves that leave the browser
-// as a file are `save-transfer.ts`.
+// as a file are `save-transfer.ts`, and STARTING a commander is
+// `new-commander.ts`: that one is about identity rather than about the shelf,
+// and it borrows `typedName` from here because the alphabet is the same.
 //
 // Following the same discipline as NpcShip: these screens decide nothing about
 // game state. They return an OUTCOME and the host applies it, so the mode
@@ -14,7 +16,7 @@
 import { generateGalaxy } from '../../galaxy/galaxy.ts';
 import { DEFAULT_NAME, type CommanderData } from '../commander.ts';
 import {
-  bootNewCareer, deleteSave, listSaves, namedSaveExists, setBootId,
+  deleteSave, listSaves, namedSaveExists, setBootId,
 } from '../storage.ts';
 import {
   MAX_SAVE_NAME, newestFirst, normaliseSaveName, summariseSave,
@@ -85,30 +87,40 @@ export function checkpointSummary(ctx: SavesContext): SaveSummary | null {
 }
 
 /**
- * Put the career you are flying DOWN, and start a fresh one beside it.
+ * One frame of typing into a name field.
  *
- * Under numbered slots this deleted the slot you were in, because a slot was
- * the only place a career could be. It is not any more — so this writes the
- * checkpoint of the career being set aside (it is one of the saves the panel
- * promises stays where it is), and then aims the next boot AWAY from the shelf
- * rather than at nothing.
+ * ONE HOME, because THREE screens type a name — a save's, a rename, and a new
+ * commander's (screens/new-commander.ts) — and the keys they accept have to be
+ * the alphabet `normaliseSaveName` keeps, or a name is one thing on the way in
+ * and another on the way out.
  *
- * That distinction is the whole of docs/TODO/45. Clearing the pointer looks
- * like the same act and is not: a missing pointer means "lost", and `bootSave`
- * answers a lost pointer with the newest record on the shelf — which is the
- * career you just asked to put down, career name and all, so its autosaves went
- * on landing on the same keys and the confirm panel's "start again at Lave with
- * 100.0 Cr" was a lie. `bootNewCareer()` says "none of them", and a boot with
- * no record takes a fresh commander and `freshCareerName()` (storage.ts).
- *
- * @returns false when the store would not take the pointer — nothing has
- * changed and nothing has been lost, but the caller must not claim otherwise.
+ * @param pristine true while the buffer still holds an offered default, which
+ * the first keystroke REPLACES rather than appends to: there is no way to
+ * select text on these screens, so a pre-filled field would otherwise make
+ * typing a new name mean typing it onto the end of the old one. A screen that
+ * offers nothing passes false and can ignore the flag on the way back.
+ * @returns the buffer after the frame, or null when nothing it accepts was
+ * pressed — so a caller re-renders only when something changed.
  */
-export function startNewCommander(ctx: SavesContext): boolean {
-  ctx.checkpoint();
-  if (!bootNewCareer()) return false;
-  location.reload();
-  return true;
+export function typedName(
+  buffer: string, pristine: boolean, i: Input,
+): { buffer: string; pristine: boolean } | null {
+  let next = buffer;
+  let fresh = pristine;
+  let changed = false;
+  if (i.pressed('Backspace')) {
+    if (fresh) { next = ''; fresh = false; } else next = next.slice(0, -1);
+    changed = true;
+  }
+  for (const code of i.drainPresses()) {
+    const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
+    if (!m) continue;
+    if (fresh) { next = ''; fresh = false; }
+    if (next.length >= MAX_SAVE_NAME) break;
+    next += code === 'Space' ? ' ' : (m[1] ?? m[2]);
+    changed = true;
+  }
+  return changed ? { buffer: next, pristine: fresh } : null;
 }
 
 /** The commander file: everything on the shelf, and what you can do to it. */
@@ -271,21 +283,12 @@ export class SavePromptScreen implements Screen {
       }
       return this.write(ctx);
     }
-    let changed = false;
-    if (i.pressed('Backspace')) {
-      if (this.pristine) { this.buffer = ''; this.pristine = false; }
-      else this.buffer = this.buffer.slice(0, -1);
-      changed = true;
+    const typed = typedName(this.buffer, this.pristine, i);
+    if (typed) {
+      this.buffer = typed.buffer;
+      this.pristine = typed.pristine;
+      this.render();
     }
-    for (const code of i.drainPresses()) {
-      const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
-      if (!m) continue;
-      if (this.pristine) { this.buffer = ''; this.pristine = false; }
-      if (this.buffer.length >= MAX_SAVE_NAME) break;
-      this.buffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
-      changed = true;
-    }
-    if (changed) this.render();
     return 'stay';
   }
 
@@ -307,6 +310,19 @@ export class SavePromptScreen implements Screen {
 
 /**
  * Renaming the COMMANDER, which is not the same act as naming a save.
+ *
+ * WHAT IT DOES, and it is stated on the screen rather than left to be found
+ * out: it changes what you are CALLED — `CommanderData.name`, which is what the
+ * status screen, the docked menu and the save prompt show — and it does NOT
+ * move your saves. They stay filed under the name you were created with, which
+ * is what `save:auto:<CAREER>:*` is keyed by (save-file.ts).
+ *
+ * That is a decision, not an omission (docs/TODO/56). Moving them would be a
+ * write across five keys — the checkpoint, three flight slots and the boot
+ * pointer — with a half-done state in the middle of it, and TODO 44's rule is
+ * that nothing may be deleted on the strength of a write that failed. A rename
+ * that half-succeeded would leave a commander addressable under two names or
+ * under neither, so the cheap act stays cheap and the screen says what it did.
  *
  * Pushed on top of the file list rather than sitting beside it as a peer mode,
  * so cancelling is just `back` and the list underneath re-paints itself. It
@@ -331,7 +347,8 @@ export class NamingScreen implements Screen {
   }
 
   render(): void {
-    renderNaming(this.buffer, this.ctx().commander.name);
+    const ctx = this.ctx();
+    renderNaming(this.buffer, ctx.commander.name, ctx.career);
   }
 
   input(i: Input): ScreenOutcome {
@@ -341,23 +358,17 @@ export class NamingScreen implements Screen {
       const name = normaliseSaveName(this.buffer) || DEFAULT_NAME;
       ctx.commander.name = name;
       ctx.checkpoint();
-      ctx.message(`COMMANDER ${name}`, 3);
+      // Both halves, because the second is the surprising one and a player who
+      // has just renamed themselves is about to look at the list.
+      ctx.message(`COMMANDER ${name} — SAVES STAY FILED UNDER ${ctx.career}`, 4);
       sfx.commanderNamed();
       return 'back';
     }
-    let changed = false;
-    if (i.pressed('Backspace')) {
-      this.buffer = this.buffer.slice(0, -1);
-      changed = true;
+    const typed = typedName(this.buffer, false, i);
+    if (typed) {
+      this.buffer = typed.buffer;
+      this.render();
     }
-    for (const code of i.drainPresses()) {
-      const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
-      if (!m) continue;
-      if (this.buffer.length >= MAX_SAVE_NAME) break;
-      this.buffer += code === 'Space' ? ' ' : (m[1] ?? m[2]);
-      changed = true;
-    }
-    if (changed) this.render();
     return 'stay';
   }
 }

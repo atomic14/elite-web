@@ -79,17 +79,17 @@ export const COMMAND_HELP: Record<Command, CommandHelp> = {
     menu: 'DATA ON SYSTEM',
   },
   openCombatSim: {
-    what: 'combat training simulator — free, and nothing in it reaches your career',
+    what: 'combat training simulator — free, and nothing in it reaches your commander',
     menu: 'COMBAT TRAINING',
   },
   exportSave: { what: 'export a save file', keyline: 'EXPORT' },
   importSave: { what: 'import a save file', keyline: 'IMPORT' },
   toggleLayout: { what: 'switch keyboard layout: classic / modern', keyline: 'KEYBOARD LAYOUT' },
 
-  // --- erasing a career -----------------------------------------------------
+  // --- putting a commander down ----------------------------------------------
   askNewGame: { what: 'start a new commander (asks first)', keyline: 'NEW COMMANDER' },
-  newGame: { what: 'yes — erase this career and start again' },
-  cancelNewGame: { what: 'keep this career' },
+  newGame: { what: 'yes — name a new commander and start again' },
+  cancelNewGame: { what: 'keep flying this commander' },
 
   // --- shared between the menu and the cockpit -------------------------------
   openChart: { what: 'galactic chart', section: 'navigation', menu: 'GALACTIC CHART' },
@@ -145,7 +145,7 @@ export const COMMAND_HELP: Record<Command, CommandHelp> = {
   jettison5: { what: 'jettison five tonnes at once', section: 'flight' },
 
   // --- the training simulator ------------------------------------------------
-  endExercise: { what: 'end the exercise — nothing in it reaches your career' },
+  endExercise: { what: 'end the exercise — nothing in it reaches your commander' },
 
   // --- after the end ---------------------------------------------------------
   respawn: { what: 'back to the station checkpoint you launched from' },

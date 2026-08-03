@@ -187,7 +187,7 @@ export function adoptSaveFile(text: string): AdoptedFile {
  * clean boot is far more trustworthy than zeroing all of it.
  *
  * THE POINTER IS MOVED HERE, beside the reload it authorises, and its refusal
- * is honoured the way `saves.ts` and `startNewCommander` honour theirs (TODO
+ * is honoured the way `saves.ts` and `new-commander.ts` honour theirs (TODO
  * 44): a reload on a pointer that never landed resumes whatever `bootSave()`
  * falls back to — the career the player was already flying — under an
  * announcement that says they are now flying the file they just imported. The

@@ -170,7 +170,7 @@ because browsers claim the function keys.
 | L | launch |
 | M / C / E | market · contracts · equip ship |
 | N / G / D / I | local chart · galactic chart · data on system · status |
-| **T** | **combat training simulator** — practise a fight; nothing in it reaches your career |
+| **T** | **combat training simulator** — practise a fight; nothing in it reaches your commander |
 | H | new pilot's briefing |
 | B | switch keyboard layout |
 | S | commander file — named saves and autosaves (S saves · ENTER loads · D deletes · R renames the commander) |
@@ -187,7 +187,7 @@ optional seed, and optionally build the opposition yourself — hull, count,
 tier, how they fly and fit, per group — plus a fit-out override for your own
 ship. ENTER launches; **L** re-opens the last report; **ESC** or **Q** ends the
 exercise. The panel is grouped — the fight, who flies what, your ship — with
-**LIVE BRAINS (CAREER)** fenced off at the foot, because that one is still set
+**LIVE BRAINS (COMMANDER)** fenced off at the foot, because that one is still set
 when you undock. A brain is picked by how it flies — `CLOSES IN`, `HANGS BACK`,
 `HOLDS OFF` — with the weights file behind the name for anyone reading the
 training log.

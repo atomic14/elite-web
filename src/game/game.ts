@@ -105,8 +105,9 @@ import { freshTimers } from './encounters.ts';
 import { breachLoss } from './systems.ts';
 import {
   SavesScreen, SavePromptScreen, NamingScreen, checkpointSummary,
-  startNewCommander, type SavesContext,
+  type SavesContext,
 } from './screens/saves.ts';
+import { NewCommanderScreen, startNewCommander } from './screens/new-commander.ts';
 import { exportSaveFile, importSaveFile } from './screens/save-transfer.ts';
 import {
   MarketScreen, EquipScreen, buyEquipment, type TradeContext,
@@ -557,6 +558,7 @@ export class Game {
       new SavesScreen(() => this.savesContext()),
       new SavePromptScreen(() => this.savesContext()),
       new NamingScreen(() => this.savesContext()),
+      new NewCommanderScreen(() => this.savesContext()),
       new StatusScreen(() => ({
         commander: this.state.commander,
         systems: this.state.systems,
@@ -782,23 +784,22 @@ export class Game {
     this.applyStation(this.station.dock(arrival));
   }
 
-  /** @internal — driven by test/playtest.js */
-  newCommanderGame(): void {
-    if (startNewCommander(this.savesContext())) return;
-    // The pointer did not move, so this session is still the career it was.
-    // Saying nothing would leave the player looking at a confirm panel that
-    // had just promised them Lave and 100.0 Cr.
-    this.pendingNewGame = false;
-    renderDockedMenu(this.system, this.state.commander, this.station.missionText());
-    this.showMessage('STORAGE FULL — YOU ARE STILL FLYING THIS COMMANDER', 5);
-    sfx.refused();
+  /**
+   * @internal — the same act the NAME YOUR COMMANDER prompt performs, for a
+   * driver with no keyboard. It forwards and nothing else: what the act IS
+   * lives in `startNewCommander`, and what a player is TOLD when it fails lives
+   * in the screen that asked them.
+   * @returns false when the boot pointer would not move, so nothing happened.
+   */
+  newCommanderGame(name: string): boolean {
+    return startNewCommander(this.savesContext(), name);
   }
 
   openSaves(): void {
     this.screens.open('saves');
   }
 
-  /** Download the current career as a JSON file (portable saves, bug reports). */
+  /** Download this commander as a JSON file (portable saves, bug reports). */
   private exportSave(): void {
     exportSaveFile(this.savesContext());
   }
@@ -1527,12 +1528,19 @@ export class Game {
     exportSave: () => this.exportSave(),
     importSave: () => this.importSave(),
     toggleLayout: () => this.switchLayout(),
-    // --- erasing a career -------------------------------------------------
+    // --- putting a commander down -----------------------------------------
     askNewGame: () => {
       this.pendingNewGame = true;
       renderNewGameConfirm(this.system, this.state.commander);
     },
-    newGame: () => this.newCommanderGame(),
+    // The panel has said what will happen; the last thing it needs is a name,
+    // and the name IS the new commander's identity (screens/new-commander.ts).
+    // Dropping the pending flag first means ESC out of the prompt lands back on
+    // the docked menu rather than on a confirmation already answered.
+    newGame: () => {
+      this.pendingNewGame = false;
+      this.screens.open('new-name');
+    },
     cancelNewGame: () => {
       this.pendingNewGame = false;
       renderDockedMenu(this.system, this.state.commander, this.station.missionText());

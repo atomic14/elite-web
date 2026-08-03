@@ -189,11 +189,12 @@ export function renderNewGameConfirm(sys: StarSystem, c: CommanderData): void {
       <span style="opacity:0.8; font-size:11px">
         NOTHING IS DELETED &mdash; every save on the commander file (S) stays
         where it is, this one included.<br/>
+        You will be asked what the new commander is called.<br/>
         Press ESC or Q to cancel, X to export a backup first.
       </span>
     </div>
     <div class="buttons">
-      <button data-key="KeyY">Y — START A NEW COMMANDER</button>
+      <button data-key="KeyY">Y — NAME A NEW COMMANDER</button>
       <button data-key="Escape">ESC — CANCEL</button>
     </div>
   `);
@@ -318,7 +319,7 @@ export function renderEquip(
 
 /**
  * The commander file: the saves you named, the saves the game made, and which
- * career you are flying.
+ * commander you are flying.
  *
  * One line shape for both halves — WHEN, WHAT, WHERE, and what you were worth —
  * because a player choosing "one of the autosaves" has to tell them apart at a
@@ -355,7 +356,7 @@ export function renderSaves(
          <button data-key="Escape">ESC &mdash; DONE</button>
        </div>
        <div class="keyline">
-         &#9654; IS THE CAREER YOU ARE FLYING &middot; &#9679; IS THE STATION YOU CAN
+         &#9654; IS THE COMMANDER YOU ARE FLYING &middot; &#9679; IS THE STATION YOU CAN
          ALWAYS GET BACK TO &middot; AUTOSAVES CANNOT OVERWRITE A SAVE YOU NAMED
        </div>`;
   show(`
@@ -401,8 +402,16 @@ export function renderSavePrompt(buffer: string, confirming: boolean): void {
   `);
 }
 
-/** Typing a commander name, Elite-style: letters go straight in. */
-export function renderNaming(buffer: string, current = ''): void {
+/**
+ * RENAMING a commander, Elite-style: letters go straight in.
+ *
+ * `filedUnder` is the name their saves are keyed by, and it is on the screen
+ * because this is the one act in the game where the two names come apart: a
+ * rename changes what you are called and deliberately does not move a save
+ * (screens/saves.ts). A player who is told that once is not surprised by a
+ * list that still says the old name.
+ */
+export function renderNaming(buffer: string, current = '', filedUnder = ''): void {
   show(`
     <h2>COMMANDER NAME</h2>
     <div class="rule"></div>
@@ -412,10 +421,46 @@ export function renderNaming(buffer: string, current = ''): void {
       </span><br/>
       <span style="font-size:11px; opacity:0.7">
         ${current ? `CURRENTLY ${current} &mdash; ESC KEEPS IT` : ''}
+        ${filedUnder ? `<br/>THIS CHANGES WHAT YOU ARE CALLED &mdash;
+          YOUR SAVES STAY FILED UNDER ${filedUnder}` : ''}
       </span><br/>
       <span style="font-size:11px; opacity:0.8">
         LETTERS AND NUMBERS &middot; BACKSPACE &middot; ENTER TO CONFIRM &middot; ESC TO CANCEL
       </span>
+    </div>
+  `);
+}
+
+/**
+ * Naming a NEW commander — the first thing that happens to one.
+ *
+ * Blank, and nothing offered. The default the game used to pick was the name
+ * already on the shelf with a 2 after it (docs/TODO/56), and a pre-filled field
+ * on these screens cannot be selected: the first keystroke would have to
+ * replace it, which is a rule to explain rather than a box to type in.
+ *
+ * @param leaving whoever is being set aside, so ESC says what it goes back to.
+ */
+export function renderNewCommander(buffer: string, leaving = ''): void {
+  show(`
+    <h2>NAME YOUR COMMANDER</h2>
+    <div class="rule"></div>
+    <div class="info" style="text-align:center; line-height:2.2">
+      <span style="font-size:26px; letter-spacing:6px; color:var(--hud-amber)">
+        ${buffer.length ? buffer : '&nbsp;'}<span style="opacity:0.6">_</span>
+      </span><br/>
+      <span style="font-size:11px; opacity:0.7">
+        THIS IS WHO THE NEW SAVES BELONG TO &mdash;
+        IT CANNOT BE A NAME ALREADY IN USE
+      </span><br/>
+      <span style="font-size:11px; opacity:0.8">
+        LETTERS AND NUMBERS &middot; BACKSPACE &middot; ENTER TO BEGIN &middot;
+        ESC ${leaving ? `KEEPS FLYING ${leaving}` : 'TO CANCEL'}
+      </span>
+    </div>
+    <div class="buttons">
+      <button data-key="Enter">ENTER &mdash; BEGIN</button>
+      <button data-key="Escape">ESC &mdash; CANCEL</button>
     </div>
   `);
 }

@@ -173,7 +173,7 @@ const FROM_THE_CONSOLE = 'LIVE BRAINS WERE SET FROM THE CONSOLE TO SOMETHING THI
  */
 const galaxyFlies = (id: LiveBrainId): string =>
   `LIVE BRAINS: THE WHOLE GALAXY FLIES ${brainName(id)} (${id.toUpperCase()}) — IN YOUR `
-  + 'CAREER, OUT THERE, AND SAVED WITH THE COMMANDER. SET THIS ROW BACK TO AS SHIPPED TO UNDO IT.';
+  + 'GAME, OUT THERE, AND SAVED WITH THE COMMANDER. SET THIS ROW BACK TO AS SHIPPED TO UNDO IT.';
 
 /**
  * What the fence says when there is nothing to warn about.

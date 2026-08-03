@@ -39,6 +39,7 @@ import './persistence.test.ts';
 import './saves.test.ts';
 import './save-transfer.test.ts';
 import './career-identity.test.ts';
+import './new-commander.test.ts';
 
 // --- ships, and being shot at ----------------------------------------------
 import './flight.test.ts';

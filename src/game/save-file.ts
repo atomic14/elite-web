@@ -71,9 +71,27 @@ export type SaveKind = 'file' | 'dock' | 'fly';
  */
 export interface SaveRecord {
   v: number;
-  /** what the player sees. For an autosave it is the career's name. */
+  /** what the player sees. For an autosave it is the commander's name. */
   name: string;
-  /** which career's autosaves this belongs with */
+  /**
+   * WHICH COMMANDER THIS SAVE BELONGS TO, and THE ONE HOME for that answer
+   * (docs/TODO/43): the name they were created under, and the segment
+   * `save:auto:<CAREER>:dock` and the flight ring are keyed by.
+   * `GameState.career` is a read of this, and `WorldSnapshot` has no opinion.
+   *
+   * WHY IT IS NOT CALLED `commander`. That name is taken, one field down, by
+   * this record's `CommanderData` — the character's stats — and the two are
+   * different things a rename pulls apart. `CommanderData.name` is what the
+   * pilot is called TODAY; this is who the save belongs to, fixed when they
+   * were created, because it is half of a STORAGE KEY and a key that moves is a
+   * multi-key write with a half-done state in the middle of it (docs/TODO/44).
+   * So renaming a commander deliberately leaves this alone, and the rename
+   * screen says so on the screen.
+   *
+   * "Career" is the word CLAUDE.md invariant 3 documents the key space under,
+   * which is the whole reason it is still here. It carries no meaning to a
+   * player and nothing a player reads says it (docs/TODO/56).
+   */
   career: string;
   kind: SaveKind;
   /** epoch milliseconds, for "when" and for picking the oldest ring slot */

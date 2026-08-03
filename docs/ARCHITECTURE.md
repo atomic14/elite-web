@@ -339,7 +339,11 @@ src/
       status.ts             what you are flying, carrying and wanted for
       data.ts               the 1984 manual entry, plus today's local news
       saves.ts              the commander file: the list, the save prompt and
-                            renaming a commander
+                            renaming a commander — which changes what you are
+                            called and deliberately does not move your saves
+      new-commander.ts      starting one: the name is asked for, refused if it
+                            is already flying, and IS the identity the autosaves
+                            are keyed by
       save-transfer.ts      a save leaving the browser as a JSON file, and
                             coming back without landing on an existing save OR
                             an existing career. The Blob and the picker are the
@@ -683,8 +687,12 @@ ships.
   `save:auto:<CAREER>:dock` is the checkpoint written on docking and again
   immediately before launch, and `save:auto:<CAREER>:fly:<0..2>` is the ring
   `autoSave()` fills every 20 seconds of flight. An autosave cannot overwrite a
-  named save because a typed name cannot produce an `auto:` id. `<ns>boot` says
-  which record the next boot resumes; docking and dying drop the ring, never the
+  named save because a typed name cannot produce an `auto:` id. `<CAREER>` is
+  which COMMANDER a save belongs to — the name they were asked for when they
+  were started, which is why nothing generates one and nothing renames one
+  (`save-file.ts`; the word is invariant 3's and no player reads it). `<ns>boot`
+  says which record the next boot resumes, or `new:<NAME>` when it is a
+  commander who does not have one yet; docking and dying drop the ring, never the
   checkpoint. CLAUDE.md invariant 3 is the whole rule.
 - **Debug handles** (deliberate, documented): `window.__game` (a
   `legacyHandles(Game)` console view — used by the autopilot test harness, see
