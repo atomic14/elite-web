@@ -207,7 +207,7 @@ it; a gate holds it at zero now. **Read the set, not the sample.**
 
 ## From the bug sweep (2026-08-03)
 
-Progress: **0 / 1 complete**. A sweep after TODO 59 with every gate green —
+Progress: **1 / 1 complete**. A sweep after TODO 59 with every gate green —
 2748 unit tests, the campaign, the Elite-A alignment gate, portability at zero
 contaminated — plus the browser playtest, which is the one that found
 something.
@@ -220,7 +220,18 @@ already diverged (one escaped a double quote, the other did not). That is this
 project's named failure with a new hat on, so it now has a test that fails if a
 third appears.
 
-- [ ] 60 — [The playtest agent strands itself after two or three legs](60-the-playtest-agent-strands-itself.md) — verification · medium · medium
+60 is done, and the cause was none of the obvious ones. The step budget was
+tested first and cleared: at 60,000 steps the agent still spent 90% of them
+parked at speed 0. It was a mutual standstill — the approach yielded to any
+ship within 320 units, and `npc.ts` lets traders come to rest, so both sides
+waited forever. Two further defects fell out of it: `alignRoll` aimed the wings
+at the station's local X when the slot test wants local Y (the same bug in
+`train/jameson-autopilot.js`, whose header promises alignment it never
+delivered), and `openHermitTrade()` pushed the market screen twice — a real
+player-facing bug since the screen-host migration, where leaving a rock hermit
+needs two Escapes.
+
+- [x] 60 — [The playtest agent strands itself after two or three legs](60-the-playtest-agent-strands-itself.md) — verification · medium · medium
 
 ## Follow-ups
 
