@@ -250,6 +250,15 @@ missile rack and shield regeneration. 62 and 63 are the two known divergences;
 - [ ] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
 - [ ] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
 - [ ] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
+- [ ] 65 — [The defender is selected for not fighting](65-the-defender-is-selected-for-not-fighting.md) — training methodology · high · medium
+
+65 came out of trying to act on 62-64 and failing. Two retrains across a wider
+training distribution both came out worse than the shipped brain, and tripling
+the search budget was not the answer: the defend phase picks its champion on
+pools-left alone, where killing a whole pirate is worth 3 points and losing 1%
+of your pools costs 10. Under that rule shooting is strictly irrational, which
+is CLAUDE.md's long-standing "evades superbly and shoots badly" — not a property
+of the brain, a property of the selection.
 
 ## Follow-ups
 
