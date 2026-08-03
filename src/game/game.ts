@@ -1439,11 +1439,19 @@ export class Game {
     this.state.hermitMarket = hermitMarket(this.system);
     this.state.market = this.state.hermitMarket;
 
+    // ONE push. The screen-host migration (c51fcdc) translated this method
+    // line by line: `this.mode = 'market'` became a push, and the
+    // `renderMarket(...)` four lines below it became a second one — but
+    // `open()` already renders, so the hermit trade pushed the same screen
+    // twice and one Escape left the other underneath. `Game.mode` is DERIVED
+    // from the stack, so the ship flew on with `mode === 'market'`: the player
+    // had to press Escape twice, and test/playtest.js — whose flight loops are
+    // all `while (g.mode === 'flight')` — stopped dead 16 km out and reported
+    // a docking failure it had never flown.
     this.screens.open('market');
     this.baseMode = 'flight';
     this.state.player.speed = 0;
     sfx.dock();
-    this.screens.open('market');
   }
 
 

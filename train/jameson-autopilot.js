@@ -134,11 +134,21 @@
       return revenue;
     },
 
+    /**
+     * The "perfectly-aligned docking approach" the header promises — which it
+     * was not. See test/playtest.js's `alignRoll` for the measurement: this
+     * aimed the wings at the station's local X, and docking.ts's slot test
+     * wants the local Y, so the roll wandered instead of converging and every
+     * final run was a coin toss. The bounce counter this file prints was
+     * counting that, not the traffic.
+     */
     alignRollOnly() {
       const st = g.world.station;
       const qRel = st.quaternion.clone().invert().multiply(g.player.quaternion);
       const right = new V(1, 0, 0).applyQuaternion(qRel);
-      g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(0, 0, 1), -Math.atan2(right.y, right.x)));
+      const up = new V(0, 1, 0).applyQuaternion(qRel);
+      g.player.quaternion.multiply(
+        new Q().setFromAxisAngle(new V(0, 0, 1), Math.atan2(-right.x, up.x)));
     },
 
     nearestHostile(range) {

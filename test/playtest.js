@@ -314,17 +314,29 @@
     async flyToStationAndDock(maxSteps = 20000) {
       let steps = 0, finalRun = false, fights = 0, combatSteps = 0;
       let holdSteps = 0, blockaded = false;
+      // what the approach was DOING when it ran out of budget — see
+      // recordDockGiveUp; a give-up with no measurement is what made TODO 60
+      // three candidate causes instead of one
+      let runs = 0, bumps = 0, minDist = Infinity;
+      // A screen still open is not a docking problem, and it must not be
+      // reported as one — see leaveScreens.
+      if (g.mode !== 'flight' && g.mode !== 'docked' && g.mode !== 'dead') {
+        const was = g.mode;
+        this.fail(`screen "${was}" was still open in flight, ${this.leaveScreens()} escapes to clear`);
+      }
       while (g.mode === 'flight' && steps < maxSteps) {
         const st = g.world.station;
         const slotN = new V(0, 0, -1).applyQuaternion(st.quaternion);
         const dist = g.player.position.distanceTo(st.position);
         const gate = st.position.clone().addScaledVector(slotN, 800);
+        if (dist < minDist) minDist = dist;
 
-        // Pirates loitering in the station's lap would otherwise hold us at a
+        // Traffic loitering in the station's lap would otherwise hold us at a
         // standstill forever (the collision hold below yields to anything
         // within 320, and we don't normally fight this close in). In an
         // anarchy that's a livelock, not caution — so once the approach has
-        // been blocked this long, latch it and turn and fight instead.
+        // been blocked this long, latch it: fight what is shooting at us, and
+        // stop yielding to anything at all.
         if (!blockaded && holdSteps >= 400) {
           blockaded = true;
           this.note('combat:blockaded');
@@ -357,14 +369,26 @@
           continue;
         }
 
-        if (dist < 6000) {
-          // yield to traffic in the docking lanes — but once blockaded, only
-          // to ships that aren't shooting at us, so hostiles can't stall us
-          const hostileRoles = ['pirate', 'thargoid', 'thargon'];
+        // Yield to traffic in the docking lanes — until the latch above says
+        // the approach is blocked, and then to nothing.
+        //
+        // This used to keep yielding to non-hostiles once `blockaded` was set,
+        // and that is what TODO 60 was: measured at the give-up, two armed
+        // traders the harness had provoked were sitting 115 and 264 away at
+        // speed 0 — the defence brain holds throttle -1, and npc.ts gives a
+        // speed floor only to hostiles, so a trader is ENTITLED to come to
+        // rest. We stopped for them; they were already stopped. 14,180 of a
+        // 20,004-step budget went on a mutual standstill 408 from the door.
+        // A deadlock is not a slow approach, so no budget rescues it.
+        //
+        // Flying on is not a free pass: collisions.ts shoves us clear, takes
+        // 70% of our speed and bills the impact. That is the game's price for
+        // barging through traffic, and paying it is a legitimate outcome —
+        // waiting for a ship that will never move is not.
+        if (dist < 6000 && !blockaded) {
           let nd = Infinity;
           for (const n of g.npcs) {
             if (!n.state.alive) continue;
-            if (blockaded && hostileRoles.includes(n.role)) continue;
             nd = Math.min(nd, n.object.position.distanceTo(g.player.position));
           }
           if (nd < 320) {
@@ -381,7 +405,10 @@
           this.alignRoll();
           g.player.speed = 80;
           this.step(4); steps += 4;
-          if (g.player.position.distanceTo(st.position) > before + 150) finalRun = false;
+          if (g.player.position.distanceTo(st.position) > before + 150) {
+            finalRun = false;
+            bumps += 1;
+          }
         } else if (dist > 6000) {
           g.lookAlong(gate.clone().sub(g.player.position));
           g.player.speed = 400;
@@ -394,18 +421,91 @@
           this.step(6); steps += 6;
         } else {
           finalRun = true;
+          runs += 1;
         }
         if (steps % 1500 === 0) await sleep(0);
       }
-      if (g.mode !== 'docked' && g.mode !== 'dead') this.fail('failed to dock within step budget');
+      if (g.mode !== 'docked' && g.mode !== 'dead') {
+        this.recordDockGiveUp({ steps, maxSteps, finalRun, blockaded, holdSteps,
+          combatSteps, runs, bumps, minDist });
+      }
       return steps;
     },
 
+    /**
+     * The one line at the give-up that TODO 60 asked for.
+     *
+     * Where the ship was, what the approach thought it was doing, and what was
+     * shooting at it. `minDist`/`runs`/`bumps` are what separate the three
+     * candidate causes: never getting close (minDist stays large), a final run
+     * that oscillates (many runs, many bumps, minDist at the hull), or a
+     * blockade holding it off (blockaded/holdSteps with a hostile in the lap).
+     */
+    dockFailures: [],
+
+    recordDockGiveUp(m) {
+      const st = g.world.station;
+      const slotN = new V(0, 0, -1).applyQuaternion(st.quaternion);
+      const gate = st.position.clone().addScaledVector(slotN, 800);
+      const near = this.nearestHostile(Infinity);
+      // how far the wings are off the slot's long axis, docking.ts's measure
+      const qRel = st.quaternion.clone().invert().multiply(g.player.quaternion);
+      const right = new V(1, 0, 0).applyQuaternion(qRel);
+      const rec = {
+        day: g.commander.day,
+        system: g.systems[g.commander.systemIndex].name,
+        mode: g.mode,
+        steps: m.steps,
+        budget: m.maxSteps,
+        dist: Math.round(g.player.position.distanceTo(st.position)),
+        gateDist: Math.round(g.player.position.distanceTo(gate)),
+        minDist: Math.round(m.minDist),
+        finalRun: m.finalRun,
+        runs: m.runs,
+        bumps: m.bumps,
+        blockaded: m.blockaded,
+        holdSteps: m.holdSteps,
+        combatSteps: m.combatSteps,
+        rollOffset: +Math.atan2(Math.abs(right.x), Math.abs(right.y)).toFixed(2),
+        hostile: near
+          ? `${near.role}@${Math.round(near.object.position.distanceTo(g.player.position))}`
+          : 'none',
+      };
+      this.dockFailures.push(rec);
+      console.warn('dock give-up', rec);
+      this.fail(`failed to dock within step budget — ${m.steps} steps, `
+        + `${rec.dist} from the station (closest ${rec.minDist}), `
+        + `${m.runs} final runs, ${m.bumps} bounced, roll off by ${rec.rollOffset} rad, `
+        + `hostile ${rec.hostile}`);
+      return rec;
+    },
+
+    /**
+     * Roll the wings onto the slot's long axis — docking.ts's test, not a
+     * paraphrase of it.
+     *
+     * `rollAlignedWithSlot` measures `atan2(|right.x|, |right.y|)` in the
+     * STATION's frame, so the wings have to lie along the station's local Y.
+     * This used to drive `atan2(right.y, right.x)` to zero, which aims at the
+     * local X — a quarter turn wrong ever since TODO 25 brought the exact hulls
+     * and turned the letterbox upright. It did not simply always miss, which is
+     * why it survived: rolling about the ship's own Z mixes `right` with the
+     * ship's up, so the map was `φ → 2φ` and the offset wandered (measured from
+     * the gate: 0.66, 0.26, 1.05, 0.54, 0.5, 0.58 rad against a 0.65 tolerance)
+     * rather than converging. Every final run was a coin toss, and a lost toss
+     * is a slotMiss: bounced to 420, hull damage, and round again.
+     *
+     * Rolling by θ about the ship's Z takes `right` to `cosθ·right + sinθ·up`,
+     * so the x-component in the station frame vanishes at
+     * `θ = atan2(-right.x, up.x)` — one step, either handedness, offset 0.
+     */
     alignRoll() {
       const st = g.world.station;
       const qRel = st.quaternion.clone().invert().multiply(g.player.quaternion);
       const right = new V(1, 0, 0).applyQuaternion(qRel);
-      g.player.quaternion.multiply(new Q().setFromAxisAngle(new V(0, 0, 1), -Math.atan2(right.y, right.x)));
+      const up = new V(0, 1, 0).applyQuaternion(qRel);
+      g.player.quaternion.multiply(
+        new Q().setFromAxisAngle(new V(0, 0, 1), Math.atan2(-right.x, up.x)));
     },
 
     /** Detour to any hermit we can see — exercises the encounter. */
@@ -428,11 +528,36 @@
       }
       if (g.hermitTrading) {
         this.note('encounter:hermit');
-        g.input.injectPress('Escape');
-        this.step(4);
+        const taps = this.leaveScreens();
+        if (taps !== 1) this.fail(`leaving the hermit took ${taps} escapes, not one`);
         return true;
       }
       return false;
+    },
+
+    /**
+     * Back out to the world, however deep the stack is.
+     *
+     * `Game.mode` is DERIVED from the screen stack (invariant 13), and every
+     * flight loop in this file is `while (g.mode === 'flight')`. So a screen
+     * left open does not slow the agent down — it stops it dead, and then the
+     * next loop reports the fault as whatever IT was trying to do. That is how
+     * one duplicated `screens.open('market')` in the hermit trade came back as
+     * "failed to dock", 16 km out, with zero steps flown.
+     *
+     * Bounded, and it counts: Escape is edge-triggered, and one that lands on
+     * the wrong frame is the same hazard `reviveFromDeath` avoids. A stack that
+     * needs more than one is a finding, not something to absorb quietly.
+     */
+    leaveScreens() {
+      const world = ['flight', 'docked', 'dead'];
+      let taps = 0;
+      while (taps < 8 && !world.includes(g.mode)) {
+        g.input.injectPress('Escape');
+        this.step(4);
+        taps += 1;
+      }
+      return taps;
     },
 
     async jumpTo(index) {
@@ -465,7 +590,7 @@
 
     // ---- the main loop --------------------------------------------------
 
-    async run({ legs = 20, log = false } = {}) {
+    async run({ legs = 20, log = false, dockSteps = 20000, dockRetries = 2 } = {}) {
       // NOTHING THIS HARNESS DOES CAN REACH YOUR SAVES, and it is not a
       // convention any more.
       //
@@ -482,8 +607,10 @@
       clearHarnessSaves();
       this.violations = [];
       this.seen = new Set();
+      this.dockFailures = [];
       const history = [];
       const start = performance.now();
+      let ended = null;
 
       try {
         g.respawn();
@@ -492,11 +619,29 @@
         for (let leg = 0; leg < legs; leg++) {
           if (g.mode === 'dead') { deaths += 1; this.reviveFromDeath(); }
           if (g.mode !== 'docked') {
-            await this.flyToStationAndDock();
+            await this.flyToStationAndDock(dockSteps);
             // dying on the way in is a death, not a strand: reload the last
             // station save and press on, exactly as a player would
             if (g.mode === 'dead') { deaths += 1; this.reviveFromDeath(); }
-            if (g.mode !== 'docked') { this.fail('stranded — abandoning run'); break; }
+            // A dock that fails is a legitimate outcome for a bot, and it is
+            // ONE fault: recordDockGiveUp has already written the line saying
+            // what the approach was doing when it gave up. It used to fall
+            // through into the strand test, so one failure to arrive became
+            // three violations and the first — the only one with any evidence
+            // in it — was buried. Reload the last station checkpoint and press
+            // on, as a player would; a run that cannot dock `dockRetries`
+            // times ends saying THAT, and only a reload that does not put us
+            // back at a station is a strand.
+            if (g.mode !== 'docked') {
+              if (this.dockFailures.length >= dockRetries) {
+                ended = `gave up docking ${this.dockFailures.length} times`;
+                break;
+              }
+              this.note('dock:reloaded-station-save');
+              g.respawn();
+              this.step(4);
+            }
+            if (g.mode !== 'docked') { this.fail('stranded — abandoning run'); ended = 'stranded'; break; }
           }
 
           // --- station business ---
@@ -530,7 +675,7 @@
 
           await this.jumpTo(dest);
           this.note('flight:jumped');
-          await this.flyToStationAndDock();
+          await this.flyToStationAndDock(dockSteps);
 
           history.push({
             leg: leg + 1,
@@ -550,6 +695,8 @@
         this.history = history;
         this.report = {
           legsCompleted: history.length,
+          endedBecause: ended ?? 'ran the legs asked for',
+          dockFailures: this.dockFailures,
           finalCredits: +(c.credits / 10).toFixed(1),
           kills: c.kills,
           deaths,
