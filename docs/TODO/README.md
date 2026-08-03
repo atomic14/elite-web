@@ -179,7 +179,7 @@ lines later — so it is worth doing early rather than last.
 
 ## Content
 
-Progress: **1 / 1 complete**. The 1984 galaxy says one line about each world.
+Progress: **2 / 2 complete**. The 1984 galaxy says one line about each world.
 There is a second paragraph beside it now, written offline by a model and
 committed — the same pipeline `tools/species-prompts.ts` already uses for the
 inhabitant portraits, for the same reason: the game deploys as a static site,
@@ -192,12 +192,18 @@ count stays true and a price list does not). Every entry is optional by design
 2-8 can follow whenever, and a refused record costs nothing:
 `npm run generate:descriptions -- 2 --model claude-sonnet-5`.
 
+`/encyclopaedia` is the same corpus as something to read rather than something
+to find in-game: the 256-world chart, filterable, with every entry also written
+into the HTML at build time so the page is a complete reference work with no
+JavaScript at all. It is the first page to have invariant 1 enforced by a test.
+
 The measurement worth keeping is that reading four entries proved nothing. The
 first full run was excellent one world at a time and a template in bulk — 207
 of 256 mentioned arrival, because the prompt had asked for it. Counting found
 it; a gate holds it at zero now. **Read the set, not the sample.**
 
 - [x] 58 — [Extended system descriptions, generated offline](58-extended-system-descriptions.md) — content/tooling · low · large
+- [x] 59 — [The galaxy encyclopaedia](59-the-galaxy-encyclopaedia.md) — content/new page · low · large
 
 ## Follow-ups
 
