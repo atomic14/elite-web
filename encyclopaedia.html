@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Galactic Encyclopaedia — 256 worlds — HARMLESS</title>
+    <meta name="description" content="Every one of the 256 worlds of the first galaxy: economy, government, tech level, inhabitants and a description of each. Generated from the byte-accurate 1984 algorithm behind HARMLESS, an unofficial browser tribute to Elite." />
+    <link rel="canonical" href="https://harmless.atomic14.com/encyclopaedia" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Galactic Encyclopaedia — 256 worlds" />
+    <meta property="og:description" content="Filter 256 worlds by economy, government, tech level and species, and read what each one is like. The galaxy is byte-accurate to 1984." />
+    <meta property="og:url" content="https://harmless.atomic14.com/encyclopaedia" />
+    <meta property="og:image" content="https://harmless.atomic14.com/images/station-docking.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="stylesheet" href="/src/encyclopaedia/encyclopaedia.css" />
+  </head>
+  <body>
+    <header class="page-head">
+      <p class="eyebrow"><a href="/">HARMLESS</a></p>
+      <h1>Galactic Encyclopaedia</h1>
+      <p class="standfirst">
+        The first galaxy holds 256 worlds. Their positions, economies,
+        governments, technology and inhabitants all come from the procedural
+        generator of a 1984 space trading game, reimplemented here byte for
+        byte — the same algorithm this project's galaxy is flown in. Every
+        world below is described.
+      </p>
+    </header>
+
+    <div id="app">
+      <aside id="rail">
+        <div class="rail-head">
+          <label class="search">
+            <span class="sr-only">Search worlds by name</span>
+            <input id="search" type="search" placeholder="Search worlds…" autocomplete="off" />
+          </label>
+          <p id="count">256 of 256 worlds</p>
+          <button id="reset" type="button" hidden>Clear filters</button>
+        </div>
+        <div id="facets"></div>
+      </aside>
+
+      <main id="stage">
+        <div class="chart-wrap">
+          <canvas id="chart" aria-label="Chart of the 256 worlds of the first galaxy"></canvas>
+          <button id="zoom-out" type="button" title="Fit the whole galaxy">Reset view</button>
+        </div>
+        <section id="detail" class="is-empty" aria-live="polite">
+          <p class="detail-hint">Pick a world from the chart, or scroll for the full index.</p>
+        </section>
+      </main>
+    </div>
+
+    <section id="index">
+      <h2 class="index-head">All 256 worlds</h2>
+      <!--ENTRIES-->
+    </section>
+
+    <footer class="page-foot">
+      <p>
+        <a href="/">HARMLESS</a> is a free, unofficial fan tribute to Elite
+        (1984) and is not affiliated with or endorsed by its rights holders.
+        <a href="/play">Play it</a> · <a href="/manual">Read the manual</a> ·
+        <a href="/gallery">See the ships</a>
+      </p>
+    </footer>
+
+    <script type="module" src="/src/encyclopaedia/main.ts"></script>
+  </body>
+</html>

@@ -27,6 +27,7 @@
 // --- the world --------------------------------------------------------------
 import './galaxy.test.ts';
 import './descriptions.test.ts';
+import './encyclopaedia.test.ts';
 import './economy.test.ts';
 import './contracts.test.ts';
 import './trade.test.ts';

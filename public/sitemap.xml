@@ -4,6 +4,7 @@
   <url><loc>https://harmless.atomic14.com/play</loc><priority>0.9</priority></url>
   <url><loc>https://harmless.atomic14.com/manual</loc><priority>0.8</priority></url>
   <url><loc>https://harmless.atomic14.com/novella</loc><priority>0.7</priority></url>
+  <url><loc>https://harmless.atomic14.com/encyclopaedia</loc><priority>0.8</priority></url>
   <url><loc>https://harmless.atomic14.com/viewer</loc><priority>0.6</priority></url>
   <url><loc>https://harmless.atomic14.com/gallery</loc><priority>0.6</priority></url>
 </urlset>

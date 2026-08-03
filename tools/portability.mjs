@@ -13,6 +13,13 @@ const BROWSER = /\b(document|window|localStorage|sessionStorage|requestAnimation
 /** Files a desktop port deliberately replaces. */
 export const PLATFORM = [
   'ui/', 'hud/', 'game/screens/', 'viewer/',
+  // The encyclopaedia by FILE, not by directory, unlike `viewer/` above. Only
+  // two of its four modules touch a browser: the canvas chart and the page
+  // wiring. `entry.ts` and `filters.ts` are pure and stay counted as portable,
+  // which is not bookkeeping — `entry.ts` runs under node during the build, to
+  // write all 256 entries into the document, and would stop being able to the
+  // moment it reached for a DOM.
+  'encyclopaedia/chart.ts', 'encyclopaedia/main.ts',
   // The composition root: only main.ts imports it in shipped code. It creates
   // the input/HUD/screens and applies audio, storage and console effects; the
   // reusable rules and fixed step are the modules it orchestrates.
