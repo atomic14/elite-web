@@ -105,7 +105,24 @@ body.screen-open #message {
    sat directly under a map that draws to its own bottom edge, so the two
    always looked like they were touching however much height the box had. */
 #screen.wide { max-width: 1260px; }
-#screen .chartrow { display: flex; gap: 20px; align-items: flex-start; }
+/* `stretch`, not `flex-start`, and that is load-bearing. The readout column
+   holds a generated description whose length varies by system — 379 characters
+   on Atage, 754 on Inonri — and with the column free to size itself the panel
+   grew and shrank as the cursor moved. `#screen` is centred with
+   translate(-50%, -50%), so a taller panel pushes half its growth upward: the
+   star map slid 34px under the cursor while you were pointing at it. Stretching
+   the column to the canvas's height fixes the panel, and the description
+   scrolls inside it instead. */
+#screen .chartrow { display: flex; gap: 20px; align-items: stretch; }
+#screen .chartrow .info {
+  display: flex; flex-direction: column;
+  /* Capped at the canvas's own side length, which renderLocalChart passes down
+     as --chart-side from LOCAL_CANVAS. The number stays in the TypeScript that
+     sizes the canvas; repeating 560 here would be the same rule in two files,
+     and the two would part company the first time the chart was resized. */
+  max-height: var(--chart-side, 560px);
+  min-height: 0;
+}
 #screen .chartrow canvas { flex: 0 0 auto; }
 /* the chart readout: name, inhabitant portrait, facts, and the goat-soup line */
 #screen .chartrow .info .sysname {
@@ -132,6 +149,32 @@ body.screen-open #message {
 #screen .chartrow .info .sysfacts dt { color: var(--hud-amber); opacity: 0.85; }
 #screen .chartrow .info .sysfacts dd { margin: 0; }
 #screen .chartrow .info .sysblurb { clear: both; opacity: 0.9; line-height: 1.7; padding-top: 8px; }
+
+/* The generated half in the chart panel, marked off from the 1984 line above
+   it exactly as it is on the DATA ON page — dimmer, with a rule. Left-aligned
+   is inherited here (the chart readout never centred), so only the separation
+   needs saying. */
+#screen .chartrow .info .sysmore {
+  opacity: 0.78;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(51, 255, 51, 0.18);
+  /* Takes whatever the column has left and scrolls the rest, so no world can
+     change the panel's height — see the note on .chartrow above.
+
+     11px/1.55 rather than the 12px/1.7 of the line above it, and the two
+     numbers were measured rather than chosen: at 12px/1.7, 83 of the 256
+     descriptions overflowed this box and needed scrolling — a third of the
+     galaxy, in a panel whose scrollbar nobody would find. At 11px/1.55 the
+     longest description in the game (Inonri, 754 characters) fits with room,
+     and NONE of the 256 scroll. The portrait keeps its 168px; shrinking it
+     also worked and was not needed. */
+  font-size: 11px;
+  line-height: 1.55;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
 
 #screen .chartrow .info {
   /* an explicit basis, not `auto`: #screen shrink-wraps its content, so a

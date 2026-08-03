@@ -192,3 +192,25 @@ check('no surface defines its own HTML escaper',
 check('every surface imports the shared one',
   escapers.every((src) => src.includes("from '../engine/escape-html.ts'")));
 eq('and it escapes the quote the private copy missed', escapeHtml('a"b'), 'a&quot;b');
+
+// --- both browsing surfaces show it -----------------------------------------
+
+// The overlay went onto the DATA ON page first and nowhere else, on the
+// reasoning that the chart readout "rebuilds on every cursor move". It does
+// not — there is a guard on `info.dataset.system` so it rebuilds only when the
+// cursor lands on a DIFFERENT star — and the chart is where a player actually
+// browses systems, so the descriptions were effectively invisible in play.
+//
+// Both surfaces render it now, and this is the guard on that. The galactic
+// chart deliberately does NOT: its readout is a single keyline under a
+// full-width canvas, with no column to put a paragraph in.
+const screens = readFileSync(new URL('../src/ui/screens.ts', import.meta.url), 'utf8');
+const callSites = (screens.match(/systemDescription\(/g) ?? []).length;
+eq('two screens read the overlay: the chart readout and the DATA ON page',
+  callSites, 2);
+check('the chart readout renders it',
+  /sysblurb sysmore[\s\S]{0,80}more\.description/.test(screens));
+check('the DATA ON page renders both halves',
+  /sysmore[\s\S]{0,400}more\.description[\s\S]{0,200}more\.inhabitants/.test(screens));
+check('both render sites escape it',
+  (screens.match(/escapeHtml\(more\./g) ?? []).length === 3);

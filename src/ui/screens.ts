@@ -703,7 +703,7 @@ export function renderLocalChart(
   show(`
     <h2>SHORT RANGE CHART</h2>
     <div class="rule"></div>
-    <div class="chartrow">
+    <div class="chartrow" style="--chart-side:${LOCAL_CANVAS}px">
       <canvas id="local-canvas" width="${LOCAL_CANVAS}" height="${LOCAL_CANVAS}"></canvas>
       <div class="info" id="local-info"></div>
     </div>
@@ -807,6 +807,7 @@ export function drawLocalChart(
     const d = distanceTenths(current, near);
     const out = d > c.fuel && near.index !== c.systemIndex;
     const portrait = portraitUrl(near, c.galaxy);
+    const more = systemDescription(near, c.galaxy);
     info.innerHTML =
       `<div class="sysname">${near.name.toUpperCase()}` +
       `<span class="dist"> &middot; ${(d / 10).toFixed(1)} LY</span>` +
@@ -830,7 +831,15 @@ export function drawLocalChart(
            </figure>`
         : '') +
       `</div>` +
-      `<div class="sysblurb">${planetDescription(near)}</div>`;
+      `<div class="sysblurb">${planetDescription(near)}</div>` +
+      // The world half of the extended entry, under the 1984 line. The PEOPLE
+      // half is not here and is not missing: the portrait and its species
+      // caption are directly above, so the panel already says who lives here,
+      // and both paragraphs together run to a median of 942 characters against
+      // roughly 270px of free column — which would scroll, on a panel that
+      // changes every time the cursor lands on a different star. `D` opens the
+      // full entry, and that is where the pair belongs.
+      (more ? `<div class="sysblurb sysmore">${escapeHtml(more.description)}</div>` : '');
   }
 }
 
