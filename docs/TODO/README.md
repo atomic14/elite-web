@@ -252,6 +252,17 @@ missile rack and shield regeneration. 62 and 63 are the two known divergences;
 - [ ] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
 - [ ] 65 — [The defender is selected for not fighting](65-the-defender-is-selected-for-not-fighting.md) — training methodology · high · medium
 
+## The attack run, and what comes after it
+
+`d563e3d` gave every hostile a three-phase attack run. These are the four things
+it left open — two measured faults in the run's geometry, the design it makes
+possible, and one piece of wording nobody could read.
+
+- [ ] 66 — [The pass aims where you were, not where you will be](66-the-pass-aims-where-you-were.md) — combat bug · medium · small
+- [ ] 67 — [Short attack runs are not flyable, so the rhythm is fixed at ~9s](67-short-attack-runs-are-not-flyable.md) — combat feel · medium · medium
+- [ ] 68 — [A vocabulary of tactics, not one behaviour](68-a-vocabulary-of-tactics.md) — combat feel/design · medium · large
+- [ ] 69 — [The setup panel says "HULL (0)" and means "ask the hull"](69-the-panel-says-hull-zero.md) — UI/UX · low · small
+
 65 came out of trying to act on 62-64 and failing. Two retrains across a wider
 training distribution both came out worse than the shipped brain, and tripling
 the search budget was not the answer: the defend phase picks its champion on
