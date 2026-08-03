@@ -1979,3 +1979,50 @@ Two deliberate omissions, both stated in the archived log:
 `scripted` has no weights file to probe, so its line quotes the tournament as
 well: 58% accuracy and 31.8s on a hauler's six, and 0.93 ships lost an episode
 to a commander who fights back.
+
+## 2026-08-03 — the unshipped weights were deleted (TODO 57)
+
+**Nothing above was re-measured, re-run or rewritten.** This entry records one
+thing: the weights files for every policy this project trained and did not ship
+were removed from `src/ai-training/brains/`, which now holds exactly the three
+the game flies —
+
+```text
+pirate-attack-g3            the solo pirate
+pirate-pack-r4-selectonly   an organised gang
+jameson-defend-g1           an armed trader, and player assist
+```
+
+— and `npm test` fails if a fourth appears or one of those three goes missing.
+31 files went: the round-1 to round-14 attack rounds, five `trader-evade`
+policies, the eight-way `pirate-pack-r4` ablation, generations 1, 2 and 4, `e1`,
+and TODO 29's three `t29` candidates. Chris, 2026-08-03: *"we should clean up
+all the experiments that aren't shipping — so we can just show the combat AI
+that we actually ship."*
+
+**The figures in every entry above stand as the record of what was measured.**
+They were taken on the seeds and the commands each entry states, the archived
+tables in `train/logs/` are untouched, and this file's own rule — append, never
+rewrite — is why they are still here in full. What is gone is the ability to
+re-run them without retraining: a round that loaded a frozen opponent by name
+now needs that opponent regenerated first (`npm run train -- <phase> --out
+<name>`), and the trainer's brain picker, the combat viewer and
+`train/evaluate.ts` offer the shipped three plus the scripted control and
+nothing else.
+
+Putting a candidate back is deliberately still one move: drop its `.json` in
+`src/ai-training/brains/`, add the stem to `CANDIDATES` in `train/evaluate.ts`
+for the tournament and the flight probe, and — if it is to be FLOWN rather than
+scored — give it a `BrainName`, a character line and a `BrainSelection` entry in
+`src/game/brain-names.ts` plus an import in `src/game/brains.ts`. The guard will
+report the extra file until it is either promoted or removed, which is the
+decision it exists to force.
+
+One consequence worth stating because it is not a number: the six A/B flags that
+named those weights (`legacy`, `sharp`, `engine`, `t29`, `packT29`, `defendT29`)
+are gone from `BrainSelection`, so the translation table at the top of this file
+now has two live rows rather than four — `__game.state.brains.scripted = true`
+and `__game.state.brains.pack = true`. A save carrying one of the deleted flags
+still loads; nothing reads it, so that career flies the shipped brains, and the
+combat trainer's LIVE BRAINS row says the selection cannot be named and offers
+to take it back.

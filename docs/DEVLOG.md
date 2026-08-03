@@ -580,3 +580,63 @@ presented as recovered source data.
   the trainer flies the real game, so changing what a laser is worth changed
   the training world too. That is the trade chapter 6 bought, and this is the
   first time the bill arrived.
+
+## 14. Ship only what ships
+
+Thirty-four sets of neural weights were committed to `src/ai-training/brains/`.
+The game imported nine of them. Three flew.
+
+The other six were loaded into every player's browser to sit behind a picker as
+evidence: generation 1 and 2, the round-18 engine brain, and TODO 29's three
+retrains — each of which beat what ships on damage and read as a turret, which
+is the finding this project has now made three times. Keeping them pickable was
+a real argument. A candidate that wins every measurement and loses the only one
+that counts is exactly the thing you want a playtester to be able to fly, and
+twice that rig is what caught it.
+
+It stopped being the right trade when the picker got long enough that the three
+that matter were four rows down a list of eleven, and Chris said so: *"we should
+clean up all the experiments that aren't shipping — so we can just show the
+combat AI that we actually ship."* The measurements are not in the weights. They
+are in `docs/TRAINING-LOG.md` and `train/logs/`, written down at the time, on
+stated seeds, with the commands to reproduce them — which is where evidence
+belongs, and which is why deleting 31 files cost nothing that had not already
+been kept.
+
+Two things fell out of it that were not the point.
+
+The first is that **the combat viewer was lying**, and had been since round one.
+Its "Pack of 3 vs armed trader" scenario flew `pirate-pack.json` — an early pack
+policy, not the `pirate-pack-r4-selectonly` the game ships — because the weights
+came from an `import` and the label came from an `<option>` in the HTML, and
+nothing tied the two together. The same structure had already produced "Shipped
+pirate (league r2)" over a brain named CANNOT BE FLOWN. The fix is not a better
+label: the rows are a table in `main.ts` now, each row's weights come from
+`brains.ts` and its name from `brain-names.ts`, the `<select>` in the HTML is
+empty, and `npm test` fails if any file in `src/` other than `game/brains.ts`
+imports weights at all.
+
+The second is that **`/viewer` opened on the design gallery**. The two had been
+one page with a `G` between them, which meant the combat viewer — the thing the
+landing page links to as "watch the trained AI fight" — read as deleted unless
+you knew to press a key nothing told you about. They are two pages now, one
+thing each, no mode key: `/viewer` and `/gallery`, both entries in
+`vite.config.ts`, sharing a canvas-and-bloom module and nothing else.
+
+### What this chapter taught
+
+- **Evidence you cannot delete is not evidence, it is inventory.** The test to
+  apply is whether the measurement survives the artefact. Here it did, in a
+  log this project has an append-only rule about, so the artefact was free to go.
+- **A label and the thing it names must come from one place, or the label is a
+  guess.** Both of the viewer's false claims were structurally identical and
+  neither was a typo. The `<option>` could not have been right for long.
+- **A directory can be a claim, and then a test can hold it.** "These are the
+  brains we ship" was prose in three files and true in none of them. It is the
+  contents of a directory checked against the imports of one module, and both
+  halves are read rather than typed.
+- **A flag whose subject is deleted is not automatically a migration.** Six A/B
+  flags went with the weights they named. A save carrying one still loads, is
+  not rewritten, and flies the shipped brains — because nothing reads it — and
+  the trainer's own row says the selection cannot be named and offers to take it
+  back. The only requirement was that it must not throw, and that is a test.

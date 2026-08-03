@@ -75,7 +75,9 @@ export const BREAK_OFF_RANGE = 220;
  * still does, but `attack()` shoots now, so what is handed over is the flying
  * and only the flying.
  *
- * `pirate-attack-r2` is the exception and keeps the full `BREAK_OFF_RANGE`,
- * because it is the brain that kamikazes — see `pirateBrainFor`.
+ * EVERY shipped policy hands over here. There used to be one exception —
+ * `pirate-attack-r2` kept the full `BREAK_OFF_RANGE` because it is the brain
+ * that kamikazes — and it went with the other unshipped weights in TODO 57, so
+ * `pirateBrainFor` returns this number and no other.
  */
 export const BRAIN_HANDOVER_RANGE = 150;

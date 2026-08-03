@@ -305,9 +305,9 @@ console.log('\ncombat simulator — the brain override');
     brainOverride(d), null);
   eq('...so the spec carries no brain', specFrom(d, 1).brain, undefined);
 
-  d.brain = 'pirate-attack-r2';
-  eq('the exercise brain row is the override', brainOverride(d), 'pirate-attack-r2');
-  eq('...and it reaches the spec', specFrom(d, 1).brain, 'pirate-attack-r2');
+  d.brain = 'scripted';
+  eq('the exercise brain row is the override', brainOverride(d), 'scripted');
+  eq('...and it reaches the spec', specFrom(d, 1).brain, 'scripted');
   check('every brain the picker offers is one the report can name',
     SIM_BRAINS.every((b) => typeof b === 'string' && b.length > 0));
 
@@ -317,13 +317,13 @@ console.log('\ncombat simulator — the brain override');
   // with the picker.
   const mixed = freshDraft(newCommander());
   mixed.groups.push(defaultGroup(1), defaultGroup(1));
-  mixed.groups[0].brain = 'pirate-attack-r2';
-  mixed.groups[1].brain = 'pirate-attack-g2';
+  mixed.groups[0].brain = 'pirate-attack-g3';
+  mixed.groups[1].brain = 'scripted';
   eq('two groups asking for two brains cannot both fly', brainOverride(mixed), null);
   check('...and the panel says why',
     draftNotes(mixed).some((n) => /MIXED BRAINS CANNOT FLY/.test(n)));
-  mixed.groups[1].brain = 'pirate-attack-r2';
-  eq('...where two groups that agree do fly it', brainOverride(mixed), 'pirate-attack-r2');
+  mixed.groups[1].brain = 'pirate-attack-g3';
+  eq('...where two groups that agree do fly it', brainOverride(mixed), 'pirate-attack-g3');
   check('...and the complaint goes away',
     !draftNotes(mixed).some((n) => /MIXED BRAINS/.test(n)));
 

@@ -44,9 +44,15 @@ a JSONL curve to `train/logs/`, and writes the winning brain to
 | --- | --- | --- | --- |
 | `attack` | a pirate | scripted trader | `npm run train -- attack --gens 400 --pop 64 --eps 3` |
 | `evade` | an unarmed trader | trained pirate | `npm run train -- evade --gens 400 --pop 64 --eps 3` |
-| league r2 | pirate v2 | trained evader | `npm run train -- attack --opponent trader-evade --seed-brain pirate-attack --out pirate-attack-r2 --gens 300 --pop 48` |
+| league | a pirate again | a trained evader | `npm run train -- attack --opponent <an evade brain> --seed-brain pirate-attack-g3 --out my-brain --gens 300 --pop 48` |
 | `pack` | 3 shared-brain pirates | armed scripted trader | `npm run train -- pack --gens 300 --pop 48` |
-| `defend` | an ARMED trader ("Jameson") | 2× `pirate-attack-r2` (the default; `--opponent` overrides it, and the SHIPPED pirate is `pirate-attack-g3`) | `npm run train -- defend --gens 300 --pop 48` |
+| `defend` | an ARMED trader ("Jameson") | 2× `pirate-attack-g3`, the shipped pirate (`--opponent` overrides it) | `npm run train -- defend --gens 300 --pop 48` |
+
+A league or `evade` run needs a frozen opponent BY NAME, and the only weights
+files in the tree are the three the game flies (TODO 57): train the opponent you
+want first, or point `--opponent` at one of the three. `--out` defaults to the
+phase's shipped brain, which is the loud overwrite this file has always warned
+about and did not do — `git checkout src/ai-training/brains` restores.
 
 Flags: `--gens --pop --eps --elites` (numbers), `--opponent <brain-name>`
 (loads `src/ai-training/brains/<name>.json` as the frozen opponent),
@@ -78,30 +84,51 @@ demanding exact equality there.
 
 ## Wiring a new brain into the game
 
-1. Train it (`--out my-brain`).
-2. Evaluate it — beat the incumbent's tournament row before shipping.
-3. Import it where the incumbents are imported: `src/game/brains.ts` (one
-   `brainFromFile` block and one line in `LOADED`), viewer scenarios →
-   `src/viewer/main.ts`. Any observation width works — 14, 18 or 26; `npc.ts`
-   picks the widest encoder the brain has inputs for.
-4. Name it in `src/game/brain-names.ts`: one `BrainName`, one `BrainSelection`
-   flag, one line in the rule, one row in `SELECTIONS`, and one entry in
-   `BRAINS` — the two or three words a pilot picks it by (`HANGS BACK`) beside
-   the measured line they compress (`HANGS BACK AND SNIPES — SPEED 104, MEDIAN
-   RANGE 754 …`). Both, or `npm test` fails: a brain the picker offers with no
-   name is a filename on the row, and one with no line is a claim with no probe
-   behind it. That is what makes it pickable in both places and reportable by
-   name — the combat trainer's `SIM_BRAINS` list is derived from it.
-5. `npm run build` bundles the JSON weights (~15 KB gzipped each).
+**`src/ai-training/brains/` holds exactly the three the game flies, and
+`npm test` fails on a fourth file or a missing one** (TODO 57). So a candidate
+is either being compared or being promoted, and the two are different amounts of
+work:
+
+*To COMPARE it* — no game changes at all:
+
+1. Train it (`--out my-brain`), which leaves the weights in the directory.
+2. Add the stem to `CANDIDATES` in `train/evaluate.ts`. Every solo, pack and
+   defence table it belongs in grows a row, and so does the flight probe.
+3. `npm run evaluate`, and fly it: the combat trainer at `T` needs step 4 below,
+   so until then the honest comparison is the tournament plus the probe.
+4. Delete it or promote it. The guard will report the extra file until you do —
+   that is the decision it exists to force.
+
+*To PROMOTE it* — now the game has to be able to fly it:
+
+5. Import it where the incumbents are imported: `src/game/brains.ts` (one
+   `brainFromFile` block and one line in `LOADED`). Any observation width
+   works — 14, 18 or 26; `npc.ts` picks the widest encoder the brain has inputs
+   for. The combat viewer's rows ask `brains.ts` for the shipped policy by role,
+   so `src/viewer/main.ts` needs nothing unless you want a row of its own.
+6. Name it in `src/game/brain-names.ts`: one `BrainName`, one row in
+   `SELECTIONS` (and a `BrainSelection` flag if it is an alternative rather than
+   a replacement), one line in the rule, and one entry in `BRAINS` — the two or
+   three words a pilot picks it by (`HOLDS OFF`) beside the measured line they
+   compress (`A GANG THAT WATCHES ITS FLEET AND HOLDS OFF — MEDIAN RANGE 1447
+   …`). Both, or `npm test` fails: a brain the picker offers with no name is a
+   filename on the row, and one with no line is a claim with no probe behind it.
+   That is what makes it pickable in both places and reportable by name — the
+   combat trainer's `SIM_BRAINS` list is derived from it.
+7. If it REPLACES an incumbent, delete the incumbent's weights: the directory
+   guard is what keeps "what ships" and "what is in the bundle" the same set.
+8. `npm run build` bundles the JSON weights (~15 KB gzipped each).
 
 In-game A/B: brain selection is STATE, not a global — `state.brains`
 (`BrainSelection` in `src/game/brain-names.ts`). Two ways in, and neither is a
 flag: the **LIVE BRAINS (CAREER)** row on the combat trainer's setup panel (`T`
 at any station) picks one policy for the whole galaxy, and from a console the
 one documented handle does the same — `__game.state.brains.scripted = true`
-reverts every ship to the scripted AI, and `legacy` / `sharp` / `engine` /
-`pack` / `t29` / `packT29` / `defendT29` swap in the unshipped candidates. It is
-in the snapshot, so a reload keeps flying what you chose.
+reverts every ship to the scripted AI and `__game.state.brains.pack = true` puts
+the gang policy on every pirate. Those two are the whole of `BrainSelection`:
+the other six flags each named an unshipped candidate's weights file and went
+with them in TODO 57. A save carrying one still loads and flies the shipped
+brains. It is in the snapshot, so a reload keeps flying what you chose.
 
 ## The Jameson autopilot (end-to-end economy test)
 

@@ -42,27 +42,26 @@ const SHIPPED_PIRATE = 'pirate-attack-g3';
 const SHIPPED_PACK = 'pirate-pack-r4-selectonly';
 const SHIPPED_DEFEND = 'jameson-defend-g1';
 
+/**
+ * Every policy this tool will score, if its weights are on disk.
+ *
+ * THE SHIPPED THREE, and then whatever a candidate run has left in
+ * `src/ai-training/brains/`. It listed twenty names when twenty-odd experiments
+ * were committed; TODO 57 deleted all but the three the game flies, and the
+ * `tryLoad`-plus-`if` shape is what makes that a non-event — a name with no file
+ * behind it is skipped rather than fatal, and comparing a new candidate is
+ * putting its file back and adding one line here.
+ *
+ * `CANDIDATES` is that line. Drop `pirate-attack-x.json` in the directory, add
+ * the stem, and every solo table below grows a row.
+ */
+const CANDIDATES: readonly string[] = [];
+
 const brains: Record<string, Brain | null> = {
   [SHIPPED_PIRATE]: tryLoad(SHIPPED_PIRATE),
   [SHIPPED_DEFEND]: tryLoad(SHIPPED_DEFEND),
   [SHIPPED_PACK]: tryLoad(SHIPPED_PACK),
-  'pirate-attack-t29': tryLoad('pirate-attack-t29'),
-  'pirate-pack-t29': tryLoad('pirate-pack-t29'),
-  'jameson-defend-t29': tryLoad('jameson-defend-t29'),
-  'pirate-attack': tryLoad('pirate-attack'),
-  'pirate-attack-e1': tryLoad('pirate-attack-e1'),
-  'pirate-attack-r2': tryLoad('pirate-attack-r2'),
-  'trader-evade': tryLoad('trader-evade'),
-  'trader-evade-r2': tryLoad('trader-evade-r2'),
-  'pirate-pack': tryLoad('pirate-pack'),
-  'pirate-pack-r3': tryLoad('pirate-pack-r3'),
-  'pirate-pack-r4': tryLoad('pirate-pack-r4'),
-  'pirate-pack-r4-control': tryLoad('pirate-pack-r4-control'),
-  'pirate-pack-r4-isolate': tryLoad('pirate-pack-r4-isolate'),
-  'pirate-pack-r4-wideonly': tryLoad('pirate-pack-r4-wideonly'),
-  'pirate-pack-r4-poolonly': tryLoad('pirate-pack-r4-poolonly'),
-  'pirate-attack-r3': tryLoad('pirate-attack-r3'),
-  'jameson-defend': tryLoad('jameson-defend'),
+  ...Object.fromEntries(CANDIDATES.map((n) => [n, tryLoad(n)])),
 };
 
 const rng = makeRng(0xdead);
@@ -183,52 +182,28 @@ const header =
 console.log(`\nEvaluation tournament — ${N} held-out episodes per matchup (seed base ${HOLD_OUT_BASE})\n`);
 
 // --- 1v1: pirates vs scripted trader ---------------------------------------
+//
+// The two BASELINES every figure in docs/TRAINING-LOG.md is read against — the
+// scripted aimbot and an untrained network — and the shipped brain between them.
+// It used to carry four more rows, one per superseded training round; the rounds
+// are the log's business and their weights went in TODO 57.
 console.log('## 1v1 vs scripted trader\n');
 console.log(header);
 console.log(row('scripted pirate (baseline)', runMatchup(() => [{ kind: 'scripted' }], { kind: 'scripted' }, false, 45)));
 console.log(row('random policy (baseline)', runMatchup(() => [{ kind: 'policy', brain: randomPirate }], { kind: 'scripted' }, false, 45)));
-if (brains['pirate-attack']) {
-  console.log(row('trained pirate r1', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack']! }], { kind: 'scripted' }, false, 45)));
-}
-if (brains['pirate-attack-r2']) {
-  console.log(row('trained pirate r2 (league)', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r2']! }], { kind: 'scripted' }, false, 45)));
-}
-if (brains['pirate-attack-r3']) {
-  console.log(row('trained pirate r3 (league)', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r3']! }], { kind: 'scripted' }, false, 45)));
-}
-
-// --- 1v1 vs trained evader ---------------------------------------------------
-if (brains['trader-evade']) {
-  const evader: Controller = { kind: 'policy', brain: brains['trader-evade']! };
-  console.log('\n## 1v1 vs trained evader\n');
-  console.log(header);
-  console.log(row('scripted pirate vs evader', runMatchup(() => [{ kind: 'scripted' }], evader, false, 45)));
-  if (brains['pirate-attack']) {
-    console.log(row('trained pirate r1 vs evader', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack']! }], evader, false, 45)));
-  }
-  if (brains['pirate-attack-r2']) {
-    console.log(row('trained pirate r2 vs evader', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r2']! }], evader, false, 45)));
-  }
-  if (brains['pirate-attack-r3']) {
-    console.log(row('trained pirate r3 vs evader', runMatchup(() => [{ kind: 'policy', brain: brains['pirate-attack-r3']! }], evader, false, 45)));
-  }
+if (brains[SHIPPED_PIRATE]) {
+  console.log(row(`${SHIPPED_PIRATE} (SHIPPED)`, runMatchup(() => [{ kind: 'policy', brain: brains[SHIPPED_PIRATE]! }], { kind: 'scripted' }, false, 45)));
 }
 
 // --- packs of 3 --------------------------------------------------------------
-// Every pack brain, against three different traders. The candidate list is
-// data so ablations slot in without copy-pasted blocks.
+// The gang against the trader every pack brain was trained on. The list is data
+// so a candidate ablation slots in without a copy-pasted block.
 const PACK_CANDIDATES: { label: string; key: string | null }[] = [
   { label: '3x scripted pirates', key: null },
-  { label: '3x solo r1 brains (no pack obs)', key: 'pirate-attack' },
-  { label: '3x solo r2 brains (SHIPPED)', key: 'pirate-attack-r2' },
-  { label: 'pack r2 (alpha strike)', key: 'pirate-pack' },
-  { label: 'pack r3 (sustained fire)', key: 'pirate-pack-r3' },
-  { label: 'run-4 config, fixed selection', key: 'pirate-pack-r4-isolate' },
-  { label: 'r4 control (none of the 3)', key: 'pirate-pack-r4-control' },
-  { label: 'r4 +wide obs only', key: 'pirate-pack-r4-wideonly' },
-  { label: 'r4 +opponent pool only', key: 'pirate-pack-r4-poolonly' },
-  { label: 'r4 +kill-rate ranking only', key: 'pirate-pack-r4-selectonly' },
-  { label: 'r4 ALL THREE', key: 'pirate-pack-r4' },
+  { label: `3x ${SHIPPED_PIRATE} (solo trio)`, key: SHIPPED_PIRATE },
+  { label: `${SHIPPED_PACK} (SHIPPED)`, key: SHIPPED_PACK },
+  ...CANDIDATES.filter((n) => n.startsWith('pirate-pack'))
+    .map((key) => ({ label: `${key} (candidate)`, key })),
 ];
 
 function packSection(title: string, trader: Controller): void {
@@ -255,34 +230,6 @@ function packSection(title: string, trader: Controller): void {
 // The training target for every pack brain in the table.
 packSection('armed scripted trader (all packs trained on this)', { kind: 'scripted' });
 
-// r4's pool contained jameson-defend and trader-evade-r2, so these two rows
-// flatter r4 relative to r2/r3 — seen opponent, unseen seeds.
-if (brains['jameson-defend']) {
-  packSection('armed jameson-defend trader (in r4\'s pool)',
-    { kind: 'policy', brain: brains['jameson-defend']! });
-}
-// trader-evade r1 is in NOBODY's training pool — the clean generalisation test.
-if (brains['trader-evade']) {
-  packSection('armed trader-evade r1 (unseen by every pack)',
-    { kind: 'policy', brain: brains['trader-evade']! });
-}
-
-// --- Commander Jameson: armed trader vs 2x shipped pirates -------------------
-if (brains['pirate-attack-r2']) {
-  const r2 = brains['pirate-attack-r2']!;
-  const twoPirates = () => [
-    { kind: 'policy', brain: r2 } as Controller,
-    { kind: 'policy', brain: r2 } as Controller,
-  ];
-  console.log('\n## Commander Jameson: armed trader vs 2x pirate-r2\n');
-  console.log(header);
-  console.log(row('scripted armed trader (baseline)', runMatchup(twoPirates, { kind: 'scripted' }, true, 45)));
-  if (brains['jameson-defend']) {
-    console.log(row('JAMESON defence policy', runMatchup(twoPirates, { kind: 'policy', brain: brains['jameson-defend']! }, true, 45)));
-  }
-  console.log('(here "kill"/"t-surv" describe the TRADER: low kill% + high t-surv = Jameson wins)');
-}
-
 // --- shipped against candidate ----------------------------------------------
 //
 // The promotion decision, on one screen. Every row is the same fight on the
@@ -290,9 +237,8 @@ if (brains['pirate-attack-r2']) {
 {
   const solo: [string, string][] = [
     [`${SHIPPED_PIRATE} (SHIPPED)`, SHIPPED_PIRATE],
-    ['pirate-attack-t29 (candidate)', 'pirate-attack-t29'],
-    ['pirate-attack-e1 (engine, on a flag)', 'pirate-attack-e1'],
-    ['pirate-attack-r2 (legacy, on a flag)', 'pirate-attack-r2'],
+    ...CANDIDATES.filter((n) => n.startsWith('pirate-attack'))
+      .map((key) => [`${key} (candidate)`, key] as [string, string]),
   ];
   for (const [title, trader, armed, hull] of [
     ['scripted hauler', { kind: 'scripted' } as Controller, false, undefined],
@@ -315,8 +261,9 @@ if (brains['pirate-attack-r2']) {
   console.log(header);
   for (const [label, key] of [
     [`${SHIPPED_PACK} (SHIPPED)`, SHIPPED_PACK],
-    ['pirate-pack-t29 (candidate)', 'pirate-pack-t29'],
     [`3x ${SHIPPED_PIRATE} (solo trio)`, SHIPPED_PIRATE],
+    ...CANDIDATES.filter((n) => n.startsWith('pirate-pack'))
+      .map((key) => [`${key} (candidate)`, key] as [string, string]),
   ] as [string, string][]) {
     const b = brains[key];
     if (!b) continue;
@@ -333,7 +280,8 @@ if (brains['pirate-attack-r2']) {
       twoShipped, { kind: 'scripted' }, true, 45, 'playerCobra')));
     for (const [label, key] of [
       [`${SHIPPED_DEFEND} (SHIPPED)`, SHIPPED_DEFEND],
-      ['jameson-defend-t29 (candidate)', 'jameson-defend-t29'],
+      ...CANDIDATES.filter((n) => n.startsWith('jameson-defend'))
+        .map((key) => [`${key} (candidate)`, key] as [string, string]),
     ] as [string, string][]) {
       const b = brains[key];
       if (b) {
@@ -346,9 +294,11 @@ if (brains['pirate-attack-r2']) {
 }
 
 // --- how it FLIES, which no score above can see ------------------------------
+//
+// `printFlightShapes` skips a name whose weights are not on disk, so adding a
+// candidate to CANDIDATES gives it a row here as well as in the tables above.
 printFlightShapes([
-  SHIPPED_PIRATE, 'pirate-attack-t29', 'pirate-attack-e1', 'pirate-attack-g2',
-  'pirate-attack-r2', SHIPPED_PACK, 'pirate-pack-t29',
+  SHIPPED_PIRATE, SHIPPED_PACK, ...CANDIDATES,
 ], Math.max(12, Math.round(N / 2)));
 
 // --- the catalogue, not the policies ----------------------------------------

@@ -42,8 +42,9 @@ the [combat viewer](docs/TRAINING-LOG.md).*
 npm install
 npm run dev     # http://localhost:5173         (landing page)
                 # http://localhost:5173/play    (the game)
-                # http://localhost:5173/viewer  (AI combat viewer)
-                # /manual · /novella            (manual and story)
+                # http://localhost:5173/viewer   (AI combat viewer)
+                # http://localhost:5173/gallery  (all 38 released hulls)
+                # /manual · /novella             (manual and story)
 npm run build   # lint + tests (via prebuild), then production build to dist/
 npm run train -- attack --gens 400   # retrain the pirate AI (Node ≥ 22.6; see train/README.md)
 npm run evaluate                     # held-out tournament for the current brains
@@ -352,7 +353,7 @@ detected — as on the original's dashboard.
   canister, escape capsule); the Coriolis and Dodo stations are the same
   tables at a larger presentation scale. All drawn as wireframe edges over a
   black occluding hull (classic hidden-line look), and all 38 browsable at
-  `/viewer`.
+  `/gallery`.
 - `src/world/` — shader sun (animated fbm surface, limb darkening, corona),
   shader planet (coastline contours, graticule, terminator, atmosphere rim —
   seeded per system), starfield, space dust, per-system scene assembly.
@@ -367,8 +368,12 @@ detected — as on the original's dashboard.
   audio from the original game — this repo contains no assets from Elite.
 - `src/ai-training/` + `train/` — render-free combat simulator, tiny MLP policies
   (1.9k params, keyboard-style discrete actions) and a neuroevolution
-  self-play trainer; trained weights live in `src/ai-training/brains/`. The combat
-  viewer (`viewer.html`) replays matchups with the real wireframe ships.
+  self-play trainer. `src/ai-training/brains/` holds exactly the three policies
+  the game flies — a solo pirate, an organised gang and an armed trader — and
+  the tests fail if a fourth appears; everything else this project trained is
+  written up in `docs/TRAINING-LOG.md` rather than shipped. The combat viewer
+  (`/viewer`) replays matchups with the real wireframe ships, and every row in
+  it flies one of those three or a stated control.
   See `docs/AI-TRAINING.md` and `docs/TRAINING-LOG.md`.
 - Rendering: three.js + UnrealBloom for the phosphor glow.
 

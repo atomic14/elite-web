@@ -36,12 +36,12 @@ export const load = (n: string): ReturnType<typeof brainFromFile> =>
  * The brains the GAME actually flies, read out of brains.ts rather than typed
  * here.
  *
- * The baseline checks used to load 'pirate-attack-r2' and 'jameson-defend'. The
- * game ships 'pirate-attack-g3' and 'jameson-defend-g1' — r2 is the legacy
- * control behind `state.brains.legacy`, and 'jameson-defend' is not shipped at
- * all. So the regression gate that exists to stop a bad brain reaching players
- * was measuring two brains that were not in the game. Deriving the names means
- * retraining under a new one cannot silently orphan the check.
+ * The baseline checks used to load 'pirate-attack-r2' and 'jameson-defend',
+ * neither of which the game flew — so the regression gate that exists to stop a
+ * bad brain reaching players was measuring two brains that were not in it.
+ * Deriving the names means retraining under a new one cannot silently orphan
+ * the check, and since TODO 57 there is nothing else in the directory to get
+ * hold of by mistake: `test/ai.test.ts` holds it to exactly these imports.
  */
 export const brainsSrc = readFileSync(
   new URL('../src/game/brains.ts', import.meta.url), 'utf8');

@@ -25,7 +25,7 @@ import {
 import { markOf, memberTier, pirateThreat, type PirateThreat } from './threat.ts';
 import {
   SHIPPED_BRAINS, defenceBrainNameFor, pirateBrainNameFor,
-  type BrainSelection, type NamedBrain,
+  type BrainName, type BrainSelection,
 } from './brain-names.ts';
 import { hasShipDef, shipDisplayName } from '../ships/registry.ts';
 // The SHAPE of the record is combat-sim-report.ts's, as `OpeningGeometry` is —
@@ -63,11 +63,13 @@ export const OPPOSITION_ROLES: readonly OppositionRole[] =
  * a per-opponent choice instead of a global flag. It is the baseline every
  * training run is measured against.
  *
- * The union itself is `brain-names.ts`'s `NamedBrain` — every name a picker may
- * offer, which is the loaded set plus `pirate-attack-g1` — because the character
- * lines have to cover exactly the same list and a second copy of it would drift.
+ * The union itself is `brain-names.ts`'s `BrainName` — every policy the game
+ * loads, plus the scripted AI — because the character lines have to cover
+ * exactly the same list and a second copy of it would drift. It used to be one
+ * name WIDER than that (`pirate-attack-g1`, offered and then refused on the
+ * record); TODO 57 deleted the weights and with them the reason for the gap.
  */
-export type BrainId = NamedBrain;
+export type BrainId = BrainName;
 
 /**
  * The brains the live game flies, DERIVED — ask the rule, do not restate it.
@@ -82,18 +84,18 @@ export const SHIPPED_PACK_BRAIN: BrainId = pirateBrainNameFor(0, true, SHIPPED_B
 export const SHIPPED_DEFENCE_BRAIN: BrainId = defenceBrainNameFor(SHIPPED_BRAINS);
 
 /**
- * Every brain the picker may choose, in the order it should be listed: the
- * three the game ships, TODO 29's three candidates, then the older controls.
+ * Every brain the picker may choose, in the order it should be listed: the three
+ * the game ships, and then the control.
  *
- * `pirate-attack-g1` is the one entry with no policy behind it — brains.ts does
- * not import it — and asking for it is refused with a warning on the record
- * rather than silently flying something else.
+ * It was eleven, and seven of those were experiments the game loaded and did not
+ * fly. `scripted` is the one entry here that is not a shipped policy and it is
+ * not a rival to one either — it is the pre-neuroevolution AI, i.e. what the
+ * game did BEFORE any of this, which is the comparison every training run in
+ * docs/TRAINING-LOG.md is measured against. A future candidate joins this list
+ * by having its weights put back and its name added, which is one row.
  */
 export const SIM_BRAINS: readonly BrainId[] = [
-  SHIPPED_SOLO_BRAIN, SHIPPED_PACK_BRAIN, SHIPPED_DEFENCE_BRAIN,
-  'pirate-attack-t29', 'pirate-pack-t29', 'jameson-defend-t29',
-  'pirate-attack-g2', 'pirate-attack-g1', 'pirate-attack-e1', 'pirate-attack-r2',
-  'scripted',
+  SHIPPED_SOLO_BRAIN, SHIPPED_PACK_BRAIN, SHIPPED_DEFENCE_BRAIN, 'scripted',
 ];
 
 /**

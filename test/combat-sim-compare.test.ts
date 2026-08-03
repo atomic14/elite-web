@@ -85,7 +85,7 @@ console.log('\ncombat simulator — comparing two records');
 {
   const a = flown({}, { shots: 10, hits: 3, dist: 500, speed: 200, taken: 20 });
   const b = flown({
-    opponents: [{ ...setup().opponents[0], brain: 'pirate-attack-t29' }],
+    opponents: [{ ...setup().opponents[0], brain: 'scripted' }],
   }, { shots: 10, hits: 5, dist: 900, speed: 100, taken: 50 });
   const c = compareReports(a, b);
 
@@ -93,7 +93,7 @@ console.log('\ncombat simulator — comparing two records');
   eq('...with nothing to complain about', c.confounds.length, 0);
   eq('the brains are what changed, per opponent',
     c.brains.map((x) => `${x.hull}:${x.a}->${x.b}`).join(','),
-    'SIDEWINDER:pirate-attack-g3->pirate-attack-t29');
+    'SIDEWINDER:pirate-attack-g3->scripted');
   eq('...and it says they are not the same brain', c.brains[0].same, false);
   eq('...so it is not called a repeat', c.sameBrains, false);
 

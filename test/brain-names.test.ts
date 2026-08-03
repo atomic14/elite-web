@@ -14,7 +14,7 @@ import {
 import {
   AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, LIVE_BRAIN_IDS, brainCharacter, brainName,
   defenceBrainNameFor, liveBrainId, liveBrainSelection, pirateBrainNameFor, selectionForBrain,
-  type BrainName,
+  type BrainName, type BrainSelection,
 } from '../src/game/brain-names.ts';
 import { liveBrainFor } from '../src/game/combat-sim-scenarios.ts';
 import {
@@ -36,9 +36,7 @@ import { check, eq } from './harness.ts';
 console.log('\nwhich brain flies, by name');
 {
   const NAMED: BrainName[] = [
-    'pirate-attack-g3', 'pirate-attack-g2', 'pirate-attack-e1', 'pirate-attack-r2',
-    'pirate-attack-t29', 'pirate-pack-r4-selectonly', 'pirate-pack-t29',
-    'jameson-defend-g1', 'jameson-defend-t29',
+    'pirate-attack-g3', 'pirate-pack-r4-selectonly', 'jameson-defend-g1',
   ];
   const missing = NAMED.filter((n) => brainByName(n) === null);
   check(`every name the rule can return has weights behind it (${NAMED.length})`,
@@ -77,13 +75,10 @@ console.log('\nwhich brain flies, by name');
   check('every named brain is reachable through its own selection',
     badTrip.length === 0, badTrip.join(', '));
 
-  check('the TODO 29 candidates are loadable but NOT what the game flies',
+  check('the shipped three are what the rule returns with no overrides',
     pirateBrainNameFor(1, false) === 'pirate-attack-g3'
     && pirateBrainNameFor(1, true) === 'pirate-pack-r4-selectonly'
-    && defenceBrainNameFor() === 'jameson-defend-g1'
-    && brainByName('pirate-attack-t29') !== null
-    && brainByName('pirate-pack-t29') !== null
-    && brainByName('jameson-defend-t29') !== null);
+    && defenceBrainNameFor() === 'jameson-defend-g1');
 
   // the picker's row, both ways
   check('the live picker offers "as shipped" first, and it means no override',
@@ -92,10 +87,15 @@ console.log('\nwhich brain flies, by name');
   check('...a picked name reads back as itself',
     LIVE_BRAIN_IDS.every((id) => liveBrainId(liveBrainSelection(id)) === id
       || (id === 'pirate-attack-g3' || id === 'jameson-defend-g1')));
-  check('...and a selection only the console could make reads back as null',
-    liveBrainId({ sharp: 'pro' }) === null);
+  // ...and a selection the picker cannot name says so rather than guessing. A
+  // save made before TODO 57 deleted the six A/B flags is exactly this case: it
+  // is not migrated, it must not throw, and the row offers to take it back.
+  check('...and a flag no picker can name reads back as null, rather than throwing',
+    liveBrainId({ sharp: 'pro' } as unknown as BrainSelection) === null
+    && liveBrainId({ t29: true, packT29: true } as unknown as BrainSelection) === null);
   check('the picked selection is a COPY — state.brains is mutable',
-    liveBrainSelection('pirate-attack-t29') !== liveBrainSelection('pirate-attack-t29')
+    liveBrainSelection('pirate-pack-r4-selectonly')
+      !== liveBrainSelection('pirate-pack-r4-selectonly')
     && !Object.isFrozen(liveBrainSelection(AS_SHIPPED)));
 }
 
@@ -216,14 +216,14 @@ check('...so no exercise setting sits below it',
   setupCells(d).filter((c) => c.fenced).length === 1);
 
 // step to a named policy: one arrow key, and it is the whole galaxy
-d.live = 'pirate-attack-t29';
+d.live = 'pirate-pack-r4-selectonly';
 eq('a picked policy reads back on the row — how it flies, then which file', row().value,
-  `${LIVE_BRAIN_IDS.indexOf('pirate-attack-t29') + 1}/${LIVE_BRAIN_IDS.length}`
-  + ' HANGS BACK <span class="stem">(pirate-attack-t29)</span>');
+  `${LIVE_BRAIN_IDS.indexOf('pirate-pack-r4-selectonly') + 1}/${LIVE_BRAIN_IDS.length}`
+  + ' HOLDS OFF <span class="stem">(pirate-pack-r4-selectonly)</span>');
 eq('...and is the selection the game would fly',
-  JSON.stringify(liveSelectionOf(d)), '{"t29":true}');
+  JSON.stringify(liveSelectionOf(d)), '{"pack":true}');
 check('...and the fenced note says it outlives the exercise',
-  /LIVE BRAINS: THE WHOLE GALAXY FLIES HANGS BACK \(PIRATE-ATTACK-T29\)/
+  /LIVE BRAINS: THE WHOLE GALAXY FLIES HOLDS OFF \(PIRATE-PACK-R4-SELECTONLY\)/
     .test(careerNote(d).text));
 eq('...as a warning this time, painted apart from the calm case',
   careerNote(d).warning, true);
@@ -239,11 +239,12 @@ d.groups.push(defaultGroup(1));
 const hint = setupCells(d)
   .find((c) => c.label.replace(/&nbsp;/g, '') === 'THIS GROUP FLIES');
 check('a group left on "as the game flies" names the LIVE brain, not the shipped one',
-  !!hint && hint.value.includes('pirate-attack-t29'));
+  !!hint && hint.value.includes('pirate-pack-r4-selectonly'));
 eq('...and that is the brain the spec carries',
-  specFrom(d, 1).custom![0].brain, 'pirate-attack-t29');
+  specFrom(d, 1).custom![0].brain, 'pirate-pack-r4-selectonly');
 
-// a console-set combination the picker cannot name is SAID, not guessed
+// a console-set combination the picker cannot name is SAID, not guessed — and
+// so is a flag a save carries from before TODO 57 deleted the policy behind it
 d.live = null;
 eq('a selection only the console can make says so', row().value, 'SET FROM THE CONSOLE');
 check('...in the fenced note too', /SET FROM THE CONSOLE/.test(careerNote(d).text));

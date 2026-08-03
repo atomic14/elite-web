@@ -1,0 +1,72 @@
+/* The two dev pages' chrome — the HUD, the title and the control strip.
+ *
+ * One stylesheet for viewer.html and gallery.html, because the two pages are
+ * deliberately the same object with different contents: a full-bleed canvas, a
+ * green HUD block top-left, an amber title top-right and a control strip along
+ * the bottom. It was inline in viewer.html when there was one page; splitting
+ * the page in two (TODO 57) would have made it two copies of one look, which is
+ * the drift this codebase is organised against.
+ */
+
+#viewer-hud {
+  position: absolute;
+  top: 10px; left: 16px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  line-height: 1.8;
+  color: var(--hud-green);
+  text-shadow: 0 0 6px rgba(77, 255, 92, 0.6);
+  pointer-events: none;
+  white-space: pre;
+}
+
+#viewer-controls {
+  position: absolute;
+  bottom: 14px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#viewer-controls button, #viewer-controls select {
+  background: rgba(0, 20, 4, 0.85);
+  border: 1px solid var(--hud-dim);
+  color: var(--hud-green);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+#viewer-controls button:hover { border-color: var(--hud-green); }
+
+/* The link to the OTHER dev page. Quieter than the buttons on purpose: it is
+ * navigation, not one of this page's controls — the point of the split is that
+ * neither page carries the other's. */
+#viewer-other {
+  color: var(--hud-dim);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding-left: 10px;
+  text-decoration: none;
+}
+
+#viewer-other:hover { color: var(--hud-green); }
+
+#viewer-keys {
+  color: var(--hud-dim);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding-left: 6px;
+}
+
+#viewer-title {
+  position: absolute;
+  top: 10px; right: 16px;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--hud-amber);
+  text-shadow: 0 0 8px rgba(255, 180, 68, 0.7);
+}

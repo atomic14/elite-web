@@ -1,10 +1,13 @@
 // The trained brains, loaded — and the flight numbers that come with each.
 //
-// Nine neuroevolution policies are in the bundle (docs/TRAINING-LOG.md), three
-// of which the game flies. Loading them, the A/B flags that swap them, and the
-// rule for who gets which were spread across three parts of npc.ts a hundred
-// lines apart — the consts at the top, the flag helpers in the middle, and the
-// actual choice buried inside a 60-line branch of update().
+// Three neuroevolution policies are in the bundle (docs/TRAINING-LOG.md), and
+// the game flies all three. It was nine until TODO 57: six were experiments kept
+// as evidence, and the evidence is in docs/TRAINING-LOG.md and train/logs/ where
+// it does not have to be downloaded by everyone who opens the game. Loading them,
+// the A/B flags that swap them, and the rule for who gets which were spread
+// across three parts of npc.ts a hundred lines apart — the consts at the top, the
+// flag helpers in the middle, and the actual choice buried inside a 60-line
+// branch of update().
 //
 // The RULE — which name flies for whom, given a `BrainSelection` — is one file
 // over in brain-names.ts, because the combat trainer needs to answer it too and
@@ -21,22 +24,16 @@ import {
   type Brain, type BrainFile,
 } from '../ai-training/policy.ts';
 import {
-  appliesTo, defenceBrainNameFor, isPackBrain, pirateBrainNameFor,
+  defenceBrainNameFor, isPackBrain, pirateBrainNameFor,
   SHIPPED_BRAINS, type BrainName, type BrainSelection,
 } from './brain-names.ts';
 // The break-off distance has ONE home, and it is neither this file nor npc.ts —
 // it was a constant here and a literal there, and only one of them ever got
 // fixed. See break-off.ts.
-import { BRAIN_HANDOVER_RANGE, BREAK_OFF_RANGE } from './break-off.ts';
+import { BRAIN_HANDOVER_RANGE } from './break-off.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
-import sharpBrainFile from '../ai-training/brains/pirate-attack-g2.json' with { type: 'json' };
-import legacyBrainFile from '../ai-training/brains/pirate-attack-r2.json' with { type: 'json' };
-import engineBrainFile from '../ai-training/brains/pirate-attack-e1.json' with { type: 'json' };
 import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
-import attackT29BrainFile from '../ai-training/brains/pirate-attack-t29.json' with { type: 'json' };
-import packT29BrainFile from '../ai-training/brains/pirate-pack-t29.json' with { type: 'json' };
-import defendT29BrainFile from '../ai-training/brains/jameson-defend-t29.json' with { type: 'json' };
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
 //
@@ -77,73 +74,6 @@ const PIRATE_BRAIN: Brain | null = (() => {
   }
 })();
 
-/**
- * Generation 2: trained against the gun a pirate actually carries, and against
- * a target that stops to knife-fight. Kept on a flag rather than shipped.
- *
- *   state.brains.sharp = true     every pirate flies it
- *   state.brains.sharp = 'pro'    only professionals and gangs (tier >= 1)
- *
- * It wins on every measurement and lost the only one that counts. Flown, it
- * hangs in space and pivots to shoot rather than making attack runs — the
- * behaviour is *correct*, which is the problem, because stopping really is
- * the optimal way to hold a firing line. Two pirates kill a fully shielded
- * commander 89-98% of the time.
- *
- * 'pro' is the configuration worth playtesting: opportunists stay fun, and
- * the ships that are supposed to frighten you are the ones that can.
- */
-const SHARP_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(sharpBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-/**
- * The pre-generation brain, for an instant A/B in a live session.
- *
- *   state.brains.legacy = true    every pirate flies r2
- *
- * It gets the wide ram guard and the old constant target speed, so this is
- * the game exactly as it played before any of this work.
- */
-const LEGACY_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(legacyBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-/**
- * Run 18's brain: the first one trained on the game engine itself, after the
- * separate combat simulator was deleted (docs/TRAINING-LOG.md, run 18).
- *
- *   state.brains.engine = true     every pirate flies it
- *   state.brains.engine = 'pro'    only professionals and gangs (tier >= 1)
- *
- * Loadable but NOT shipped, and the reason is the whole methodology here.
- * It took a 100% validation kill rate — which is exactly the profile of
- * generation 1 and generation 2, both of which won every measurement and lost
- * the only one that counted, because a well-optimised pirate is a turret that
- * hangs in space and snipes. Shipping this on its score would be making the
- * same mistake a third time with better numbers.
- *
- * So it is here to be FLOWN — `T` at any station, pick it as the opposition,
- * and compare it against g3 in the same scenario from the same seed. That
- * comparison is the thing the trainer exists for, and until this was wired the
- * trainer offered e1 in its picker and could not load it.
- */
-const ENGINE_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(engineBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
 export const DEFEND_BRAIN: Brain | null = (() => {
   try {
     return brainFromFile(defendBrainFile as unknown as BrainFile);
@@ -175,100 +105,19 @@ const PACK_BRAIN: Brain | null = (() => {
 })();
 
 /**
- * TODO 29's solo candidate, retrained against the source-exact combat model
- * (docs/TRAINING-LOG.md, run 19).
- *
- *   state.brains.t29 = true      every pirate flies it
- *   state.brains.t29 = 'pro'     only professionals and gangs (tier >= 1)
- *
- * **Better on damage, worse on feel, and that is not a close call.** On 60
- * held-out episodes it takes 29.5% of the commander's pools against the shipped
- * brain's 12.0%, and 25.3% against 5.3% when she fights back. `train/flight-probe.ts`
- * says what that costs: mean speed 104 against g3's 216, a median engagement
- * range of 754 units against 234, and 2.23 rams an episode against 0.20. That
- * is generation 2's signature to the decimal — the brain Chris flew, said "I
- * think our old AI was more fun to play with", and rolled back the day it
- * shipped.
- *
- * So it is not the default, and the reason is CLAUDE.md's: threat is not fun, a
- * well-optimised pirate is a turret, and a brain that wins every measurement can
- * still be the wrong brain. It is here to be FLOWN — the LIVE BRAINS row or the
- * exercise brain row at `T` from any station — because the only measurement that
- * would change the verdict is a fight Chris flies. Numbers in
- * train/logs/todo29/.
- */
-const ATTACK_T29_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(attackT29BrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-/**
- * TODO 29's pack candidate (docs/TRAINING-LOG.md, run 19).
- *
- *   state.brains.packT29 = true    gangs fly it, and so do solo pirates
- *
- * A gang of three takes 53.1% of her pools against the shipped pack policy's
- * 23.7%, and kills her in 18% of episodes where the shipped one never does. The
- * flight probe reads the same way as its solo sibling: 29.7% against 14.2%, 1.47
- * rams an episode against 0.63, and a median engagement range of 1,340 units —
- * which is a gang sniping rather than a gang closing.
- *
- * Not the default for the same reason, and with the same caveat: the pack brain
- * is the one whose lethality was never the objection, so a human verdict here is
- * worth more than anywhere else.
- */
-const PACK_T29_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(packT29BrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-/**
- * TODO 29's defence candidate (docs/TRAINING-LOG.md, run 19).
- *
- *   state.brains.defendT29 = true   armed traders and player-assist ships fly it
- *
- * The one candidate with no case for it at all: 2v1 it keeps 22.3% of her pools
- * where the shipped brain keeps 21.4% — level, inside the noise — and it flies
- * worse on both of the things a defender is for. It lets an attacker sit on its
- * six for 13.5 seconds against the shipped brain's 2.3, and shoots down 0.12
- * attackers an episode against 0.42.
- *
- * Wired anyway, because "the candidate is worse" is a claim a pilot should be
- * able to check in ten seconds rather than take on trust, and because a trader
- * that dies differently is the control for the two above.
- */
-const DEFEND_T29_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(defendT29BrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
-/**
  * Every policy, by name — the lookup that makes the trainer's report honest.
  *
  * brain-names.ts decides WHICH name flies and cannot know whether the file
  * behind it parsed; this is the other half. `npm test` asserts that every name
- * the rule can return has a non-null entry here, so "the report says t29" and
- * "the ship flies t29" cannot come apart.
+ * the rule can return has a non-null entry here, and that the weights directory
+ * holds exactly the files imported above — so "the report says the gang policy"
+ * and "the ship flies the gang policy" cannot come apart, and a policy nothing
+ * ships cannot quietly reappear in the bundle.
  */
 const LOADED: Record<BrainName, Brain | null> = {
   'pirate-attack-g3': PIRATE_BRAIN,
-  'pirate-attack-g2': SHARP_BRAIN,
-  'pirate-attack-e1': ENGINE_BRAIN,
-  'pirate-attack-r2': LEGACY_BRAIN,
-  'pirate-attack-t29': ATTACK_T29_BRAIN,
   'pirate-pack-r4-selectonly': PACK_BRAIN,
-  'pirate-pack-t29': PACK_T29_BRAIN,
   'jameson-defend-g1': DEFEND_BRAIN,
-  'jameson-defend-t29': DEFEND_T29_BRAIN,
   // the pre-neuroevolution AI is code, not weights
   scripted: null,
 };
@@ -355,19 +204,17 @@ export function pirateBrainFor(
   const name = pirateBrainNameFor(tier, organised, sel);
   const loaded = LOADED[name];
 
-  // The guard follows the SELECTION rather than the flown policy, unchanged
-  // from the flag version: `legacy` plus an organised gang flies the pack brain
-  // and keeps r2's wide guard.
-  const legacy = !!LEGACY_BRAIN && appliesTo(sel.legacy, tier);
-
   return {
     brain: loaded ?? PIRATE_BRAIN,
     pack: !!loaded && isPackBrain(name),
-    // r2 kamikazes, so it hands the flying over at the full break-off range;
-    // the generation brains do not, and keep flying their own policy to knife
-    // range. Neither hands over its GUN any more — see break-off.ts.
-    guard: legacy ? BREAK_OFF_RANGE : BRAIN_HANDOVER_RANGE,
-    targetSpeed: legacy ? () => 300 : (a) => Math.max(TARGET_SPEED_FLOOR, a),
+    // Every shipped policy keeps flying its own line to knife range and hands
+    // over at BRAIN_HANDOVER_RANGE. The one that did NOT was `pirate-attack-r2`,
+    // which kamikazes and needed the full BREAK_OFF_RANGE plus a constant target
+    // speed of 300; it went with the rest of the unshipped weights in TODO 57,
+    // and the branch went with it rather than sitting here unreachable. Neither
+    // handover has ever given up the GUN — see break-off.ts.
+    guard: BRAIN_HANDOVER_RANGE,
+    targetSpeed: (a) => Math.max(TARGET_SPEED_FLOOR, a),
   };
 }
 

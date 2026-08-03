@@ -1,151 +1,148 @@
+// Combat viewer: watch the brains the game ships actually fly.
+//
+// It replays `ai-training/scenario.ts` — the same episodes the trainer scores —
+// with the real wireframe hulls, so a policy can be WATCHED rather than read off
+// a table. The design gallery used to be on the same page behind a `G` key,
+// which meant this page opened on the gallery and the combat viewer read as
+// deleted; it is `/gallery` now (viewer/gallery-main.ts) and neither page has a
+// mode key.
+//
+// **Every row in the picker flies a brain the game ships, or a stated control.**
+// That is the rule this page exists to keep, and it has been broken twice: once
+// by an `<option>` reading "Shipped pirate (league r2)" over a `pirate-attack-g1`
+// import — a name brain-names.ts calls CANNOT BE FLOWN — and once by a row
+// labelled "Pack of 3 vs armed trader" flying `pirate-pack.json`, a round-one
+// policy, while the shipped gang is `pirate-pack-r4-selectonly`. Both went wrong
+// the same way: the weights came from an import and the label came from the
+// HTML, so nothing tied them together. So SCENARIOS below is the only place a
+// row exists — its weights come from `game/brains.ts`, its name from
+// `game/brain-names.ts`, and its `<option>` is built from both at runtime. A
+// change to SHIPPED_BRAINS moves this page with it, and viewer.html holds an
+// empty `<select>`.
+
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 import { buildShip } from '../ships/geometry.ts';
 import { requireShipDef } from '../ships/registry.ts';
 import { shipDesignIdOf } from '../game/ship-identity.ts';
-import { createGallery, type GalleryScale, type GalleryView } from './gallery.ts';
-import { createStarfield } from '../world/starfield.ts';
+import { createStage } from './stage.ts';
 import { Episode, type ShotEvent, type EpisodeShip } from '../ai-training/scenario.ts';
-import { brainFromFile, randomBrain, type BrainFile } from '../ai-training/policy.ts';
+import { randomBrain, type Brain } from '../ai-training/policy.ts';
 import { makeRng } from '../game/rng.ts';
 import { FIXED_DT } from '../game/world-step.ts';
-import { pirateBrainFor } from '../game/brains.ts';
-import { pirateBrainNameFor } from '../game/brain-names.ts';
-import pirateR1BrainFile from '../ai-training/brains/pirate-attack.json' with { type: 'json' };
-import traderBrainFile from '../ai-training/brains/trader-evade.json' with { type: 'json' };
-import packBrainFile from '../ai-training/brains/pirate-pack.json' with { type: 'json' };
-import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
-
-// Combat viewer: replays the training environment with the real wireframe
-// ships, so trained behaviour can be watched (and compared to baselines) —
-// and, on `G`, a gallery of all 38 released designs (viewer/gallery.ts).
+import { defenceBrain, pirateBrainFor } from '../game/brains.ts';
+import { defenceBrainNameFor, pirateBrainNameFor } from '../game/brain-names.ts';
 
 /** The two hulls the combat scenarios fly, resolved through the registry. */
 const COBRA_MK3 = requireShipDef(shipDesignIdOf(10));
 const SIDEWINDER = requireShipDef(shipDesignIdOf(17));
 
-// The 'shipped pirate' scenarios ASK the game which brain that is, rather than
-// importing a file and saying so on a label. They did the latter, and it went
-// wrong the only way it could: the file was `pirate-attack-g1` — a name
-// brain-names.ts calls CANNOT BE FLOWN — under two `<option>`s reading
-// "Shipped pirate (league r2)", so the one page whose whole job is showing what
-// the game flies was showing a brain the game refuses. Both the weights and the
-// label come off `brain-names.ts` + `brains.ts` now, so a change to
-// SHIPPED_BRAINS moves this page with it.
-const shippedPirate = pirateBrainFor(0, false);
-// brains.ts loads defensively and hands back null if the weights did not parse.
-// In the game that is a fall back to the scripted AI; on a page whose only job
-// is showing the shipped brain fly, it is the whole point failing, and saying so
-// beats drawing a fight nobody can interpret.
-if (!shippedPirate) throw new Error('viewer: the shipped pirate brain did not load');
-const pirateBrain = shippedPirate.brain;
-const SHIPPED_PIRATE_NAME = pirateBrainNameFor(0, false);
-const pirateR1Brain = brainFromFile(pirateR1BrainFile as BrainFile);
-const traderBrain = brainFromFile(traderBrainFile as BrainFile);
-const packBrain = brainFromFile(packBrainFile as BrainFile);
-const defendBrain = brainFromFile(defendBrainFile as BrainFile);
-
-type ScenarioId =
-  'trained-vs-trader' | 'scripted-vs-trader' | 'random-vs-trader' |
-  'trained-vs-evader' | 'pack-vs-armed' | 'pack-trained-vs-armed' | 'jameson-vs-pirates';
-
-function makeEpisode(id: ScenarioId, seed: number): Episode {
-  const rng = makeRng(seed ^ 0xbeef);
-  switch (id) {
-    case 'trained-vs-trader':
-      return new Episode({ seed, pirates: [{ kind: 'policy', brain: pirateBrain }], trader: { kind: 'scripted' } });
-    case 'scripted-vs-trader':
-      return new Episode({ seed, pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' } });
-    case 'random-vs-trader':
-      return new Episode({ seed, pirates: [{ kind: 'policy', brain: randomBrain(rng) }], trader: { kind: 'scripted' } });
-    case 'trained-vs-evader':
-      return new Episode({ seed, pirates: [{ kind: 'policy', brain: pirateBrain }], trader: { kind: 'policy', brain: traderBrain } });
-    case 'pack-vs-armed':
-      return new Episode({
-        seed,
-        pirates: [
-          { kind: 'policy', brain: pirateR1Brain },
-          { kind: 'policy', brain: pirateR1Brain },
-          { kind: 'policy', brain: pirateR1Brain },
-        ],
-        trader: { kind: 'scripted' },
-        traderArmed: true,
-        maxTime: 60,
-      });
-    case 'jameson-vs-pirates':
-      return new Episode({
-        seed,
-        pirates: [
-          { kind: 'policy', brain: pirateBrain },
-          { kind: 'policy', brain: pirateBrain },
-        ],
-        trader: { kind: 'policy', brain: defendBrain },
-        traderArmed: true,
-      });
-    case 'pack-trained-vs-armed':
-      return new Episode({
-        seed,
-        pirates: [
-          { kind: 'policy', brain: packBrain },
-          { kind: 'policy', brain: packBrain },
-          { kind: 'policy', brain: packBrain },
-        ],
-        trader: { kind: 'scripted' },
-        traderArmed: true,
-        maxTime: 60,
-      });
-  }
+/**
+ * The shipped policies, ASKED FOR rather than imported.
+ *
+ * brains.ts loads defensively and hands back null if the weights did not parse.
+ * In the game that is a fall back to the scripted AI; on a page whose only job
+ * is showing the shipped brains fly, it is the whole point failing, and saying
+ * so beats drawing a fight nobody can interpret.
+ */
+function shipped(what: 'solo' | 'gang' | 'defence'): { brain: Brain; name: string } {
+  const brain = what === 'defence'
+    ? defenceBrain()
+    : pirateBrainFor(0, what === 'gang')?.brain ?? null;
+  const name = what === 'defence' ? defenceBrainNameFor() : pirateBrainNameFor(0, what === 'gang');
+  if (!brain) throw new Error(`viewer: the shipped ${what} brain (${name}) did not load`);
+  return { brain, name };
 }
 
-// --- three.js scaffolding ---------------------------------------------------
+const SOLO = shipped('solo');
+const GANG = shipped('gang');
+const DEFENCE = shipped('defence');
 
-const canvas = document.getElementById('scene') as HTMLCanvasElement;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(55, 1, 1, 200000);
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.5, 0.15));
-
-function resize(): void {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+interface ViewerScenario {
+  id: string;
+  /** the picker row — the brain's file stem is appended, so it cannot go stale */
+  label: string;
+  /** what is flying, for the label and the HUD: a stem, or a stated control */
+  flying: string;
+  build(seed: number): Episode;
 }
-window.addEventListener('resize', resize);
-resize();
-scene.add(createStarfield(2200, 90000));
 
-// --- the design gallery ------------------------------------------------------
+/** Three of the same policy, which is how a pack scenario is built. */
+const three = (brain: Brain): { kind: 'policy'; brain: Brain }[] =>
+  [0, 1, 2].map(() => ({ kind: 'policy' as const, brain }));
 
-const gallery = createGallery();
-scene.add(gallery.root);
-let mode: 'combat' | 'gallery' = 'gallery';
+/**
+ * Every fight the page offers. Four fly a shipped policy and two are controls
+ * that say so — the pre-neuroevolution AI, and an untrained random policy, which
+ * are the two baselines every figure in docs/TRAINING-LOG.md is measured against.
+ */
+const SCENARIOS: readonly ViewerScenario[] = [
+  {
+    id: 'shipped-vs-trader',
+    label: 'Shipped pirate vs trader',
+    flying: SOLO.name,
+    build: (seed) => new Episode({
+      seed, pirates: [{ kind: 'policy', brain: SOLO.brain }], trader: { kind: 'scripted' },
+    }),
+  },
+  {
+    id: 'scripted-vs-trader',
+    label: 'Scripted pirate vs trader',
+    flying: 'the pre-neuroevolution AI — a control',
+    build: (seed) => new Episode({
+      seed, pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },
+    }),
+  },
+  {
+    id: 'random-vs-trader',
+    label: 'Random policy vs trader',
+    flying: 'an untrained network — a control',
+    build: (seed) => new Episode({
+      seed,
+      pirates: [{ kind: 'policy', brain: randomBrain(makeRng(seed ^ 0xbeef)) }],
+      trader: { kind: 'scripted' },
+    }),
+  },
+  {
+    id: 'gang-vs-armed',
+    label: 'Shipped gang of 3 vs armed trader',
+    flying: GANG.name,
+    build: (seed) => new Episode({
+      seed, pirates: three(GANG.brain), trader: { kind: 'scripted' },
+      traderArmed: true, maxTime: 60,
+    }),
+  },
+  {
+    id: 'solo-trio-vs-armed',
+    label: 'Three shipped SOLO pirates vs armed trader',
+    flying: SOLO.name,
+    build: (seed) => new Episode({
+      seed, pirates: three(SOLO.brain), trader: { kind: 'scripted' },
+      traderArmed: true, maxTime: 60,
+    }),
+  },
+  {
+    id: 'jameson-vs-pirates',
+    label: 'Armed trader vs 2 shipped pirates',
+    flying: DEFENCE.name,
+    build: (seed) => new Episode({
+      seed,
+      pirates: [
+        { kind: 'policy', brain: SOLO.brain },
+        { kind: 'policy', brain: SOLO.brain },
+      ],
+      trader: { kind: 'policy', brain: DEFENCE.brain },
+      traderArmed: true,
+    }),
+  },
+];
 
-const SCALES: GalleryScale[] = ['common', 'relative'];
-const VIEWS: GalleryView[] = ['spin', 'front', 'rear', 'top', 'side'];
-const cycle = <T,>(list: T[], current: T): T =>
-  list[(list.indexOf(current) + 1) % list.length];
+const scenarioById = (id: string): ViewerScenario =>
+  SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[0];
 
-window.addEventListener('keydown', (e) => {
-  const key = e.key.toLowerCase();
-  if (key === 'g') mode = mode === 'gallery' ? 'combat' : 'gallery';
-  if (mode !== 'gallery') return;
-  if (key === 's') gallery.scale = cycle(SCALES, gallery.scale);
-  if (key === 'v') gallery.view = cycle(VIEWS, gallery.view);
-  if (key === '0' || key === 'escape') gallery.focus = null;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-    const step = e.key === 'ArrowRight' ? 1 : -1;
-    gallery.focus = gallery.focus === null
-      ? (step > 0 ? 0 : gallery.count - 1)
-      : (gallery.focus + step + gallery.count) % gallery.count;
-  }
-});
+// --- the scene ---------------------------------------------------------------
+
+const { scene, camera, render } = createStage();
 
 // --- episode visualisation ---------------------------------------------------
 
@@ -159,7 +156,7 @@ let episode: Episode;
 let views: ShipView[] = [];
 let tracers: { line: THREE.Line; life: number }[] = [];
 let seed = 1;
-let scenario: ScenarioId = 'trained-vs-trader';
+let scenario: ViewerScenario = SCENARIOS[0];
 let paused = false;
 let speed = 1;
 let camMode: 'orbit' | 'chase' = 'orbit';
@@ -171,7 +168,7 @@ function resetEpisode(newSeed?: number): void {
   views = [];
   tracers = [];
   if (newSeed !== undefined) seed = newSeed;
-  episode = makeEpisode(scenario, seed);
+  episode = scenario.build(seed);
   elapsed = 0;
 
   for (const p of episode.pirates) {
@@ -254,17 +251,11 @@ function updateCamera(dt: number): void {
 
 const hud = document.getElementById('viewer-hud')!;
 
-const title = document.getElementById('viewer-title')!;
-
 function renderHud(): void {
-  title.textContent = mode === 'gallery' ? 'DESIGN GALLERY' : 'COMBAT VIEWER';
-  if (mode === 'gallery') {
-    hud.textContent = gallery.hudLines().join('\n');
-    return;
-  }
   const p = episode.pirates[0];
   const lines = [
-    `SCENARIO   ${scenario}`,
+    `SCENARIO   ${scenario.label}`,
+    `FLYING     ${scenario.flying}`,
     `SEED       ${seed}`,
     `TIME       ${episode.t.toFixed(1)}s / ${episode.maxTime}s${episode.done ? '  — DONE (auto-restart)' : ''}`,
     `TRADER     hp ${Math.max(0, episode.trader.hp).toFixed(2)}  speed ${episode.trader.speed.toFixed(0)}${episode.trader.alive ? '' : '  ✝ DESTROYED'}`,
@@ -274,24 +265,25 @@ function renderHud(): void {
       `PIRATE ${i + 1}   hp ${Math.max(0, pi.hp).toFixed(2)}  shots ${pi.shotsFired}  hits ${pi.shotsHit}` +
       `  acc ${(pi.shotsFired ? (100 * pi.shotsHit) / pi.shotsFired : 0).toFixed(0)}%${pi.alive ? '' : '  ✝'}`);
   });
-  // NOT "the brain flying right now" — the scripted and random rows have none.
-  // It was a fitness figure off a JSON file, which said nothing about the
-  // scenario on screen and everything about a run nobody can reproduce.
-  lines.push('', `SHIPPED    ${SHIPPED_PIRATE_NAME}  (what the "shipped pirate" rows fly)`);
+  // The three the game ships, asked for rather than typed out — the same rule
+  // the rows above fly under.
+  lines.push('', `SHIPPED    solo ${SOLO.name} · gang ${GANG.name} · defence ${DEFENCE.name}`);
   if (p) lines.push(`FITNESS    ${episode.fitnessAttack(0).toFixed(2)} (attack metric, pirate 1)`);
   hud.textContent = lines.join('\n');
 }
 
+// The rows are built here, from the table, so a label and the weights under it
+// cannot come apart — which is how this page came to show a pack it does not
+// ship under a label implying it does.
 const scenarioSelect = document.getElementById('scenario') as HTMLSelectElement;
-// Name the brain on the rows that claim to fly the shipped one, so the label
-// cannot outlive the choice it describes.
-for (const id of ['trained-vs-trader', 'trained-vs-evader']) {
-  const option = scenarioSelect.querySelector<HTMLOptionElement>(`option[value="${id}"]`);
-  if (option) option.textContent = option.textContent!.replace(
-    'Shipped pirate', `Shipped pirate (${SHIPPED_PIRATE_NAME})`);
+for (const s of SCENARIOS) {
+  const option = document.createElement('option');
+  option.value = s.id;
+  option.textContent = `${s.label} — ${s.flying}`;
+  scenarioSelect.append(option);
 }
 scenarioSelect.addEventListener('change', (e) => {
-  scenario = (e.target as HTMLSelectElement).value as ScenarioId;
+  scenario = scenarioById((e.target as HTMLSelectElement).value);
   resetEpisode(1);
 });
 document.getElementById('btn-restart')!.addEventListener('click', () => resetEpisode(seed + 1));
@@ -325,16 +317,6 @@ function frame(now: number): void {
   last = now;
   elapsed += dt;
 
-  gallery.root.visible = mode === 'gallery';
-  for (const v of views) v.object.visible = mode === 'combat' && v.sim.alive;
-  if (mode === 'gallery') {
-    gallery.update(dt, camera);
-    composer.render();
-    renderHud();
-    requestAnimationFrame(frame);
-    return;
-  }
-
   if (!paused) {
     if (!episode.done) {
       simAccumulator += dt * speed;
@@ -365,7 +347,7 @@ function frame(now: number): void {
   });
 
   updateCamera(dt);
-  composer.render();
+  render();
   renderHud();
   requestAnimationFrame(frame);
 }

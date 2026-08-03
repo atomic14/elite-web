@@ -5,52 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HARMLESS — COMBAT VIEWER</title>
     <link rel="stylesheet" href="/src/style.css" />
-    <style>
-      #viewer-hud {
-        position: absolute;
-        top: 10px; left: 16px;
-        font-size: 12px;
-        letter-spacing: 1px;
-        line-height: 1.8;
-        color: var(--hud-green);
-        text-shadow: 0 0 6px rgba(77, 255, 92, 0.6);
-        pointer-events: none;
-        white-space: pre;
-      }
-      #viewer-controls {
-        position: absolute;
-        bottom: 14px; left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      #viewer-controls button, #viewer-controls select {
-        background: rgba(0, 20, 4, 0.85);
-        border: 1px solid var(--hud-dim);
-        color: var(--hud-green);
-        font-family: inherit;
-        font-size: 12px;
-        letter-spacing: 1px;
-        padding: 6px 12px;
-        cursor: pointer;
-      }
-      #viewer-controls button:hover { border-color: var(--hud-green); }
-      #viewer-keys {
-        color: var(--hud-dim);
-        font-size: 11px;
-        letter-spacing: 1px;
-        padding-left: 6px;
-      }
-      #viewer-title {
-        position: absolute;
-        top: 10px; right: 16px;
-        font-size: 13px;
-        letter-spacing: 3px;
-        color: var(--hud-amber);
-        text-shadow: 0 0 8px rgba(255, 180, 68, 0.7);
-      }
-    </style>
+    <link rel="stylesheet" href="/src/viewer/viewer.css" />
   </head>
   <body>
     <div id="app">
@@ -58,24 +13,17 @@
       <div id="viewer-title">COMBAT VIEWER</div>
       <div id="viewer-hud"></div>
       <div id="viewer-controls">
-        <select id="scenario">
-          <!-- the two "shipped pirate" rows name the brain at runtime, from
-               brain-names.ts — see the SHIPPED_PIRATE_NAME note in
-               src/viewer/main.ts. The text here is only what shows before the
-               module runs. -->
-          <option value="trained-vs-trader">Shipped pirate vs trader</option>
-          <option value="scripted-vs-trader">Scripted pirate vs trader (old AI)</option>
-          <option value="random-vs-trader">Random policy (untrained baseline)</option>
-          <option value="trained-vs-evader">Shipped pirate vs trained evader</option>
-          <option value="pack-vs-armed">Pack of 3 (solo brains) vs armed trader</option>
-          <option value="pack-trained-vs-armed">Pack-trained (shared reward) vs armed trader</option>
-          <option value="jameson-vs-pirates">Commander Jameson (defence AI) vs 2 pirates</option>
-        </select>
+        <!-- Deliberately empty: src/viewer/main.ts builds the rows from its own
+             table, so a label and the weights under it cannot come apart. An
+             <option> written here would be a second claim about which brain a
+             row flies, and that is exactly how this page came to advertise a
+             pack policy the game does not ship. -->
+        <select id="scenario"></select>
         <button id="btn-restart">RESTART</button>
         <button id="btn-pause">PAUSE</button>
         <button id="btn-speed">SPEED 1x</button>
         <button id="btn-cam">CAM: ORBIT</button>
-        <span id="viewer-keys">G GALLERY · S SCALE · V VIEW · ←/→ FOCUS · 0 ALL</span>
+        <a id="viewer-other" href="/gallery">DESIGN GALLERY →</a>
       </div>
       <div id="scanlines"></div>
     </div>

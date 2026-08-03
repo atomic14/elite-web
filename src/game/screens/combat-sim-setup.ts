@@ -212,10 +212,10 @@ const endOf = <T>(xs: readonly T[], d: number): T => (d > 0 ? xs[xs.length - 1] 
 const position = (at: number, len: number): string => `${at + 1}/${len}`;
 
 /**
- * `HANGS BACK (pirate-attack-t29)` — how it flies, and only then which file.
+ * `HOLDS OFF (pirate-pack-r4-selectonly)` — how it flies, then which file.
  *
  * The row's value used to BE the file stem, and a sentence underneath could not
- * fix that: a pilot choosing between `pirate-attack-g3` and `jameson-defend-t29`
+ * fix that: a pilot choosing between `pirate-attack-g3` and `jameson-defend-g1`
  * is choosing between build artefacts. The name is `brain-names.ts`'s, beside the
  * character line it was compressed from; the stem stays for anyone
  * cross-referencing docs/TRAINING-LOG.md, in a quieter face (`.stem`) and second,

@@ -65,7 +65,7 @@ console.log('\ncombat simulator report');
       {
         hull: 'Sidewinder',
         designId: 'elite-a:design:17', profileId: 'elite-a:variant:D:17',
-        brain: 'pirate-attack-r2', role: 'pirate', tier: 0,
+        brain: 'pirate-attack-g3', role: 'pirate', tier: 0,
       },
       {
         hull: 'Mamba',
@@ -285,7 +285,7 @@ console.log('\ncombat simulator report');
     eq('...your loadout', `${back.player.laser}/${back.player.missiles}`, 'beam/4');
     eq('...and every opponent\'s hull and brain',
       back.opponents.map((o) => `${o.hull}:${o.brain}`).join(','),
-      'Sidewinder:pirate-attack-r2,Mamba:scripted');
+      'Sidewinder:pirate-attack-g3,Mamba:scripted');
     eq('the outcome is recorded', back.outcome, 'destroyed');
     check('the whole report survives JSON unchanged — no NaN, no Infinity',
       JSON.stringify(back) === JSON.stringify(r));

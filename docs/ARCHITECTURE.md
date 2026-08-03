@@ -186,7 +186,11 @@ the fix belongs there rather than in this document.
 play.html                 the game — and the ? help panel, whose key rows are
                           painted from the binding table (ui/key-help.ts)
 index.html                the landing page: no game bundle
-viewer.html               the AI combat viewer
+viewer.html               the AI combat viewer — every row flies a shipped
+                          brain or a stated control, and nothing else
+gallery.html              all 38 released hulls. Its own page since TODO 57:
+                          the two were one page with a `G` between them, so
+                          /viewer opened on the gallery
 manual.html / novella.html   the long-form text pages
 src/
   main.ts                   boot: new Game((scene) => browserShell(canvas, scene))
@@ -428,9 +432,15 @@ src/
     policy.ts               tiny MLP: observation -> discrete controls
     scenario.ts             Episode: pirates vs trader, on the REAL engine —
                             shared by trainer, tournament and viewer
-    brains/*.json           trained weights, committed
-  viewer/main.ts            three.js viewer for episodes
+    brains/*.json           trained weights, committed — EXACTLY the three the
+                            game flies, and `npm test` fails on a fourth
+  viewer/stage.ts           canvas, camera, bloom and starfield: what the two
+                            dev pages share, and all they share
+  viewer/main.ts            the combat viewer's page: episodes, and the table
+                            that ties each row's label to the brain it flies
+  viewer/gallery-main.ts    the gallery's page, and the gallery's keys
   viewer/gallery.ts         all 38 released designs, labelled, with radii
+  viewer/viewer.css         the chrome both dev pages wear
 
 test/harness.ts             check(), the counters and the shared fixtures
 test/*.test.ts              invariant + unit tests, one file per subsystem

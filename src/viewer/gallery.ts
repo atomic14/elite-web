@@ -9,7 +9,10 @@
 // a wireframe sphere at its catalogue target radius.
 //
 // Keyboard-driven and deliberately plain. It is not part of the game bundle —
-// viewer.html is its own Vite entry — and nothing in `src/game` imports it.
+// gallery.html is its own Vite entry — and nothing in `src/game` imports it. The
+// keys are gallery-main.ts's, beside the page they drive; they used to be in the
+// combat viewer's handler behind a `G` toggle, which is why `/viewer` opened on
+// this grid.
 
 import * as THREE from 'three';
 
@@ -112,8 +115,9 @@ export interface Gallery {
  * game is not.
  */
 export function createGallery(): Gallery {
+  // Visible from the start: it was hidden here because the combat viewer shared
+  // the scene and toggled it on `G`. Its page shows nothing else now.
   const root = new THREE.Group();
-  root.visible = false;
   const cells: Cell[] = SOURCE_HULLS.map((hull, index) => {
     const column = index % COLUMNS;
     const row = Math.floor(index / COLUMNS);
@@ -164,7 +168,7 @@ export function createGallery(): Gallery {
     hudLines() {
       const head = [
         `GALLERY    ${cells.length} released designs · scale ${this.scale} · view ${this.view}`,
-        'KEYS       G gallery/combat · S scale · V view · ←/→ focus · 0 all',
+        'KEYS       S scale · V view · ←/→ focus · 0 all',
       ];
       if (this.focus === null) return head;
       const { hull } = cells[this.focus];

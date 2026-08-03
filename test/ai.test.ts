@@ -7,7 +7,9 @@
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { pirateBrainFor, defenceBrain, DEFEND_BRAIN } from '../src/game/brains.ts';
-import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
+import {
+  SHIPPED_BRAINS, defenceBrainNameFor, pirateBrainNameFor, type BrainSelection,
+} from '../src/game/brain-names.ts';
 import { handle, installPolicyKit } from '../src/game/console.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { randomBrain, type BrainFile } from '../src/ai-training/policy.ts';
@@ -18,6 +20,7 @@ import {
   BRAINS,
   SHIPPED_PIRATE,
   SHIPPED_DEFEND,
+  brainsSrc,
   shippedPirate,
   jameson,
 } from './fixtures.ts';
@@ -119,11 +122,65 @@ jamesonHurt <= 0.35);
 check(`...and a scripted trader lets them take more (${(scriptedHurt * 100).toFixed(1)}%)`,
   scriptedHurt > jamesonHurt);
 
-// --- brain files are well-formed --------------------------------------------
+// --- we ship what we ship, and only that -------------------------------------
+//
+// THE DIRECTORY IS THE CLAIM. It held 34 weights files, the game imported 9 and
+// three of them flew: everything else was an experiment kept as evidence, and
+// evidence belongs in docs/TRAINING-LOG.md and train/logs/ rather than in every
+// player's download. TODO 57 deleted the other 31, and this is what stops them
+// drifting back — in both directions, because both have happened. A file nobody
+// ships once reached the bundle through the combat viewer (a round-one pack
+// policy under a label claiming it was the shipped gang), and a shipped brain
+// once went missing from the regression gate when a retrain renamed it.
+//
+// Neither side of the comparison is typed out here. One is the directory; the
+// other is read out of brains.ts, which is where a weights file gets into the
+// bundle at all.
 
 console.log('\nbrain files');
-for (const name of ['pirate-attack', 'pirate-attack-r2', 'trader-evade',
-  'trader-evade-r2', 'pirate-pack', 'jameson-defend']) {
+const IMPORTED = [...new Set([...brainsSrc.matchAll(/brains\/([\w.-]+)\.json/g)]
+  .map((m) => m[1]))].sort();
+const ON_DISK = readdirSync(BRAINS).filter((f) => f.endsWith('.json'))
+  .map((f) => f.replace(/\.json$/, '')).sort();
+// What the SHIPPED rule flies, asked of brain-names.ts rather than restated: a
+// solo pirate, an organised gang, and an armed trader. `scripted` is not here
+// because it is a code path with no weights.
+const FLOWN = [...new Set([
+  pirateBrainNameFor(0, false, SHIPPED_BRAINS),
+  pirateBrainNameFor(0, true, SHIPPED_BRAINS),
+  defenceBrainNameFor(SHIPPED_BRAINS),
+])].sort();
+
+// ...and brains.ts is the ONLY way in. This is the other half of the claim, and
+// it is the half the combat viewer broke twice: it imported `pirate-attack.json`
+// and `pirate-pack.json` directly, so weights the game does not fly were in a
+// shipped bundle under labels implying they were the shipped ones. A page that
+// wants the shipped policy asks `brains.ts` for it by role, which is one home
+// and cannot be labelled wrong.
+{
+  const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
+      : /\.ts$/.test(e.name) ? [new URL(e.name, dir)] : []));
+  const root = new URL('../src/', import.meta.url).pathname;
+  const importers = walk(new URL('../src/', import.meta.url))
+    .map((f) => ({ rel: f.pathname.slice(root.length), f }))
+    .filter(({ f }) => /from '[^']*ai-training\/brains\//.test(readFileSync(f, 'utf8')))
+    .map(({ rel }) => rel);
+  check(`game/brains.ts is the only file in src/ that imports weights (${importers.join(', ')})`,
+    importers.join() === 'game/brains.ts');
+}
+
+check(`the weights directory is exactly what brains.ts imports (${ON_DISK.length} files)`,
+  ON_DISK.join() === IMPORTED.join(),
+  `on disk: ${ON_DISK.join(', ')} · imported: ${IMPORTED.join(', ')}`);
+check(`...and what it imports is exactly what the shipped rule flies (${FLOWN.join(', ')})`,
+  IMPORTED.join() === FLOWN.join(),
+  `imported: ${IMPORTED.join(', ')} · flown: ${FLOWN.join(', ')}`);
+
+// ...and each of them is a well-formed policy. Derived from the list above, so
+// this cannot go on measuring a brain the game stopped importing — which is
+// exactly what it did for six of them.
+for (const name of ON_DISK) {
   const f = JSON.parse(readFileSync(`${BRAINS}${name}.json`, 'utf8')) as BrainFile;
   const obs = f.meta.obsSize ?? 14;
   const hidden = f.meta.hidden ?? 32;
@@ -171,16 +228,24 @@ console.log('\nbrain selection');
       pirateBrainFor(0, false, { pack: true })?.pack === true);
   }
   {
+    // A SAVE FROM BEFORE TODO 57 still loads, and flies the shipped brains.
+    //
+    // `state.brains` is snapshotted, so a career made when `legacy`, `sharp`,
+    // `engine`, `t29`, `packT29` or `defendT29` existed can hand one back on
+    // restore. Deliberately not migrated (Chris, 2026-08-03): the flag names a
+    // policy that is not in the bundle, nothing reads it, and it must not throw.
+    // The trainer's LIVE BRAINS row says the selection cannot be named and
+    // arrowing it takes it back — test/brain-names.test.ts holds that end.
+    const stale = { legacy: 'pro', t29: true } as unknown as BrainSelection;
     const base = pirateBrainFor(0, false)!.brain;
-    check("brains.sharp='pro' leaves opportunists alone",
-      pirateBrainFor(0, false, { sharp: 'pro' })!.brain === base);
-    check('...and re-arms professionals',
-      pirateBrainFor(1, false, { sharp: 'pro' })!.brain !== base);
-    check('brains.sharp=true re-arms everyone',
-      pirateBrainFor(0, false, { sharp: true })!.brain !== base);
-    check("brains.legacy='pro' likewise splits by tier",
-      pirateBrainFor(0, false, { legacy: 'pro' })!.brain === base
-      && pirateBrainFor(1, false, { legacy: 'pro' })!.brain !== base);
+    check('a save carrying a deleted A/B flag still loads',
+      pirateBrainFor(1, false, stale)!.brain === base
+      && pirateBrainFor(0, false, stale)!.brain === base);
+    check('...and flies the shipped brains, because nothing reads the flag',
+      pirateBrainNameFor(1, false, stale) === pirateBrainNameFor(1, false)
+      && defenceBrain(stale) === defenceBrain());
+    check('...including its gang, which is the one thing a flag could still move',
+      pirateBrainFor(2, true, stale)!.brain === pirateBrainFor(2, true)!.brain);
   }
   {
     // The default is the shipped game, and it is frozen — a caller that

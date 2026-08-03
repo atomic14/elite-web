@@ -44,7 +44,8 @@ before tuning it.**
 ## Commands
 
 ```sh
-npm run dev        # landing at localhost:5173 · game at /play · viewer at /viewer
+npm run dev        # landing at localhost:5173 · game at /play
+                   # combat viewer at /viewer · design gallery at /gallery
 npm run lint       # tsc --noEmit over src/, train/ and test/
 npm test           # invariant + unit tests (no framework; test/run.ts is an index)
 npm run check      # lint + tests — what `prebuild` runs
@@ -75,8 +76,11 @@ tests never deploys. **Don't move lint/test out of `prebuild`** — that gate is
 the only thing stopping a broken commit reaching the live site.
 
 **Site layout**: `/` is a static landing page with no game bundle, the game is
-`play.html`, and `manual.html` / `novella.html` carry the long-form text. All are
-Vite entries in `vite.config.ts`; add new pages there or they won't build.
+`play.html`, `manual.html` / `novella.html` carry the long-form text, and the two
+dev pages are `viewer.html` (the combat viewer) and `gallery.html` (the 38
+released hulls). Each of those two shows ONE thing and has no mode key — they
+were one page with a `G` between them, so `/viewer` opened on the gallery. All
+are Vite entries in `vite.config.ts`; add new pages there or they won't build.
 
 ## Invariants that MUST hold
 
@@ -225,16 +229,23 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
   picks the luckiest generation rather than the best genome.
 - `--pool` rotates the TRADER, so it is refused for phases where the genome IS
   the trader.
-- Shipped: **`pirate-attack-g3`** (pirates), **`jameson-defend-g1`** (armed
-  traders and anything player-assist), **`pirate-pack-r4-selectonly`**
-  (organised gangs). `pirate-attack-r2` is the legacy control behind
-  `state.brains.legacy`, not a shipped brain.
-- Six more policies are LOADED and pickable but do not fly until they are
-  picked, including TODO 29's `pirate-attack-t29` / `pirate-pack-t29` /
-  `jameson-defend-t29` — better on damage, worse on feel, kept as evidence
-  (docs/TRAINING-LOG.md, run 19). Which name flies for whom is
-  `game/brain-names.ts`, and `SHIPPED_BRAINS` there is the ONE line that
+- **`src/ai-training/brains/` holds exactly three files, and `npm test` fails if
+  a fourth appears or one goes missing**: **`pirate-attack-g3`** (pirates),
+  **`pirate-pack-r4-selectonly`** (organised gangs), **`jameson-defend-g1`**
+  (armed traders and anything player-assist). It held 34 and the game loaded 9;
+  TODO 57 deleted the 31 nothing flew, and docs/TRAINING-LOG.md plus
+  `train/logs/` are the record of what they measured. Which name flies for whom
+  is `game/brain-names.ts`, and `SHIPPED_BRAINS` there is the ONE line that
   changes a default.
+- **To compare a candidate**: put its `.json` back, add the stem to `CANDIDATES`
+  in `train/evaluate.ts` (tournament and flight probe), and to FLY it give it a
+  `BrainName`, a character line and a `BrainSelection` entry in
+  `game/brain-names.ts` plus an import in `game/brains.ts`. The guard reports the
+  extra file until it is promoted or removed — that is the decision it forces.
+- The only non-shipped thing either picker offers is **`scripted`**, and it is a
+  code path rather than a file: the pre-neuroevolution AI, i.e. what the game did
+  before any of this, which is the control every run in the log is measured
+  against.
 - Balance is not settled, and a figure quoted in any doc may predate a physics
   change. Measure; don't cite.
 
@@ -290,13 +301,16 @@ To keep it that way:
   Drive the game headlessly by calling `g.update(1/60, t)` in a loop — background
   tabs throttle rAF, so manual stepping is the reliable way.
 - **A/B switches are STATE, not globals.** `state.brains` picks which brains fly
-  (`scripted` disables them all, `legacy`/`sharp`/`pack`/`t29` and friends swap
-  them — see `BrainSelection` in `game/brain-names.ts`) and `state.cheat` fits
-  anything from the catalogue free. They were five `window.__` flags; a rule read
-  from ambient state is not in the snapshot, so a reload changed the game. In
+  — two flags now, `scripted` (fly none of them) and `pack` (the gang policy for
+  everybody), see `BrainSelection` in `game/brain-names.ts` — and `state.cheat`
+  fits anything from the catalogue free. They were five `window.__` flags; a rule
+  read from ambient state is not in the snapshot, so a reload changed the game. In
   game, the **LIVE BRAINS (COMMANDER)** row on the combat trainer's setup panel (`T`
   at any station) picks one; from a console go through the handle:
-  `__game.state.brains.legacy = 'pro'`. `npm test` bans their return, and
+  `__game.state.brains.pack = true`. A save carrying one of the six flags TODO 57
+  deleted still loads, is not migrated, and flies the shipped brains — the row
+  says the selection cannot be named and arrowing it takes it back.
+  `npm test` bans the globals' return, and
   `src/game/console.ts` is the only file allowed to touch `globalThis` — it
   publishes handles the game WRITES, never flags it reads.
 - `npm run campaign` after touching prices, rewards, equipment or the living

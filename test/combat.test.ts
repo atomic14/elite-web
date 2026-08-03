@@ -145,14 +145,14 @@ console.log('\ncombat');
 // --- collision rates --------------------------------------------------------
 // The collision round concluded the shipped brains "already fly clear of the
 // target, so a rule that punishes contact costs them nothing", from a table
-// covering the scripted trader and the Jameson matchups. It did not cover
-// pirate versus trained EVADER, and there the claim is false: those two brains
-// were both trained before collisions existed, and they ram each other in more
-// than half of all fights. Against an unarmed evader the pirate destroys itself
-// 17% of the time, which is the evader winning by being flown into.
+// covering the scripted trader and the Jameson matchups. It did not cover a
+// pirate against a trader that FLIES, and there the claim was false: the brains
+// of the day were trained before collisions existed and rammed each other in
+// more than half of all fights, with the pirate destroying itself 17% of the
+// time — the evader winning by being flown into.
 //
 // Asserted here so the numbers are enforced rather than assumed, and so the
-// known-bad matchup cannot quietly get worse. Bounds are ceilings on today's
+// harder matchup cannot quietly get worse. Bounds are ceilings on today's
 // measured behaviour, not aspirations.
 
 console.log('\ncollision rates');
@@ -173,39 +173,34 @@ console.log('\ncollision rates');
     return total / episodes;
   };
 
-  const pirate = load('pirate-attack-r2');   // the collision study used r2
-  const evader = load('trader-evade-r2');
+  // BOTH MATCHUPS ARE THE SHIPPED BRAINS NOW. They used to be `pirate-attack-r2`
+  // against `trader-evade-r2` — two policies the game did not fly, and whose
+  // weights went with the other 29 in TODO 57 — so a ceiling that was meant to
+  // stop a player meeting a kamikaze was measuring a brain no player could meet.
+  // A pirate flying the shipped policy at a trader flying the shipped defence
+  // policy is a fight the game contains.
+  const shipped = load('pirate-attack-g3');
+  const evader = load('jameson-defend-g1');
   {
     const vScripted = rams(() => ({
-      pirates: [{ kind: 'policy', brain: pirate }], trader: { kind: 'scripted' },
+      pirates: [{ kind: 'policy', brain: shipped }], trader: { kind: 'scripted' },
     }), 40);
-    // Rebaselined by TODO 29: an episode's attackers are sampled from the whole
-    // pirate roster by the game's own tier rule now, not alternated between two
-    // hulls, and the light tier-0 ships close harder and clip more often. r2
-    // went 0.10 -> 0.40 on a bound that was 0.3. The bound is a CEILING on
-    // today's behaviour, not a target — a retrain should push it back down.
+    // Measured 0.00 over these 40 episodes, against r2's 0.40 on the same
+    // fixture. The bound is a CEILING on today's behaviour with headroom for a
+    // retrain, not a target.
     check(`pirate vs scripted trader rarely collides (${vScripted.toFixed(2)}/episode)`,
-      vScripted < 0.6);
+      vScripted < 0.3);
   }
   {
-    // WAS known-bad, and the retrain that fixed it tightened the number as
-    // this comment asked. The check now measures the SHIPPED brain, because
-    // that is what a player meets:
-    //
-    //   pirate-attack-g3 (shipped)  0.78 rams/episode, self-destructs 15%
-    //   pirate-attack-r2 (legacy)   2.00                              57%
-    //
-    // r2 got worse rather than better, and deliberately: pirate hulls now
-    // carry ShipClass.minSpeed and cannot brake below ~43% of top speed, so a
-    // brain trained before that rule cannot slow out of a collision. r2 ships
-    // only behind `state.brains.legacy`, and in the game it hands the flying to
-    // the break-off (break-off.ts), which an episode drives straight past.
-    const shipped = load('pirate-attack-g3');
+    // The known-bad matchup: a trader that FLIES rather than one that holds a
+    // line. Both brains were trained before collisions existed and they used to
+    // ram each other in more than half of all fights; the shipped pair measures
+    // 0.20 rams an episode, and the pirate destroys itself in 7.5% of them.
     const vEvader = rams(() => ({
       pirates: [{ kind: 'policy', brain: shipped }], trader: { kind: 'policy', brain: evader },
     }), 40);
-    check(`shipped pirate vs trained evader rarely collides (${vEvader.toFixed(2)}/episode)`,
-      vEvader < 0.8);
+    check(`shipped pirate vs a trader flying a policy rarely collides `
+      + `(${vEvader.toFixed(2)}/episode)`, vEvader < 0.5);
   }
 }
 

@@ -21,10 +21,10 @@
 // the pickers offer with no line to go with it.
 //
 // And so is what each one is CALLED on the row, which is the half a sentence
-// under the panel could not fix: a row whose value is `pirate-attack-t29` is
-// asking a pilot to choose between build artefacts, however well the artefacts
+// under the panel could not fix: a row whose value is `pirate-pack-r4-selectonly`
+// is asking a pilot to choose between build artefacts, however well the artefacts
 // are explained underneath. The name is the character line compressed to two or
-// three words — `HANGS BACK`, `CLOSES IN` — so it is never a separate claim that
+// three words — `HOLDS OFF`, `CLOSES IN` — so it is never a separate claim that
 // could go stale on its own, and it lives in the same table as the line it came
 // from, so a brain cannot have one without the other.
 
@@ -32,32 +32,23 @@
  * Every policy the game LOADS, by the stem of its weights file, plus the
  * pre-neuroevolution scripted AI.
  *
+ * Three weights files and one code path, and that is the whole list. It was ten
+ * names over nine files until TODO 57: six of them were experiments kept as
+ * evidence, the evidence is written down in docs/TRAINING-LOG.md, and a picker
+ * offering ten policies of which three are the game was asking a playtester to
+ * choose between build artefacts. `npm test` holds the weights directory to
+ * exactly what brains.ts imports, so a name here without a file — or a file with
+ * no name — fails rather than lingering.
+ *
  * A name is not a promise that the file parsed — brains.ts loads defensively and
  * a mismatched file becomes null there. It is a promise that brains.ts imports
  * it, and `npm test` reads brains.ts to check that every name here does.
  */
 export type BrainName =
   | 'pirate-attack-g3'
-  | 'pirate-attack-g2'
-  | 'pirate-attack-e1'
-  | 'pirate-attack-r2'
-  | 'pirate-attack-t29'
   | 'pirate-pack-r4-selectonly'
-  | 'pirate-pack-t29'
   | 'jameson-defend-g1'
-  | 'jameson-defend-t29'
   | 'scripted';
-
-/**
- * Every name a PICKER may offer: the loaded set, plus `pirate-attack-g1`.
- *
- * Wider than `BrainName` by exactly one, and that one is the point — the weights
- * file exists and the trainer lists it, but brains.ts does not import it, so the
- * game cannot fly it and asking is refused on the record rather than silently
- * ignored. `combat-sim-scenarios.ts`'s `BrainId` IS this type; it was a second
- * copy of the union until the character table needed to cover both.
- */
-export type NamedBrain = BrainName | 'pirate-attack-g1';
 
 /**
  * The two values a picker offers that are not policies at all.
@@ -96,9 +87,8 @@ export interface BrainProfile {
  * stops and turns; the damage shares are the 60-episode tournament in
  * `npm run evaluate`. Both tables are archived in
  * `train/logs/todo29/evaluate-after.txt` and read in docs/TRAINING-LOG.md,
- * run 19 — except `pirate-attack-g1`, which no archived probe covered and which
- * was measured for this table (docs/TRAINING-LOG.md, probe run for TODO 32,
- * `train/logs/todo32/flight-probe.txt`).
+ * run 19. The rows for the policies this project measured and did not ship went
+ * with their weights in TODO 57; the logs are still the record of what they did.
  *
  * A line describes behaviour, NOT provenance: "hangs back and snipes" is what a
  * pilot needs before he flies it, and "run 19's solo candidate" is not. Where a
@@ -109,7 +99,7 @@ export interface BrainProfile {
  * AS SHIPPED — which are not brains but sentinels; their lines live with the
  * rest of the panel's prose in `screens/combat-sim-notes.ts`.
  */
-export const BRAINS: Readonly<Record<NamedBrain, BrainProfile>> = Object.freeze({
+export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
   // probe: speed 216, range 85/234/964, 0.20 rams · tournament: 12.0% of her
   // pools against a hauler, 5.3% against a commander who fights back
   'pirate-attack-g3': {
@@ -130,62 +120,6 @@ export const BRAINS: Readonly<Record<NamedBrain, BrainProfile>> = Object.freeze(
     name: 'TURNS AND FIGHTS',
     character: 'AN ARMED TRADER THAT TURNS AND FIGHTS — SHAKES TWO PIRATES OFF HER SIX IN 2.3s '
       + 'AND SHOOTS DOWN 0.42 OF THEM AN EPISODE.',
-  },
-  // probe: speed 104, range 102/754/1952, 2.23 rams · tournament: 25.3% of her
-  // pools against a commander who fights back, to g3's 5.3%
-  'pirate-attack-t29': {
-    name: 'HANGS BACK',
-    character: 'HANGS BACK AND SNIPES — SPEED 104, MEDIAN RANGE 754, 2.23 COLLISIONS AN EPISODE. '
-      + 'TAKES 25.3% OF YOUR POOLS TO G3\'S 5.3%, AND READS AS A TURRET.',
-  },
-  // probe: range 198/1340/4505 · tournament: 53.1% and 18% kills, against the
-  // shipped pack's 23.7% and none
-  'pirate-pack-t29': {
-    name: 'SNIPES AND CONNECTS',
-    character: 'A GANG THAT SNIPES FROM 1340 AND CONNECTS — 53.1% OF YOUR POOLS AND 18% KILLS, '
-      + 'AGAINST THE SHIPPED PACK\'S 23.7% AND NONE.',
-  },
-  // tournament, two shipped pirates on her tail: 13.5s on her six against
-  // defend-g1's 2.3s, and 0.12 attackers downed against 0.42
-  'jameson-defend-t29': {
-    name: 'EVADES, SHOOTS BADLY',
-    character: 'EVADES WELL, SHOOTS BADLY — LETS AN ATTACKER SIT ON HER SIX 13.5s TO '
-      + 'DEFEND-G1\'S 2.3s, AND DOWNS 0.12 AN EPISODE TO ITS 0.42.',
-  },
-  // probe: speed 117, range 113/628/1762, 2.27 rams, 42.1% of her pools — the
-  // same 42.1% t29 takes, which is why the two lines rhyme
-  'pirate-attack-g2': {
-    name: 'THE TURRET',
-    character: 'THE TURRET THAT WAS ROLLED BACK — SPEED 117, MEDIAN RANGE 628, 2.27 COLLISIONS AN '
-      + 'EPISODE. T29 IS THIS BRAIN AGAIN, TO THE DECIMAL.',
-  },
-  // probed for this table: speed 117, range 103/868/1994, 0.13 passes, 1.97 rams
-  //
-  // The one name that is not a flight shape, and deliberately: it flies like g2
-  // (117, median 868), but what a pilot needs off the row is that picking it
-  // gets him no fight at all.
-  'pirate-attack-g1': {
-    name: 'CANNOT BE FLOWN',
-    character: 'GENERATION 1, AND THE GAME CANNOT FLY IT — NOT IN THE BUNDLE, SO AN EXERCISE '
-      + 'REFUSES IT ON THE RECORD. PROBED: SPEED 117, MEDIAN RANGE 868.',
-  },
-  // probe: 0.93 completed close-and-break cycles an episode, the highest of any
-  // brain measured (the shipped pack is next at 0.83); speed 182, range
-  // 222/706/1740
-  'pirate-attack-e1': {
-    name: 'MAKES ATTACK RUNS',
-    character: 'BREAKS OFF AND COMES BACK MORE THAN ANY OTHER — 0.93 ATTACK RUNS AN EPISODE AT '
-      + 'SPEED 182, MEDIAN RANGE 706.',
-  },
-  // probe: speed 262, range 185/254/1166 · it is the one brain that still hands
-  // the flying over at the full BREAK_OFF_RANGE (break-off.ts), because it is
-  // the one that kamikazes. It USED to read "guns cut out inside 220 units",
-  // which was true of every hostile in the game and is true of none of them
-  // now: breaking off no longer holds fire (TODO 42).
-  'pirate-attack-r2': {
-    name: 'FAST, BREAKS OFF EARLY',
-    character: 'THE GAME BEFORE ANY OF THIS — FASTEST AT SPEED 262 AND CLOSES TO 254, BUT HANDS '
-      + 'THE FLYING TO THE SCRIPTED CHASE AT 220 WHERE THE OTHERS FLY ON TO 150.',
   },
   // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
   // ships an episode to a commander who fights back
@@ -213,7 +147,7 @@ const SENTINEL_NAMES: Readonly<Record<string, string>> = Object.freeze({
  * pickers speak different unions and both ask this.
  */
 export function brainName(brain: string): string | undefined {
-  return BRAINS[brain as NamedBrain]?.name ?? SENTINEL_NAMES[brain];
+  return BRAINS[brain as BrainName]?.name ?? SENTINEL_NAMES[brain];
 }
 
 /**
@@ -221,11 +155,11 @@ export function brainName(brain: string): string | undefined {
  * offers. Takes a plain string for the same reason `selectionForBrain` does.
  */
 export function brainCharacter(brain: string): string | undefined {
-  return BRAINS[brain as NamedBrain]?.character;
+  return BRAINS[brain as BrainName]?.character;
 }
 
 /** Is this a policy with a weights file behind it, rather than a sentinel? */
-export function isNamedBrain(brain: string): brain is NamedBrain {
+export function isNamedBrain(brain: string): brain is BrainName {
   return brain in BRAINS;
 }
 
@@ -251,26 +185,23 @@ export function isNamedBrain(brain: string): brain is NamedBrain {
  * the ordinary restore it already does.
  *
  * From a console, go through the one documented handle:
- * `__game.state.brains.legacy = 'pro'`. In the game, the LIVE BRAINS row on the
+ * `__game.state.brains.pack = true`. In the game, the LIVE BRAINS row on the
  * combat trainer's setup panel (`T` at any station) writes the same field.
+ *
+ * **It is two flags now, and it used to be eight.** `legacy`, `sharp`, `engine`,
+ * `t29`, `packT29` and `defendT29` each named one experiment's weights file, and
+ * TODO 57 deleted the weights: a flag whose policy is not in the bundle has
+ * nothing to select. An OLD SAVE may still carry one, and that is deliberately
+ * not a migration (Chris, 2026-08-03) — an unknown key rides along in the
+ * snapshot, nothing reads it, so the career flies the shipped brains and the
+ * trainer's LIVE BRAINS row reports a selection it cannot name and offers to
+ * take it back. `npm test` restores one and checks exactly that.
  */
 export interface BrainSelection {
   /** fly NO brains — the pre-neuroevolution scripted AI, i.e. the A/B control */
   scripted?: boolean;
-  /** pre-gun-fix `pirate-attack-r2`: `true` for all, `'pro'` for tier >= 1 */
-  legacy?: boolean | 'pro';
   /** force the pack policy onto solo pirates as well as gangs */
   pack?: boolean;
-  /** generation 2 `pirate-attack-g2`: `true` for all, `'pro'` for tier >= 1 */
-  sharp?: boolean | 'pro';
-  /** run 18's `pirate-attack-e1`, the first trained on the game engine */
-  engine?: boolean | 'pro';
-  /** TODO 29's `pirate-attack-t29`: `true` for all, `'pro'` for tier >= 1 */
-  t29?: boolean | 'pro';
-  /** TODO 29's `pirate-pack-t29` flies the gangs; `true` also arms solo pirates */
-  packT29?: boolean;
-  /** TODO 29's `jameson-defend-t29` flies armed traders and player-assist ships */
-  defendT29?: boolean;
 }
 
 /** The solo policy a pirate flies with no overrides. */
@@ -287,30 +218,15 @@ const SHIPPED_DEFENCE: BrainName = 'jameson-defend-g1';
  * **THIS IS THE LINE THAT CHANGES THE SHIPPED DEFAULT.** Everything downstream
  * is derived from it — `pirateBrainFor`, `defenceBrain`, the trainer's
  * `liveBrainFor` and the three `SHIPPED_*_BRAIN` ids in the report — so
- * promoting TODO 29's candidates is:
- *
- *     export const SHIPPED_BRAINS: BrainSelection =
- *       Object.freeze({ t29: true, packT29: true, defendT29: true });
- *
- * and nothing else. It is deliberately still `{}`: all three candidates beat
- * their shipped counterparts on damage and read as the turret this project has
- * rolled back twice (docs/TRAINING-LOG.md, run 19). `npm test` asserts this
- * object is empty, so flipping it is a decision somebody has to take twice.
+ * promoting a future candidate is a flag here and the three constants above,
+ * and nothing else. It is deliberately `{}`: what ships is what the shipped
+ * three do, and `npm test` asserts this object is empty, so changing it is a
+ * decision somebody has to take twice.
  */
 export const SHIPPED_BRAINS: BrainSelection = Object.freeze({});
 
-/**
- * The `true | 'pro'` shape, read once: `'pro'` arms professionals and gangs and
- * leaves the opportunists on the shipped brain, which is how a mixed reception
- * gets tested without making every pirate a different animal.
- */
-export function appliesTo(flag: boolean | 'pro' | undefined, tier: number): boolean {
-  if (!flag) return false;
-  return flag === 'pro' ? tier >= 1 : true;
-}
-
-/** The two pack policies — the ones that observe their fleet, not just a target. */
-export const PACK_BRAINS: readonly BrainName[] = ['pirate-pack-r4-selectonly', 'pirate-pack-t29'];
+/** The pack policies — the ones that observe their fleet, not just a target. */
+export const PACK_BRAINS: readonly BrainName[] = ['pirate-pack-r4-selectonly'];
 
 export function isPackBrain(name: BrainName): boolean {
   return PACK_BRAINS.includes(name);
@@ -323,64 +239,53 @@ export function isPackBrain(name: BrainName): boolean {
  * solo brain, an organised gang flies the pack policy. Everything `sel` does on
  * top of that is an A/B override for playtesting.
  *
- * The pack decision comes first because it always did — a gang flies the pack
- * policy even when a solo override is set — and the order of the solo chain is
- * the order the flags were added, which is also their precedence.
+ * `tier` no longer changes the answer, and the parameter stays because the
+ * QUESTION still has a tier in it: the six flags that split by tier were the
+ * unshipped experiments, and a caller asking "what does a professional fly"
+ * should not have to know that today the answer is the same as an opportunist's.
  */
 export function pirateBrainNameFor(
-  tier: number, organised: boolean, sel: BrainSelection = SHIPPED_BRAINS,
+  _tier: number, organised: boolean, sel: BrainSelection = SHIPPED_BRAINS,
 ): BrainName {
   if (sel.scripted) return 'scripted';
-  if (organised || sel.pack || sel.packT29) {
-    return sel.packT29 ? 'pirate-pack-t29' : SHIPPED_PACK;
-  }
-  if (appliesTo(sel.legacy, tier)) return 'pirate-attack-r2';
-  if (appliesTo(sel.engine, tier)) return 'pirate-attack-e1';
-  if (appliesTo(sel.sharp, tier)) return 'pirate-attack-g2';
-  if (appliesTo(sel.t29, tier)) return 'pirate-attack-t29';
+  if (organised || sel.pack) return SHIPPED_PACK;
   return SHIPPED_SOLO;
 }
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
 export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): BrainName {
-  if (sel.scripted) return 'scripted';
-  return sel.defendT29 ? 'jameson-defend-t29' : SHIPPED_DEFENCE;
+  return sel.scripted ? 'scripted' : SHIPPED_DEFENCE;
 }
 
 /**
  * A named policy, as the selection that makes the whole game fly it.
  *
  * The inverse of the rule above, and the only terms the game can express an A/B
- * in: which policy a pirate flies is a decision per ROLE and per TIER, not per
- * ship, so "everybody flies e1" is a selection and "this one ship flies e1" is
- * not. The combat trainer's `ExerciseSpec.brain` sets one of these for the
+ * in: which policy a pirate flies is a decision per ROLE, not per ship, so
+ * "everybody flies the gang policy" is a selection and "this one ship flies it"
+ * is not. The combat trainer's `ExerciseSpec.brain` sets one of these for the
  * duration of an exercise; the setup panel's LIVE BRAINS row sets one for the
  * career.
  *
- * `pirate-attack-g1` has no entry and never gets one — brains.ts does not import
- * it, so the game cannot fly it, and asking for it is refused rather than
- * silently ignored.
+ * Every name has an entry, and after TODO 57 that is the point: a policy either
+ * picker offers is a policy the game can be put into. The list used to be wider
+ * than what could fly — `pirate-attack-g1` was offered and then refused on the
+ * record — and it was wider only because six experiments were in the bundle.
  */
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
   'pirate-attack-g3': {},
   'pirate-pack-r4-selectonly': { pack: true },
   'jameson-defend-g1': {},
-  'pirate-attack-t29': { t29: true },
-  'pirate-pack-t29': { packT29: true },
-  'jameson-defend-t29': { defendT29: true },
-  'pirate-attack-g2': { sharp: true },
-  'pirate-attack-e1': { engine: true },
-  'pirate-attack-r2': { legacy: true },
   scripted: { scripted: true },
 };
 
 /**
  * The selection a named brain flies under, or undefined if the game cannot fly it.
  *
- * Takes a plain string rather than a `BrainName` because the callers are the
- * combat trainer, whose `BrainId` list is deliberately wider than what the game
- * loads. A name this does not know is a name that cannot be flown, which is the
- * same answer either way.
+ * Takes a plain string rather than a `BrainName` because the callers speak two
+ * different unions and a saved career can hand over anything at all. A name this
+ * does not know is a name that cannot be flown, which is the same answer either
+ * way.
  */
 export function selectionForBrain(brain: string): BrainSelection | undefined {
   const sel = SELECTIONS[brain as BrainName];
@@ -407,9 +312,10 @@ export function liveBrainSelection(id: LiveBrainId): BrainSelection {
 /**
  * Which live-picker choice a selection IS, or null when it is not one of them.
  *
- * Null is the honest answer for a combination only the console can make
- * (`{ sharp: 'pro' }`, say). The panel says so rather than showing a name the
- * game is not flying.
+ * Null is the honest answer for a combination the picker cannot name — one the
+ * console made, or one a save carries from before TODO 57 deleted the flag that
+ * meant it. The panel says so rather than showing a name the game is not flying,
+ * and arrowing the row takes it back.
  */
 export function liveBrainId(sel: BrainSelection): LiveBrainId | null {
   const wire = JSON.stringify(sel);

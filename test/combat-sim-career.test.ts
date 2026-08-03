@@ -732,17 +732,17 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     // mutation passes every other test in this file, including the
     // name-presence grep above, which sees the field name and not the value.
     const ab = flying(5_150_515);
-    ab.state.brains = { legacy: 'pro' };
+    ab.state.brains = { scripted: true };
     ab.sim.begin({
       mode: 'sparring', scenario: 'single-pirate', tier: 2, seed: 4_242,
       brain: 'pirate-pack-r4-selectonly',
     });
     check('an exercise flies the brain IT asked for, not the career\'s',
-      ab.state.brains.pack === true && ab.state.brains.legacy === undefined);
+      ab.state.brains.pack === true && ab.state.brains.scripted === undefined);
     beat(ab, 120, demand);
     ab.sim.quit();
     check('...and the career\'s own selection is back when the exercise ends',
-      ab.state.brains.legacy === 'pro' && !ab.state.brains.pack);
+      ab.state.brains.scripted === true && !ab.state.brains.pack);
   }
 
   if (hadStorage) globals.localStorage = previousStorage;

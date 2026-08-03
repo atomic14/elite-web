@@ -195,8 +195,11 @@ legitimate and scoped — and the GAP-ANALYSIS entry says the hull is not
 selectable.
 
 Picking the opponent's *brain* is what turns this into an A/B rig. Fly the same
-scenario against `e1` and against `r2`, and the report answers which is more
-fun — the question CLAUDE.md says the numbers cannot.
+scenario against the shipped pirate and against the scripted AI, and the report
+answers which is more fun — the question CLAUDE.md says the numbers cannot. The
+picker offered eleven policies when eleven were in the bundle; since TODO 57 it
+offers the shipped three and that control, and a candidate joins it by having its
+weights put back and its name added (train/README.md).
 
 ## The report, and the export
 

@@ -152,13 +152,13 @@ console.log('\ncombat trainer scenarios');
     check('every listed brain exists', SIM_BRAINS.every(brainFileExists));
 
     // ...and the picker may only offer what the game can actually be put into.
-    // `pirate-attack-g1` is the deliberate exception: it is offered, it is
-    // refused with a warning on the record, and that is better than a silent
-    // substitution.
+    // There USED to be one deliberate exception — `pirate-attack-g1` was offered
+    // and then refused with a warning on the record, which beat a silent
+    // substitution — and TODO 57 deleted the weights that made the picker wider
+    // than the bundle. Nothing is offered now that cannot be flown.
     const unflyable = SIM_BRAINS.filter((b) => !selectionForBrain(b));
     check('every brain the picker offers has a selection that flies it',
-      unflyable.length === 1 && unflyable[0] === 'pirate-attack-g1',
-      unflyable.join(', '));
+      unflyable.length === 0, unflyable.join(', '));
   }
 
   // 2 — the individual fights are what the spec says they are
@@ -441,10 +441,10 @@ console.log('\ncombat trainer scenarios');
     // the A/B rig: same fight, other brain — the question CLAUDE.md says the
     // numbers cannot answer
     const ab = nextOpposition(session({
-      spec: spec({ scenario: 'thargoids', brain: 'pirate-attack-r2' }),
+      spec: spec({ scenario: 'thargoids', brain: 'pirate-attack-g3' }),
     }))!;
     check('one brain override reaches every opponent',
-      ab.length > 1 && ab.every((o) => o.brain === 'pirate-attack-r2'));
+      ab.length > 1 && ab.every((o) => o.brain === 'pirate-attack-g3'));
 
     // the custom picker: a hull off the roster, and the fit
     const custom: Opposition = {

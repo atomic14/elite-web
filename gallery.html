@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HARMLESS — DESIGN GALLERY</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="stylesheet" href="/src/viewer/viewer.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <div id="viewer-title">DESIGN GALLERY</div>
+      <div id="viewer-hud"></div>
+      <div id="viewer-controls">
+        <span id="viewer-keys">S SCALE · V VIEW · ←/→ FOCUS · 0 ALL</span>
+        <a id="viewer-other" href="/viewer">COMBAT VIEWER →</a>
+      </div>
+      <div id="scanlines"></div>
+    </div>
+    <script type="module" src="/src/viewer/gallery-main.ts"></script>
+  </body>
+</html>

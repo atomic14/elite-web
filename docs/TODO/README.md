@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **15 / 16 complete**. Five reviewers with separate lenses; every
+Progress: **16 / 16 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -141,6 +141,22 @@ asserts the shelf's own contract from the bytes: every record on it is readable
 by `readSave`, which `listSaves()` cannot be asked because it drops exactly what
 the question is about.
 
+57 is done, and it is the one that made the tree smaller. `src/ai-training/brains/`
+held 34 weights files, the game imported 9, three flew; it holds exactly the
+three now and `npm test` fails on a fourth file, on a shipped one going missing,
+and on any file in `src/` other than `game/brains.ts` importing weights — which
+is the rule the combat viewer broke twice. `/viewer` is the combat viewer and
+opens on it, `/gallery` is the 38 hulls and opens on them, neither has a mode key
+or the other's controls, and every row the viewer offers flies a shipped brain or
+a stated control, built from one table so a label and its weights cannot come
+apart. `BrainSelection` is two flags rather than eight; a save carrying one of
+the six deleted ones loads, is not migrated, and flies the shipped brains.
+docs/TRAINING-LOG.md carries a dated note and is otherwise untouched: the figures
+stand as the record of what was measured. The play bundle is 35.4 kB smaller
+gzipped and the viewer 56.4 kB, with the shipped brains and therefore the game's
+difficulty unchanged — `npm run campaign` and the `test/ai.test.ts` gates print
+identical numbers before and after.
+
 Order: 49 is why several of these survived — 46 is item 1 on its list, a guard
 that greps persistence.ts for a field NAME while the value is clobbered four
 lines later — so it is worth doing early rather than last.
@@ -159,7 +175,7 @@ lines later — so it is worth doing early rather than last.
 - [x] 54 — [Import can write a save the shelf cannot read](54-import-can-write-an-unreadable-save.md) — save integrity · medium · small
 - [x] 55 — [Make saving and loading legible](55-make-saving-legible.md) — UI/UX · high · medium
 - [x] 56 — [A commander, not a career](56-a-commander-not-a-career.md) — naming/UX · medium · medium
-- [ ] 57 — [Ship only what ships](57-ship-only-what-ships.md) — simplification/UI · medium · large
+- [x] 57 — [Ship only what ships](57-ship-only-what-ships.md) — simplification/UI · medium · large
 
 ## Follow-ups
 

@@ -35,6 +35,9 @@ import {
 } from '../src/game/combat.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
 import { pirateSpecForTier } from '../src/game/ship-specs.ts';
+import {
+  defenceBrainNameFor, pirateBrainNameFor, type BrainSelection,
+} from '../src/game/brain-names.ts';
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import { check } from './harness.ts';
@@ -592,18 +595,38 @@ console.log('\nheadless world step');
     // stopped being the run it came from.
     {
       const t = arrival(31_337);
-      t.state.brains = { t29: true };
-      const wire29 = JSON.stringify(
+      t.state.brains = { pack: true };
+      const wirePack = JSON.stringify(
         new Persistence(t.state, t.ordnance, new CombatComputer(), stubHost(t.state, []))
           .capture());
       const back = arrival(99);
       new Persistence(back.state, back.ordnance, new CombatComputer(),
         stubHost(back.state, []))
-        .restore(JSON.parse(wire29) as WorldSnapshot);
+        .restore(JSON.parse(wirePack) as WorldSnapshot);
       check('an A/B brain selection survives the save',
-        JSON.stringify(back.state.brains) === '{"t29":true}');
+        JSON.stringify(back.state.brains) === '{"pack":true}');
       check('...as a copy the step can move, not the snapshot\'s own object',
-        back.state.brains !== (JSON.parse(wire29) as WorldSnapshot).brains);
+        back.state.brains !== (JSON.parse(wirePack) as WorldSnapshot).brains);
+
+      // ...and a save made before TODO 57 deleted six of the flags still LOADS.
+      // Not migrated (Chris, 2026-08-03): the flag names weights that are not in
+      // the bundle, so nothing reads it and the career flies the shipped brains.
+      // What it must not do is throw, and the restore is where it would.
+      const old = arrival(31_337);
+      old.state.brains = { t29: true, legacy: 'pro' } as unknown as BrainSelection;
+      const wireOld = JSON.stringify(
+        new Persistence(old.state, old.ordnance, new CombatComputer(),
+          stubHost(old.state, [])).capture());
+      const revived = arrival(99);
+      new Persistence(revived.state, revived.ordnance, new CombatComputer(),
+        stubHost(revived.state, []))
+        .restore(JSON.parse(wireOld) as WorldSnapshot);
+      check('a save carrying a deleted A/B flag restores rather than throwing',
+        JSON.stringify(revived.state.brains) === '{"t29":true,"legacy":"pro"}');
+      check('...and the galaxy in it flies the shipped brains',
+        pirateBrainNameFor(1, false, revived.state.brains) === pirateBrainNameFor(1, false)
+        && defenceBrainNameFor(revived.state.brains) === defenceBrainNameFor());
+
       const plain = arrival(99);
       new Persistence(plain.state, plain.ordnance, new CombatComputer(),
         stubHost(plain.state, []))

@@ -106,8 +106,8 @@ console.log('\ncombat simulator — the notes hold their own height');
       for (const groups of [0, 1, 2]) {
         d.groups = Array.from({ length: groups }, () => defaultGroup(1));
         if (groups === 2) {
-          d.groups[0].brain = 'pirate-attack-r2';
-          d.groups[1].brain = 'pirate-attack-g2';
+          d.groups[0].brain = 'pirate-attack-g3';
+          d.groups[1].brain = 'scripted';
         }
         const notes = draftNotes(d);
         if (notes.length > reserve.length) over.push(`${mode}/${s}/${groups}: too many`);
@@ -124,7 +124,7 @@ console.log('\ncombat simulator — the notes hold their own height');
     filled);
   check('the career warning is NOT one of those notes — it has its own block',
     !draftNotes(d).some((n) => /THE WHOLE GALAXY FLIES/.test(n))
-    && careerNote({ ...d, live: 'pirate-attack-t29' }).warning);
+    && careerNote({ ...d, live: 'pirate-pack-r4-selectonly' }).warning);
 
   // The fence holds its space either way, so it always has something in it: a
   // held box with a hole in it reads as a bug, not as a promise.

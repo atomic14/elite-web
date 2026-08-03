@@ -252,8 +252,8 @@ export interface OpponentSetup {
   profileId: NpcCombatProfileId;
   /**
    * Which policy it flies — a brain id, or the scripted baseline. This is the
-   * field that turns the report into an A/B rig: the same scenario against
-   * `pirate-attack-r2` and against `e1`, and the numbers side by side.
+   * field that turns the report into an A/B rig: the same scenario against the
+   * shipped pirate and against the scripted AI, and the numbers side by side.
    */
   brain: string;
   role?: string;

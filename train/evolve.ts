@@ -1,9 +1,9 @@
 // Neuroevolution self-play trainer.
 //
-//   npm run train -- attack [--opponent trader-evade] [--out pirate-attack-r2]
-//   npm run train -- evade  [--opponent pirate-attack-r2] [--out trader-evade-r2]
-//   npm run train -- pack   [--out pirate-pack]
-//   npm run train -- defend [--opponent pirate-attack-r2] [--out jameson-defend]
+//   npm run train -- attack [--opponent trader-evade] [--out pirate-attack-g4]
+//   npm run train -- evade  [--opponent pirate-attack-g3] [--out trader-evade-r3]
+//   npm run train -- pack   [--out pirate-pack-r5]
+//   npm run train -- defend [--opponent pirate-attack-g3] [--out jameson-defend-g2]
 //
 // WARNING: without --out, each phase writes over the committed brain in
 // src/ai-training/brains/ that the game/viewer import. `git checkout src/ai-training/brains`
@@ -65,8 +65,26 @@ const ELITES = getArg('elites', 8);
  * like four times the work.
  */
 const DT = FIXED_DT;
+/**
+ * Where the run lands, and by default that is THE SHIPPED BRAIN — which is what
+ * CLAUDE.md has always warned it was, and what it did not do.
+ *
+ * The defaults were `pirate-attack`, `jameson-defend` and `pirate-pack`: three
+ * names the game has not flown since generation 3, so a run with no `--out`
+ * quietly produced a fourth weights file rather than the loud overwrite the
+ * warning describes. Since TODO 57 the directory IS the shipped set and
+ * `npm test` says so, so a stray file is now caught rather than accumulated —
+ * but the honest default is still the file the phase is FOR. `git checkout
+ * src/ai-training/brains` restores, and the run prints a note before it writes.
+ *
+ * `evade` is the exception and has no shipped counterpart: nothing in the game
+ * flies a trader-evade policy, it exists to produce training opponents, and a
+ * run of it is expected to leave a file the guard will ask you to decide about.
+ */
 const OUT_NAME = getStrArg('out',
-  phase === 'attack' ? 'pirate-attack' : phase === 'evade' ? 'trader-evade' : phase === 'defend' ? 'jameson-defend' : 'pirate-pack');
+  phase === 'attack' ? 'pirate-attack-g3'
+    : phase === 'evade' ? 'trader-evade'
+      : phase === 'defend' ? 'jameson-defend-g1' : 'pirate-pack-r4-selectonly');
 
 const BRAINS_DIR = new URL('../src/ai-training/brains/', import.meta.url).pathname;
 const LOGS_DIR = new URL('./logs/', import.meta.url).pathname;
@@ -79,8 +97,14 @@ function loadBrain(name: string): Brain {
   return brainFromFile(f);
 }
 
-// opponents: evade trains vs a pirate; attack may train vs a trained evader
-const opponentName = getStrArg('opponent', phase === 'evade' ? 'pirate-attack' : phase === 'defend' ? 'pirate-attack-r2' : '');
+// Opponents: evade and defend train against a PIRATE, and the default is the one
+// the game ships — it was `pirate-attack` and `pirate-attack-r2`, two policies
+// nobody flies, and TODO 57 deleted their weights along with the other 29. A
+// default naming a file that is not there is a training run that dies on line
+// one, and training a defender against a pirate no player meets was the older
+// and quieter bug.
+const opponentName = getStrArg('opponent',
+  phase === 'evade' || phase === 'defend' ? 'pirate-attack-g3' : '');
 const opponent: Brain | null = opponentName ? loadBrain(opponentName) : null;
 
 // --- round-4 experiment flags -----------------------------------------------
@@ -176,11 +200,18 @@ const traderPool: PoolEntry[] = (() => {
   // teaches pursuit; the one on the player's hull cannot be caught at all
   // (260/300 against 400) and teaches the only lesson that is actually true in
   // this game — make the intercept count, because there will not be another.
+  //
+  // The POLICY half of the pool is the shipped defence brain on two hulls. It
+  // was four rows — two `trader-evade` rounds and `jameson-defend` — and TODO 57
+  // deleted three of those weights files as policies nothing flies. They were
+  // loaded through the try/catch below, so their absence would have been a
+  // silent thinning of the pool rather than an error, which is the worst of the
+  // three outcomes: a training run that looks the same and trains against less.
+  // Retrain a `trader-evade` brain (`npm run train -- evade`) and add it back
+  // here if the variety is wanted.
   for (const [name, armed, hull] of [
-    ['trader-evade', false, 'traderCobra'],       // the one free target left
-    ['trader-evade-r2', true, 'playerCobra'],     // player agility, shoots back
-    ['jameson-defend', true, 'playerCobra'],      // fights properly
-    ['jameson-defend', true, 'playerCobraSlow'],  // slow knife-fight, shoots
+    ['jameson-defend-g1', true, 'playerCobra'],      // fights properly
+    ['jameson-defend-g1', true, 'playerCobraSlow'],  // slow knife-fight, shoots
   ] as const) {
     if (name === HOLD_OUT) { console.log(`(pool) holding out ${name}`); continue; }
     try {
