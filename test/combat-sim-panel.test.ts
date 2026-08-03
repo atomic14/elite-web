@@ -248,8 +248,10 @@ console.log('\ncombat simulator — a long list is navigable');
   check('a row over a number has no end to jump to, so it has no jump',
     !cell('SEED').jump && !cell('COUNT').jump && !cell('YOUR MISSILES').jump);
 
-  // The key lives in all four homes CLAUDE.md names — here, the hint, the ?
-  // panel and the README.
+  // HOME and END are the SCREEN's own keys rather than `BINDINGS` commands, so
+  // nothing generates the places they are written down (docs/TODO/50 covers the
+  // ones that are). These are the four: the screen, the hint, the ? panel and
+  // the README.
   check('the screen reads HOME and END',
     /i\.pressed\('Home'\)/.test(read('src/game/screens/combat-sim.ts'))
     && /i\.pressed\('End'\)/.test(read('src/game/screens/combat-sim.ts')));
@@ -262,9 +264,10 @@ console.log('\ncombat simulator — a long list is navigable');
 //
 // `L — LAST REPORT` was a button that appeared once a report existed and was
 // named nowhere else: not in the footer hint, not in the `?` panel, not in the
-// README. CLAUDE.md's key-bindings invariant is that a key lives in four homes
-// and they change together, and a key you can only discover by noticing a
-// button is in none of them.
+// README. It is a screen key rather than a `BINDINGS` command, so it is written
+// down by hand in each of those — CLAUDE.md's key-bindings invariant asks for
+// one home and generated surfaces, and a screen key cannot have that yet, so
+// these checks are what stands in for it.
 
 console.log('\ncombat simulator — the panel names its keys');
 {

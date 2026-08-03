@@ -132,6 +132,7 @@ import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver,
 } from '../ui/screens.ts';
+import { paintCommandGuide } from '../ui/key-help.ts';
 import { freshState, type GameState } from './state.ts';
 
 
@@ -240,6 +241,7 @@ export class Game {
       system: this.system,
       chart: this.state.chart,
       viewData: (sys) => { this.dataSubject = sys; },
+      priceMultiplier: (index, commodity) => this.state.living.priceMultiplier(index, commodity),
     };
   }
   // combat computer: the jameson-defend policy flying the player's ship
@@ -510,7 +512,11 @@ export class Game {
     // Resume mid-flight if the last session ended there; otherwise the
     // station, as Elite always did.
     if (!this.resumeSavedWorld()) this.enterDocked('fresh');
+    // The `?` guide, in two halves: the flight axes change with the layout and
+    // keymap.ts rewrites them whenever it is toggled; the command rows are the
+    // same in both layouts, so they are painted from the binding table once.
     refreshHelpPanel();
+    paintCommandGuide();
     this.showMessage(
       `PRESS ? FOR CONTROLS — ${layoutName().toUpperCase()} LAYOUT (B TO SWITCH)`, 8);
 

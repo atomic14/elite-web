@@ -319,7 +319,7 @@ one thing that is also a player feature.
    docking computer in flight, `M` is the market docked and launch-missile in
    flight. The tables are per-mode.
 
-   **The four-homes invariant applies** (CLAUDE.md's key-bindings rule — cite it by name, not number: the numbering has moved once already): a key lives in four places that must change
+   **The key-bindings invariant applies** (cite it by name, not number: the numbering has moved once already): a command key has ONE home — `BINDINGS` plus `command-help.ts` — and the `?` panel, the manual and the docked menu are painted from it. A key that belongs to a SCREEN rather than to `BINDINGS` is still written down by hand in every place that lists it, and those places must change
    together — `src/engine/keymap.ts`, the binding table in
    `src/game/controls.ts`, the `?` help panel in `play.html`, and the README
    table. An audit found 13 existing disagreements, including `B` for the

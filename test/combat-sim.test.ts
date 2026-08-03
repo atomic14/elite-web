@@ -1,4 +1,4 @@
-// The training simulator's front of house: the key in its four homes, and the
+// The training simulator's front of house: T, the exercise's own table, and the
 // draft the picker builds.
 //
 // The first file of the `test/run.ts` split (see test/harness.ts). It covers the
@@ -6,13 +6,14 @@
 // the bindings are a table over a two-method input, and the setup panel is a
 // pure function from a draft to a list of rows.
 //
-// The FOUR-HOMES checks at the bottom are the ones worth reading. CLAUDE.md's
-// key-bindings invariant says a key lives in four places —
-// `engine/keymap.ts`, `BINDINGS` in `game/controls.ts`, the `?` help panel in
-// `play.html`, and the README table — and an audit found 13 places those homes
-// disagree, including `B` for the distress beacon, which costs you cargo and
-// appears in no help panel. Nothing was ever asserting the last two homes at
-// all. These do, by reading the files.
+// The checks at the bottom used to be "the other two homes of a key binding",
+// because an audit found 13 disagreements between the four places CLAUDE.md's
+// key-bindings invariant listed — `B` for the distress beacon, which costs you
+// your cargo, appeared in no help panel at all. Those homes are down to one
+// each now (docs/TODO/50): the menu and the panel's rows are painted from
+// `BINDINGS` + `COMMAND_HELP`, and `test/key-help.test.ts` asserts the general
+// claim in both directions. What is left here is the trainer's own claim on
+// those surfaces.
 
 import { readFileSync } from 'node:fs';
 import { hasShipDef, shipDisplayName } from '../src/ships/registry.ts';
@@ -31,7 +32,7 @@ import {
 } from '../src/game/screens/combat-sim-setup.ts';
 import { AS_THE_GAME_FLIES } from '../src/game/brain-names.ts';
 import { draftNotes } from '../src/game/screens/combat-sim-notes.ts';
-import { renderDockedMenu } from '../src/ui/screens.ts';
+import { dockedMenuHtml, guideSections, guideTableHtml } from '../src/ui/key-help.ts';
 
 const read = (path: string): string =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -129,50 +130,33 @@ console.log('\ncombat simulator — the simulator binding table');
   check('...and so is openCombatSim', wired('openCombatSim'));
 }
 
-// --- the other two homes, which nothing has ever asserted -------------------
+// --- how a player is told the trainer is there -------------------------------
 
-console.log('\ncombat simulator — the four homes of a key binding');
+console.log('\ncombat simulator — what the help surfaces say about it');
 {
-  // Home 3: the docked menu itself. `data-key` IS the click path (a click
-  // becomes a keystroke), so a row without one is a menu entry that cannot be
-  // clicked, and a row that names a key the table does not have is a lie.
-  const commander = newCommander();
-  const painted: string[] = [];
-  const globals = globalThis as unknown as { document?: unknown };
-  const had = 'document' in globals;
-  const previous = globals.document;
-  globals.document = {
-    getElementById: () => ({
-      set innerHTML(html: string) { painted.push(html); },
-      classList: { add: () => {}, remove: () => {}, toggle: () => {} },
-    }),
-    body: { classList: { add: () => {}, remove: () => {} } },
-  };
-  const systems = [{ name: 'Lave', economy: 0, government: 5, techLevel: 4 }];
-  renderDockedMenu(systems[0] as never, commander);
-  if (had) globals.document = previous;
-  else delete globals.document;
-  const menu = painted.join('');
+  // These used to be "the other two homes of a key binding", read out of
+  // play.html and the menu markup by hand. Two of those homes are gone
+  // (docs/TODO/50): the menu and the panel rows are PAINTED from the binding
+  // table by ui/key-help.ts, and test/key-help.test.ts asserts that generally,
+  // in both directions. What is left here is the trainer's own claim on those
+  // surfaces — that T is offered, and that it says what it opens.
+  const menu = dockedMenuHtml();
   check('the docked menu offers T', menu.includes('data-key="KeyT"'));
   check('...labelled as the combat trainer', /KeyT"><b>T<\/b> COMBAT TRAINING/.test(menu));
   check('...and the table really answers it', BINDINGS.docked
     .some((b) => b.key === 'KeyT' && b.command === 'openCombatSim'));
-  // The general claim — that EVERY row on that menu names a key the table has —
-  // was here, as `BINDINGS.docked.every((b) => !menu.includes(...)
-  // || b.key.startsWith('Key'))`, which cannot fail: every key in the table
-  // starts with `Key`. It is in test/ui.test.ts now, with the tables, and it
-  // reads menu-first — the failure is a ROW WITH NO BINDING.
 
-  // Home 4a: the `?` help panel. This is one of the two homes the audit found
-  // 13 disagreements in, and the first time either is checked from a test.
   const help = read('play.html');
   check('play.html mentions the simulator', /COMBAT SIMULATOR/i.test(help));
+  check('...and hosts the rows for the keys it adds', help.includes('id="help-simulator"'));
   check('...with a T row in the DOCKED table',
-    /<tr><td>T<\/td><td>combat training simulator<\/td><\/tr>/.test(help));
+    /<tr><td>T<\/td><td>combat training simulator/.test(guideTableHtml(BINDINGS.docked)));
+  const exercise = guideSections().find((s) => s.id === 'help-simulator');
   check('...and the exercise\'s own keys, including how to get out of it',
-    /ESC \/ Q<\/td><td>end the exercise/.test(help));
+    exercise !== undefined
+    && /ESC \/ Q<\/td><td>end the exercise/.test(guideTableHtml(exercise.bindings)));
 
-  // Home 4b: the README table.
+  // The README, which is still written by hand.
   const readme = read('README.md');
   check('the README table has a T row', /\|\s\*\*T\*\*\s\|/.test(readme));
   check('...saying what it opens', /combat training simulator/i.test(readme));

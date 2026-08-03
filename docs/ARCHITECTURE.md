@@ -168,7 +168,8 @@ that needs a paragraph here to make sense is a file with the wrong name, and
 the fix belongs there rather than in this document.
 
 ```
-play.html                 the game — and the ? help panel, hand-maintained
+play.html                 the game — and the ? help panel, whose key rows are
+                          painted from the binding table (ui/key-help.ts)
 index.html                the landing page: no game bundle
 viewer.html               the AI combat viewer
 manual.html / novella.html   the long-form text pages
@@ -182,6 +183,9 @@ src/
                             mode machine, and every consequence modules report
     controls.ts             the key bindings as a table: an input in,
                             Commands out — a replay presses M the same way
+    command-help.ts         what each Command DOES, in one line. Welded to
+                            controls.ts by Record<Command, …>, so a key with
+                            nothing written down about it does not compile
     world-step.ts           one slice of the world, with nothing on screen:
                             the five phases of flight, reporting StepEvents
     station.ts              docking, launching, and the menu between them
@@ -352,7 +356,8 @@ src/
   galaxy/goatsoup.ts        the original's planet-description grammar
 
   audio.ts                  every sound, behind one guarded AudioContext
-  manual.ts                 the in-game manual's text and key tables
+  manual.ts                 the manual page's script: both key tables,
+                            generated from keymap.ts and ui/key-help.ts
 
   hud/hud.ts                the cockpit console: a dumb painter
   hud/hud-model.ts          where a blip or marker GOES (the maths)
@@ -360,6 +365,9 @@ src/
   hud/tunnel.ts             the hyperspace tunnel
   ui/screens.ts             full-page DOM screens: market, charts, equip, status
   ui/screen-host.ts         the screen stack, and click-to-keystroke routing
+  ui/key-help.ts            the key tables RENDERED: the ? panel, the manual
+                            page and the docked menu, all from BINDINGS +
+                            COMMAND_HELP and from no copy of them
 
   engine/shell.ts           THE PLATFORM SEAM: everything the game needs from
                             the machine it runs on, in seven members
@@ -672,10 +680,12 @@ ships.
   mutation noise comes from a seeded RNG, so a full training rerun produces
   byte-identical weights on the same CLI args (verified: two runs, same
   generation curve, same brain).
-- The **help panel** (`?` in-game) is hand-maintained in **play.html** —
-  update it when you touch key bindings, along with the README table,
-  `engine/keymap.ts` and `BINDINGS` in `game/controls.ts`. Four homes, and
-  they change together.
+- The **help panel** (`?` in-game), the manual page and the docked menu are
+  **rendered** from `BINDINGS` + `COMMAND_HELP` by `ui/key-help.ts`, so a key
+  changes in one place: `engine/keymap.ts` for the flight axes, `controls.ts`
+  plus `command-help.ts` for everything else. The README is the only hand-
+  written surface left, and `test/key-help.test.ts` holds it to the table in
+  both directions (CLAUDE.md invariant 9, docs/TODO/50).
 
 ## Where to start reading, in order
 

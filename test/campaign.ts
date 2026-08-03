@@ -17,7 +17,7 @@
 
 import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '../src/galaxy/galaxy.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
-import { generateContractOffers, applyMarketPressure, chartDistanceTenths, MAX_CONTRACTS, settleContracts } from '../src/game/contracts.ts';
+import { generateContractOffers, applyMarketPressure, chartDistanceTenths, MAX_CONTRACTS, settleContracts, marketEstimate } from '../src/game/contracts.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import {
   newCommander, cargoCapacity, cargoTonnes, rating, killValue, MAX_FUEL,
@@ -329,7 +329,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     // The hunter flies light. Note the irony this creates under the pirate
     // economics: an empty hold makes it a *poor* target, so its fights have
     // to come from lawless space rather than from looking worth robbing.
-    if (carriesCargo) buyBestCargo(c, market, destSys);
+    if (carriesCargo) buyBestCargo(c, market, destSys, living);
 
     // --- fly the leg ---
     const dist = chartDistanceTenths(here, destSys);
@@ -526,8 +526,8 @@ function pickDestination(
   systems: StarSystem[],
   market: ReturnType<typeof generateMarket>,
   rng: () => number,
-  strategy: 'trader' | 'hunter' = 'trader',
-  living?: LivingGalaxy,
+  strategy: 'trader' | 'hunter',
+  living: LivingGalaxy,
 ): number | null {
   const here = systems[c.systemIndex];
   const contract = c.contracts.find((k: Contract) =>
@@ -542,7 +542,7 @@ function pickDestination(
     for (const s of systems) {
       const d = chartDistanceTenths(here, s);
       if (s.index === c.systemIndex || d === 0 || d > c.fuel) continue;
-      const score = ((7 - s.government) + (living?.danger(s.index) ?? 0) * 6) * (0.8 + rng() * 0.4);
+      const score = ((7 - s.government) + living.danger(s.index) * 6) * (0.8 + rng() * 0.4);
       if (score > bestScore) { bestScore = score; bestSys = s.index; }
     }
     return bestSys;
@@ -555,10 +555,10 @@ function pickDestination(
     const d = chartDistanceTenths(here, s);
     if (s.index === c.systemIndex || d === 0 || d > c.fuel) continue;
     let score = 0;
+    const expect = expectedPrices(s, living);
     for (let i = 0; i < COMMODITIES.length; i++) {
       if (isContraband(i) || COMMODITIES[i].unit !== 't') continue;
-      const expect = expectedPrice(s, i);
-      score = Math.max(score, expect - market[i].price);
+      score = Math.max(score, expect[i] - market[i].price);
     }
     score *= 0.8 + rng() * 0.4;
     if (score > bestScore) { bestScore = score; best = s.index; }
@@ -566,21 +566,33 @@ function pickDestination(
   return best;
 }
 
-function expectedPrice(sys: StarSystem, commodity: number): number {
-  const cm = COMMODITIES[commodity];
-  return ((cm.basePrice + cm.mask / 2 + sys.economy * cm.gradient) & 0xff) * 0.4;
+/**
+ * What `sys` is expected to pay, per commodity — the game's own estimate, the
+ * function behind the chart's MARKET ESTIMATE panel.
+ *
+ * It was a transcription of the 1984 price formula, so this harness scored
+ * every trade decision against an economy the game does not run: no byte wrap
+ * where the model has one, and no living-galaxy pressure at the far end. That
+ * is precisely what invariant 10 exists to stop, in the harness whose whole
+ * job is to check the shipped balance.
+ */
+function expectedPrices(sys: StarSystem, living: LivingGalaxy): number[] {
+  return marketEstimate(sys, (i) => living.priceMultiplier(sys.index, i))
+    .map((m) => m.price);
 }
 
 function buyBestCargo(
   c: CommanderData,
   market: ReturnType<typeof generateMarket>,
   dest: StarSystem,
+  living: LivingGalaxy,
 ): void {
   let best = -1;
   let bestScore = 0.5;
+  const expect = expectedPrices(dest, living);
   for (let i = 0; i < COMMODITIES.length; i++) {
     if (isContraband(i) || COMMODITIES[i].unit !== 't' || market[i].quantity <= 0) continue;
-    const margin = expectedPrice(dest, i) - market[i].price;
+    const margin = expect[i] - market[i].price;
     const cost = Math.round(market[i].price * 10);
     if (cost <= 0) continue;
     const units = Math.min(market[i].quantity, Math.floor(c.credits / cost),

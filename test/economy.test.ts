@@ -4,7 +4,7 @@
 // game.ts (invariant 10) precisely so they can be driven directly from here, and
 // so the headless campaign runs the same code the game does.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { newCommander, MAX_FUEL, killValue } from '../src/game/commander.ts';
 import { FUEL_PRICE, fuelNeeded, refuelCost, fuelQuote } from '../src/game/shop.ts';
 import { equipRows, renderMarket } from '../src/ui/screens.ts';
@@ -23,7 +23,7 @@ import {
   FUGITIVE_FINE,
 } from '../src/game/law.ts';
 import { generateGalaxy, generateMarket, COMMODITIES } from '../src/galaxy/galaxy.ts';
-import { hermitMarket } from '../src/game/contracts.ts';
+import { hermitMarket, marketEstimate, FLUCTUATIONS } from '../src/game/contracts.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import { makeRng } from '../src/game/rng.ts';
@@ -45,6 +45,67 @@ check('industrial food dearer than agricultural',
   leestiMarket[0].price > laveMarket[0].price);
 check('quantities stay within a byte-masked range',
   laveMarket.every((m) => m.quantity >= 0 && m.quantity <= 63));
+
+// --- the estimate a chart shows before you go -------------------------------
+//
+// The MARKET ESTIMATE panel and the campaign harness both carried the 1984
+// formula rewritten — out by over 5 Cr on 113 of the 4,352 system/commodity
+// rows, by 38.4 on Teanrebi Narcotics, and blind to living-galaxy pressure.
+
+console.log('\nmarket estimate');
+{
+  const flat = () => 1;
+  // every system and every commodity: the 4,352-row sweep, against the owner
+  let worst = 0, worstAt = '';
+  for (const sys of g1) {
+    const est = marketEstimate(sys, flat);
+    for (let i = 0; i < COMMODITIES.length; i++) {
+      let sum = 0;
+      for (let f = 0; f < FLUCTUATIONS; f++) sum += generateMarket(sys, f)[i].price;
+      const d = Math.abs(est[i].price - sum / FLUCTUATIONS);
+      if (d > worst) { worst = d; worstAt = `${sys.name} ${COMMODITIES[i].name}`; }
+    }
+  }
+  check(`every estimate is the true 256-fluctuation mean, to the tenth of a credit`
+    + ` it is quoted in (worst ${worst.toFixed(3)} Cr at ${worstAt})`, worst <= 0.05);
+
+  // ...and the range is a range: no visit lands outside it. Teanrebi Narcotics,
+  // the row the old formula read 38.4 Cr high, is why there is a range at all —
+  // the model wraps at 0xff there, so the mean describes no single visit.
+  const teanrebi = g1.find((s) => s.name === 'Teanrebi')!;
+  const inRange = [g1[7], leesti, teanrebi, g1[0], g1[201]].every((sys) =>
+    marketEstimate(sys, flat).every((m, i) => {
+      for (let f = 0; f < FLUCTUATIONS; f++) {
+        const p = generateMarket(sys, f)[i].price;
+        if (p < m.low || p > m.high) return false;
+      }
+      return true;
+    }));
+  check('every quote a system can roll falls inside the estimated range', inRange);
+  const narcotics = marketEstimate(teanrebi, flat)[6];
+  check('the byte wrap is in the estimate, not smoothed away by it',
+    narcotics.price < 60 && narcotics.low < 5 && narcotics.high > 95);
+
+  // pressure at the FAR end is part of the estimate, and the chart says so
+  const dear = marketEstimate(g1[7], (i) => (i === 0 ? 1.25 : 1));
+  const lave = marketEstimate(g1[7], flat);
+  check('the living galaxy moves the estimate, and only where it applies',
+    dear[0].price === +(lave[0].price * 1.25).toFixed(1) && dear[1].price === lave[1].price
+    && dear[0].high === +(lave[0].high * 1.25).toFixed(1));
+
+  // `mask` and `baseQuantity` mean nothing outside the price model, so naming
+  // one anywhere but galaxy.ts is a transcription starting.
+  const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
+      : /\.(ts|js)$/.test(e.name) ? [new URL(e.name, dir)] : []));
+  const offenders = ['../src/', '../test/']
+    .flatMap((d) => walk(new URL(d, import.meta.url)))
+    .filter((f) => !f.pathname.endsWith('galaxy/galaxy.ts')
+      && /\.\s*(mask|baseQuantity)\b/.test(readFileSync(f, 'utf8')))
+    .map((f) => f.pathname.split('/').slice(-2).join('/'));
+  check(`the price model has one home (${offenders.join(', ') || 'galaxy.ts only'})`,
+    offenders.length === 0);
+}
 
 // --- the hermit's tunnel ----------------------------------------------------
 //

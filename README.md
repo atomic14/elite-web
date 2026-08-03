@@ -154,7 +154,7 @@ joystick the original supported.
 | N / G | short range chart / galactic chart |
 | H / ⇧H | hyperspace jump / galactic hyperdrive (if fitted) |
 | B | distress beacon — GalCop tows you out of witch-space, for your cargo |
-| Y | jettison a tonne of cargo — pirates came for the goods, not for you |
+| Y / ⇧Y | jettison a tonne of cargo / five at once — pirates came for the goods, not for you |
 | I | commander status |
 | P | pause |
 | V | mouse flight — pointer-locked analogue stick, left button fires |

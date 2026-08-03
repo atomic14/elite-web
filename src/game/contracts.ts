@@ -1,5 +1,6 @@
-// Station bulletin-board contracts, the living-galaxy price nudge, and what a
-// rock hermit charges.
+// Station bulletin-board contracts, the living-galaxy price nudge, what a
+// rock hermit charges, and what a world you have not been to is expected to
+// pay.
 //
 // Pure functions, deliberately free of three.js and DOM so that both the
 // game (src/game/game.ts) and the headless campaign simulator
@@ -129,6 +130,73 @@ export function makeLocalMarket(
     // exactly the save-scum this game now has to be robust to
     generateMarket(system, randomInt(256)),
     priceMultiplier);
+}
+
+/**
+ * A quote you have not seen yet: the mean, the cheapest and the dearest the
+ * fluctuation byte can make it, with today's pressure on top.
+ */
+export interface MarketEstimate extends MarketEntry {
+  /** `price` is the MEAN over every fluctuation; these are its extremes. */
+  low: number;
+  high: number;
+}
+
+/** Every value the fluctuation byte can take, so the mean below is exact. */
+export const FLUCTUATIONS = 256;
+
+/**
+ * What a system is expected to quote, for a chart read before you go and for
+ * anything choosing a destination by margin.
+ *
+ * It runs `galaxy.ts`'s own model over every fluctuation and puts the living
+ * galaxy's pressure on top, which is exactly what the destination will quote.
+ * The chart renderer and the campaign harness each carried the 1984 formula
+ * rewritten instead, with the byte wrap around the wrong expression and no
+ * knowledge of pressure at all: 113 of the 4,352 system/commodity rows were
+ * out by more than 5 Cr, Teanrebi Narcotics by 38.4. A third copy had already
+ * been found wrong and fixed (`train/jameson-autopilot.js`) and these two were
+ * left, which is what a transcribed rule costs.
+ *
+ * Pressure goes on the summary rather than inside the loop because
+ * `applyMarketPressure` scales the price and is monotonic in it: scaling the
+ * mean is the mean of the scalings, and the cheapest quote stays the cheapest.
+ *
+ * A mean is not a price, which is why `low`/`high` come with it. Narcotics is
+ * the case that proves it: the model wraps at 0xff, so one fluctuation quotes
+ * near 100 Cr and the next near nothing, and a mean of 58 describes neither.
+ */
+export function marketEstimate(
+  system: StarSystem,
+  priceMultiplier: (commodity: number) => number,
+): MarketEstimate[] {
+  const sum = COMMODITIES.map(() => ({ price: 0, quantity: 0 }));
+  const low = COMMODITIES.map(() => Infinity);
+  const high = COMMODITIES.map(() => -Infinity);
+  for (let f = 0; f < FLUCTUATIONS; f++) {
+    const market = generateMarket(system, f);
+    for (let i = 0; i < market.length; i++) {
+      sum[i].price += market[i].price;
+      sum[i].quantity += market[i].quantity;
+      if (market[i].price < low[i]) low[i] = market[i].price;
+      if (market[i].price > high[i]) high[i] = market[i].price;
+    }
+  }
+  // The rows carry the mean; `low`/`high` ride through the same pressure step
+  // as a price, because that is what they are.
+  const mean = generateMarket(system, 0).map((m, i) => ({
+    ...m,
+    price: sum[i].price / FLUCTUATIONS,
+    quantity: sum[i].quantity / FLUCTUATIONS,
+  }));
+  const pressured = applyMarketPressure(mean, priceMultiplier);
+  const cheapest = applyMarketPressure(
+    mean.map((m, i) => ({ ...m, price: low[i] })), priceMultiplier);
+  const dearest = applyMarketPressure(
+    mean.map((m, i) => ({ ...m, price: high[i] })), priceMultiplier);
+  return pressured.map((m, i) => ({
+    ...m, low: cheapest[i].price, high: dearest[i].price,
+  }));
 }
 
 /**

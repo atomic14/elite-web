@@ -57,9 +57,10 @@ export function keymap(): Keymap {
 /**
  * Both layouts, for the manual page.
  *
- * CLAUDE.md lists four places key bindings live and asks for them to be
- * changed together; the manual would have been a fifth. It renders from this
- * instead, so it cannot drift — a binding changed here is changed there.
+ * CLAUDE.md's key-bindings invariant asks for one home per binding. The
+ * manual would have been another. It renders from this instead, so it cannot
+ * drift — a binding changed here is changed there, and the same is true of the
+ * command keys, which render from `BINDINGS` via `ui/key-help.ts`.
  */
 export function allLayouts(): Record<LayoutName, Keymap> {
   return LAYOUTS;

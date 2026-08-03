@@ -66,49 +66,35 @@
         <h1>HARMLESS &mdash; CONTROLS</h1>
         <div class="help-grid">
           <div>
+            <!--
+              The command rows are PAINTED, not written: ui/key-help.ts fills
+              every host below from `BINDINGS` and `COMMAND_HELP`, so this panel
+              cannot advertise a key the game does not have or miss one it does.
+              Hand-maintained, it missed four: the distress beacon, ⇧Y, and
+              contracts and the briefing on the docked table — and the first two
+              were in no in-game surface at all. The flight AXES stay here
+              because they change with the layout and keymap.ts rewrites them.
+            -->
             <h3>FLIGHT</h3>
             <table>
               <tr><td id="help-pitch">S / X &middot; &uarr; / &darr;</td><td id="help-pitch-desc">dive / climb (1984 style)</td></tr>
               <tr><td id="help-roll">, / . &middot; &larr; / &rarr;</td><td>roll</td></tr>
               <tr><td id="help-decel">SPACE &middot; /</td><td>accelerate &middot; decelerate</td></tr>
-              <tr><td>J</td><td>torus jump drive (8&times;)</td></tr>
-              <tr><td>Y</td><td>jettison cargo (buys off pirates)</td></tr>
-              <tr><td>P</td><td>pause</td></tr>
-              <tr><td>V</td><td>mouse flight (pointer lock)</td></tr>
-              <tr><td>1 2 3 4</td><td>front / rear / left / right view</td></tr>
-            </table>
-            <h3>COMBAT</h3>
-            <table>
               <tr><td id="help-fire">A (or F)</td><td>fire laser</td></tr>
-              <tr><td>T</td><td>arm missile (locks when a target enters your sights)</td></tr>
-              <tr><td>M</td><td>fire missile</td></tr>
-              <tr><td>U</td><td>unarm missile</td></tr>
-              <tr><td>E</td><td>E.C.M. <i>(if fitted)</i></td></tr>
-              <tr><td>TAB</td><td>energy bomb <i>(if fitted)</i></td></tr>
             </table>
+            <div id="help-flight"></div>
+            <h3>COMBAT</h3>
+            <div id="help-combat"></div>
+            <h3>NAVIGATION</h3>
+            <div id="help-navigation"></div>
+            <h3>ANY TIME</h3>
+            <div id="help-anywhere"></div>
           </div>
           <div>
-            <h3>NAVIGATION</h3>
-            <table>
-              <tr><td>N</td><td>short range chart</td></tr>
-              <tr><td>G</td><td>galactic chart</td></tr>
-              <tr><td>H</td><td>hyperspace to target</td></tr>
-              <tr><td>&#8679;H</td><td>galactic hyperdrive <i>(if fitted)</i></td></tr>
-              <tr><td>C</td><td>docking computer <i>(if fitted)</i></td></tr>
-              <tr><td>K</td><td>combat computer <i>(if fitted)</i></td></tr>
-              <tr><td>I</td><td>commander status</td></tr>
-            </table>
             <h3>DOCKED</h3>
-            <table>
-              <tr><td>L</td><td>launch</td></tr>
-              <tr><td>M</td><td>market prices</td></tr>
-              <tr><td>E</td><td>equip ship</td></tr>
-              <tr><td>N / G / I</td><td>charts &middot; status</td></tr>
-              <tr><td>T</td><td>combat training simulator</td></tr>
-              <tr><td>S</td><td>commander file &mdash; named saves and autosaves</td></tr>
-              <tr><td>X / Z</td><td>export &middot; import a save file</td></tr>
-              <tr><td>Q</td><td>new commander (asks first)</td></tr>
-            </table>
+            <div id="help-docked"></div>
+            <h3>NEW COMMANDER (Q, DOCKED)</h3>
+            <div id="help-confirm"></div>
             <h3>COMMANDER FILE (S, DOCKED)</h3>
             <table>
               <tr><td>S</td><td>save under a name &mdash; the same name replaces it, asking first</td></tr>
@@ -118,11 +104,11 @@
               <tr><td>&#9679;</td><td>the station checkpoint &mdash; written on docking and as you launch</td></tr>
             </table>
             <h3>AFTER A DEATH</h3>
-            <table>
-              <tr><td>ENTER</td><td>back to the station checkpoint you launched from</td></tr>
-              <tr><td>S</td><td>commander file &mdash; pick a save of your own instead</td></tr>
-            </table>
+            <div id="help-dead"></div>
             <h3>COMBAT SIMULATOR</h3>
+            <div id="help-simulator"></div>
+            <p class="note">Your ship flies exactly as it does outside, minus every way
+              out of the arena: no hyperspace, no beacon, no jettison, no docking computer.</p>
             <table>
               <tr><td>T</td><td>open it (docked) &mdash; free, at every station</td></tr>
               <tr><td>&uarr; &darr; &middot; &larr; &rarr;</td><td>pick a row &middot; change it</td></tr>
@@ -131,7 +117,6 @@
               <tr><td>R</td><td>random seed (blank = a fresh fight each launch)</td></tr>
               <tr><td>A / X</td><td>add &middot; remove a custom opponent group</td></tr>
               <tr><td>L</td><td>the last report, once you have flown one</td></tr>
-              <tr><td>ESC / Q</td><td>end the exercise &mdash; nothing in it reaches your career</td></tr>
               <tr><td>C / X</td><td>report: copy JSON &middot; export a file (&#8679;X all records)</td></tr>
               <tr><td>&larr; &rarr;</td><td>report: another record from the ring</td></tr>
               <tr><td>ENTER</td><td>report: compare two records &mdash; &larr;&rarr; picks the other,

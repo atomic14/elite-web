@@ -24,6 +24,7 @@ import type { Screen, ScreenOutcome, ScreenId } from '../../ui/screen-host.ts';
 import type { CommanderData } from '../commander.ts';
 import type { StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
+import { marketEstimate } from '../contracts.ts';
 import { sfx } from '../../audio.ts';
 
 export interface ChartContext {
@@ -35,6 +36,8 @@ export interface ChartContext {
   readonly chart: ChartState;
   /** remember which system the data screen should read about */
   viewData(sys: StarSystem): void;
+  /** the living galaxy's ±25% price pressure THERE, for the market estimate */
+  priceMultiplier(systemIndex: number, commodity: number): number;
 }
 
 export class ChartScreen implements Screen {
@@ -105,7 +108,12 @@ export class ChartScreen implements Screen {
       const near = this.underCursor();
       if (near) {
         this.estimate = true;
-        renderMarketEstimate(near, this.ctx().commander);
+        const ctx = this.ctx();
+        // contracts.ts owns what the estimate IS; this screen only asks for it
+        renderMarketEstimate(
+          near,
+          marketEstimate(near, (c) => ctx.priceMultiplier(near.index, c)),
+          ctx.commander);
       }
       return 'stay';
     }

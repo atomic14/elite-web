@@ -144,10 +144,28 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
    for a left/right symmetric hull and a different ship for an asymmetric one —
    and eight released designs are asymmetric, so the mirror had to go.
 8. **Money is integer tenths of a credit; fuel is tenths of a LY (max 70).**
-9. **Key bindings live in four places** and change together:
-   `engine/keymap.ts` (flight keys, classic and modern layouts), `BINDINGS` in
-   `game/controls.ts` (command keys, per mode), the `?` help panel in
-   `play.html`, and the README table.
+9. **A key binding has ONE home, and the surfaces that list it are rendered.**
+   `engine/keymap.ts` holds the flight axes (classic and modern); `BINDINGS` in
+   `game/controls.ts` holds the command keys, per mode; and `command-help.ts`
+   beside it holds the one line that says what each command DOES. That last
+   pair is welded by `Record<Command, CommandHelp>`, so a command with nothing
+   written down about it does not compile. The `?` panel in `play.html`, the
+   manual page and the docked menu are all painted from the pair by
+   `ui/key-help.ts` and hold no copy of a key.
+
+   This invariant used to say "four places, and they change together". They did
+   not: the panel and the manual between them missed the combat computer, the
+   energy bomb, the galactic jump and ⇧Y, and the **distress beacon** — which
+   hands GalCop your cargo — appeared in no in-game surface at all, while the
+   manual listed D as a flight key when it is bound only at the station. Six
+   homes, kept in step by hope, and the menu was the one with a click path.
+
+   The README is the one surface still written by hand, because it is prose for
+   somebody who has not launched the game. `test/key-help.test.ts` holds it to
+   the table in both directions — every bound key listed, nothing listed that is
+   not bound — and asserts that every binding in every mode lands in exactly one
+   section of the `?` guide, and that every docked binding is a menu row or a
+   keyline entry.
 10. **Economic rules live in `game/contracts.ts`**, not `game.ts`, so the
     headless campaign runs the same code the game does. Likewise prices in
     `shop.ts`, contraband and fines in `law.ts`.
@@ -308,7 +326,7 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
   (`flight`, `geometry`, `npc`, `systems`, `combat`, `gunnery`,
   `instrumentation`, `damage-paths`, four `elite-a-*`, `ship-identity`,
   `ship-roles`, `role-variants`), the brains (`ai`, `combat-model`, `arena`),
-  the shell (`ui`, `hud-binding`, `audio`) and six for the combat trainer.
+  the shell (`ui`, `key-help`, `hud-binding`, `audio`) and six for the combat trainer.
   `test/run.ts` is an INDEX that imports them all and prints one total;
   `test/elite-a.ts` is a second index over the alignment-critical subset, with
   no assertions of its own. `harness.ts` holds `check`, `fixtures.ts` holds

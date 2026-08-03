@@ -12,7 +12,7 @@ import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';
 import { kindLabel, type SaveSummary } from '../game/save-file.ts';
-import { describeContract } from '../game/contracts.ts';
+import { describeContract, type MarketEstimate } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import {
   PASS_CLOSE, PASS_FAR, type CombatSimReport, type OpeningGeometry, type WaveEscalation,
@@ -22,6 +22,11 @@ import type {
 } from '../game/combat-sim-compare.ts';
 import type { SimSetupPanel, SimSetupRow } from '../game/screens/combat-sim-setup.ts';
 import { elementById, inertElement } from '../engine/inert-dom.ts';
+// The station menu's rows ARE the docked binding table — see ui/key-help.ts.
+// Writing them out here made a sixth home for a key, and the one with a click
+// path: `data-key` becomes a keystroke, so a hand-written row could advertise a
+// key nothing was bound to and it looked alive right up to the click.
+import { dockedMenuHtml } from './key-help.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.
@@ -64,19 +69,7 @@ export function renderDockedMenu(sys: StarSystem, c: CommanderData, missionText 
       ${formatCredits(c.credits)} &middot; FUEL ${(c.fuel / 10).toFixed(1)} LY &middot; MISSILES ${c.missiles}
       ${missionText ? `<br/><span style="color:var(--hud-amber)">${missionText}</span>` : ''}
     </div>
-    <div class="menu">
-      <div data-key="KeyL"><b>L</b> LAUNCH</div>
-      <div data-key="KeyM"><b>M</b> MARKET PRICES</div>
-      <div data-key="KeyC"><b>C</b> CONTRACTS</div>
-      <div data-key="KeyE"><b>E</b> EQUIP SHIP</div>
-      <div data-key="KeyN"><b>N</b> LOCAL CHART</div>
-      <div data-key="KeyG"><b>G</b> GALACTIC CHART</div>
-      <div data-key="KeyD"><b>D</b> DATA ON SYSTEM</div>
-      <div data-key="KeyI"><b>I</b> COMMANDER STATUS</div>
-      <div data-key="KeyT"><b>T</b> COMBAT TRAINING</div>
-      <div data-key="KeyH"><b>H</b> NEW PILOT'S BRIEFING</div>
-    </div>
-    <div class="keyline">? CONTROLS GUIDE &middot; B KEYBOARD LAYOUT &middot; S COMMANDER FILE &middot; X EXPORT &middot; Z IMPORT &middot; Q NEW COMMANDER</div>
+    ${dockedMenuHtml()}
   `);
 }
 
@@ -739,28 +732,35 @@ export function drawLocalChart(
 }
 
 /**
- * Market estimate for a system you haven't visited: expected prices/stock
- * (mean over the fluctuation byte). Opened from the charts with M.
+ * Market estimate for a system you haven't visited. Opened from the charts
+ * with M.
+ *
+ * A painter: `contracts.ts` owns what the numbers ARE (`marketEstimate`), and
+ * this used to transcribe the 1984 price formula instead of asking for them.
+ * What it draws is a distribution rather than a price — the AVERAGE of every
+ * quote the system can roll, and the range those quotes span — so the column
+ * headings say average and range, and no row promises a number the destination
+ * will honour on the day.
  */
-export function renderMarketEstimate(sys: StarSystem, c: CommanderData): void {
-  const rows = COMMODITIES.map((cm, i) => {
-    const price = ((cm.basePrice + cm.mask / 2 + sys.economy * cm.gradient) & 0xff) * 0.4;
-    let qty = (cm.baseQuantity + cm.mask / 2 - sys.economy * cm.gradient) & 0xff;
-    if (qty & 0x80) qty = 0;
-    qty &= 0x3f;
-    const inHold = c.cargo[i] > 0 ? `${c.cargo[i]}${cm.unit}` : '-';
-    return `<tr><td>${cm.name.toUpperCase()}</td><td class="num">~${price.toFixed(1)}</td>` +
-      `<td class="num">~${qty}${cm.unit}</td><td class="num">${inHold}</td></tr>`;
+export function renderMarketEstimate(
+  sys: StarSystem, est: MarketEstimate[], c: CommanderData,
+): void {
+  const rows = est.map((m, i) => {
+    const inHold = c.cargo[i] > 0 ? `${c.cargo[i]}${m.unit}` : '-';
+    return `<tr><td>${m.name.toUpperCase()}</td><td class="num">${m.price.toFixed(1)}</td>` +
+      `<td class="num">${m.low.toFixed(1)}&ndash;${m.high.toFixed(1)}</td>` +
+      `<td class="num">${m.quantity}${m.unit}</td><td class="num">${inHold}</td></tr>`;
   }).join('');
   show(`
     <h2>${sys.name.toUpperCase()} — MARKET ESTIMATE</h2>
     <div class="rule"></div>
     <div class="info" style="text-align:center">
       ${ECONOMY_NAMES[sys.economy]} &middot; ${GOVERNMENT_NAMES[sys.government]} &middot;
-      expected values; actual prices fluctuate per visit
+      averaged over every price this market can roll &mdash; one visit lands
+      somewhere in the range
     </div>
     <table>
-      <tr><th>PRODUCT</th><th class="num">EST. PRICE (Cr)</th><th class="num">EST. STOCK</th><th class="num">IN HOLD</th></tr>
+      <tr><th>PRODUCT</th><th class="num">AVG PRICE (Cr)</th><th class="num">RANGE (Cr)</th><th class="num">AVG STOCK</th><th class="num">IN HOLD</th></tr>
       ${rows}
     </table>
     <div class="buttons"><button data-key="Escape">BACK TO CHART</button></div>

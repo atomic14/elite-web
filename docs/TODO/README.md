@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **9 / 11 complete**. Five reviewers with separate lenses; every
+Progress: **10 / 11 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -112,6 +112,19 @@ click path — are painted from that pair by `ui/key-help.ts` and hold no copy o
 a key, which is three homes gone and the two undocumented keys (the distress
 beacon, ⇧Y) documented everywhere at once. The README is the one surface left
 in prose, and `test/key-help.test.ts` holds it to the table in both directions.
+
+51 is done. The MARKET ESTIMATE panel and the campaign harness each carried the
+1984 price formula rewritten; `contracts.ts`'s `marketEstimate` runs
+`galaxy.ts`'s own model over all 256 fluctuations with the living galaxy's
+pressure on top, and both call it. The old expression was out by more than 5 Cr
+on 113 of the 4,352 system/commodity rows and by 38.4 on Teanrebi Narcotics; the
+sweep is now exact to the tenth of a credit the game quotes in. The screen also
+says what it is: an AVERAGE with the RANGE its rolls span, because the mean of a
+market that wraps at 0xff describes no single visit. Trade decisions moved, as
+they had to — a trader's median net worth 7426.6 → 7577.4 Cr, cash in hand 331.9
+→ 764.1, 37/40 → 38/40 solvent. `npm run campaign -- 40 60 all` has one failing
+check in the BOUNTY HUNTER cohort, and it fails identically before and after: a
+hunter buys no cargo, so its figures are byte-identical either way.
 
 Order: 49 is why several of these survived — 46 is item 1 on its list, a guard
 that greps persistence.ts for a field NAME while the value is clobbered four

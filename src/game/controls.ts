@@ -12,8 +12,11 @@
 // So this is the same move for the discrete half. This file DECIDES what was
 // asked for and reports `Command`s; game.ts's `runCommand` applies them. The
 // tables below are the half of CLAUDE.md's KEY-BINDINGS INVARIANT that used to
-// be code — the other three homes are `engine/keymap.ts`, the `?` help panel in
-// play.html, and the README table, and a key that changes here changes there.
+// be code, and they are now the only home of a command key: what each one DOES
+// is `command-help.ts` next door, welded to this file by `Record<Command, …>`,
+// and the `?` panel, the manual page and the station menu are all RENDERED from
+// the pair (`ui/key-help.ts`). `engine/keymap.ts` owns the flight axes; the
+// README is prose, and `test/key-help.test.ts` holds it to this table.
 //
 // It reads an INPUT, not a browser: `CommandInput` is the two methods a
 // binding needs, `engine/input.ts` satisfies it structurally, and a replay or
@@ -194,39 +197,47 @@ export const NOT_IN_THE_SIMULATOR: readonly Command[] = [
 
 /**
  * The binding table. This IS the key map for commands — see CLAUDE.md's
- * key-bindings invariant for the three other places bindings live, all of which
- * must change with it.
+ * key-bindings invariant, and `command-help.ts` for what each one does.
  */
 export const BINDINGS: Record<ControlMode, readonly Binding[]> = {
-  /** The station menu: trade, outfit, take work, and leave. */
+  /**
+   * The station menu: trade, outfit, take work, and leave.
+   *
+   * In MENU ORDER, and that is load-bearing rather than tidy: `ui/key-help.ts`
+   * builds the menu's rows and the keyline under them straight from this list,
+   * so the order here is the order on screen. Nothing else depends on it — no
+   * two docked bindings share a key, so the first-match scan cannot see the
+   * difference — which is why the rows can be arranged for a player.
+   */
   docked: [
     { key: 'KeyL', command: 'launch' },
     { key: 'KeyM', command: 'openMarket' },
     { key: 'KeyC', command: 'openContracts' },
     { key: 'KeyE', command: 'openEquip' },
+    { key: 'KeyN', command: 'openLocalChart' },
+    { key: 'KeyG', command: 'openChart' },
+    // The menu has advertised "D DATA ON SYSTEM" all along with nothing behind
+    // it while docked — the only KeyD handlers were on the charts and the save
+    // screen. Reports the system you are standing on.
+    { key: 'KeyD', command: 'openSystemData' },
+    { key: 'KeyI', command: 'openStatus' },
+    // T for TRAINING. Free on this menu, and it arms a missile in FLIGHT —
+    // which is the established per-mode convention, not a clash: C is contracts
+    // docked and the docking computer in flight, M is the market docked and
+    // launch-missile in flight. The tables are per mode.
+    { key: 'KeyT', command: 'openCombatSim' },
+    { key: 'KeyH', command: 'openBriefing' },
+    // --- the keyline under the menu: bound here, but not rows you arrow onto -
+    { key: 'KeyB', command: 'toggleLayout' },
+    { key: 'KeyS', command: 'openSaves' },
+    { key: 'KeyX', command: 'exportSave' },
+    { key: 'KeyZ', command: 'importSave' },
     // Q, not a shifted N. ⇧N shared a key with the local chart, and cancelling
     // the confirm with N while still holding shift re-opened it on the very
     // next tap — you could get stuck in a loop you couldn't type your way out
     // of. A destructive action should not share a key with anything, modifier
     // or not.
     { key: 'KeyQ', command: 'askNewGame' },
-    { key: 'KeyH', command: 'openBriefing' },
-    { key: 'KeyS', command: 'openSaves' },
-    { key: 'KeyN', command: 'openLocalChart' },
-    { key: 'KeyG', command: 'openChart' },
-    { key: 'KeyI', command: 'openStatus' },
-    // The menu has advertised "D DATA ON SYSTEM" all along with nothing behind
-    // it while docked — the only KeyD handlers were on the charts and the save
-    // screen. Reports the system you are standing on.
-    { key: 'KeyD', command: 'openSystemData' },
-    // T for TRAINING. Free on this menu, and it arms a missile in FLIGHT —
-    // which is the established per-mode convention, not a clash: C is contracts
-    // docked and the docking computer in flight, M is the market docked and
-    // launch-missile in flight. The tables are per mode.
-    { key: 'KeyT', command: 'openCombatSim' },
-    { key: 'KeyX', command: 'exportSave' },
-    { key: 'KeyZ', command: 'importSave' },
-    { key: 'KeyB', command: 'toggleLayout' },
   ],
 
   /** The confirmation swallows every other key — that is the whole point of it. */
