@@ -13,13 +13,15 @@ import {
   type Brain, type ObservableMate,
 } from '../ai-training/policy.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
-import { BREAK_OFF_RANGE } from './break-off.ts';
-import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
-import type { BrainSelection } from './brain-names.ts';
 import {
-  npcPrefersMissile, npcMissileLastStand, npcTriggerPull, npcWeaponByte,
-  MISSILE_RELOAD, THARGOID_FIRE_RATE,
-} from './gunnery.ts';
+  UNDER_FIRE_SECONDS, PASS_MISS_DISTANCE,
+  EXTEND_RANGE_MAX, nextAttackPhase, closingThrottle, rollExtendRange, type AttackPhase,
+} from './break-off.ts';
+import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
+import { separationFrom, SEPARATION_PUSH } from './separation.ts';
+import type { BrainSelection } from './brain-names.ts';
+import { npcTriggerPull, npcWeaponByte, THARGOID_FIRE_RATE } from './gunnery.ts';
+import { npcMissileEmergency, MISSILE_RELOAD } from './missile-launch.ts';
 import {
   energyAfterDamage, isDestroyed, npcEnergyPolicy, playerLaserDamage,
   regeneratedEnergy, type NpcEnergyPolicy,
@@ -132,6 +134,50 @@ export interface NpcState {
   /** Mission flag: destroying this advances the Constrictor hunt. */
   isMissionTarget: boolean;
   fleeing: boolean;
+  /** where this ship is in its attack run — see break-off.ts */
+  attackPhase: AttackPhase;
+  /**
+   * Which flight actually moved this ship last step — a trained policy, or the
+   * scripted attack run.
+   *
+   * Reported, never read by a rule, and it exists because the readout without
+   * it LIED. `attackPhase` is only touched inside `attack()`, so a brain-flown
+   * pirate left it at whatever it was and the trainer's new "spent its time"
+   * column read `closing 45s` for a ship that had not run the closing logic
+   * once in 45 seconds. A field that says which flight ran is the honest
+   * version, and it costs nothing to snapshot because NpcState is walked
+   * generically.
+   */
+  flownBy: 'brain' | 'scripted';
+  /** seconds of evasive flying left after the last hit taken — see break-off.ts */
+  underFire: number;
+  /**
+   * How far out THIS run goes before turning back, rolled from the band in
+   * break-off.ts every time the ship starts extending.
+   *
+   * It is state for the same reason `hasEcm` is: a shake of the dice decides
+   * what the ship does next, so it cannot be re-derived on restore — by then
+   * the stream is somewhere else entirely.
+   */
+  extendRange: number;
+  /** which side this run passes on, +1 or -1, re-rolled with extendRange */
+  passSide: number;
+  /**
+   * Completed attack runs, over this ship's whole life.
+   *
+   * A missile costs money and there is no resupply, so a ship spends one when
+   * the fight is going badly rather than when the geometry is convenient — and
+   * "I have flown at this twice and it is still there" is how a ship finds that
+   * out. See `npcMissileEmergency`.
+   *
+   * NOT per-target, and deliberately not: a pirate that harried a trader and
+   * then turned on the commander has still spent its afternoon failing to kill
+   * things, which is the disposition this is standing in for. Making it
+   * per-target would mean carrying the target's identity in the state as well,
+   * to reset against — a second field to keep in step for a distinction the
+   * rule does not actually draw.
+   */
+  passesMade: number;
   /** Thargons go inert when their mothership dies. */
   inert: boolean;
   tradeTimer: number;
@@ -195,12 +241,41 @@ export interface PlayerRef {
  * 160 while a Dodo uses 135. Keeping it in this per-step view means a ship
  * cannot accidentally remember a value supplied by an earlier caller.
  */
+/**
+ * How many of this ship's gang are already dead.
+ *
+ * "The opponent turned out to be tougher than you thought" has an outside
+ * signal as well as an inside one: a wingman not coming home says it before
+ * your own hull does. Counted off the fleet at the moment it is asked rather
+ * than latched, so a ship that arrives late to a fight already in progress
+ * reads the same situation as one that has been there throughout.
+ */
+export function matesLost(view: WorldView): number {
+  let lost = 0;
+  for (const s of view.fleet) if (!s.state.alive) lost += 1;
+  return lost;
+}
+
 export interface WorldView {
   station: THREE.Object3D;
   dockZ: number;
   fleet: readonly NpcShip[];
   /** 0 clean, 1 offender, 2 fugitive */
   playerLegal: number;
+  /**
+   * Is a hostile missile ALREADY homing on the player?
+   *
+   * One in the air at a time, across the whole gang. E.C.M. destroys every
+   * missile in flight in one burst for a quarter of the bank, so it is a
+   * complete answer to one missile and no answer at all to five — which is how
+   * a wave-13 gang put three through in nine seconds. Capping the air makes the
+   * counterplay the player already owns actually work, and it costs the gang
+   * nothing it can see: a ship that would have launched fires its gun instead.
+   *
+   * It lives on the view rather than being read off the world because a ship
+   * decides and reports; `game.ts` supplies what the ship is allowed to know.
+   */
+  missileInbound: boolean;
   brains: BrainSelection;
 }
 
@@ -328,6 +403,9 @@ export class NpcShip {
   readonly accel: number;
   private readonly tmpDir = new THREE.Vector3();
   private readonly tmpDir2 = new THREE.Vector3();
+  private readonly tmpSide = new THREE.Vector3();
+  private readonly tmpAway = new THREE.Vector3();
+  private readonly mateSlots: THREE.Vector3[] = [];
   private readonly tmpMat = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
@@ -430,7 +508,9 @@ export class NpcShip {
       tumbleAxis: randomDirection(new THREE.Vector3()),
       energy: this.maxEnergy, regenCarry: 0,
       alive: true, provoked: false, provokedByPlayer: false, missiles: 0,
-      isMissionTarget: false, fleeing: false, inert: false, tradeTimer: 0,
+      isMissionTarget: false, fleeing: false, attackPhase: 'closing', underFire: 0, flownBy: 'scripted',
+      extendRange: EXTEND_RANGE_MAX, passSide: 1, passesMade: 0,
+      inert: false, tradeTimer: 0,
       wantsDespawn: false, docked: false, docking: false, organised: false,
       satisfied: false, threatTier: 0, speed: 0, fireCooldown: 0, missileReload: 0,
       waypointTimer: 0, brainTimer: 0, brainPitchRate: 0, brainRollRate: 0,
@@ -553,13 +633,16 @@ export class NpcShip {
           choice.pack ? fleet : null)
         // Inside knife range the scripted break-off takes over the FLYING — and
         // only the flying, since attack() keeps its gun. See break-off.ts.
-        : this.attack(dt, player.position, distPlayer, true);
-      return this.chooseWeapon(shot, dt, distPlayer, player.position);
+        : this.attack(dt, player.position, distPlayer, true, undefined, view.fleet);
+      return this.chooseWeapon(shot, dt, distPlayer, player.position, view, matesLost(view));
     }
 
     if (this.npcTarget && this.npcTarget.state.alive) {
       const d = this.npcTarget.object.position.distanceTo(this.object.position);
-      if (d < 7000) return this.attack(dt, this.npcTarget.object.position, d, false, this.npcTarget);
+      if (d < 7000) {
+        return this.attack(
+          dt, this.npcTarget.object.position, d, false, this.npcTarget, view.fleet);
+      }
       this.npcTarget = null;
     }
 
@@ -779,6 +862,7 @@ export class NpcShip {
      */
     fleet: readonly NpcShip[] | null = null,
   ): FireEvent | null {
+    this.state.flownBy = 'brain';
     this.state.brainTimer -= dt;
     if (!this.brainControl || this.state.brainTimer <= 0) {
       this.state.brainTimer = 0.1;
@@ -864,6 +948,14 @@ export class NpcShip {
     dist: number,
     isPlayer: boolean,
     npcTarget?: NpcShip,
+    /**
+     * The ships around this one, for keeping out of their way.
+     *
+     * Optional and defaulting to nothing, so every existing caller — the
+     * trainer among them — keeps working and simply flies without wingman
+     * avoidance, which is exactly right for a one-on-one episode.
+     */
+    fleet: readonly NpcShip[] = [],
   ): FireEvent | null {
     // WHERE TO BE and WHETHER TO SHOOT are two decisions, and this used to be
     // one. Inside the break-off the ship turned away and `return null`ed, so
@@ -871,18 +963,84 @@ export class NpcShip {
     // ship, bounty hunter, Thargoid and knife-range pirate went silent at the
     // range a human actually fights at. See break-off.ts, which owns the
     // distance and the argument.
-    if (dist < BREAK_OFF_RANGE) {
-      // break off before ramming — and keep shooting while doing it
-      this.steerToward(
-        this.tmpDir.copy(this.object.position).multiplyScalar(2).sub(targetPos), dt);
-      this.state.speed = approach(this.state.speed, this.maxSpeed * 0.8, this.accel * dt);
+    // An attack run has three parts and this used to have two. The missing one
+    // was the pass itself: inside BREAK_OFF_RANGE the ship steered to
+    // `own * 2 - target` — directly away, a 180 — which no hull in the roster
+    // can complete in the room 220 units leaves, so it flew through instead.
+    // break-off.ts has the arithmetic and Chris's account of flying it.
+    this.state.flownBy = 'scripted';
+    this.state.underFire = Math.max(0, this.state.underFire - dt);
+    const wasPhase = this.state.attackPhase;
+    this.state.attackPhase = nextAttackPhase(
+      this.state.attackPhase, dist, this.state.underFire > 0, this.state.extendRange);
+    if (this.state.attackPhase === 'extending' && wasPhase !== 'extending') {
+      // A NEW run, so re-roll how far this one goes and which side the next
+      // pass steps off to. Rolling here rather than at spawn is the difference
+      // between a gang that destaggers and a gang of individually predictable
+      // ships — see break-off.ts.
+      this.state.extendRange = rollExtendRange(random());
+      this.state.passSide = random() < 0.5 ? -1 : 1;
+      // Reaching `extending` is what it MEANS to have completed a pass: the
+      // ship closed, went through, and came out the other side.
+      this.state.passesMade += 1;
+    }
+    if (this.state.attackPhase === 'passing') {
+      // GO THROUGH. No steering toward or away from the TARGET: the heading
+      // that got here is already the one that carries it past, and turning now
+      // is what caused the collision. Throttle up so the pass is short and it
+      // is not a sitting target on the way out. The gun below still fires.
+      //
+      // The one exception is a WINGMAN about to be hit, and it is the reason
+      // separation.ts exists: a phase that steers for nothing is blind to
+      // everything, and several ships converging on one target arrive in the
+      // same volume at the same moment by construction. Measured, the only
+      // ship-on-ship collision in 40 eight-ship engagements had both of them
+      // here. The nudge is scaled by urgency, so it is nothing at all until a
+      // mate is genuinely close and the committed line survives.
+      const near = separationFrom(this.object.position, this.matePositions(fleet), this.tmpAway);
+      if (near > 0) {
+        this.steerToward(
+          this.tmpDir.copy(this.object.position)
+            .addScaledVector(this.tmpAway, SEPARATION_PUSH * near), dt);
+      }
+      this.state.speed = approach(this.state.speed, this.maxSpeed, this.accel * dt);
+    } else if (this.state.attackPhase === 'extending') {
+      // Past it and opening the range. Hold the run out to its rolled range,
+      // `nextAttackPhase` puts it back on `closing` and it comes round again.
+      this.state.speed = approach(this.state.speed, this.maxSpeed, this.accel * dt);
     } else {
       // pack ships approach offset bearings until close, then converge
-      const aim = dist > 900
+      const aim = dist > this.state.extendRange
         ? this.tmpDir.copy(targetPos).add(this.state.packOffset)
-        : this.tmpDir.copy(targetPos);
+        // AIM BESIDE IT, not at it. The pass commits to whatever heading the
+        // closing phase built, so a run aimed at the hull commits to a
+        // collision — measured at 104 points of contact damage an episode
+        // against 5 for the old orbit. See PASS_MISS_DISTANCE.
+        //
+        // The offset is perpendicular to the run and lies in the attacker's own
+        // roll plane, so it is a sidestep from the pilot's point of view rather
+        // than a world-axis one, and it turns with the ship instead of swapping
+        // sides as the geometry crosses an axis.
+        : this.tmpDir.copy(targetPos).addScaledVector(
+          this.passOffset(targetPos), PASS_MISS_DISTANCE);
+      // ...and bend that line away from any wingman in the way, so a gang picks
+      // different runs in rather than discovering each other at the merge.
+      // Prevention; the nudge in `passing` above is the cure.
+      const crowd = separationFrom(this.object.position, this.matePositions(fleet), this.tmpAway);
+      if (crowd > 0) aim.addScaledVector(this.tmpAway, SEPARATION_PUSH * crowd);
       this.steerToward(aim, dt);
-      this.state.speed = approach(this.state.speed, dist > 700 ? this.maxSpeed : this.maxSpeed * 0.45,
+      // Throttle off the HEADING ERROR, not off the range. A ship pointed at
+      // what it is attacking runs in flat out; one that has to come round —
+      // the turn-in at EXTEND_RANGE is exactly that — backs off, which halves
+      // its turn radius and slows the rate it has to track. break-off.ts has
+      // the arithmetic, including why this buys no extra rad/s.
+      //
+      // The angle is to `targetPos` and NOT to `aim`, for two reasons. It is
+      // the honest question — how far off is my nose from the thing I am
+      // attacking — and `aim` is `this.tmpDir`, which `facing()` also uses as
+      // its scratch, so passing it in would zero the very vector being read.
+      this.state.speed = approach(
+        this.state.speed, this.maxSpeed * closingThrottle(this.facing(targetPos)),
         this.accel * dt);
     }
     this.advance(dt);
@@ -925,6 +1083,7 @@ export class NpcShip {
    */
   private chooseWeapon(
     shot: FireEvent | null, dt: number, dist: number, targetPos: THREE.Vector3,
+    view: WorldView, matesLost: number,
   ): FireEvent | null {
     if (this.state.missiles <= 0) return shot;
     this.state.missileReload = Math.max(0, this.state.missileReload - dt);
@@ -934,10 +1093,15 @@ export class NpcShip {
     // happens. It falls back to 1 (untouched) rather than 0 for a bankless
     // ship, because a divide-by-zero guard that reported "nearly dead" would
     // make it empty its rack.
-    if (npcMissileLastStand(this.healthFraction, dist, this.facing(targetPos))
-        // ...or the old opportunistic launch, taken instead of a bolt it was
-        // about to fire anyway.
-        || (shot !== null && shot.at === 'player' && npcPrefersMissile(dist, random()))) {
+    // ONE IN THE AIR AT A TIME, gang-wide. Checked before the reasons so a ship
+    // that would have launched keeps its missile AND fires its gun — the gang
+    // loses nothing except the ability to saturate a countermeasure that only
+    // gets one press.
+    if (view.missileInbound) return shot;
+    if (npcMissileEmergency(
+      this.healthFraction, this.state.passesMade, matesLost,
+      dist, this.facing(targetPos),
+    )) {
       this.state.missileReload = MISSILE_RELOAD;
       return { at: 'player', weapon: 'missile' };
     }
@@ -961,6 +1125,47 @@ export class NpcShip {
       .applyQuaternion(this.object.quaternion)
       .multiplyScalar(this.radius * 0.9)
       .add(this.object.position);
+  }
+
+  /**
+   * Where this ship's neighbours are, as a reused array.
+   *
+   * Everything solid and alive except itself and the thing it is attacking:
+   * a hull is a hull, so a trader minding its own business is as much of an
+   * obstacle as a wingman. The array is an instance field rather than a fresh
+   * one because this runs per ship per frame.
+   */
+  private matePositions(fleet: readonly NpcShip[]): readonly THREE.Vector3[] {
+    const out = this.mateSlots;
+    out.length = 0;
+    for (const m of fleet) {
+      if (m === this || !m.state.alive || m.state.inert) continue;
+      out.push(m.object.position);
+    }
+    return out;
+  }
+
+  /**
+   * A unit vector to one side of the run in, for the attack run to aim at.
+   *
+   * Perpendicular to the line to the target and lying in the attacker's own
+   * roll plane: it is the ship's local +X with the along-the-run component
+   * taken out. Two consequences, and both are why it is derived rather than
+   * stored. It turns WITH the ship, so a rolling attacker keeps sidestepping
+   * the same way instead of flipping sides as the world geometry crosses an
+   * axis; and it needs no state, so nothing new has to be snapshotted for a
+   * reload to fly the same run.
+   *
+   * Degenerate only if the ship is looking exactly along its own +X, which its
+   * nose is +Z and cannot be; the guard is there because a normalize of a zero
+   * vector is a NaN that would propagate into the position.
+   */
+  private passOffset(targetPos: THREE.Vector3): THREE.Vector3 {
+    const to = this.tmpDir2.copy(targetPos).sub(this.object.position).normalize();
+    const side = this.tmpSide.set(1, 0, 0).applyQuaternion(this.object.quaternion);
+    side.addScaledVector(to, -side.dot(to));
+    const len = side.length();
+    return len > 1e-4 ? side.multiplyScalar(this.state.passSide / len) : side.set(0, 0, 0);
   }
 
   /**
@@ -1029,6 +1234,10 @@ export class NpcShip {
    */
   takeDamage(points: NpcEnergyPoints, from?: THREE.Vector3, byPlayer = false): boolean {
     this.state.provoked = true;
+    // Being hit is being hit, whatever hit it — this is the one place every
+    // source funnels through (damage-dealt.ts routes lasers, ordnance and rams
+    // here), so the attack run reacts to all of them and not just to gunfire.
+    this.state.underFire = UNDER_FIRE_SECONDS;
     if (byPlayer) this.state.provokedByPlayer = true;
     if (from && this.role === 'trader') {
       this.state.fleeFrom.copy(from);

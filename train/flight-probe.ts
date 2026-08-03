@@ -66,6 +66,7 @@ import {
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { IMPACT } from '../src/game/impact-damage.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
+import { describeFlight } from '../src/game/break-off.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
 
@@ -190,6 +191,8 @@ export function probeEpisode(
       dist: gap.copy(target.pos).sub(p.pos).length(),
       speed: p.speed,
       theirAim: aimAngle(p.pos, p.quat, target.pos),
+      doing: describeFlight(
+        p.npc.state.attackPhase, p.npc.state.underFire, p.npc.state.fleeing, p.npc.state.flownBy),
       yourAim: aimAngle(target.pos, target.quat, p.pos),
     }] : [])),
   });

@@ -32,6 +32,7 @@ import {
 // fixed. See break-off.ts.
 import { BRAIN_HANDOVER_RANGE } from './break-off.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
+import candidateBrainFile from '../ai-training/brains/pirate-attack-e1.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
 
@@ -96,6 +97,21 @@ export const DEFEND_BRAIN: Brain | null = (() => {
  *
  * Set `state.brains.pack = true` to fly it and judge for yourself.
  */
+/**
+ * The candidate under comparison: `pirate-attack-e1`, the only solo policy that
+ * reliably breaks off (0.93 completed passes an episode against the shipped
+ * brain's 0.00). Restored from 15330cb for TODO 61 — see brain-names.ts
+ * `BrainSelection.passes`. Not shipped, and not meant to stay a permanent
+ * option: it is promoted or it goes.
+ */
+const CANDIDATE_BRAIN: Brain | null = (() => {
+  try {
+    return brainFromFile(candidateBrainFile as unknown as BrainFile);
+  } catch {
+    return null;
+  }
+})();
+
 const PACK_BRAIN: Brain | null = (() => {
   try {
     return brainFromFile(packBrainFile as unknown as BrainFile);
@@ -116,6 +132,7 @@ const PACK_BRAIN: Brain | null = (() => {
  */
 const LOADED: Record<BrainName, Brain | null> = {
   'pirate-attack-g3': PIRATE_BRAIN,
+  'pirate-attack-e1': CANDIDATE_BRAIN,
   'pirate-pack-r4-selectonly': PACK_BRAIN,
   'jameson-defend-g1': DEFEND_BRAIN,
   // the pre-neuroevolution AI is code, not weights
@@ -202,6 +219,13 @@ export function pirateBrainFor(
   // shipped solo policy — and takes `pack` with it, because feeding 18 pack
   // observations to a 14-input solo net is worse than flying the wrong brain.
   const name = pirateBrainNameFor(tier, organised, sel);
+  // `scripted` is a NAME, not only a flag, and it has to be answered here or it
+  // is answered wrongly: the fallback below turns an unloadable name into the
+  // shipped solo policy, which is right for a file that failed to parse and
+  // exactly backwards for a policy that is deliberately not a file. Since
+  // SHIPPED_SOLO became 'scripted', getting this wrong would have silently
+  // shipped the brain it replaced.
+  if (name === 'scripted') return null;
   const loaded = LOADED[name];
 
   return {

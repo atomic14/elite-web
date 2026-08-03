@@ -324,7 +324,7 @@ To keep it that way:
   everybody), see `BrainSelection` in `game/brain-names.ts` — and `state.cheat`
   fits anything from the catalogue free. They were five `window.__` flags; a rule
   read from ambient state is not in the snapshot, so a reload changed the game. In
-  game, the **LIVE BRAINS (COMMANDER)** row on the combat trainer's setup panel (`T`
+  game, the **CHANGE THE DEFAULT ENEMY AI** row on the combat trainer's setup panel (`T`
   at any station) picks one; from a console go through the handle:
   `__game.state.brains.pack = true`. A save carrying one of the six flags TODO 57
   deleted still loads, is not migrated, and flies the shipped brains — the row

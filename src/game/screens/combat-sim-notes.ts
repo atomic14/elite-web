@@ -21,7 +21,7 @@ import {
   WAVE_SATURATION, WAVE_STEPS, waveOfStage, type SimMode,
 } from '../combat-sim-scenarios.ts';
 import {
-  AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, LIVE_BRAIN_IDS, brainCharacter, brainName,
+  AS_SHIPPED, AS_THE_GAME_FLIES, LIVE_BRAIN_IDS, brainCharacter, brainName,
   type LiveBrainId,
 } from '../brain-names.ts';
 import type { SimDraft } from './combat-sim-setup.ts';
@@ -132,7 +132,7 @@ const NO_OVERRIDE = 'NOTHING IS SWAPPED OUT FOR THIS FIGHT — EVERY SHIP FLIES 
  * pilot reads — the file stems follow, for the training log.
  */
 const shippedSet = (): string =>
-  ('AS SHIPPED — SOLO PIRATE: ' + brainName(SHIPPED_SOLO_BRAIN)
+  ('THE ORIGINAL — SOLO PIRATE: ' + brainName(SHIPPED_SOLO_BRAIN)
     + ' · ORGANISED GANG: ' + brainName(SHIPPED_PACK_BRAIN)
     + ' · ARMED TRADER: ' + brainName(SHIPPED_DEFENCE_BRAIN)
     + ` (${SHIPPED_SOLO_BRAIN}, ${SHIPPED_PACK_BRAIN}, ${SHIPPED_DEFENCE_BRAIN}).`).toUpperCase();
@@ -148,13 +148,28 @@ export function brainNote(id: string | null | undefined): string | null {
   if (!id) return null;
   if (id === AS_THE_GAME_FLIES) return NO_OVERRIDE;
   if (id === AS_SHIPPED) return shippedSet();
-  return brainCharacter(id) ?? null;
+  const character = brainCharacter(id);
+  if (!character) return null;
+  // The stem last, and only here. It is a build artefact and a pilot choosing
+  // between `pirate-attack-g3` and `pirate-attack-e1` is choosing between file
+  // names — so it is out of the value column entirely and lives at the end of
+  // the sentence, for whoever is cross-referencing docs/TRAINING-LOG.md.
+  return `${character} (${id.toUpperCase()})`;
 }
 
-/** The tallest `brainNote` can ever be: the longest line any brain has. */
+/**
+ * The tallest `brainNote` can ever be.
+ *
+ * Every id put THROUGH `brainNote`, not the raw character lines. Those two
+ * stopped being the same thing the moment the file stem moved into the note:
+ * the reserve went on measuring the character alone, so the space held was
+ * shorter than the sentence it was holding space for and the panel jumped by a
+ * line when a long-stemmed brain was selected. Same failure `careerNoteReserve`
+ * documents — measure the SENTENCE, never the longest ingredient.
+ */
 export function brainNoteReserve(): string {
   return longest([
-    ...Object.values(BRAINS).map((b) => b.character), NO_OVERRIDE, shippedSet(),
+    ...LIVE_BRAIN_IDS.map((id) => brainNote(id) ?? ''), NO_OVERRIDE, shippedSet(),
   ]);
 }
 
@@ -173,7 +188,7 @@ const FROM_THE_CONSOLE = 'LIVE BRAINS WERE SET FROM THE CONSOLE TO SOMETHING THI
  */
 const galaxyFlies = (id: LiveBrainId): string =>
   `LIVE BRAINS: THE WHOLE GALAXY FLIES ${brainName(id)} (${id.toUpperCase()}) — IN YOUR `
-  + 'GAME, OUT THERE, AND SAVED WITH THE COMMANDER. SET THIS ROW BACK TO AS SHIPPED TO UNDO IT.';
+  + 'GAME, OUT THERE, AND SAVED WITH THE COMMANDER. SET THIS ROW BACK TO THE ORIGINAL TO UNDO IT.';
 
 /**
  * What the fence says when there is nothing to warn about.
@@ -182,8 +197,14 @@ const galaxyFlies = (id: LiveBrainId): string =>
  * space that is empty reads as a hole rather than as a promise. So the calm case
  * states the calm fact — in a quiet green, not the warning's red, because a
  * pilot must be able to tell the two apart without reading either.
+ *
+ * It read "AS SHIPPED — NOTHING HERE FOLLOWS YOU OUT", which was true of the
+ * VALUE and flatly contradicted the heading above it, which is true of the ROW.
+ * Sitting two lines apart the pair cancelled out. The calm case now says what
+ * changing the row would do, because that is what the fence is warning about.
  */
-const AS_SHIPPED_NOTE = 'AS SHIPPED — NOTHING HERE FOLLOWS YOU OUT.';
+const AS_SHIPPED_NOTE =
+  'THE ORIGINAL — YOUR CAREER IS UNCHANGED. ANY OTHER VALUE HERE APPLIES OUT THERE TOO.';
 
 /** The line under the fenced row, and whether it is a warning or a status. */
 export interface CareerNote {

@@ -55,7 +55,7 @@ const SHIPPED_DEFEND = 'jameson-defend-g1';
  * `CANDIDATES` is that line. Drop `pirate-attack-x.json` in the directory, add
  * the stem, and every solo table below grows a row.
  */
-const CANDIDATES: readonly string[] = [];
+const CANDIDATES: readonly string[] = ['pirate-attack-e1'];
 
 const brains: Record<string, Brain | null> = {
   [SHIPPED_PIRATE]: tryLoad(SHIPPED_PIRATE),

@@ -46,7 +46,7 @@ console.log('\ncombat simulator — the panel has a shape');
     .flatMap((c) => (c.heading ? [c.heading] : []));
   eq('the panel comes out in three groups and a fence',
     headings().join(' / '),
-    'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE LEAVES THE ROOM');
+    'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE STAYS SET AFTER YOU UNDOCK');
   const opens = (h: string): string =>
     setupCells(d).find((c) => c.heading === h)!.label;
   eq('the fight group opens on the mode', opens('THE FIGHT'), 'MODE');
@@ -76,9 +76,9 @@ console.log('\ncombat simulator — the panel has a shape');
   d.groups.push(defaultGroup(1));
   eq('a custom group still lands before YOUR SHIP',
     headings().join(' / '),
-    'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE LEAVES THE ROOM');
+    'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE STAYS SET AFTER YOU UNDOCK');
   eq('...and the fenced row stays last',
-    setupCells(d).at(-1)!.label, 'LIVE BRAINS (COMMANDER)');
+    setupCells(d).at(-1)!.label, 'CHANGE THE DEFAULT ENEMY AI');
 }
 
 // --- and it does not change height while you use it -------------------------
@@ -162,19 +162,22 @@ console.log('\ncombat simulator — a brain row says what it does');
   const named = cells.filter((c) => c.brain !== undefined).map((c) => c.label.trim());
   eq('the three brain rows carry a brain, and nothing else does',
     named.map((l) => l.replace(/&nbsp;/g, '')).join(' / '),
-    'THE OPPOSITION FLIES (THIS FIGHT) / THIS GROUP FLIES / LIVE BRAINS (COMMANDER)');
+    'THE OPPOSITION FLIES (THIS FIGHT) / THIS GROUP FLIES / CHANGE THE DEFAULT ENEMY AI');
   check('...and each of them has something to say about it',
     cells.filter((c) => c.brain !== undefined).every((c) => !!brainNote(c.brain)));
 
   // A group left on "as the game flies" will fly a real policy, so the line
   // describes THAT one rather than the sentinel.
   check('a group on "as the game flies" describes the brain it resolves to',
-    brainNote(cell('THIS GROUP FLIES').brain) === brainNote('pirate-attack-g3'));
+    brainNote(cell('THIS GROUP FLIES').brain) === brainNote('scripted'));
   cell('THIS GROUP FLIES').change!(1);
   const picked = setupCells(d)
     .find((c) => c.label.replace(/&nbsp;/g, '') === 'THIS GROUP FLIES')!;
-  check('...and a picked one describes itself', brainNote(picked.brain) === brainNote(
-    (picked.value.match(/\(([a-z0-9-]+)\)/) ?? [])[1] ?? ''));
+  // Read off `brain`, not scraped out of the value with a regex: the value used
+  // to end in `(pirate-attack-g3)` and the stem is in the note now, so a test
+  // that parses the display was testing the formatting.
+  check('...and a picked one describes itself',
+    brainNote(picked.brain) === brainNote(picked.brain!));
 
   // THE row's value is the NAME, not the file. A sentence under the row could
   // not fix a row whose value was `pirate-attack-t29`: the thing being chosen
@@ -188,9 +191,15 @@ console.log('\ncombat simulator — a brain row says what it does');
   check('...it reads as the name the brain was given',
     setupCells(d).filter((c) => c.brain !== undefined)
       .every((c) => primary(c.value).includes(brainName(c.brain!)!)));
-  check('...and the file is still there, behind it',
+  // ...and the file is NOT in the value at all. It was appended in a quieter
+  // face, which still put a build artefact in the column a pilot reads to make
+  // the choice; it is at the end of the note now.
+  check('...and the file stem is out of the value entirely',
     setupCells(d).filter((c) => c.brain !== undefined && isNamedBrain(c.brain))
-      .every((c) => c.value.includes(`<span class="stem">(${c.brain})</span>`)));
+      .every((c) => !c.value.includes(c.brain!)));
+  check('...but still reachable, at the end of the note',
+    setupCells(d).filter((c) => c.brain !== undefined && isNamedBrain(c.brain))
+      .every((c) => (brainNote(c.brain) ?? '').includes(c.brain!.toUpperCase())));
   check('...quietened by the stylesheet rather than by being left out',
     /#screen \.stem \{ opacity: 0\.45;/.test(read('src/style.css')));
 
@@ -221,16 +230,23 @@ console.log('\ncombat simulator — a long list is navigable');
     setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
 
   const rows = ['THE OPPOSITION FLIES (THIS FIGHT)', 'THIS GROUP FLIES',
-    'GROUP 1 HULL', 'LIVE BRAINS (COMMANDER)'];
+    'GROUP 1 HULL', 'CHANGE THE DEFAULT ENEMY AI'];
   for (const label of rows) {
-    check(`${label} says where in the list it is`, /^\d+\/\d+ /.test(cell(label).value));
+    check(`${label} says where in the list it is`,
+      /^\(\d+ OF \d+\) /.test(cell(label).value));
   }
+
+  // How many options a row offers, read off its `(n OF m)` prefix. One helper
+  // rather than three hand-rolled `split('/')` calls, which is what made the
+  // format change break this block in three places at once.
+  const listLength = (v: string) => Number(/^\(\d+ OF (\d+)\)/.exec(v)?.[1] ?? 0);
+  const at = (v: string) => Number(/^\((\d+) OF/.exec(v)?.[1] ?? 0);
 
   // Stepping through a full list and back returns to where it started — the
   // acceptance criterion, and the thing a wrapping list has to do.
   for (const label of rows) {
     const was = cell(label).value;
-    const len = Number(was.split('/')[1].split(' ')[0]);
+    const len = listLength(was);
     for (let n = 0; n < len; n++) cell(label).change!(1);
     eq(`${label} comes back round after a full lap`, cell(label).value, was);
     for (let n = 0; n < len; n++) cell(label).change!(-1);
@@ -240,10 +256,10 @@ console.log('\ncombat simulator — a long list is navigable');
   // ...and both ends are one key away.
   for (const label of rows) {
     cell(label).jump!(1);
-    const len = Number(cell(label).value.split('/')[1].split(' ')[0]);
-    eq(`END is the last value of ${label}`, cell(label).value.split(' ')[0], `${len}/${len}`);
+    const len = listLength(cell(label).value);
+    eq(`END is the last value of ${label}`, at(cell(label).value), len);
     cell(label).jump!(-1);
-    eq(`...and HOME is the first`, cell(label).value.split(' ')[0], `1/${len}`);
+    eq(`...and HOME is the first`, at(cell(label).value), 1);
   }
   check('a row over a number has no end to jump to, so it has no jump',
     !cell('SEED').jump && !cell('COUNT').jump && !cell('YOUR MISSILES').jump);

@@ -51,7 +51,7 @@ const read = (path: string): string =>
 console.log('\ncombat simulator — the exercise strip');
 {
   const progress = (over: Partial<SimProgress> = {}): SimProgress => ({
-    seconds: 12.5, shots: 20, hits: 6, accuracy: 0.3, hitsTaken: 4, kills: 2,
+    seconds: 12.5, shots: 20, hits: 6, accuracy: 0.3, hitsTaken: 4, kills: 2, live: [],
     ...over,
   });
   const setup = (over: Partial<ExerciseSetup> = {}): ExerciseSetup => ({
@@ -244,6 +244,10 @@ console.log('\ncombat simulator — the strip is the record, early');
       hits: rec.you.hits,
       accuracy: rec.you.accuracy,
       hitsTaken: rec.them.hits,
+      // A finished record has no "now", so the roster this reconstruction
+      // carries is empty. That is the honest answer rather than a gap: the live
+      // list is the one field on the strip a report cannot restate.
+      live: [],
     };
   };
 
@@ -279,14 +283,32 @@ console.log('\ncombat simulator — the strip is the record, early');
       strip.shots > 5 && strip.hitsTaken > 0 && strip.elapsed > 5
       && rec.envelope.samples > 10);
 
+    // `live` is the ONE field a finished record cannot restate, and it is named
+    // here rather than quietly skipped. Everything else on the strip is an
+    // accumulation the report also derives, so a disagreement means one of them
+    // is wrong; `live` is the roster AT THIS INSTANT, and a record that has
+    // stopped has no instant. It gets its own assertion below instead, so it is
+    // still not possible to add it and measure nothing.
+    const NOT_IN_A_FINISHED_RECORD: (keyof ExerciseStrip)[] = ['live'];
     const wanted = fromReport(rec, spec);
     for (const key of Object.keys(wanted) as (keyof ExerciseStrip)[]) {
+      if (NOT_IN_A_FINISHED_RECORD.includes(key)) continue;
       eq(`the strip's ${key} is the record's`, String(strip[key]), String(wanted[key]));
     }
     // …and the other way round, so a field added to the strip and to nothing
     // else cannot pass by being absent from the comparison above.
     eq('the strip has exactly the fields the record accounts for',
       Object.keys(strip).sort().join(), Object.keys(wanted).sort().join());
+
+    // The live roster, held to being REAL rather than merely present: a ship
+    // that is up, at a range the fight actually happened at, doing something
+    // the flight can name. Without this the exemption above would be a hole.
+    check(`the live roster names the ships that are up (${strip.live.length})`,
+      strip.live.length > 0);
+    check('...each with a hull, a range and something it is doing',
+      strip.live.every((c) => c.hull.length > 0 && c.dist >= 0 && c.doing.length > 0));
+    check('...nearest first, so the one about to hit you is the one you read',
+      strip.live.every((c, i) => i === 0 || strip.live[i - 1]!.dist <= c.dist));
     check('the countdown is a countdown: elapsed and remaining sum to the timeout',
       Math.abs(strip.elapsed + strip.remaining! - SCENARIO_TIMEOUT) < 0.05);
   }

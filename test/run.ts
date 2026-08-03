@@ -48,6 +48,7 @@ import './new-commander.test.ts';
 import './flight.test.ts';
 import './geometry.test.ts';
 import './npc.test.ts';
+import './break-off.test.ts';
 import './systems.test.ts';
 import './energy-low.test.ts';
 import './combat.test.ts';

@@ -47,7 +47,7 @@ console.log('\ncombat simulator report — how they flew');
   });
   const contact = (
     opponent: number, dist: number, speed: number,
-  ): ContactSample => ({ opponent, dist, speed, theirAim: 0.05, yourAim: 0.05 });
+  ): ContactSample => ({ opponent, dist, speed, theirAim: 0.05, yourAim: 0.05, doing: 'closing' });
   const frame = (contacts: ContactSample[]): FrameSample => ({
     speed: 250, pitch: 0, roll: 0, foreShield: 255, aftShield: 255, energy: 255, contacts,
   });

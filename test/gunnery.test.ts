@@ -21,15 +21,11 @@ import {
   playerLaser,
   playerLaserHit,
   AIM_ASSIST,
-  npcPrefersMissile,
-  npcMissileLastStand,
-  MISSILE_MIN_RANGE,
-  MISSILE_MAX_RANGE,
-  MISSILE_CHANCE,
-  MISSILE_LAST_STAND_HULL,
-  MISSILE_LAST_STAND_GATE,
-  MISSILE_LAST_STAND_MIN_RANGE,
 } from '../src/game/gunnery.ts';
+import {
+  npcMissileEmergency, MISSILE_COMMIT_PASSES, MISSILE_MAX_RANGE,
+  MISSILE_LAST_STAND_HULL, MISSILE_LAST_STAND_GATE, MISSILE_LAST_STAND_MIN_RANGE,
+} from '../src/game/missile-launch.ts';
 import { freshSystems } from '../src/game/systems.ts';
 import { COBRA_MK_3_HULL_ID, PLAYER_HULL_IDS } from '../src/game/ship-identity.ts';
 import { check, eq } from './harness.ts';
@@ -109,36 +105,59 @@ console.log('\ngunnery');
       canisterCone(500) > 0 && canisterCone(3000) < canisterCone(500));
   }
   {
-    // ...and the NPC's choice of weapon, which is gunnery.ts's too. The
-    // opportunistic launch: a comfortable band, and dice.
-    const mid = (MISSILE_MIN_RANGE + MISSILE_MAX_RANGE) / 2;
-    check('an NPC swaps a bolt for a missile at a comfortable range',
-      npcPrefersMissile(mid, MISSILE_CHANCE - 0.01));
-    check('...only sometimes', !npcPrefersMissile(mid, MISSILE_CHANCE + 0.01));
-    check('...and never at knife range or across the system',
-      !npcPrefersMissile(MISSILE_MIN_RANGE - 1, 0) && !npcPrefersMissile(MISSILE_MAX_RANGE + 1, 0));
-
-    // The last stand: a pirate that is about to die should not take its
-    // missiles down with it.
+    // ...and the NPC's choice of weapon, which is gunnery.ts's too.
+    //
+    // A missile is EXPENSIVE and there is no resupply, so it is spent for a
+    // reason rather than rolled for in a comfortable band. Chris: "missiles are
+    // expensive, they should be used in emergencies — e.g. when your opponent
+    // turns out to be tougher than you thought."
+    //
+    // The band-and-dice rule this replaced is worth stating, because deleting
+    // it was the fix rather than a tidy-up: an NPC preferred a missile at
+    // 1,200-3,200 units, which is exactly the range at which it is NOT
+    // engaging. Six organised pirates duly sat at a median of 2,705, made zero
+    // passes, and killed a commander in 9.1 seconds without ever being fought.
+    const healthy = 1;
     const dying = MISSILE_LAST_STAND_HULL - 0.01;
-    check('a healthy ship saves its missile for a better moment',
-      !npcMissileLastStand(1, 800, 0));
-    check('...and a ship this close to death spends it',
-      npcMissileLastStand(dying, 800, 0));
+    const OK_RANGE = 800;
+
+    check('a healthy ship on its first run keeps its missile',
+      !npcMissileEmergency(healthy, 0, 0, OK_RANGE, 0));
+    check('...and still keeps it on the second run',
+      !npcMissileEmergency(healthy, MISSILE_COMMIT_PASSES - 1, 0, OK_RANGE, 0));
+
+    // Reason 1: about to die. The old `npcMissileLastStand`, folded in.
+    check('a ship about to die spends it rather than take it down',
+      npcMissileEmergency(dying, 0, 0, OK_RANGE, 0));
     check('...exactly at the threshold, not just below it',
-      npcMissileLastStand(MISSILE_LAST_STAND_HULL, 800, 0)
-      && !npcMissileLastStand(MISSILE_LAST_STAND_HULL + 0.01, 800, 0));
-    check('it launches where it would never bother with one otherwise',
-      npcMissileLastStand(dying, MISSILE_MIN_RANGE - 100, 0)
-      && !npcPrefersMissile(MISSILE_MIN_RANGE - 100, 0));
-    check('...on a bearing rather than a firing line, because the seeker aims',
-      npcMissileLastStand(dying, 800, MISSILE_LAST_STAND_GATE - 0.01));
-    check('...but not at something behind it',
-      !npcMissileLastStand(dying, 800, MISSILE_LAST_STAND_GATE + 0.01));
-    check('...nor point blank, where the player could not answer it',
-      !npcMissileLastStand(dying, MISSILE_LAST_STAND_MIN_RANGE - 1, 0));
-    check('...nor from further out than the seeker is worth',
-      !npcMissileLastStand(dying, MISSILE_MAX_RANGE + 1, 0));
+      npcMissileEmergency(MISSILE_LAST_STAND_HULL, 0, 0, OK_RANGE, 0)
+      && !npcMissileEmergency(MISSILE_LAST_STAND_HULL + 0.01, 0, 0, OK_RANGE, 0));
+
+    // Reason 2: this is not working. It has flown at the target and the target
+    // is still there — the discovery that it is tougher than expected.
+    check('a ship that has committed twice and got nowhere spends one',
+      npcMissileEmergency(healthy, MISSILE_COMMIT_PASSES, 0, OK_RANGE, 0));
+
+    // Reason 3: the gang is losing.
+    check('a ship whose wingman is already dead spends one',
+      npcMissileEmergency(healthy, 0, 1, OK_RANGE, 0));
+
+    // The geometry gates apply to EVERY reason, not only the desperate one.
+    // That is the point of there being one function: the reasons cannot drift
+    // apart from the envelope.
+    check('never point blank, whatever the reason — the player could not answer',
+      !npcMissileEmergency(dying, 9, 9, MISSILE_LAST_STAND_MIN_RANGE - 1, 0));
+    check('never from further out than the seeker is worth',
+      !npcMissileEmergency(dying, 9, 9, MISSILE_MAX_RANGE + 1, 0));
+    check('on a bearing rather than a firing line, because the seeker aims',
+      npcMissileEmergency(dying, 0, 0, OK_RANGE, MISSILE_LAST_STAND_GATE - 0.01));
+    check('...but never at something behind it',
+      !npcMissileEmergency(dying, 9, 9, OK_RANGE, MISSILE_LAST_STAND_GATE + 0.01));
+
+    // THE REGRESSION. This is the wave-13 fight, as a number: a healthy ship
+    // that has not engaged, sitting where the old rule paid it to sit.
+    check('a healthy ship standing off at 2,705 cannot launch at all',
+      !npcMissileEmergency(healthy, 0, 0, 2705, 0));
   }
 }
 

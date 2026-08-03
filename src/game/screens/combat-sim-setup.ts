@@ -24,7 +24,7 @@ import {
   type BrainId, type ExerciseSpec, type Opposition, type SimMode,
 } from '../combat-sim-scenarios.ts';
 import {
-  AS_SHIPPED, AS_THE_GAME_FLIES, LIVE_BRAIN_IDS, SHIPPED_BRAINS, brainName, isNamedBrain,
+  AS_SHIPPED, AS_THE_GAME_FLIES, LIVE_BRAIN_IDS, SHIPPED_BRAINS, brainName,
   liveBrainSelection, type BrainSelection, type LiveBrainId,
 } from '../brain-names.ts';
 
@@ -209,21 +209,27 @@ const endOf = <T>(xs: readonly T[], d: number): T => (d > 0 ? xs[xs.length - 1] 
  * position you cannot tell whether the next press wraps or walks. Now that both
  * brain rows are a dozen values long they carry one too.
  */
-const position = (at: number, len: number): string => `${at + 1}/${len}`;
+/**
+ * `(1 OF 6)` — where you are in a list you can arrow through.
+ *
+ * It was `1/6`, which a pilot reads as a fraction or a ratio before they read
+ * it as a position. The keyline says the arrows change a row; this says how
+ * many there are to change it to.
+ */
+const position = (at: number, len: number): string => `(${at + 1} OF ${len})`;
 
 /**
- * `HOLDS OFF (pirate-pack-r4-selectonly)` — how it flies, then which file.
+ * `HOLDS OFF` — how it flies, and only that.
  *
- * The row's value used to BE the file stem, and a sentence underneath could not
- * fix that: a pilot choosing between `pirate-attack-g3` and `jameson-defend-g1`
- * is choosing between build artefacts. The name is `brain-names.ts`'s, beside the
- * character line it was compressed from; the stem stays for anyone
- * cross-referencing docs/TRAINING-LOG.md, in a quieter face (`.stem`) and second,
- * so it is not what you read first.
+ * The row's value used to BE the file stem, which made a pilot choose between
+ * build artefacts; that was fixed by putting the name first and the stem second
+ * in a quieter face. The stem is out of the value entirely now. It was kept for
+ * anyone cross-referencing docs/TRAINING-LOG.md — a developer's need, on a
+ * pilot's screen, in the column the pilot reads to make the choice. It moved to
+ * the note underneath, where the rest of the prose already lives and where
+ * nobody has to read past it.
  */
-const flies = (id: BrainChoice | LiveBrainId): string =>
-  (brainName(id) ?? id.toUpperCase())
-  + (isNamedBrain(id) ? ` <span class="stem">(${id})</span>` : '');
+const flies = (id: BrainChoice | LiveBrainId): string => brainName(id) ?? id.toUpperCase();
 
 /**
  * A draft to start from: a single professional pirate, in the ship you own.
@@ -461,17 +467,21 @@ export function setupCells(d: SimDraft): SetupCell[] {
         change: (n) => { g.tier = clampTier(g.tier + n); },
       },
       {
-        label: pad('ORGANISED (PACK POLICY)'),
+        label: pad('ORGANISED — THEY FLY AS A GANG'),
         value: yesNo(g.organised),
         change: () => { g.organised = !g.organised; },
       },
       {
         label: pad('THIS GROUP FLIES'),
+        // The VALUE is what you picked, and only that. It used to append what
+        // the sentinel resolves to — `SAME AS OUTSIDE — MAKES RUNS
+        // (pirate-attack-e1)` — which put a choice, a consequence and a file
+        // stem in one cell and read as two selections at once. The consequence
+        // is a sentence, so it belongs in the note under the panel with the
+        // other sentences; `brain` below is what puts it there.
         value: `${position(BRAIN_CHOICES.indexOf(g.brain), BRAIN_CHOICES.length)} `
-          + (g.brain === AS_THE_GAME_FLIES
-            ? `AS THE GAME FLIES — ${flies(liveBrainFor(hull.role, g.organised, g.tier, live))}`
-            : flies(g.brain)),
-        // Resolved, not the sentinel: a group left on AS THE GAME FLIES will fly
+          + flies(g.brain),
+        // Resolved, not the sentinel: a group left on SAME AS OUTSIDE will fly
         // a real policy and the line under the panel should describe THAT one.
         brain: g.brain === AS_THE_GAME_FLIES
           ? liveBrainFor(hull.role, g.organised, g.tier, live) : g.brain,
@@ -533,9 +543,9 @@ export function setupCells(d: SimDraft): SetupCell[] {
   // together with the exercise brain it looked like a second override for the
   // same fight, which is exactly what it is not.
   cells.push({
-    heading: 'THIS ONE LEAVES THE ROOM',
+    heading: 'THIS ONE STAYS SET AFTER YOU UNDOCK',
     fenced: true,
-    label: 'LIVE BRAINS (COMMANDER)',
+    label: 'CHANGE THE DEFAULT ENEMY AI',
     // No position on the console case, because there is no position: a selection
     // the picker cannot name is not one of the eleven it offers.
     value: d.live === null ? 'SET FROM THE CONSOLE'

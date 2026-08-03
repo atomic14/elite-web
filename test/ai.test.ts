@@ -6,10 +6,8 @@
 // the suite went on measuring two brains the game did not fly.
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { pirateBrainFor, defenceBrain, DEFEND_BRAIN } from '../src/game/brains.ts';
-import {
-  SHIPPED_BRAINS, defenceBrainNameFor, pirateBrainNameFor, type BrainSelection,
-} from '../src/game/brain-names.ts';
+import { DEFEND_BRAIN } from '../src/game/brains.ts';
+import { LIVE_BRAIN_IDS, isNamedBrain } from '../src/game/brain-names.ts';
 import { handle, installPolicyKit } from '../src/game/console.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { randomBrain, type BrainFile } from '../src/ai-training/policy.ts';
@@ -142,14 +140,24 @@ const IMPORTED = [...new Set([...brainsSrc.matchAll(/brains\/([\w.-]+)\.json/g)]
   .map((m) => m[1]))].sort();
 const ON_DISK = readdirSync(BRAINS).filter((f) => f.endsWith('.json'))
   .map((f) => f.replace(/\.json$/, '')).sort();
-// What the SHIPPED rule flies, asked of brain-names.ts rather than restated: a
-// solo pirate, an organised gang, and an armed trader. `scripted` is not here
-// because it is a code path with no weights.
-const FLOWN = [...new Set([
-  pirateBrainNameFor(0, false, SHIPPED_BRAINS),
-  pirateBrainNameFor(0, true, SHIPPED_BRAINS),
-  defenceBrainNameFor(SHIPPED_BRAINS),
-])].sort();
+// Every policy the game can BE PUT INTO, asked of brain-names.ts rather than
+// restated. `scripted` is not here because it is a code path with no weights.
+//
+// This used to be the three the SHIPPED rule flies, and that was too narrow by
+// exactly one case: a CANDIDATE. TODO 61 restored `pirate-attack-e1` to fly it
+// against the shipped brain, and a candidate is selectable from the trainer's
+// LIVE BRAINS row — so it is flown, just not by default. Under the old wording
+// the only ways to satisfy the guard were to promote the candidate (which
+// pre-judges the comparison it exists to settle) or to delete it.
+//
+// So the claim is now "no weights in the bundle that nothing can select", which
+// is what the guard was always protecting: a file no selection reaches still
+// fails, and the viewer's two mislabelled pack policies would still be caught.
+// `LIVE_BRAIN_IDS` is the picker's own list, so this cannot drift from what the
+// panel offers.
+const FLOWN = [...new Set(
+  LIVE_BRAIN_IDS.filter(isNamedBrain).filter((n) => n !== 'scripted'),
+)].sort();
 
 // ...and brains.ts is the ONLY way in. This is the other half of the claim, and
 // it is the half the combat viewer broke twice: it imported `pirate-attack.json`
@@ -194,69 +202,6 @@ for (const name of ON_DISK) {
 // CLAUDE.md's Training section is a paragraph of prose about who flies what. It
 // used to be spread over three parts of npc.ts; now it is one function, so it
 // can be asserted instead of described.
-
-console.log('\nbrain selection');
-{
-  // No setup and no teardown: the selection is an ARGUMENT now, so a case
-  // cannot leak into the next one. It used to be four `window.__` globals with
-  // a clear() after every block — which worked, and only by hand.
-  {
-    const solo = pirateBrainFor(0, false);
-    check('an opportunist flies the solo brain', !!solo && !solo.pack);
-    const gang = pirateBrainFor(2, true);
-    check('an organised gang flies the pack policy', !!gang && gang.pack);
-    check('...and they are different brains', solo!.brain !== gang!.brain);
-    check('a tier-2 pirate flying ALONE still flies solo',
-      pirateBrainFor(2, false)?.pack === false);
-  }
-  {
-    // the guard is the range at which the brain hands back to the scripted
-    // break-off; the generation brains do not ram, so theirs is tighter
-    const now = pirateBrainFor(1, false)!;
-    check('the current brain gets the tight guard', now.guard === 150);
-    check('...and is told a floored target speed, not a fake 300',
-      now.targetSpeed(0) === 150 && now.targetSpeed(400) === 400);
-  }
-  {
-    check('brains.scripted turns every brain off',
-      pirateBrainFor(0, false, { scripted: true }) === null
-      && pirateBrainFor(2, true, { scripted: true }) === null
-      && defenceBrain({ scripted: true }) === null);
-  }
-  {
-    check('brains.pack forces the pack policy onto everyone',
-      pirateBrainFor(0, false, { pack: true })?.pack === true);
-  }
-  {
-    // A SAVE FROM BEFORE TODO 57 still loads, and flies the shipped brains.
-    //
-    // `state.brains` is snapshotted, so a career made when `legacy`, `sharp`,
-    // `engine`, `t29`, `packT29` or `defendT29` existed can hand one back on
-    // restore. Deliberately not migrated (Chris, 2026-08-03): the flag names a
-    // policy that is not in the bundle, nothing reads it, and it must not throw.
-    // The trainer's LIVE BRAINS row says the selection cannot be named and
-    // arrowing it takes it back — test/brain-names.test.ts holds that end.
-    const stale = { legacy: 'pro', t29: true } as unknown as BrainSelection;
-    const base = pirateBrainFor(0, false)!.brain;
-    check('a save carrying a deleted A/B flag still loads',
-      pirateBrainFor(1, false, stale)!.brain === base
-      && pirateBrainFor(0, false, stale)!.brain === base);
-    check('...and flies the shipped brains, because nothing reads the flag',
-      pirateBrainNameFor(1, false, stale) === pirateBrainNameFor(1, false)
-      && defenceBrain(stale) === defenceBrain());
-    check('...including its gang, which is the one thing a flag could still move',
-      pirateBrainFor(2, true, stale)!.brain === pirateBrainFor(2, true)!.brain);
-  }
-  {
-    // The default is the shipped game, and it is frozen — a caller that
-    // mutated it would move every other caller's brains.
-    check('the shipped default carries no overrides',
-      Object.keys(SHIPPED_BRAINS).length === 0 && Object.isFrozen(SHIPPED_BRAINS));
-    check('an unspecified selection flies what the live game flies',
-      pirateBrainFor(1, false)!.brain === pirateBrainFor(1, false, {})!.brain);
-  }
-  check('the defence brain is fitted', defenceBrain() !== null);
-}
 
 // --- the pure modules stay pure ----------------------------------------------
 //

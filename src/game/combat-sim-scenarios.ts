@@ -82,6 +82,9 @@ export type BrainId = BrainName;
 export const SHIPPED_SOLO_BRAIN: BrainId = pirateBrainNameFor(0, false, SHIPPED_BRAINS);
 export const SHIPPED_PACK_BRAIN: BrainId = pirateBrainNameFor(0, true, SHIPPED_BRAINS);
 export const SHIPPED_DEFENCE_BRAIN: BrainId = defenceBrainNameFor(SHIPPED_BRAINS);
+/** The solo candidate under comparison — brain-names.ts `BrainSelection.passes`. */
+export const CANDIDATE_SOLO_BRAIN: BrainId =
+  pirateBrainNameFor(0, false, { passes: true });
 
 /**
  * Every brain the picker may choose, in the order it should be listed: the three
@@ -93,9 +96,30 @@ export const SHIPPED_DEFENCE_BRAIN: BrainId = defenceBrainNameFor(SHIPPED_BRAINS
  * game did BEFORE any of this, which is the comparison every training run in
  * docs/TRAINING-LOG.md is measured against. A future candidate joins this list
  * by having its weights put back and its name added, which is one row.
+ *
+ * `pirate-attack-e1` is that candidate today (TODO 61). Adding it to the career
+ * picker and NOT here was a real bug for the two commits it lasted: the two
+ * pickers are separate lists, so the candidate could only be flown from the
+ * fenced row that changes the whole career — the one thing a scoped A/B must
+ * not touch. If it is promoted, `SHIPPED_SOLO_BRAIN` becomes it and this entry
+ * goes; if it loses, both go.
  */
 export const SIM_BRAINS: readonly BrainId[] = [
-  SHIPPED_SOLO_BRAIN, SHIPPED_PACK_BRAIN, SHIPPED_DEFENCE_BRAIN, 'scripted',
+  // NAMED, not derived from what ships — and that is the correction rather than
+  // a style choice. This list used to be built from `SHIPPED_SOLO_BRAIN` and
+  // `SHIPPED_PACK_BRAIN`, on the reasoning that promoting a candidate should
+  // move the picker without an edit here. It does the opposite when the thing
+  // promoted is `scripted`: both constants resolve to the same word, the list
+  // collapses to two entries, and the trained policies disappear from the only
+  // surface that can fly them. "We changed the default" silently became "we
+  // deleted the alternative", which is the one outcome a comparison tool must
+  // never produce. A policy is offered here because it EXISTS, and
+  // `SHIPPED_*_BRAIN` still says which of them the game currently flies.
+  'pirate-attack-g3',
+  'pirate-attack-e1',
+  'pirate-pack-r4-selectonly',
+  'jameson-defend-g1',
+  'scripted',
 ];
 
 /**

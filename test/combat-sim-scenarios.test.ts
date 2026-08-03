@@ -143,12 +143,21 @@ console.log('\ncombat trainer scenarios');
   // worse than no report, and only brains.ts knows the truth.
   {
     const src = readFileSync(new URL('../src/game/brains.ts', import.meta.url), 'utf8');
-    check(`the shipped solo brain is ${SHIPPED_SOLO_BRAIN}`,
-      src.includes(`${SHIPPED_SOLO_BRAIN}.json`));
-    check(`the shipped pack brain is ${SHIPPED_PACK_BRAIN}`,
-      src.includes(`${SHIPPED_PACK_BRAIN}.json`));
+    // `scripted` is a CODE PATH, not a file, so there is no weights file for it
+    // to import and the pairing below does not apply. It is the shipped solo and
+    // pack answer since Chris asked for it, and asserting `scripted.json` exists
+    // would fail on a policy working exactly as intended.
+    const backedByFile = (id: BrainId): boolean =>
+      id === 'scripted' || src.includes(`${id}.json`);
+    check(`the shipped solo brain is ${SHIPPED_SOLO_BRAIN}`, backedByFile(SHIPPED_SOLO_BRAIN));
+    check(`the shipped pack brain is ${SHIPPED_PACK_BRAIN}`, backedByFile(SHIPPED_PACK_BRAIN));
     check(`the shipped defence brain is ${SHIPPED_DEFENCE_BRAIN}`,
-      src.includes(`${SHIPPED_DEFENCE_BRAIN}.json`));
+      backedByFile(SHIPPED_DEFENCE_BRAIN));
+    // ...and the trained policies the picker still offers must ALL still be
+    // imported, or "we changed the default" has quietly become "we dropped the
+    // weights" — the thing the picker exists to let you compare against.
+    check('every trained policy the picker offers is still imported',
+      SIM_BRAINS.every(backedByFile), SIM_BRAINS.join(', '));
     check('every listed brain exists', SIM_BRAINS.every(brainFileExists));
 
     // ...and the picker may only offer what the game can actually be put into.

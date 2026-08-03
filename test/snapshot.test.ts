@@ -16,7 +16,7 @@ import { World } from '../src/game/world.ts';
 import { SPECS, specForDesign } from '../src/game/ship-specs.ts';
 import { migratedNpcState } from '../src/game/npc-energy.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
-import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
+import { SHIPPED_BRAINS, type BrainSelection } from '../src/game/brain-names.ts';
 import { showMessage, tickMessage } from '../src/game/session.ts';
 import { check, keys } from './harness.ts';
 import { g1 } from './fixtures.ts';
@@ -70,10 +70,18 @@ console.log('\nsnapshot round trip');
   const makePlayer = (pos: THREE.Vector3) =>
     ({ position: pos, quaternion: new THREE.Quaternion(), speed: 220 }) as never;
   const station = new THREE.Object3D();
+  // FLOWN BY A BRAIN, deliberately, and it must stay that way. `brainControl` is
+  // a cached policy decision and this file exists to prove it survives a save —
+  // it was the last field keeping a restored world from replaying its original.
+  // What SHIPS is the scripted attack run now, which never fills that field, so
+  // a fixture on the shipped selection would round-trip a null and quietly stop
+  // testing the thing it was written for. `trained: true` selects a policy that
+  // actually caches a decision.
+  const BRAIN_FLOWN: BrainSelection = { trained: true };
   const fly = (npc: NpcShip, frames: number) => {
     for (let i = 0; i < frames; i++) {
       npc.update(1 / 60, makePlayer(at(0, 0, 0)), {
-        station, dockZ: 160, fleet: [npc], playerLegal: 0, brains: SHIPPED_BRAINS,
+        station, dockZ: 160, fleet: [npc], playerLegal: 0, brains: BRAIN_FLOWN, missileInbound: false,
       });
     }
   };
@@ -175,7 +183,7 @@ console.log('\nsnapshot round trip');
     const trader = new NpcShip('trader', at(0, 0, -700), 2);
     trader.state.traderPhase = 'docking';
     trader.update(1 / 60, makePlayer(at(0, 0, 0)), {
-      station, dockZ: 160, fleet: [trader], playerLegal: 0, brains: SHIPPED_BRAINS,
+      station, dockZ: 160, fleet: [trader], playerLegal: 0, brains: SHIPPED_BRAINS, missileInbound: false,
     });
     check('the docking replay fixture has committed to the slot run',
       trader.state.dockPlan.phase === 'run');
@@ -220,7 +228,7 @@ console.log('\nsnapshot round trip');
     let maxControlDrift = 0;
     for (let frame = 0; frame < 1800; frame++) {
       const updateOne = (npc: NpcShip) => npc.update(1 / 60, makePlayer(at(0, 0, 0)), {
-        station, dockZ: 160, fleet: [npc], playerLegal: 0, brains: SHIPPED_BRAINS,
+        station, dockZ: 160, fleet: [npc], playerLegal: 0, brains: SHIPPED_BRAINS, missileInbound: false,
       });
       if (!trader.state.wantsDespawn) updateOne(trader);
       if (!restoredTrader.state.wantsDespawn) updateOne(restoredTrader);

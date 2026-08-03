@@ -268,7 +268,7 @@ console.log('\ncombat simulator — the custom picker');
   cell('COUNT').change!(-99);
   eq('...and never below one ship, which would be no fight', d.groups[0].count, 1);
 
-  cell('ORGANISED (PACK POLICY)').change!(1);
+  cell('ORGANISED — THEY FLY AS A GANG').change!(1);
   eq('a group can be made organised, which is the pack-policy lever',
     d.groups[0].organised, true);
 
@@ -331,8 +331,8 @@ console.log('\ncombat simulator — the brain override');
   one.groups.push(defaultGroup(1));
   eq('a group left on "as the game flies" asks for nothing',
     brainOverride(one), null);
-  eq('...which for a lone pirate is the shipped solo brain',
-    liveBrainFor('pirate', false, 1) as BrainId, 'pirate-attack-g3');
+  eq('...which for a lone pirate is the scripted attack run, what ships',
+    liveBrainFor('pirate', false, 1) as BrainId, 'scripted');
   check('the notes always describe the mode', draftNotes(one).length >= 1);
 }
 

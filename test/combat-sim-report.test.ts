@@ -80,7 +80,8 @@ console.log('\ncombat simulator report');
   // envelope makes of it is combat-sim-flight.test.ts's question.
   const contact = (
     opponent: number, dist: number, theirAim: number, yourAim: number, speed = 0,
-  ): ContactSample => ({ opponent, dist, speed, theirAim, yourAim });
+    doing = 'closing',
+  ): ContactSample => ({ opponent, dist, speed, theirAim, yourAim, doing });
   const frame = (over: Partial<FrameSample> = {}): FrameSample => ({
     speed: 60, pitch: 0, roll: 0, foreShield: 1, aftShield: 1, energy: 4,
     contacts: [], ...over,

@@ -191,6 +191,7 @@ export class Hud {
   private readonly exClockEl = byId('ex-clock');
   private readonly exMarkEl = byId('ex-mark');
   private readonly exTallyEl = byId('ex-tally');
+  private readonly exLiveEl = byId('ex-live');
 
   private readonly local = new THREE.Vector3();
   private readonly invQ = new THREE.Quaternion();
@@ -306,7 +307,25 @@ export class Hud {
     const acc = strip.accuracy === null ? '--' : `${Math.round(strip.accuracy * 100)}%`;
     this.exTallyEl.textContent =
       `SHOTS ${strip.shots}  HITS ${strip.hits}  ACC ${acc}  TAKEN ${strip.hitsTaken}`;
+    this.drawLive(strip.live);
   }
+
+  /**
+   * One line per hostile still up — hull, range, what it is doing.
+   *
+   * ONE `textContent` write, columns made with padding rather than elements.
+   * Two reasons, and the first is not style. `engine/inert-dom.ts` is what a
+   * painter gets under node, where there is no `document` to build rows with —
+   * a painter with no DOM is inert, not broken, and an `Element` per ship per
+   * frame would have made this file the one that throws in `npm test`. The
+   * second is that a hull name written as text can never be read as markup.
+   */
+  private drawLive(live: ExerciseStrip['live']): void {
+    this.exLiveEl.textContent = live
+      .map((c) => `${c.hull.toUpperCase().padEnd(12)}${String(c.dist).padStart(5)}  ${c.doing.toUpperCase()}`)
+      .join('\n');
+  }
+
 
   /**
    * Brackets around nearby ships, with a lead marker showing where to aim

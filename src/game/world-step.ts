@@ -321,6 +321,7 @@ export class WorldStep {
       fleet: world.npcs,
       playerLegal: s.commander.legalStatus,
       brains: s.brains,
+      missileInbound: this.ordnance.missileInbound,
     };
     for (const npc of [...world.npcs]) {
       const event = npc.update(dt, player, view);

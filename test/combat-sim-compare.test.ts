@@ -68,7 +68,7 @@ function flown(
     rec.playerShot(i < hits ? { opponent: 0, damage: 10 } : null);
   }
   for (let i = 0; i < 10; i++) {
-    rec.frame(frame({ contacts: [{ opponent: 0, dist, speed, theirAim: 0.05, yourAim: 0.05 }] }));
+    rec.frame(frame({ contacts: [{ opponent: 0, dist, speed, theirAim: 0.05, yourAim: 0.05, doing: 'closing' }] }));
   }
   if (taken) rec.taken(taken, 'laser', 0);
   return rec.report('quit');

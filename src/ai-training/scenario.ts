@@ -607,7 +607,12 @@ export class Episode {
         ? p.npc.brainFly(
           ctrl.brain, dt, this.trader.pos, this.trader.quat, this.trader.speed,
           range, 'player', this.fleet)
-        : p.npc.attack(dt, this.trader.pos, range, true);
+        // THE FLEET GOES IN. Without it a scripted pirate in an episode flies
+        // with no idea its wingmen exist, while the same ship in the game
+        // avoids them — which is a second physics by omission, and the one
+        // thing this file is organised against. It also made the collision
+        // probe read identically with avoidance on and off.
+        : p.npc.attack(dt, this.trader.pos, range, true, undefined, this.fleet);
       if (shot && this.trader.alive) {
         events.push(this.resolveNpcShot(p, range));
       }

@@ -110,9 +110,16 @@ console.log('\ncombat arena');
       world.npcs.length === 4 && world.npcs.every((n) => n.role === 'pirate'));
     check('...with the tiers it was given',
       ships.map((n) => n.state.threatTier).join() === '2,1,1,1');
-    check('...flying the pack policy, which is the `organised` flag',
-      ships.every((n) => n.state.organised) &&
-      ships.every((n) => pirateBrainFor(n.state.threatTier, n.state.organised)?.pack === true));
+    // `organised` is still the flag that says "these hunt as a gang" — it is
+    // what the pack POLICY keys off when it is selected. What ships for a gang
+    // is now the scripted attack run (`null`), so the assertion is that the
+    // flag is set and that it routes to what the game actually flies.
+    check('...marked organised, and flying what an organised gang ships with',
+      ships.every((n) => n.state.organised)
+      && ships.every((n) => pirateBrainFor(n.state.threatTier, n.state.organised) === null));
+    check('...and selecting the pack policy still puts every one of them on it',
+      ships.every((n) => pirateBrainFor(
+        n.state.threatTier, n.state.organised, { pack: true })?.pack === true));
 
     // hulls come from the roster for that tier and nowhere else. The sample is
     // the whole tier, not the first four seeds: the tiers are derived from the

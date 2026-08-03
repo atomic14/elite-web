@@ -111,6 +111,21 @@ export const SIX_CONE = Math.PI / 3;
  * still means what it says. The probe imports them from here now; when it kept
  * its own copy, the tool and the report could disagree about what a pass is,
  * which is this project's named failure — one rule with two homes.
+ *
+ * `PASS_FAR` USED TO BE THE SAME NUMBER AS break-off.ts's `EXTEND_RANGE`, on the
+ * argument that a flight model producing runs and a measurement counting them
+ * should share one. Ships now roll their own turn-back range out of a band, so
+ * there is no single range to share and the honest statement of the coupling is
+ * weaker but still binding: PASS_FAR must sit BELOW the shortest run the flight
+ * model can produce, or the measurement goes blind exactly where the flying got
+ * better. `test/break-off.test.ts` asserts it.
+ *
+ * That was nearly a real break. An earlier, wider band reached down to 450 and
+ * apexed around 680, and at that point 900 counted only 44% of the merges that
+ * actually happened — the number was re-picked to 650 before the band settled.
+ * The shipped band apexes no lower than about 948, where 900 counts 89% against
+ * 650's 92%, and three points is not worth making an archived log incomparable.
+ * It stays 900.
  */
 export const PASS_CLOSE = 400;
 export const PASS_FAR = 900;
@@ -196,6 +211,30 @@ export interface SimProgress {
   hitsTaken: number;
   /** opponents destroyed and credited to you */
   kills: number;
+  /**
+   * Every hostile still up, as of the last sample — hull, range, and what it is
+   * doing right now.
+   *
+   * Chris, having seen the same thing in the post-fight report: "I want to see
+   * the details all the time." The report answers what a fight WAS; this
+   * answers what it IS, which is the question you have while deciding whether a
+   * behaviour change was an improvement.
+   *
+   * Off the last frame rather than accumulated, because "now" is the whole
+   * point — and off the SAME sample the report reads, so the strip and the
+   * record cannot disagree about what a ship was doing.
+   */
+  live: LiveContact[];
+}
+
+/** One hostile, right now — see `SimProgress.live`. */
+export interface LiveContact {
+  /** index into `ExerciseSetup.opponents`, so a caller can name the hull */
+  opponent: number;
+  hull: string;
+  dist: number;
+  /** what it is doing — `ContactSample.doing`, carried and not re-derived */
+  doing: string;
 }
 
 // --- what the caller feeds in ------------------------------------------------
@@ -222,6 +261,24 @@ export interface ContactSample {
   theirAim: number;
   /** radians off YOUR nose to them */
   yourAim: number;
+  /**
+   * What this ship was DOING at this instant — its attack phase, or the reason
+   * it was not flying one.
+   *
+   * The record could already say where every ship was and how fast; it could
+   * not say what any of them was trying to do. That is the difference between a
+   * log you can count and a log you can read, and it is the thing that decides
+   * whether a behaviour change was an improvement: a wave-13 record showed six
+   * ships at a median of 2,705 units making zero passes, and the WHY — that
+   * none of them had any reason to come in — took reading the source rather
+   * than reading the fight.
+   *
+   * A string rather than an enum on purpose. `AttackPhase` is break-off.ts's
+   * and will grow tactics beside it; a record written today should still be
+   * readable when it does, and a name it does not recognise is a name a human
+   * can still read.
+   */
+  doing: string;
 }
 
 /** The commander, and everything hostile, at one sample instant. */
@@ -408,6 +465,18 @@ export interface OpponentReport {
   passes: number;
   /** share of ITS sampled frames spent lined up on you, inside its own range */
   linedUpShare: number | null;
+  /**
+   * Seconds it spent doing each thing, most first — see `ContactSample.doing`.
+   *
+   * This is the column that says WHY the other columns look how they do. A
+   * ship with `passes: 0` and a median range of 2,610 is a fact; the same ship
+   * reading `closing 9.1s` is the explanation, and one reading
+   * `extending 7.0s, closing 2.1s` is a different problem entirely.
+   *
+   * Empty when nothing reported a phase — an older record, or a sampler that
+   * does not know about them.
+   */
+  doing: Record<string, number>;
 }
 
 /**
@@ -672,11 +741,14 @@ interface OppTally {
   frames: number;
   diedAt: number | null;
   killedByYou: boolean;
+  /** frames spent doing each thing, keyed by whatever name the sample reported */
+  doing: Map<string, number>;
 }
 
 const newTally = (): OppTally => ({
   shots: 0, hits: 0, missiles: 0, damageToYou: 0, damageFromYou: 0,
   dists: [], speeds: [], linedUp: 0, frames: 0, diedAt: null, killedByYou: false,
+  doing: new Map<string, number>(),
 });
 
 /**
@@ -733,7 +805,29 @@ export class CombatSimRecorder {
       accuracy: ratio(this.playerHits, this.playerShots),
       hitsTaken: this.npcHits,
       kills: this.killsByYou,
+      live: this.liveContacts(),
     };
+  }
+
+  /**
+   * The last sample, turned into something nameable.
+   *
+   * A dead ship simply stops appearing in `contacts`, so there is nothing to
+   * filter: the roster shrinks as the fight goes, which is the correct
+   * behaviour and one it gets for free rather than by remembering to check.
+   */
+  private liveContacts(): LiveContact[] {
+    const last = this.samples[this.samples.length - 1];
+    if (!last) return [];
+    const out: LiveContact[] = [];
+    for (const c of last.contacts) {
+      const setup = this.setup.opponents[c.opponent];
+      if (!setup) continue;
+      out.push({
+        opponent: c.opponent, hull: setup.hull, dist: Math.round(c.dist), doing: c.doing,
+      });
+    }
+    return out.sort((a, b) => a.dist - b.dist);
   }
 
   /** Every sample taken, for a caller that wants the raw log and not the report. */
@@ -787,6 +881,10 @@ export class CombatSimRecorder {
       o.dists.push(c.dist);
       o.speeds.push(c.speed);
       if (c.dist < NPC_LASER_RANGE && c.theirAim < NPC_FIRE_GATE) o.linedUp += 1;
+      // FRAMES, counted per name it reported. Turned into seconds at the end
+      // rather than here, so the histogram survives a change of sample rate the
+      // way every other distribution in this file does.
+      o.doing.set(c.doing, (o.doing.get(c.doing) ?? 0) + 1);
     }
   }
 
@@ -1028,6 +1126,11 @@ export class CombatSimRecorder {
       medianSpeed: roundOrNull(quantile(o.speeds, 0.5), 0),
       passes: countPasses(o.dists),
       linedUpShare: o.frames ? round(o.linedUp / o.frames, 3) : null,
+      doing: Object.fromEntries(
+        [...o.doing.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([what, frames]) => [what, round(frames / this.hz, 1)]),
+      ),
     };
   }
 

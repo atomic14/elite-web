@@ -1171,6 +1171,15 @@ function bySource(
 export function renderCombatSimReport(
   r: CombatSimReport, index: number, total: number,
 ): void {
+  // What a ship was DOING, longest first, as seconds. The columns beside it say
+  // where a ship was; this one says what it was trying to do, which is the only
+  // one of them that explains the others.
+  const spentDoing = (doing: Record<string, number>): string => {
+    const parts = Object.entries(doing).filter(([, secs]) => secs >= 0.1);
+    if (parts.length === 0) return '&mdash;';
+    return parts.map(([what, secs]) => `${escapeHtml(what.toUpperCase())} ${secs.toFixed(1)}s`)
+      .join(' &middot; ');
+  };
   const opponents = r.opponents.map((o) => `
       <tr>
         <td>${o.hull.toUpperCase()}</td>
@@ -1183,6 +1192,7 @@ export function renderCombatSimReport(
         <td class="num">${num(o.closestRange)}</td>
         <td class="num">${num(o.medianSpeed)}</td>
         <td class="num">${o.passes}</td>
+        <td>${spentDoing(o.doing)}</td>
       </tr>`).join('');
   const stat = (label: string, you: string, them: string): string =>
     `<tr><td>${label}</td><td class="num">${you}</td><td class="num">${them}</td></tr>`;
@@ -1249,7 +1259,8 @@ export function renderCombatSimReport(
     <table>
       <tr><th>HULL</th><th>BRAIN</th><th class="num">TIER</th><th class="num">LIVED</th>
         <th>FATE</th><th class="num">HITS/SHOTS</th><th class="num">DAMAGE</th>
-        <th class="num">CLOSEST</th><th class="num">SPEED</th><th class="num">RUNS</th></tr>
+        <th class="num">CLOSEST</th><th class="num">SPEED</th><th class="num">RUNS</th>
+        <th>SPENT ITS TIME</th></tr>
       ${opponents}
     </table>
     ${r.warnings.map((w) => `<div class="keyline" style="color:var(--hud-amber)">${w}</div>`).join('')}

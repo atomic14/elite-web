@@ -2,7 +2,7 @@
 //
 // This file owns missiles IN FLIGHT: spawn, homing, E.C.M. defeat, impact. It
 // does NOT decide who launches one — whether an NPC reaches for a missile
-// rather than its laser is `npcPrefersMissile` and `npcMissileLastStand` in
+// rather than its laser is `npcMissileEmergency` in `missile-launch.ts`, not
 // gunnery.ts, applied by `NpcShip.chooseWeapon`, which reports the launch in
 // its FireEvent; `Game.enemyLaunchMissile` spends the round and calls
 // `launchHostile` below. "Ordnance" and "gunnery" are both
@@ -245,6 +245,20 @@ export class Ordnance {
     }
     for (const m of [...this.missiles]) this.destroy(m);
     return outcome('ecmFired');
+  }
+
+  /**
+   * Is a hostile missile already homing on the player?
+   *
+   * `target === null` IS what makes a missile hostile — see the field. Asked by
+   * the world step so an NPC can be told, through its `WorldView`, that the air
+   * is already occupied: one at a time, gang-wide, so a single E.C.M. press
+   * remains a complete answer. It reads the list rather than keeping a count,
+   * because the list is the truth and a counter beside it would be a second
+   * home for the same fact.
+   */
+  get missileInbound(): boolean {
+    return this.missiles.some((m) => m.target === null);
   }
 
   /** Everything within range, gone. @returns the reply, and what it caught. */

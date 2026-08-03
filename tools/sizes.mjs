@@ -45,10 +45,9 @@ const ALLOWED = {
 
   // cohesive single subsystems
   //
-  // `game/brains.ts` and `game/brain-names.ts` used to be here — nine loaded
-  // policies and the twelve-row table that named them. TODO 57 deleted the six
-  // the game did not fly, and both files came in under the limit on their own.
-  // Nothing to allow.
+  // `game/brains.ts` used to be here too — nine loaded policies. TODO 57 deleted
+  // the six the game did not fly and it came in under the limit on its own.
+  'game/brain-names.ts': "the name of every policy, the prose that says how it flies, and the selection that makes the game fly it — one bijection, in one file. The obvious split is display (BRAINS, brainName, brainCharacter) from rules (SHIPPED_*, pirateBrainNameFor, SELECTIONS), and it is the wrong one: `pirateBrainNameFor` maps a selection to a name and `SELECTIONS` maps the name back, so they are the two directions of the same map and `test/brain-names.test.ts` asserts every name round-trips through its own selection. Splitting them puts the halves of one bijection in two files to be kept in step by hope, which is the named failure this project is organised against — the same argument already made for combat-sim-setup.ts. It crossed 400 when the scripted attack run became what ships (TRAINED_SOLO and PACK_POLICY had to split from SHIPPED_SOLO and SHIPPED_PACK so the A/B could still select what it compares against), not by accumulating unrelated things.",
   'game/screens/combat-sim-setup.ts': 'the draft and the rows that show it. A cell owns its label, its reading and what an arrow key does to it — it is a closure over the draft — so splitting the rows from the draft they mutate would put the two halves of one control in two files, which is exactly the parallel-path drift the cells exist to prevent.',
   'ui/screens.ts': 'one render function per screen; they share layout helpers and nothing else',
   'game/storage.ts': "the ONE file allowed to keep a SAVE in localStorage (engine/keymap.ts holds a layout preference and nothing else), so everything that touches the store has to be in it — the namespace, the write guard, the record read/write, the enumeration and the boot pointer. Splitting any of it out would mean exporting raw key access, which is the exact hole the namespace closes: every key in the program is built here from `ns`. `save-file.ts` already holds everything about a save that does NOT need the store. It shed the slot migration in TODO 53 and took on the boot pointer's other value in TODO 56 — `new:<NAME>`, which is how a commander a player has just named reaches the boot on the far side of a reload. The next thing to leave is `repairCommander`, if a home can be found for it that is not a second file knowing about the store.",

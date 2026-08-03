@@ -46,6 +46,7 @@
  */
 export type BrainName =
   | 'pirate-attack-g3'
+  | 'pirate-attack-e1'
   | 'pirate-pack-r4-selectonly'
   | 'jameson-defend-g1'
   | 'scripted';
@@ -95,8 +96,8 @@ export interface BrainProfile {
  * number would have to be guessed it says so instead — the panel saying NEVER
  * PROBED is honest and useful, and a made-up figure is neither.
  *
- * The trainer's two pickers offer one more value each — AS THE GAME FLIES and
- * AS SHIPPED — which are not brains but sentinels; their lines live with the
+ * The trainer's two pickers offer one more value each — SAME AS OUTSIDE and
+ * THE ORIGINAL — which are not brains but sentinels; their lines live with the
  * rest of the panel's prose in `screens/combat-sim-notes.ts`.
  */
 export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
@@ -106,6 +107,15 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
     name: 'CLOSES IN',
     character: 'CLOSES AND STAYS THERE — SPEED 216, MEDIAN RANGE 234, 0.20 COLLISIONS AN EPISODE. '
       + 'THE FIGHT THE GAME SHIPS.',
+  },
+  // probe: speed 182, range 222/706/1740, 0.93 passes, 20.7% of its own bank
+  // lost — the most attack runs of any brain measured, and the only solo policy
+  // that reliably leaves. A CANDIDATE, not shipped: restored for the TODO 61
+  // comparison against g3, which fights inside the range a player can track.
+  'pirate-attack-e1': {
+    name: 'MAKES RUNS',
+    character: 'CLOSES, SHOOTS AND BREAKS OFF — 0.93 COMPLETED PASSES AN EPISODE, MEDIAN RANGE 706. '
+      + 'TRADES ITS OWN HULL FOR THE OVERSHOOT: 20.7% OF ITS BANK AGAINST THE SHIPPED BRAIN\'S 6.1%.',
   },
   // probe: speed 144, range 393/1447/2905, 0.83 passes · tournament: a gang of
   // three takes 23.7% of her pools and kills her in 0% of episodes
@@ -124,9 +134,10 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
   // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
   // ships an episode to a commander who fights back
   scripted: {
-    name: 'THE OLD AIMBOT',
-    character: 'THE PRE-NEUROEVOLUTION AIMBOT — 58% ACCURACY AND 31.8s ON A HAULER\'S SIX, BUT IT '
-      + 'LOSES 0.93 SHIPS AN EPISODE TO A COMMANDER WHO SHOOTS BACK.',
+    name: 'MAKES ATTACK RUNS',
+    character: 'WHAT SHIPS. CLOSES, FLIES THROUGH THE PASS AND COMES ROUND AGAIN — 5.2 '
+      + 'ATTACK RUNS AN EPISODE AGAINST 0.0 FOR THE TRAINED BRAINS, AND 2.2 POINTS OF '
+      + 'CONTACT DAMAGE WHERE AIMING AT THE TARGET INSTEAD OF PAST IT COST 104.',
   },
 });
 
@@ -135,8 +146,8 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
  * (`screens/combat-sim-notes.ts`); neither has a character to state.
  */
 const SENTINEL_NAMES: Readonly<Record<string, string>> = Object.freeze({
-  [AS_THE_GAME_FLIES]: 'AS THE GAME FLIES',
-  [AS_SHIPPED]: 'AS SHIPPED',
+  [AS_THE_GAME_FLIES]: 'SAME AS OUTSIDE',
+  [AS_SHIPPED]: 'THE ORIGINAL',
 });
 
 /**
@@ -202,13 +213,85 @@ export interface BrainSelection {
   scripted?: boolean;
   /** force the pack policy onto solo pirates as well as gangs */
   pack?: boolean;
+  /**
+   * fly `pirate-attack-e1` as the solo pirate — the candidate that breaks off.
+   *
+   * A THIRD flag, after TODO 57 got it down to two, and it is here to be
+   * removed again: either e1 is promoted and this becomes the default, or it
+   * loses the comparison and both the flag and the weights go. It is not a
+   * permanent option.
+   */
+  passes?: boolean;
+  /**
+   * Fly the trained solo policy instead of the scripted attack run.
+   *
+   * Needed the moment `SHIPPED_SOLO` became `scripted`: selections are OVERRIDES
+   * on the default, so `pirate-attack-g3` was reachable as `{}` only while it
+   * WAS the default — and the instant it stopped, the trainer could list it,
+   * name it and describe it while flying something else.
+   */
+  trained?: boolean;
 }
 
-/** The solo policy a pirate flies with no overrides. */
-const SHIPPED_SOLO: BrainName = 'pirate-attack-g3';
-/** The policy an organised gang flies with no overrides. */
-const SHIPPED_PACK: BrainName = 'pirate-pack-r4-selectonly';
-/** The policy an armed trader turns and fights with, with no overrides. */
+/**
+ * The solo policy a pirate flies with no overrides.
+ *
+ * `scripted`, by decision. Chris flew every option in the trainer — "the
+ * scripted one is actually better" — and then, once it had an attack run, a
+ * throttle rule, a randomised turn-back and wingman avoidance: "I think we
+ * should now make the old aimbot the main npc AI."
+ *
+ * It is not the AI that name describes. What ships closes, goes THROUGH the
+ * pass, extends to a range it rolls per run, throttles back to turn, keeps off
+ * its wingmen and spends a missile only in trouble. What earned it the name
+ * "aimbot" was `dist < 220` and a reversal.
+ *
+ * The neuroevolution is neither deleted nor wasted (docs/TRAINING-LOG.md): it
+ * produced the finding this flight model is built on — that stopping is the
+ * optimal way to hold a firing line, hence `MIN_CRUISE_FRACTION`. Every policy
+ * is still one row away in the trainer.
+ */
+const SHIPPED_SOLO: BrainName = 'scripted';
+/** The solo candidate under comparison — see `BrainSelection.passes`. */
+const CANDIDATE_SOLO: BrainName = 'pirate-attack-e1';
+
+/**
+ * The policy an organised gang flies with no overrides.
+ *
+ * `scripted` too, on evidence rather than symmetry. The row Chris played all
+ * session — CHANGE THE DEFAULT ENEMY AI → scripted — sets `scripted: true`,
+ * which turns off EVERY brain including this one. So the gangs he reported on
+ * ("groups seem to use the old aimbot fine and play well") were flying the run,
+ * not the pack policy; shipping solo-scripted with trained gangs would have
+ * shipped a combination nobody has flown. What the pack policy was fitted to
+ * coordinate, the run now does structurally — `packOffset` on the approach,
+ * separation.ts at the merge.
+ */
+const SHIPPED_PACK: BrainName = 'scripted';
+/**
+ * The trained gang policy itself, as a name — separate from `SHIPPED_PACK` since
+ * that became `scripted`. The split is why the A/B still works: the two were one
+ * constant, so pointing the default at the run took the alternative with it and
+ * `state.brains.pack` selected the thing it was meant to compare against.
+ */
+const PACK_POLICY: BrainName = 'pirate-pack-r4-selectonly';
+/** The trained solo policy — the pair to `PACK_POLICY`, split for the same reason. */
+const TRAINED_SOLO: BrainName = 'pirate-attack-g3';
+/**
+ * The policy an armed trader turns and fights with, with no overrides.
+ *
+ * STAYS TRAINED, and it is the one of the three that must. Chris asked for the
+ * default to be what he flew, and the row he flew (`scripted: true`) does turn
+ * this off as well — so making it `scripted` looked like the faithful reading.
+ * It is not: `defenceBrain` flies the COMBAT COMPUTER too, which is the
+ * player's own assist, and there is no scripted equivalent for flying YOUR
+ * ship. `attack()` is how a hostile flies at the commander. Pointing this at it
+ * left the combat computer unable to produce a flight demand at all.
+ *
+ * So the rule that came out of it: the scripted run is what ATTACKS you.
+ * Anything flying on your behalf, or evading rather than attacking, keeps the
+ * policy fitted for it.
+ */
 const SHIPPED_DEFENCE: BrainName = 'jameson-defend-g1';
 
 /**
@@ -248,8 +331,12 @@ export function pirateBrainNameFor(
   _tier: number, organised: boolean, sel: BrainSelection = SHIPPED_BRAINS,
 ): BrainName {
   if (sel.scripted) return 'scripted';
-  if (organised || sel.pack) return SHIPPED_PACK;
-  return SHIPPED_SOLO;
+  // The A/B is asked FIRST and names the policy outright: it exists to fly the
+  // trained gang brain, which is no longer what a gang ships with.
+  if (sel.pack) return PACK_POLICY;
+  if (sel.trained) return TRAINED_SOLO;
+  if (organised) return SHIPPED_PACK;
+  return sel.passes ? CANDIDATE_SOLO : SHIPPED_SOLO;
 }
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
@@ -273,7 +360,8 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
  * record — and it was wider only because six experiments were in the bundle.
  */
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
-  'pirate-attack-g3': {},
+  'pirate-attack-g3': { trained: true },
+  'pirate-attack-e1': { passes: true },
   'pirate-pack-r4-selectonly': { pack: true },
   'jameson-defend-g1': {},
   scripted: { scripted: true },

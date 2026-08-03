@@ -22,7 +22,7 @@
 // Pure, like the two modules it sits between: no DOM, no Game, no World. The
 // painter is handed the result (hud/hud.ts) and paints it.
 
-import type { ExerciseSetup, SimProgress } from './combat-sim-report.ts';
+import type { ExerciseSetup, LiveContact, SimProgress } from './combat-sim-report.ts';
 import {
   MODES, exerciseTimeout, type ExerciseSpec, type ModeRules, type SimMode,
 } from './combat-sim-scenarios.ts';
@@ -34,6 +34,8 @@ import {
  * watched. Everything a pilot cannot read at a glance mid-dogfight belongs in
  * the report, which is two seconds away at the end of the exercise.
  */
+export type { LiveContact };
+
 export interface ExerciseStrip {
   /** the fight, exactly as the report names it — never re-derived here */
   scenario: string;
@@ -68,6 +70,23 @@ export interface ExerciseStrip {
   accuracy: number | null;
   /** laser hits they have landed on you */
   hitsTaken: number;
+  /**
+   * Every hostile still up: hull, range, and what it is doing — nearest first.
+   *
+   * This is the one thing on the strip that is NOT deliberately small, and the
+   * doctrine above is amended rather than quietly broken. The strip was written
+   * for a pilot judging how a fight feels, and everything a pilot cannot read at
+   * a glance was sent to the report. Tuning BEHAVIOUR is a different job with a
+   * different reader: Chris, mid-session — "I want to see the details all the
+   * time" — because the question "why is that one not shooting at me" cannot
+   * wait for a report, and answering it two minutes later against a fight you
+   * can no longer see is exactly the failure this file was created to fix.
+   *
+   * It stays honest by carrying `ContactSample.doing` rather than deriving a
+   * second opinion, so the strip, the record and the report all quote the same
+   * word.
+   */
+  live: readonly LiveContact[];
 }
 
 /** Seconds, at the resolution the report quotes them. */
@@ -101,5 +120,6 @@ export function exerciseStrip(
     hits: progress.hits,
     accuracy: progress.accuracy,
     hitsTaken: progress.hitsTaken,
+    live: progress.live,
   };
 }

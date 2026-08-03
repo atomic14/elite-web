@@ -399,6 +399,18 @@ body.screen-open #message {
 #exercise .ex-head span { margin-left: 10px; opacity: 0.85; }
 #exercise .ex-row { display: flex; gap: 16px; color: var(--hud-green); }
 #exercise .ex-row #ex-mark { color: var(--hud-amber); }
+/*
+  The live roster. Dimmer than the tallies above it on purpose: it is a
+  reference a pilot glances down at, not a number they fly by.
+*/
+#exercise #ex-live {
+  margin-top: 4px;
+  color: var(--hud-green);
+  opacity: 0.8;
+  /* The columns are spaces, so the font has to hold them still. */
+  white-space: pre;
+  line-height: 1.35;
+}
 /* a screen replaces the cockpit, and the strip is cockpit — see #hud above */
 body.screen-open #exercise { display: none; }
 
