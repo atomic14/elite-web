@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **10 / 11 complete**. Five reviewers with separate lenses; every
+Progress: **12 / 13 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -126,6 +126,21 @@ they had to — a trader's median net worth 7426.6 → 7577.4 Cr, cash in hand 3
 check in the BOUNTY HUNTER cohort, and it fails identically before and after: a
 hunter buys no cargo, so its figures are byte-identical either way.
 
+54 is done, and both halves of it were one spread. `adoptSaveFile` copied a
+parsed file into the record it wrote, so `v` and `savedAt` came off a stranger's
+disk — and `readSave` refuses a record whose version is not this build's, so a
+file from another build was written, pointed at, announced, and then did not
+exist. The version is checked where the file is PARSED now, which is the only
+place that can refuse it out loud, and the record is MINTED through
+`makeRecord`: only the world and the commander come from the file, because only
+they are the file's to give. `savedAt` is the import, not the claim, which
+matters because the flight ring evicts by it and a lost pointer resumes the
+newest record. The second half was TODO 44's third `setBootId` call site, and it
+is honoured beside the reload it authorises. `test/save-transfer.test.ts`
+asserts the shelf's own contract from the bytes: every record on it is readable
+by `readSave`, which `listSaves()` cannot be asked because it drops exactly what
+the question is about.
+
 Order: 49 is why several of these survived — 46 is item 1 on its list, a guard
 that greps persistence.ts for a field NAME while the value is clobbered four
 lines later — so it is worth doing early rather than last.
@@ -141,6 +156,8 @@ lines later — so it is worth doing early rather than last.
 - [x] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
 - [x] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium
 - [x] 53 — [Delete the legacy save migration](53-delete-the-legacy-save-migration.md) — simplification · medium · small
+- [x] 54 — [Import can write a save the shelf cannot read](54-import-can-write-an-unreadable-save.md) — save integrity · medium · small
+- [ ] 55 — [Make saving and loading legible](55-make-saving-legible.md) — UI/UX · high · medium
 
 ## Follow-ups
 

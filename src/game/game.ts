@@ -804,8 +804,11 @@ export class Game {
   }
 
   private importSave(): void {
-    importSaveFile(this.savesContext(), () => {
-      this.showMessage('IMPORT FAILED — NOT A SAVE FILE', 4);
+    // The reason comes back from the importer, which is the only thing that
+    // knows which of them it was — not a save, not this build's save, or no
+    // room for it (save-transfer.ts).
+    importSaveFile(this.savesContext(), (why) => {
+      this.showMessage(why, 4);
       sfx.refused();
     });
   }

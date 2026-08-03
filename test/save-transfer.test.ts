@@ -19,12 +19,19 @@
 //      whether the page reloaded — is asserted from the bytes, not from a mock
 //      of the module under test.
 //
+// Section 3 is docs/TODO/54 and holds the shelf's own contract from the outside:
+// EVERY RECORD ON THE SHELF IS READABLE BY `readSave`. `listSaves()` cannot be
+// asked that question — it drops what it cannot read, so a record the shelf
+// cannot see is invisible to the very function you would ask — so the bytes are
+// the witness, and an import is what writes them.
+//
 // The other half of TODO 43, career identity itself, is
 // test/career-identity.test.ts: this file is the module, that one is the rule.
 
 import { newCommander } from '../src/game/commander.ts';
 import {
-  MAX_NAMED_SAVES, commanderOf, dockId, fileId,
+  MAX_NAMED_SAVES, SAVE_ID_PREFIX, SAVE_RECORD_VERSION,
+  commanderOf, dockId, fileId, parseSaveId,
 } from '../src/game/save-file.ts';
 import {
   bootSave, listSaves, makeRecord, readSave, saveNamespace, writeDockSave,
@@ -32,6 +39,7 @@ import {
 } from '../src/game/storage.ts';
 import {
   adoptSaveFile, exportedSaveFile, importSaveFile, receiveSaveFile,
+  type AdoptedFile,
 } from '../src/game/screens/save-transfer.ts';
 import type { SavesContext } from '../src/game/screens/saves.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
@@ -73,6 +81,28 @@ function pickFile(text: string | null, run: () => void): Record<string, unknown>
   return el;
 }
 
+/**
+ * What an import took, for the assertions that expect one to have worked.
+ *
+ * A refusal is turned into an id nothing is stored under rather than thrown, so
+ * the check that follows FAILS and prints the reason — a throw at module scope
+ * would take the whole run down at the first surprise.
+ */
+const took = (r: AdoptedFile): { id: string; name: string } =>
+  (r.ok ? r : { id: `refused: ${r.why}`, name: `refused: ${r.why}` });
+
+/**
+ * Every save-shaped key in the store that `readSave` cannot read back.
+ *
+ * Not `listSaves()`: it silently drops exactly these, which is what let a
+ * record be written, pointed at, announced, and then not exist (TODO 54).
+ */
+const unreadable = (held: Map<string, string>): string[] =>
+  [...held.keys()]
+    .filter((k) => k.startsWith(saveNamespace() + SAVE_ID_PREFIX))
+    .map((k) => k.slice(saveNamespace().length))
+    .filter((id) => parseSaveId(id) !== null && readSave(id) === null);
+
 /** A world snapshot that is only as real as the storage layer needs. */
 const stubWorld = (
   commander: ReturnType<typeof newCommander>, extra: Record<string, unknown> = {},
@@ -88,27 +118,26 @@ console.log('\na file from outside takes a name and a career this shelf gives it
     const stranger = makeRecord('JAMESON', 'JAMESON', 'file',
       stubWorld({ ...newCommander(), credits: 1_000 }));
 
-    check('rubbish is not a save', adoptSaveFile('not json at all') === null);
+    check('rubbish is not a save', adoptSaveFile('not json at all').ok === false);
     check('...nor is a JSON object that carries no commander',
-      adoptSaveFile(JSON.stringify({ name: 'X', hello: true })) === null);
+      adoptSaveFile(JSON.stringify({ name: 'X', hello: true })).ok === false);
 
     // the old export shape: a bare commander, no record around it
-    const bare = adoptSaveFile(JSON.stringify({ ...newCommander(), name: 'ZAPHOD', credits: 7 }));
-    eq('a pre-record export still imports', bare?.name, 'ZAPHOD');
-    eq('...keeping its commander', commanderOf(readSave(bare!.id)!)?.credits, 7);
+    const bare = took(adoptSaveFile(
+      JSON.stringify({ ...newCommander(), name: 'ZAPHOD', credits: 7 })));
+    eq('a pre-record export still imports', bare.name, 'ZAPHOD');
+    eq('...keeping its commander', commanderOf(readSave(bare.id)!)?.credits, 7);
 
     // ...and a whole record, onto an empty-ish shelf
-    const first = adoptSaveFile(JSON.stringify(stranger));
+    const first = took(adoptSaveFile(JSON.stringify(stranger)));
     eq('a record keeps the name it asks for when nothing is using it',
-      first?.name, 'JAMESON');
+      first.name, 'JAMESON');
     eq('...and its career is that name, because no career is using it either',
-      readSave(first!.id)?.career, 'JAMESON');
-    eq('...and the boot pointer moves to it, which is what makes the reload a load',
-      bootSave()?.id, first!.id);
+      readSave(first.id)?.career, 'JAMESON');
 
     // NAME collision: a second copy of the same file
-    const second = adoptSaveFile(JSON.stringify(stranger));
-    eq('a second copy cannot land on the first', second?.name, 'JAMESON 2');
+    const second = took(adoptSaveFile(JSON.stringify(stranger)));
+    eq('a second copy cannot land on the first', second.name, 'JAMESON 2');
     eq('...and the first is untouched',
       commanderOf(readSave(fileId('JAMESON'))!)?.credits, 1_000);
 
@@ -123,14 +152,14 @@ console.log('\na file from outside takes a name and a career this shelf gives it
     check('...really is invisible to the NAME set',
       listSaves().every((s) => s.record.name !== 'TRILLIAN')
       && listSaves().some((s) => s.record.career === 'TRILLIAN'));
-    const third = adoptSaveFile(JSON.stringify(
-      makeRecord('TRILLIAN', 'TRILLIAN', 'file', stubWorld(newCommander()))));
-    eq('a name nothing is using is free to take', third?.name, 'TRILLIAN');
+    const third = took(adoptSaveFile(JSON.stringify(
+      makeRecord('TRILLIAN', 'TRILLIAN', 'file', stubWorld(newCommander())))));
+    eq('a name nothing is using is free to take', third.name, 'TRILLIAN');
     check('...but the CAREER is not, because a career is using it',
-      readSave(third!.id)?.career !== 'TRILLIAN');
-    eq('...so it counts up instead', readSave(third!.id)?.career, 'TRILLIAN 2');
+      readSave(third.id)?.career !== 'TRILLIAN');
+    eq('...so it counts up instead', readSave(third.id)?.career, 'TRILLIAN 2');
     check('...and its checkpoint therefore cannot address the live career\'s',
-      dockId(readSave(third!.id)!.career) !== dockId('TRILLIAN'));
+      dockId(readSave(third.id)!.career) !== dockId('TRILLIAN'));
 
     // ...and where a career DOES have autosaves, they do not move
     writeDockSave('ZAPHOD', stubWorld({ ...newCommander(), credits: 500_000, day: 300 }));
@@ -141,15 +170,17 @@ console.log('\na file from outside takes a name and a career this shelf gives it
       sameKeys(before, autoKeys('ZAPHOD')));
 
     // ...whatever the file claims. A record can say anything; it is not asked.
-    const liar = adoptSaveFile(JSON.stringify(
-      { ...makeRecord('HOTBLACK', 'TRILLIAN', 'file', stubWorld(newCommander())) }));
+    const liar = took(adoptSaveFile(JSON.stringify(
+      { ...makeRecord('HOTBLACK', 'TRILLIAN', 'file', stubWorld(newCommander())) })));
     eq('the career a file claims is discarded, not trusted',
-      readSave(liar!.id)?.career, 'HOTBLACK');
+      readSave(liar.id)?.career, 'HOTBLACK');
 
     // a full store: refused, and nothing moves
     const shelf = new Map(store.held);
     store.failFrom = store.writes + 1;
-    check('a full store refuses the import', adoptSaveFile(JSON.stringify(stranger)) === null);
+    const full = adoptSaveFile(JSON.stringify(stranger));
+    check('a full store refuses the import, and says which refusal it was',
+      !full.ok && full.why === 'IMPORT FAILED — STORAGE FULL. NOTHING WAS CHANGED');
     check('...and every existing save is byte-identical afterwards',
       store.held.size === shelf.size && [...shelf].every(([k, v]) => store.held.get(k) === v));
     store.failFrom = Infinity;
@@ -169,7 +200,7 @@ console.log('\nthe file picker adds nothing to the rule');
   const loc = installLocation();
   try {
     const said: string[] = [];
-    let failed = 0;
+    const refused: string[] = [];
     const ctx = {
       career: 'JAMESON',
       message: (t: string) => { said.push(t); },
@@ -180,35 +211,38 @@ console.log('\nthe file picker adds nothing to the rule');
     // save the file becomes, what they are told, and whether the page reloads.
     const file = JSON.stringify(makeRecord('ARTHUR', 'ARTHUR', 'file',
       stubWorld({ ...newCommander(), credits: 42 })));
-    receiveSaveFile(ctx, file, () => { failed += 1; });
+    receiveSaveFile(ctx, file, (why) => { refused.push(why); });
     check('a file is written, announced and booted into',
       commanderOf(readSave(fileId('ARTHUR'))!)?.credits === 42
       && said.join() === 'IMPORTED AS ARTHUR'
       && bootSave()?.id === fileId('ARTHUR')
-      && loc.reloads() === 1 && failed === 0);
+      && loc.reloads() === 1 && refused.length === 0);
 
     said.length = 0;
-    receiveSaveFile(ctx, '{"nonsense": 1}', () => { failed += 1; });
+    receiveSaveFile(ctx, '{"nonsense": 1}', (why) => { refused.push(why); });
     check('a file that is not a save fails loudly and reloads nothing',
-      failed === 1 && said.length === 0 && loc.reloads() === 1);
+      refused.length === 1 && said.length === 0 && loc.reloads() === 1);
+    eq('...saying which of the refusals it was', refused[0],
+      'IMPORT FAILED — NOT A SAVE FILE');
 
     // ...and the picker itself, which is the rest of it: it asks the browser
     // for one JSON file and hands what comes back to the rule above.
     said.length = 0;
     const second = JSON.stringify(makeRecord('ARTHUR', 'ARTHUR', 'file',
       stubWorld({ ...newCommander(), credits: 43 })));
-    const el = pickFile(second, () => importSaveFile(ctx, () => { failed += 1; }));
+    const el = pickFile(second, () =>
+      importSaveFile(ctx, (why) => { refused.push(why); }));
     check('the picker asks for one JSON file',
       el.type === 'file' && el.accept === 'application/json');
     check('...and what comes back goes through the same rule',
       said.join() === 'IMPORTED AS ARTHUR 2'
       && commanderOf(readSave(fileId('ARTHUR 2'))!)?.credits === 43
-      && loc.reloads() === 2 && failed === 1);
+      && loc.reloads() === 2 && refused.length === 1);
 
     said.length = 0;
-    pickFile(null, () => importSaveFile(ctx, () => { failed += 1; }));
+    pickFile(null, () => importSaveFile(ctx, (why) => { refused.push(why); }));
     check('a cancelled picker does nothing at all',
-      failed === 1 && said.length === 0 && loc.reloads() === 2);
+      refused.length === 1 && said.length === 0 && loc.reloads() === 2);
 
     // ...and the export it round-trips with
     writeDockSave('FORD PREFECT', stubWorld({ ...newCommander(), credits: 500_000 }));
@@ -218,11 +252,97 @@ console.log('\nthe file picker adds nothing to the rule');
     } as unknown as SavesContext);
     eq('an export names the file after the career', out.fileName, 'harmless-save-ford-prefect.json');
     eq('...and carries the career it was taken from', JSON.parse(out.json).career, 'FORD PREFECT');
-    const back = adoptSaveFile(out.json);
+    const back = took(adoptSaveFile(out.json));
     check('...but importing it back is a NEW career, never the live one',
-      readSave(back!.id)?.career !== 'FORD PREFECT');
+      readSave(back.id)?.career !== 'FORD PREFECT');
     check('...whose checkpoint is still 500,000 Cr',
       commanderOf(readSave(dockId('FORD PREFECT'))!)?.credits === 500_000);
+  } finally {
+    loc.restore();
+    restore();
+  }
+}
+
+// --- 3. an import becomes a record this shelf can read, or it does not happen -
+
+console.log('\nan import either becomes a readable record or is refused out loud');
+{
+  const { store, restore } = installStore();
+  const loc = installLocation();
+  try {
+    const said: string[] = [];
+    const refused: string[] = [];
+    const ctx = {
+      career: 'JAMESON',
+      message: (t: string) => { said.push(t); },
+      capture: () => stubWorld(newCommander()),
+    } as unknown as SavesContext;
+
+    // the career being flown, with the boot pointer aimed at its checkpoint
+    writeDockSave('JAMESON', stubWorld({ ...newCommander(), day: 300, credits: 500_000 }));
+
+    // A FILE FROM ANOTHER BUILD. `readSave` refuses a record whose version is
+    // not this one's, so writing it would leave bytes no list can show and no
+    // delete can reach, under a pointer aimed at nothing (docs/TODO/54).
+    const shelf = new Map(store.held);
+    const future = JSON.stringify({
+      ...makeRecord('BRIAN', 'BRIAN', 'file', stubWorld({ ...newCommander(), credits: 42 })),
+      v: SAVE_RECORD_VERSION + 1,
+    });
+    receiveSaveFile(ctx, future, (why) => { refused.push(why); });
+    eq('a save from a version this build cannot read is refused, and says why',
+      refused[0], 'IMPORT FAILED — SAVE FROM ANOTHER VERSION');
+    check('...nothing is announced and nothing reloads',
+      said.length === 0 && loc.reloads() === 0);
+    check('...and not one byte is written',
+      store.held.size === shelf.size && [...shelf].every(([k, v]) => store.held.get(k) === v));
+
+    // ...and the same file as one this build CAN read.
+    const good = JSON.stringify(makeRecord('ZAPHOD', 'ZAPHOD', 'file',
+      stubWorld({ ...newCommander(), credits: 42 })));
+    receiveSaveFile(ctx, good, (why) => { refused.push(why); });
+    const id = fileId('ZAPHOD');
+    check('a file this build can read becomes a record it can read BACK',
+      readSave(id) !== null && listSaves().some((s) => s.id === id));
+    check('...announced, pointed at and reloaded into',
+      said.join() === 'IMPORTED AS ZAPHOD'
+      && bootSave()?.id === id && loc.reloads() === 1 && refused.length === 1);
+
+    // THE SHELF'S OWN CONTRACT, asked of the bytes rather than of `listSaves()`,
+    // which drops exactly what this is looking for.
+    eq('every record on the shelf is readable by readSave', unreadable(store.held).join(), '');
+
+    // MINTED, NOT SPREAD. `savedAt` decides which flight-ring slot is evicted
+    // and which record a lost pointer falls back to, so it is not a file's to
+    // choose — and a spread passed through whatever else came with it.
+    const ancient = {
+      ...makeRecord('MARVIN', 'MARVIN', 'file', stubWorld(newCommander())),
+      savedAt: 1, junk: 'brain the size of a planet',
+    };
+    const minted = readSave(took(adoptSaveFile(JSON.stringify(ancient))).id)!;
+    check('an imported record is stamped when it was imported, not when the file says',
+      minted.savedAt > 1);
+    check('...and carries nothing else the file was carrying', !('junk' in minted));
+    // `v` is not asserted here on purpose: no accepted file can carry another
+    // one, so the check could not be made to fail, and a guard that cannot fail
+    // is the shape docs/TODO/49 was about. The version is guarded above, where
+    // a file that has the wrong one is refused.
+
+    // A REFUSED BOOT POINTER IS NOT RELOADED ON (TODO 44's third call site).
+    said.length = 0;
+    store.failKeys = /boot$/;   // the record write is fine; the pointer is not
+    receiveSaveFile(ctx, JSON.stringify(makeRecord('TRICIA', 'TRICIA', 'file',
+      stubWorld({ ...newCommander(), credits: 7 }))), (why) => { refused.push(why); });
+    store.failKeys = null;
+    // The pointer did not move, so a reload would have landed back on ZAPHOD
+    // under an announcement that said TRICIA. That is the whole defect: the
+    // reload count and the announcement are what it is asserted by.
+    check('a refused boot pointer is not announced and not reloaded on',
+      said.length === 0 && loc.reloads() === 1);
+    eq('...the player is told what actually happened instead',
+      refused[refused.length - 1], 'IMPORTED AS TRICIA — BUT COULD NOT SWITCH TO IT');
+    check('...and the record stays on the shelf, not deleted on a write that failed',
+      readSave(fileId('TRICIA')) !== null);
   } finally {
     loc.restore();
     restore();
