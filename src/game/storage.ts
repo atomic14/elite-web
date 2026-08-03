@@ -1,4 +1,7 @@
-// Where a save is kept. The ONLY file in the project that touches localStorage.
+// Where a save is kept. The only file that may touch localStorage for a SAVE —
+// `engine/keymap.ts` is the one carve-out, and it holds the single
+// `elite-web-keymap` key, which is a display preference and not a career
+// (CLAUDE.md invariant 3 states the same exception).
 //
 // Chris's framing, and it is the right one: the storage mechanism was an
 // implementation detail leaking into something that would otherwise be pure.
@@ -51,8 +54,8 @@ import {
 import { migratedPlayerHullId } from './ship-identity.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import {
-  SAVE_ID_PREFIX, SAVE_RECORD_VERSION, FLIGHT_RING,
-  dockId, fileId, flightId, flightIds, parseSaveId, uniqueSaveName,
+  SAVE_ID_PREFIX, SAVE_RECORD_VERSION,
+  dockId, fileId, flightIds, parseSaveId, uniqueSaveName,
   commanderOf, normaliseSaveName,
   type SaveRecord,
 } from './save-file.ts';
@@ -439,14 +442,6 @@ function repairCommander(stored: Partial<CommanderData>): CommanderData {
 }
 
 // --- what the console and the harnesses need ---------------------------------
-
-/**
- * Every id a career occupies, for a harness that wants to clean up after
- * itself. Ids, never keys: the namespace is applied here and nowhere else.
- */
-export function careerIds(career: string): string[] {
-  return [dockId(career), ...Array.from({ length: FLIGHT_RING }, (_, i) => flightId(career, i))];
-}
 
 /** Wipe the harness namespace. Refuses point-blank outside it. */
 export function clearHarnessSaves(): void {

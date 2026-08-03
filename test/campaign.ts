@@ -20,9 +20,10 @@ import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { generateContractOffers, applyMarketPressure, chartDistanceTenths, MAX_CONTRACTS, settleContracts, marketEstimate } from '../src/game/contracts.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import {
-  newCommander, cargoCapacity, cargoTonnes, rating, killValue, MAX_FUEL,
+  newCommander, cargoCapacity, cargoTonnes, killValue, MAX_FUEL,
   type CommanderData, type Contract,
 } from '../src/game/commander.ts';
+import { rating, ratingLadder } from '../src/game/rating.ts';
 import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
 } from '../src/game/shop.ts';
@@ -675,8 +676,9 @@ function report(label: string, careers: CareerResult[], strategy: Strategy): voi
 
   // the combat ladder: how long does each rank actually take?
   {
-    const ranks = ['Mostly Harmless', 'Poor', 'Below Average', 'Average',
-      'Above Average', 'Competent', 'Dangerous', 'Deadly', 'E L I T E'];
+    // from commander.ts's own ladder, less HARMLESS, which every commander
+    // starts at and therefore never "reaches"
+    const ranks = ratingLadder().slice(1);
     const rows = ranks.map((rank) => {
       const hits = careers
         .map((r) => r.milestones.find((m) => m.rank === rank))

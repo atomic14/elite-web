@@ -85,14 +85,19 @@ export interface Screen {
  * Holds the stack, runs the menu cursor, turns clicks into input, and gives
  * one frame to whichever screen is on top.
  *
- * Screens not yet migrated are pushed as ids with no implementation. The stack
- * is still the single source of truth for *which* screen is open — only the
- * handling stays behind in game.ts until that screen moves. `handled` says
- * which case you are in.
+ * EVERY `ScreenId` has a registered `Screen`; `test/game.test.ts` builds a Game
+ * and opens every id in the union to check it. This class used to carry a
+ * second shape for the ids that had
+ * not migrated yet — a nullable screen in the stack, a `handled` getter, and an
+ * `update()` that could return "not mine, you deal with it" — and every one of
+ * those has been unreachable since the last overlay moved. Opening an id with
+ * nothing registered now throws, because the only way to reach it is to add a
+ * `ScreenId` and forget the registration, and a screen that silently does
+ * nothing is the worse failure.
  */
 export class ScreenHost {
   private readonly registry = new Map<ScreenId, Screen>();
-  private readonly stack: { id: ScreenId; screen: Screen | null }[] = [];
+  private readonly stack: { id: ScreenId; screen: Screen }[] = [];
   /** cursor position for the generic menu handling, see runMenuCursor */
   private menuSelected = 0;
 
@@ -121,17 +126,12 @@ export class ScreenHost {
   }
 
   /** The screen on top, or null when the base state is showing. */
-  get top(): { id: ScreenId; screen: Screen | null } | null {
+  get top(): { id: ScreenId; screen: Screen } | null {
     return this.stack.length ? this.stack[this.stack.length - 1] : null;
   }
 
   get topId(): ScreenId | null {
     return this.top?.id ?? null;
-  }
-
-  /** True when the top screen implements the contract (vs. legacy handling). */
-  get handled(): boolean {
-    return this.top?.screen != null;
   }
 
   get depth(): number {
@@ -140,10 +140,11 @@ export class ScreenHost {
 
   /** Push a screen. `back` from it returns to whatever is underneath. */
   open(id: ScreenId): void {
-    const screen = this.registry.get(id) ?? null;
+    const screen = this.registry.get(id);
+    if (!screen) throw new Error(`screen-host: no screen registered for '${id}'`);
     this.stack.push({ id, screen });
     this.menuSelected = 0;
-    screen?.open();
+    screen.open();
   }
 
   /**
@@ -166,12 +167,11 @@ export class ScreenHost {
     this.stack.pop();
     this.menuSelected = 0;
     const top = this.top;
+    // An uncovered screen repaints itself. This used to fall back to a
+    // `repaintLegacy` callback into the Game for screens that had not
+    // migrated; all of them have, and the parameter was already a no-op.
     if (!top) this.showBase();
-    // Every id has a registered Screen now, so an uncovered one repaints
-    // itself. This used to fall back to a `repaintLegacy` callback into the
-    // Game for screens that had not migrated; all ten have, and the parameter
-    // was already being passed as a no-op.
-    else top.screen?.render();
+    else top.screen.render();
     return this.stack.length > 0;
   }
 
@@ -185,19 +185,19 @@ export class ScreenHost {
 
   /** Re-paint the top screen, after data changed underneath it. */
   render(): void {
-    this.top?.screen?.render();
+    this.top?.screen.render();
   }
 
   /**
    * One frame for the top screen.
    *
-   * @returns false when the top screen has no implementation yet, so the
-   * caller should fall through to its own handling.
+   * @returns false when NO screen is open, so the caller gives the frame to
+   * its base state instead. A screen that is open always takes the frame.
    */
   update(i: Input, dt = 0): boolean {
     this.runMenuCursor(i);
     const top = this.top;
-    if (!top?.screen) return false;
+    if (!top) return false;
     top.screen.tick?.(dt, i);
     this.apply(top.screen.input(i));
     return true;

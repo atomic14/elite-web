@@ -170,7 +170,8 @@ one table in [ELITE-A.md](ELITE-A.md).
   changes what a destroyed rock yields. The equipment redesign that turns it
   into a real mounted weapon is deferred by the combat plan.
 - Fuel priced at 0.4 Cr/LY (the manual's table implies 0.2 Cr/LY).
-  The rate is `FUEL_PRICE` in `src/game/commander.ts` — change it there.
+  The rate is `FUEL_PRICE` in `src/game/shop.ts` — change it there, with every
+  other price.
 - A **Combat Computer** (TL9, 2000 Cr) with no 1984 equivalent: it hands
   your ship to the trained defence policy for as long as you hold a fight.
 - A **combat training simulator** (`T` when docked, free, every station), which

@@ -12,7 +12,8 @@
 // a typed name cannot reach, which is what makes "an autosave can never
 // overwrite a named save" a property of the key space rather than a promise.
 
-import { rating, type CommanderData } from './commander.ts';
+import type { CommanderData } from './commander.ts';
+import { rating } from './rating.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 
 /** Bump when the RECORD shape changes. Not the snapshot's version. */
@@ -105,10 +106,6 @@ export function normaliseSaveName(raw: string): string {
     .trim()
     .slice(0, MAX_SAVE_NAME)
     .trim();
-}
-
-export function isValidSaveName(raw: string): boolean {
-  return normaliseSaveName(raw).length > 0;
 }
 
 /**

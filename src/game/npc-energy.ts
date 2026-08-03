@@ -120,10 +120,14 @@ const HARMLESS_POLICY: Readonly<Record<string, NpcEnergyPolicy>> = {
   },
   /**
    * The derelict generation ship is the largest hull in the sky and dead: 252
-   * is the Anaconda's bank, the heaviest thing that FLIES in the released
-   * catalogue, which makes it about fifty pulse hits — the endurance its 8
-   * legacy hull points bought — and its reactors have been cold for centuries,
-   * so it recovers nothing.
+   * is the Anaconda's bank, the heaviest hull on the trader roster — NOT the
+   * heaviest in the released catalogue, which is the `W:29` Dragon at 255
+   * (`impact-damage.ts` names all five above 250). It stands in for the
+   * endurance its 8 legacy hull points bought, and its reactors have been cold
+   * for centuries, so it recovers nothing. How many shots that is depends on
+   * the hull you are flying as much as the laser fitted to it — an Anaconda's
+   * military laser is a 63-point hit where a Cobra Mk III's is 12
+   * (`playerLaserHit`) — so no count is written down here.
    */
   [HARMLESS_OVERLAYS.generationShip.profileId]: {
     maxEnergy: 252, laserImmune: false, playerLaserMultiplier: 1, regenPerSecond: 0,

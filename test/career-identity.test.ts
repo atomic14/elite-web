@@ -255,7 +255,7 @@ console.log('\nNEW COMMANDER starts a career, and puts the old one down whole');
 
 // --- 4. one home ------------------------------------------------------------
 
-// The idiom is test/npc.test.ts:285 — a value that had two homes, banned by
+// The idiom is `ONE_HOME` in test/npc.test.ts — a value that had two homes, banned by
 // name from the file that must not restate it. Here it is a FIELD: which career
 // a session's automatic writes address. `SaveRecord.career` is the home, because
 // the record is what `save:auto:<CAREER>:*` is keyed by; `GameState.career` is

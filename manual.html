@@ -284,10 +284,11 @@
           slowly. It starts at <b>Harmless</b> and ends, for almost nobody, at
           <b>E L I T E</b>.
         </p>
-        <p class="ladder">
-          Harmless · Mostly Harmless · Poor · Average · Above Average ·
-          Competent · Dangerous · Deadly · <b>E L I T E</b>
-        </p>
+        <!-- rendered from game/rating.ts by src/manual.ts — the hand-written
+             copy that used to live here had been missing BELOW AVERAGE ever
+             since that rank was added, and test/key-help.test.ts now refuses
+             a ladder written out in this page -->
+        <p class="ladder" id="rating-ladder"></p>
         <p>
           Tougher opponents count for more, so the ladder is climbed by picking
           harder fights, not more of them. Reaching the top is the whole game.

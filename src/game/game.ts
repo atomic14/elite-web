@@ -1476,9 +1476,10 @@ export class Game {
   /**
    * Which binding table is live.
    *
-   * Null for a screen id with no registered screen: the old chain simply had
-   * no branch for it, and an unmigrated overlay must not fall through to the
-   * cockpit's keys.
+   * Null while a screen is open — `mode` is then that screen's id, and a screen
+   * owns its own keys (invariant 13), so no cockpit table applies. Reachable
+   * only on the paused path, where `handleInput` skips the screen stack;
+   * ordinarily `screens.update()` has already taken the frame and returned.
    */
   private controlMode(): ControlMode | null {
     if (this.mode === 'docked') return this.pendingNewGame ? 'confirmNewGame' : 'docked';

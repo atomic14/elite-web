@@ -1,12 +1,16 @@
 # Ship AI: from behaviour trees to self-play RL, and a living galaxy
 
 > **Status update (2026-07-26): Phases 1-2 are DONE and reproducible.**
-> The sim core, policy MLP and neuroevolution trainer described below are
-> implemented (`src/ai-training/`, `train/evolve.ts`). The trained pirate reached
-> fitness parity with the scripted hunter (18.36 vs 18.34) in 210 s of CPU;
-> the self-play evader survives a pirate that kills the scripted trader
-> almost instantly (≈14 vs ≈1 fitness). Runs, curves and hyperparameters:
-> `docs/TRAINING-LOG.md`. Watch the results at `/viewer`.
+> The policy MLP and the neuroevolution trainer shipped (`src/ai-training/`,
+> `train/evolve.ts`) — but **what is written below is the original design, not
+> the as-built spec**, and it differs in every dimension that has a number in
+> it. Each section that shipped differently carries an AS BUILT note; the
+> authority is always `src/ai-training/policy.ts`, which exports the sizes.
+> The fitness figures once quoted here have been removed rather than
+> re-measured: they predate several combat-number changes, each of which
+> invalidates the brains they were measured on (CLAUDE.md invariant 5). Runs,
+> curves and hyperparameters: `docs/TRAINING-LOG.md`. Watch the results at
+> `/viewer`.
 
 Chris's questions: can we train ship AI with reinforcement learning, pitting
 AIs against AIs in a simulated environment? And can we simulate a whole
@@ -20,10 +24,11 @@ simulation. Design below.
 
 > As shipped, pirates attacking the player fly `pirate-attack-g3`, an
 > organised gang flies `pirate-pack-r4-selectonly`, and armed traders (and the
-> combat computer) defend with `jameson-defend-g1`. `src/game/brains.ts` is
-> where that pairing is stated and `npm test` reads that file rather than a
-> list. The scripted logic below remains for every other behaviour and as the
-> `state.brains.scripted = true` fallback.
+> combat computer) defend with `jameson-defend-g1`. `src/game/brain-names.ts`
+> is where that pairing is stated — `SHIPPED_BRAINS` and the `*BrainNameFor`
+> rules — and `src/game/brains.ts` turns a name into weights; `npm test` reads
+> those files rather than a list. The scripted logic below remains for every
+> other behaviour and as the `state.brains.scripted = true` fallback.
 
 `src/game/npc.ts` implements the behaviour matrix by hand:
 
@@ -83,6 +88,23 @@ Actions (discrete, matches the keyboard model — 3×3×3×2 = 54 combos):
 - pitch {-1, 0, +1} · roll {-1, 0, +1} · throttle {down, hold, up} ·
   trigger {fire, don't}
 
+> **AS BUILT — smaller, and the encoders are the authority.** The observation
+> is one target, not K=3: `observe()` writes `OBS_SIZE = 14` floats, and each
+> slot is named in its own docstring in `policy.ts`. Two wider encoders extend
+> it for pack play — `observePack` adds the nearest living packmate's
+> direction and log distance (`PACK_OBS_SIZE = 18`), and `observePackWide`
+> adds enough about that mate to fly a complementary line rather than merely
+> avoid it (`PACK_WIDE_OBS_SIZE = 26`). Nothing observes shields, missiles or a
+> hull-class one-hot; there is no missile channel and no protectee channel.
+> `observeFor()` picks the widest encoder a given brain has inputs for, which
+> is why that choice has one home.
+>
+> The action SPACE is as designed — 3×3×3×2 = 54 reachable combinations — but
+> it is not 54 outputs. `act()` emits `OUT_SIZE = 11` logits as four
+> independent heads (pitch 3, roll 3, throttle 3, fire 2) and takes an argmax
+> per head, so the policy is deterministic and the head count grows additively
+> rather than multiplicatively.
+
 ### 3. Policy representation
 
 A tiny MLP: 30 → 64 → 64 → action logits (~7k params). At runtime that is a
@@ -90,6 +112,15 @@ few thousand multiply-adds per ship per AI tick (10 Hz is plenty — humans
 don't re-decide at 60 Hz either) — effectively free for 20 ships. Weights ship
 as a Float32Array in a JSON file; inference is 30 lines of TypeScript, no
 runtime dependency.
+
+> **AS BUILT — a quarter of the size.** `HIDDEN = 32`, so the solo network is
+> 14 → 32 → 32 → 11, and `genomeSize()` in `policy.ts` is the one place the
+> parameter count is worked out: it is under 2k for a solo brain and a little
+> over 2k for the two pack widths. Do not restate the number here — call
+> `genomeSize(obsSize)` if you need it. Everything else in this section held:
+> two `tanh` layers, weights as a `Float32Array` in a JSON file, inference in
+> `act()` with no runtime dependency, and the 10 Hz tick (`brainFly` in
+> `npc.ts` re-decides every 0.1 s and ramps between decisions).
 
 ### 4. Training method — two phases
 
@@ -126,6 +157,19 @@ observation → action → the same steering primitives (`steerToward` becomes
 raw pitch/roll rates). A settings toggle lets us A/B scripted vs trained
 ships in-game. Start by training the **pirate pack** (most gameplay value),
 then trader evasion, then hunters.
+
+> **AS BUILT — no such field, and that is the point.** A ship does not carry a
+> brain. `NpcShip.update` asks `pirateBrainFor(tier, organised, brains)` or
+> `defenceBrain(brains)` each frame it needs one, where `brains` is the
+> `BrainSelection` handed in with the world view and ultimately `state.brains`.
+> The rule for which name flies for whom is `game/brain-names.ts` and the
+> weights behind a name are `game/brains.ts`; the ship holds only the cached
+> decision and the ramped rates (`brainControl`, `brainTimer`,
+> `brainPitchRate`, `brainRollRate`), all of which are snapshotted. The A/B
+> toggle is `state.brains` — game state, not a settings global (invariant 12) —
+> reachable from the LIVE BRAINS row on the combat trainer's setup panel.
+> `brainFly()` is the single implementation of "how a brain-flown ship moves",
+> and a training episode flies a candidate genome through that same method.
 
 ## The living galaxy (ships doing their own thing, between systems)
 

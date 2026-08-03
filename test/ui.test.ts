@@ -53,7 +53,6 @@ console.log('\nscreen host');
     check('empty stack has no top', h.topId === null && h.depth === 0);
     h.open('market');
     check('open pushes and calls open()', h.topId === 'market' && h.depth === 1 && made.includes('open:market'));
-    check('a registered screen is handled', h.handled);
     h.back();
     check('back pops to empty', h.depth === 0 && h.topId === null);
     check('showBase fires when the last screen closes', base === 1);
@@ -77,13 +76,16 @@ console.log('\nscreen host');
   }
 
   {
-    // an id with no implementation: the stack still tracks it, but the caller
-    // is told to handle it — this is what lets screens migrate one at a time
+    // An id with nothing registered used to be a supported state — the stack
+    // tracked it and the caller was told to handle it, which is how screens
+    // migrated one at a time. They all have, so that state is now a wiring
+    // mistake, and it is LOUD rather than a screen that quietly does nothing.
     const h = new ScreenHost(() => {});
-    h.open('chart');
-    check('an unmigrated id still occupies the stack', h.topId === 'chart' && h.depth === 1);
-    check('but reports itself unhandled', !h.handled);
-    check('update() returns false so the caller falls through', h.update(noInput) === false);
+    let threw = '';
+    try { h.open('chart'); } catch (e) { threw = String(e); }
+    check('opening an unregistered id throws', threw.includes('chart'));
+    check('...and nothing is left on the stack', h.depth === 0 && h.topId === null);
+    check('update() with nothing open returns false', h.update(noInput) === false);
   }
 
   {
@@ -206,8 +208,9 @@ console.log('\ncommand layer');
 //
 // That is the failure this section exists for, and it is not hypothetical: the
 // station menu advertised "D DATA ON SYSTEM" for months with no KeyD binding
-// while docked, which src/game/controls.ts:218 still says out loud. `data-key`
-// IS the click path — screen-host.ts turns it into a keystroke (invariant 13) —
+// while docked, which the comment on `openSystemData` in src/game/controls.ts
+// still says out loud. `data-key` IS the click path — screen-host.ts turns it
+// into a keystroke (invariant 13) —
 // so a row naming a key the table does not have is a dead control that looks
 // alive, and the cursor will happily park on it.
 //

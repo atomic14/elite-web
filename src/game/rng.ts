@@ -73,11 +73,6 @@ export function seedWorld(seed: number): void {
   state = currentSeed;
 }
 
-/** The seed in force, for logging a run you might want to reproduce. */
-export function worldSeed(): number {
-  return currentSeed;
-}
-
 /** Exact generator state, for a snapshot. */
 export function rngState(): { seed: number; state: number } {
   return { seed: currentSeed, state };
@@ -98,11 +93,6 @@ export function random(): number {
 /** An integer in [0, n). */
 export function randomInt(n: number): number {
   return Math.floor(random() * n);
-}
-
-/** A number in [lo, hi). */
-export function randomRange(lo: number, hi: number): number {
-  return lo + random() * (hi - lo);
 }
 
 /** True with probability `p`. */

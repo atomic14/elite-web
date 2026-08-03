@@ -1,9 +1,11 @@
 // The shell: everything the game needs from the machine it is running on.
 //
 // This is the seam a desktop port would reimplement, and it is deliberately
-// small — seven members, the same bargain as `StepHost` and `SimHost`. The
-// Game asks for a shell, not for a browser, so `game.ts` names no DOM API at
-// all.
+// small — the whole interface is below, on one screen, the same bargain as
+// `StepHost` and `SimHost`. (It said "seven members" while it had nine; a
+// count of the thing directly underneath it is a claim with nothing to gain.)
+// The Game asks for a shell, not for a browser, so `game.ts` names no DOM API
+// at all.
 //
 // Before this existed, `game.ts` was 1,757 lines of which ELEVEN mentioned the
 // browser: a canvas in the constructor, a resize listener, a click listener,

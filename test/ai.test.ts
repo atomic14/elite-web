@@ -5,7 +5,7 @@
 // otherwise silently orphan the check — which is exactly what happened once, and
 // the suite went on measuring two brains the game did not fly.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { pirateBrainFor, defenceBrain, DEFEND_BRAIN } from '../src/game/brains.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { handle, installPolicyKit } from '../src/game/console.ts';
@@ -198,7 +198,11 @@ console.log('\nbrain selection');
 // The storage mechanism used to live in commander.ts, which made a module of
 // plain data browser-only by association — and it bit: freshState() called
 // loadCommander() and the state factory threw under node. storage.ts is the
-// only file allowed to know localStorage exists.
+// only file allowed to keep a SAVE there; `engine/keymap.ts` is the one other
+// file that may name localStorage at all, for the layout preference. That pair
+// is checked below rather than asserted, because it was written down as
+// "the ONLY file" in three places and had been untrue in all three since the
+// keymap shipped.
 
 console.log('\npurity');
 {
@@ -280,6 +284,21 @@ console.log('\npurity');
 
   const store = readFileSync(new URL('../src/game/storage.ts', import.meta.url), 'utf8');
   check('storage.ts is where localStorage lives', /localStorage/.test(store));
+  // ...and the other direction, which nothing checked: WHO ELSE names it. Two
+  // files may, and the second one is a carve-out invariant 3 states out loud.
+  const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
+      : /\.ts$/.test(e.name) ? [new URL(e.name, dir)] : []));
+  const MAY_STORE = ['game/storage.ts', 'engine/keymap.ts'];
+  const srcRoot = new URL('../src/', import.meta.url).pathname;
+  const stray = walk(new URL('../src/', import.meta.url))
+    .map((f) => ({ rel: f.pathname.slice(srcRoot.length), f }))
+    .filter(({ rel, f }) => !MAY_STORE.includes(rel)
+      && /\b(localStorage|sessionStorage)\b/.test(
+        readFileSync(f, 'utf8').replace(/^\s*(\/\/|\*|\/\*).*$/gm, '')))
+    .map(({ rel }) => rel);
+  check(`...and the only other file that may name it is keymap.ts (${stray.join(', ') || 'none stray'})`,
+    stray.length === 0);
   // The namespace is the whole harness-safety argument (CLAUDE.md invariant 3):
   // every key in the program is `ns + id`, applied in this one file, and `ns`
   // moves one way. A second literal key would be a way round both.

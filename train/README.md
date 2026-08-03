@@ -33,8 +33,10 @@ a JSONL curve to `train/logs/`, and writes the winning brain to
 > **Footgun warning:** training OVERWRITES the committed brain files, and the
 > game imports them at build time — `git checkout src/ai-training/brains` to restore
 > the shipped ones. Which brains the game flies is decided in
-> `src/game/brains.ts`, and `npm test` reads that file rather than a list, so
-> the regression gate cannot end up measuring a brain nobody flies.
+> `src/game/brain-names.ts` — `SHIPPED_BRAINS` is the one line that changes a
+> default — and `src/game/brains.ts` turns a name into loaded weights. `npm
+> test` reads those files rather than a list, so the regression gate cannot end
+> up measuring a brain nobody flies.
 
 ## The five phases
 
@@ -112,4 +114,9 @@ into the DevTools console with the game open, then:
 await __auto.runTrial('Lave', 'Leesti', 6)   // 6 legs, prints the ledger
 ```
 
-It backs up your commander save first and restores it afterwards.
+It calls `useHarnessSaves()` first, which moves the whole page — the running
+game's autosave included — into a scratch namespace for the life of the tab.
+Nothing it does can reach a real save, and nothing puts the namespace back:
+reload the page to play your career. Backing a save up and restoring it in a
+`finally` was what this used to do, and it was not enough, because the world
+autosaves every 20 seconds and a tab left running wrote over the restore.

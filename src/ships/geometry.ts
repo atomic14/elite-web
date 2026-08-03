@@ -106,8 +106,3 @@ export function buildAsteroid(radius: number, seed: number, color: THREE.ColorRe
   group.add(hull, edges);
   return group;
 }
-
-/** The black fill, for a Harmless hull that builds its own geometry. */
-export function hullMaterial(): THREE.MeshBasicMaterial {
-  return HULL_MATERIAL;
-}

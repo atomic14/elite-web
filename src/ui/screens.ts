@@ -5,9 +5,10 @@ import { planetDescription } from '../galaxy/goatsoup.ts';
 import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
   type CommanderData, type Contract,
-  rating, cargoTonnes, formatCredits, cargoCapacity,
+  cargoTonnes, formatCredits, cargoCapacity,
   MAX_FUEL,
 } from '../game/commander.ts';
+import { rating } from '../game/rating.ts';
 import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';

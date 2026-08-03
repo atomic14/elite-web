@@ -28,6 +28,7 @@ import {
   BINDINGS, GLOBAL_BINDINGS, type Binding, type ControlMode,
 } from '../src/game/controls.ts';
 import { COMMAND_HELP } from '../src/game/command-help.ts';
+import { rating, ratingLadder } from '../src/game/rating.ts';
 import {
   ALL_BINDINGS, dockedMenuHtml, guideSections, guideTableHtml, keyLabel,
   manualCommandsHtml, paintCommandGuide,
@@ -223,4 +224,46 @@ console.log('\nthe modes the guide covers are the modes there are');
   const modes = Object.keys(BINDINGS) as ControlMode[];
   const counted = modes.flatMap((m) => BINDINGS[m]).length + GLOBAL_BINDINGS.length;
   eq('ALL_BINDINGS walks every mode', ALL_BINDINGS.length, counted);
+}
+
+// --- the same bargain, applied to the combat ladder --------------------------
+//
+// Invariant 9 is written about keys, but the rule under it is general: a
+// surface that LISTS something renders from the thing it lists. The manual's
+// rating ladder was the other hand-written list on that page, and it had gone
+// wrong the same way — nine rungs printed against ten in the table, missing
+// BELOW AVERAGE, so a commander could read their own rating off the status
+// screen and fail to find it on the chart. It is `#rating-ladder`, filled by
+// `src/manual.ts` from `game/rating.ts`, and this is what keeps it that way.
+console.log('\nthe manual renders the combat ladder rather than restating it');
+{
+  const manual = readFileSync(new URL('../manual.html', import.meta.url), 'utf8');
+  const ladder = ratingLadder();
+  check(`the ladder runs Harmless to E L I T E (${ladder.length} rungs)`,
+    ladder[0] === 'Harmless' && ladder[ladder.length - 1] === 'E L I T E'
+    && ladder.includes('Below Average'));
+  // ...and every rung is a score somebody can actually hold, so `ratingLadder`
+  // and `rating` cannot drift apart into a name nothing returns.
+  const reachable = new Set<string>();
+  for (let s = 0; s <= 25_600; s++) reachable.add(rating(s));
+  check(`every rung is reachable (${reachable.size} of ${ladder.length})`,
+    reachable.size === ladder.length && ladder.every((r) => reachable.has(r)));
+  check('the manual has a host for it', manual.includes('id="rating-ladder"'));
+  // What is banned is the LIST, not the words. The page says "Poor worlds have
+  // the sharpest prices" and "Most commanders die Competent", and both are
+  // prose. A hand-written ladder is two rungs IN ORDER with a separator between
+  // them, so that is what this looks for.
+  const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pairs = (page: string): string[] => ladder.slice(1)
+    .map((r, i) => [ladder[i], r] as const)
+    .filter(([a, b]) => new RegExp(`${esc(a)}[\\s\\S]{0,30}?${esc(b)}`).test(page))
+    .map(([a, b]) => `${a}→${b}`);
+  check(`...and writes no rung out beside the next one (${pairs(manual).join(', ') || 'no run of the ladder in the page'})`,
+    pairs(manual).length === 0);
+  // The control: the same predicate against a page that DOES write the ladder
+  // out, so a mangled regex cannot make the check above read green.
+  check('...and that check can fail',
+    pairs(`<p class="ladder">${ladder.join(' · ')}</p>`).length === ladder.length - 1);
+  check('the prose still names both ends',
+    manual.includes('<b>Harmless</b>') && manual.includes('<b>E L I T E</b>'));
 }

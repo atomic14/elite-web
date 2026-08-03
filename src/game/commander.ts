@@ -90,19 +90,6 @@ export function cargoCapacity(c: CommanderData): number {
   return c.equipment.largeBay ? 35 : 20;
 }
 
-const RATINGS: [number, string][] = [
-  [0, 'Harmless'],
-  [8, 'Mostly Harmless'],
-  [16, 'Poor'],
-  [32, 'Below Average'],
-  [64, 'Average'],
-  [128, 'Above Average'],
-  [512, 'Competent'],
-  [2560, 'Dangerous'],
-  [6400, 'Deadly'],
-  [25600, 'E L I T E'],
-];
-
 export interface CommanderData {
   /** what this commander is called — Elite's own default was Jameson */
   name: string;
@@ -211,14 +198,6 @@ export function recordFurthestWave(c: CommanderData, wave: number): boolean {
   if (!(best > (c.furthestWave ?? 0))) return false;
   c.furthestWave = best;
   return true;
-}
-
-export function rating(combatScore: number): string {
-  let r = RATINGS[0][1];
-  for (const [threshold, name] of RATINGS) {
-    if (combatScore >= threshold) r = name;
-  }
-  return r;
 }
 
 /**

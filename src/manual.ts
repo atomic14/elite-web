@@ -13,6 +13,7 @@
 
 import { allLayouts, type Keymap, type LayoutName } from './engine/keymap.ts';
 import { keyLabel, manualCommandsHtml } from './ui/key-help.ts';
+import { ratingLadder } from './game/rating.ts';
 
 const keys = (codes: string[]): string =>
   codes.map((c) => keyLabel(c)).map((k) => `<kbd>${k}</kbd>`).join(' <span class="or">or</span> ');
@@ -47,6 +48,17 @@ if (host) {
       ${table('modern', layouts.modern)}
     </div>
     ${manualCommandsHtml()}`;
+}
+
+// The combat ladder, from the same table `rating()` reads. Hand-written here
+// once, and it had silently dropped BELOW AVERAGE — a commander could read
+// their own rating off the status screen and not find it on the chart.
+const ladder = document.getElementById('rating-ladder');
+if (ladder) {
+  const ranks = ratingLadder();
+  ladder.innerHTML = ranks
+    .map((r, i) => (i === ranks.length - 1 ? `<b>${r}</b>` : r))
+    .join(' · ');
 }
 
 // Highlight the section you're reading in the contents rail.

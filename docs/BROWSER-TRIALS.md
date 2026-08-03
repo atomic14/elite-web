@@ -9,8 +9,14 @@ Everything below is flown at `npm run dev` → http://localhost:5173/play.
 Nothing here needs a console: `T` at any station opens the combat trainer, and
 it exports the whole record as JSON (clipboard, file, and `window.__simLog`).
 
-**Never write save slots 1-3.** The combat trainer already runs on a clone and
-restores your career on exit; if you drop to a console, use slot 4.
+**Nothing here can reach your career.** The combat trainer flies a commander
+clone and restores the entry snapshot on exit (`game/combat-sim-safety.ts`).
+If you do drop to a console and fly the game yourself, call `useHarnessSaves()`
+FIRST — it moves the whole page into a scratch namespace, one way, so neither
+your typing nor the running game's own autosave can compute a real save key.
+There is nothing to back up and nothing to restore, which is the point:
+backing up and restoring was not enough, because the autosave runs every 20
+seconds and a tab left open overwrote the restore. See CLAUDE.md's invariant 3.
 
 ---
 

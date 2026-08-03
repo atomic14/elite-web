@@ -6,15 +6,19 @@ Chris's, and it is better than "is this module leaky?" because it has an
 answer rather than an opinion: **if we wanted a desktop build with the same
 core engine, could we do it?**
 
-`npm run portability` answers it. Run it — these are the shape, not a
-guarantee, and they move with every file added (2026-08-02):
+`npm run portability` answers it, and the answer is not written down here on
+purpose — a table of line counts is stale the next time a file is added, and
+this one was, by thousands of lines. Run it. It prints three buckets:
 
 ```
-ports unchanged     19017 lines   72%   the reusable rules and simulation
-platform             7327 lines   28%   composition root, renderer, HUD,
-                                        screens, input, audio and storage
-contaminated            0 lines    0%   no core runtime path reaches platform
+ports unchanged   the reusable rules and simulation
+platform          composition root, renderer, HUD, screens, input, audio, storage
+contaminated      a core runtime path that reaches a platform module
 ```
+
+Roughly seven lines in ten are portable, and the ONLY number that is a promise
+is the third one: **contaminated is zero**, and the tool exits non-zero if it
+is not.
 
 The portable share GREW through the Elite-A phase rather than shrinking: the
 generated catalogue, the combat oracle, the identities and the roster are all
@@ -47,7 +51,7 @@ Everything else is a consequence, and each consequence is testable:
 | the world builds without a browser | training against the real step | **done** — `World.build()` runs under node |
 | ...and STEPS without one | the trainer can use the real engine | **done** — `world-step.ts`, stepped headless by `npm test` |
 | one rule, one home | the bug class that ate this codebase | mostly |
-| every rule is unit-testable headless | 1,767 assertions, no browser | done |
+| every rule is unit-testable headless | `npm test` prints the count; no browser | done |
 | nothing knows about its caller | modules compose in any order | done |
 
 The recurring failure this is defending against is **one rule with two homes,
@@ -67,12 +71,14 @@ The tell is a callback that reaches back out — `message()`, `add()`,
 module cannot be used, or tested, without something Game-shaped standing
 behind it.
 
-**Six of them are still there, all in `src/game/screens/`** — `TradeContext`
-(three callbacks out, including `leaveHermit()`, a screen telling the Game to
-change flight state), `SavesContext`, `ContractsContext`, `ChartContext`,
-`StatusContext`, `DataContext`. An earlier version of this document claimed
+**They are all still there, all in `src/game/screens/`** — one `*Context` per
+screen, which `grep -rn 'export interface .*Context' src/game/screens/` will
+count for you rather than this sentence going stale again. The worst is
+`TradeContext` (three callbacks out, including `leaveHermit()`, a screen telling
+the Game to change flight state). An earlier version of this document claimed
 there were none; that claim came from a grep that did not recurse into
-`screens/`. `collisions.ts` also takes a `setPlayerSpeed` callback. The pattern
+`screens/`, and the version after it typed a number that was wrong within two
+commits. `collisions.ts` also takes a `setPlayerSpeed` callback. The pattern
 that replaced the others, and that these should follow:
 
 > **A module decides and reports. The caller applies the consequences.**
@@ -93,7 +99,9 @@ an NPC's does not.
 
 ### Known gaps against it
 
-- `game.ts` is 1722 lines, down from 3244. It is the orchestrator, and what
+- `game.ts` is down from 3244 lines and still the longest file in the project;
+  `npm run sizes` prints today's figure and the allowlist entry in
+  `tools/sizes.mjs` carries the reason. It is the orchestrator, and what
   is left is mostly orchestration: the fixed-timestep loop, the command
   switch, the docked/flight mode machine, and the consequences the modules
   report. The
@@ -124,7 +132,8 @@ an NPC's does not.
   verbs rather than richer return values — `populateSystem`, the Navy mission
   step and the market roll all draw. Messages draw nothing, so messages are
   events.
-- `npc.ts` is 1051 lines and holds behaviour and brain flight. The explosions,
+- `npc.ts` is the other file `npm run sizes` calls DEBT: it holds behaviour and
+  brain flight, and the flight half wants its own file. The explosions,
   the ship roster and the brain selection have moved to `effects.ts`,
   `ship-specs.ts` and `brains.ts`.
 - State is now `Game.state` (`state.ts`) — one object holding the galaxy, the
@@ -151,8 +160,14 @@ an NPC's does not.
   swallowing everything). The docking computer is the remaining holdout on
   the flight side — it asks for a HEADING rather than a rate, and still steers
   on top.
-- `Game`'s constructor calls `createRenderStack`, so a Game still needs a
-  browser even though everything it simulates does not.
+- **The constructor was the last thing needing a browser, and it is not one
+  now.** `Game` takes a `ShellFactory` (`engine/shell.ts`) rather than a
+  canvas, so `new Game(() => headlessShell())` constructs and STEPS under node.
+  `headlessShell()` is not a stub the tests tolerate — it is the proof the seam
+  is real, and several test files build a whole Game on it. `npm test` also
+  asserts `game.ts` names no DOM API at all, because TypeScript will not: the
+  DOM types are ambient, so `window.innerWidth` type-checks fine in a file that
+  can never run.
 
 
 This document explains how the code fits together, the conventions that are
@@ -298,10 +313,15 @@ src/
     threat.ts               who is worth robbing: what a pirate can SEE, the
                             tier it brings, and whether it organised
     missions.ts             the Navy Constrictor arc (NOT the bulletin board)
-    commander.ts            who you are: stats, cargo, rank — PURE, no browser
+    commander.ts            who you are: stats, cargo, equipment — PURE, no browser
+    rating.ts               the combat ladder: what a score is CALLED, and
+                            every rung of it — a leaf, so a text page can
+                            render the ladder without importing a ship
     shop.ts                 what things cost and what you may fit
-    storage.ts              the ONLY file that touches localStorage: the save
-                            shelf, the namespace, and the boot pointer
+    storage.ts              the only file that stores a SAVE: the save shelf,
+                            the namespace, and the boot pointer. `engine/
+                            keymap.ts` is the one other localStorage writer, and
+                            it holds a layout preference, not a career
     save-file.ts            what a save IS — its name, its id, and the one line
                             a player tells two of them apart by. PURE
     cargo.ts                canisters and capsules adrift, scooping them, and
@@ -370,7 +390,7 @@ src/
                             COMMAND_HELP and from no copy of them
 
   engine/shell.ts           THE PLATFORM SEAM: everything the game needs from
-                            the machine it runs on, in seven members
+                            the machine it runs on, in one small interface
   engine/browser-shell.ts   that seam, against a browser — every DOM and
                             window API the game uses is in this one file
   engine/inert-dom.ts       a DOM element that accepts every write and does
@@ -548,10 +568,11 @@ object per frame, computed by `hud/hud-model.ts`.
 **Still mixed up in game.ts**, and worth knowing before you go looking: laser
 fire, spawning, and the hyperspace *transition*. The flight loop has moved to
 `world-step.ts`, the save to `persistence.ts` and the docking/launch transitions
-to `station.ts`, and all three run headless; what is left blocking a fully
-browser-free `Game` is its constructor, which builds a renderer and DOM
-listeners. The command keys are no longer part of that: `controls.ts` reads an
-input interface, not a browser.
+to `station.ts`, and all three run headless. Nothing blocks a browser-free
+`Game` any more: the constructor asks for a `ShellFactory`, not a canvas, so
+the renderer and the DOM listeners are `browser-shell.ts`'s and `game.ts` names
+no DOM API at all. The command keys were never part of it either —
+`controls.ts` reads an input interface, not a browser.
 
 Two intentional oddities inside it:
 

@@ -90,8 +90,10 @@ Vite entries in `vite.config.ts`; add new pages there or they won't build.
    in `.html` points at a redirect, which is an SEO error rather than a cosmetic
    one.
 3. **A save is one key, and a harness cannot address one.** `storage.ts` is the
-   only file that may touch localStorage, and every key in the program is built
-   there as `namespace + id`:
+   only file that may keep a SAVE in localStorage — `engine/keymap.ts` is the
+   one other file that may name it at all, for the layout preference below, and
+   `npm test` allows those two and no others. Every save key in the program is
+   built in `storage.ts` as `namespace + id`:
 
    ```
    <ns>save:file:<NAME>            a save the player named
@@ -258,8 +260,10 @@ given seed IS required, because training and the regression gate depend on it.
 
 ## Running game code under node
 
-Most of it already does — `World.build()`, the world step, `NpcShip` and fifteen
-pure rule modules are asserted browser-free by `npm test`. To keep it that way:
+Most of it already does — `World.build()`, the world step, `NpcShip` and every
+module in `test/ai.test.ts`'s `PURE` list are asserted browser-free by
+`npm test`. That list is the count; adding to it is how a module joins them.
+To keep it that way:
 
 - **No side effects at module scope.** Install debug globals from a function
   (`installPolicyKit()`), never a bare assignment.
@@ -320,13 +324,17 @@ pure rule modules are asserted browser-free by `npm test`. To keep it that way:
 
 ## Style
 
-- **Tests are organised like `src/`.** One file per subsystem in `test/` —
-  the world (`galaxy`, `economy`, `contracts`, `trade`, `world`, `world-step`,
-  `station`, `game`, `state`, `snapshot`, `persistence`), the ships and being shot at
+- **Tests are organised like `src/`.** One file per subsystem in `test/`,
+  grouped the way `src/` is — the world (`galaxy`, `economy`, `contracts`,
+  `trade`, `world`, `world-step`, `station`, `game`, `state`, `snapshot`,
+  `persistence`, `saves`, `save-transfer`), the ships and being shot at
   (`flight`, `geometry`, `npc`, `systems`, `combat`, `gunnery`,
-  `instrumentation`, `damage-paths`, four `elite-a-*`, `ship-identity`,
-  `ship-roles`, `role-variants`), the brains (`ai`, `combat-model`, `arena`),
-  the shell (`ui`, `key-help`, `hud-binding`, `audio`) and six for the combat trainer.
+  `instrumentation`, `damage-paths`, `energy-low`, `elite-a-*`,
+  `ship-identity`, `ship-roles`, `role-variants`), the brains (`ai`,
+  `brain-names`, `combat-model`, `arena`), the shell (`ui`, `key-help`,
+  `hud-binding`, `input`, `audio`) and the combat trainer's own `combat-sim*`
+  set. Count them with `ls test/`, not from this paragraph — it has been wrong
+  about that twice.
   `test/run.ts` is an INDEX that imports them all and prints one total;
   `test/elite-a.ts` is a second index over the alignment-critical subset, with
   no assertions of its own. `harness.ts` holds `check`, `fixtures.ts` holds

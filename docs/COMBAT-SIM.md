@@ -62,9 +62,9 @@ My first draft said `StepHost` "is exactly the list of verbs that reach outside
 the sky" and that refusing them was the mechanism. **That is false, and it is
 false for the most common kill in the game.** Verified:
 
-- `combat.ts:149` — `Combat.fire()` calls `this.destroy(commander, shot.ship)`
+- `Combat.fire()` in `combat.ts` calls `this.destroy(commander, shot.ship)`
   **internally**. A laser kill never passes through `StepHost.destroyNpc`.
-- `game.ts:428` — the energy bomb calls `Game.destroyNpc` from `runCommand`,
+- the energy bomb calls `Game.destroyNpc` from `Game.runCommand` in `game.ts`,
   not from the step.
 
 A host that refused `destroyNpc` and nothing else would credit the career for

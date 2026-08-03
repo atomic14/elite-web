@@ -316,9 +316,11 @@ export function oppositionFor(g: CustomGroup, sel: BrainSelection = SHIPPED_BRAI
  * Which single brain the opposition will fly, if the picker asked for one.
  *
  * The honest answer, and it is narrower than the picker looks. Which policy a
- * pirate flies is a GLOBAL flag in brains.ts — `window.__legacyPirates` and
- * friends — so `ExerciseSpec.brain` is the only lever the game actually has, and
- * a per-group choice can only be honoured when every group agrees. When they do
+ * pirate flies is one `BrainSelection` for the whole exercise (brain-names.ts),
+ * not a field on a ship — so `ExerciseSpec.brain` is the only lever the game
+ * actually has, and a per-group choice can only be honoured when every group
+ * agrees. (It was five `window.__` flags once; invariant 12 and
+ * `test/state.test.ts` keep them gone.) When they do
  * not, no override goes in, the live brains fly, and `draftNotes()` says so on
  * the panel rather than letting the report quietly disagree with the picker.
  */

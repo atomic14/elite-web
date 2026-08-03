@@ -139,9 +139,12 @@ const GANG_SCORE = 160;
 /**
  * Hulls held at a tier the score alone would not give them, and why.
  *
- * ONE entry, and it has to exist: the released Sidewinder and Krait are the
- * same ship in every field that matters — energy 73, defence 1, laser 4,
- * weapon byte 32 — so no classification over source data can separate them.
+ * ONE entry, and it has to exist: the builds these two turn up in as PIRATES —
+ * `V:17` and `W:19`, which is what `role-variants.ts` picks and therefore what
+ * the scorer reads — are the same ship in every field that matters (energy 82,
+ * defence 2, laser 5, weapon byte 40; score 146 each), so no classification
+ * over source data can separate them. It was true of the recommended defaults
+ * before TODO 29 and it is still true of the pirate builds after it.
  * The Sidewinder is the cheap hull an opportunist flies in every version of
  * this game and the Krait is what turns up when someone means it, and that
  * distinction is worth keeping. It is a curated exception, stated here rather
@@ -176,7 +179,14 @@ export function hullThreatTier(
 
 export interface PirateThreat {
   count: number;
-  /** 0 opportunists (Sidewinders, Kraits) · 1 professionals · 2 an organised gang */
+  /**
+   * 0 opportunists · 1 professionals · 2 an organised gang.
+   *
+   * WHICH hulls land in each is `hullThreatTier` over the pirate roster, not a
+   * list here — it moved when the pirate build did (the Krait was a tier-0
+   * opportunist against the recommended default and is a professional in the
+   * `W:19` build it actually flies).
+   */
   tier: 0 | 1 | 2;
   /** flies the coordinated pack policy and presses the attack */
   organised: boolean;

@@ -7,13 +7,15 @@
  *
  *   await __auto.runTrial('Lave', 'Leesti', 6)
  *
- * It backs up your commander save, spawns a fresh 100.0 Cr Jameson, flies
- * N trading legs between the two systems (combat handled by the trained
- * jameson-defend policy via window.__policyKit), prints a ledger, and
- * restores your save. Everything runs through real game mechanics — real
- * markets, fuel, pirates, witch-space, docking physics, legal system. The
- * only concession is perfectly-aligned docking approaches (a stand-in for
- * the docking computer).
+ * It calls `useHarnessSaves()` (see `runTrial`, which explains why), spawns a
+ * fresh 100.0 Cr Jameson, flies N trading legs between the two systems
+ * (combat handled by the trained jameson-defend policy via
+ * window.__policyKit) and prints a ledger. Nothing on the page can reach a
+ * real save afterwards, including the running game's own autosave, and the
+ * switch is ONE WAY — reload the tab to play your career again. Everything
+ * runs through real game mechanics — real markets, fuel, pirates,
+ * witch-space, docking physics, legal system. The only concession is
+ * perfectly-aligned docking approaches (a stand-in for the docking computer).
  */
 (async () => {
   const g = window.__game;

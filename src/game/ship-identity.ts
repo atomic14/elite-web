@@ -127,12 +127,6 @@ export const COBRA_MK_3_HULL_ID: PlayerHullId = `${PLAYER_PREFIX}7`;
 
 // --- minting an id from the catalogue ---------------------------------------
 
-/** The id of one flyable hull, checked against the catalogue as it is made. */
-export function playerHullIdOf(sourceId: number): PlayerHullId {
-  eliteAPlayerHull(sourceId);
-  return `${PLAYER_PREFIX}${sourceId}`;
-}
-
 /** The id of one design, checked against the catalogue as it is made. */
 export function shipDesignIdOf(sourceId: number): ShipDesignId {
   eliteADesign(sourceId);

@@ -139,7 +139,7 @@ lines later — so it is worth doing early rather than last.
 - [x] 49 — [Guards that do not guard](49-guards-that-do-not-guard.md) — test integrity · high · medium
 - [x] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium
 - [x] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
-- [ ] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium
+- [x] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium
 - [x] 53 — [Delete the legacy save migration](53-delete-the-legacy-save-migration.md) — simplification · medium · small
 
 ## Follow-ups

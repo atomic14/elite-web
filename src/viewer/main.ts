@@ -12,8 +12,9 @@ import { Episode, type ShotEvent, type EpisodeShip } from '../ai-training/scenar
 import { brainFromFile, randomBrain, type BrainFile } from '../ai-training/policy.ts';
 import { makeRng } from '../game/rng.ts';
 import { FIXED_DT } from '../game/world-step.ts';
+import { pirateBrainFor } from '../game/brains.ts';
+import { pirateBrainNameFor } from '../game/brain-names.ts';
 import pirateR1BrainFile from '../ai-training/brains/pirate-attack.json' with { type: 'json' };
-import pirateBrainFile from '../ai-training/brains/pirate-attack-g1.json' with { type: 'json' };
 import traderBrainFile from '../ai-training/brains/trader-evade.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack.json' with { type: 'json' };
 import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
@@ -26,9 +27,22 @@ import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with 
 const COBRA_MK3 = requireShipDef(shipDesignIdOf(10));
 const SIDEWINDER = requireShipDef(shipDesignIdOf(17));
 
-// 'trained pirate' scenarios use the SHIPPED r2 league brain (what the game
-// flies); the pack trio uses r1 solo brains to match the tournament rows.
-const pirateBrain = brainFromFile(pirateBrainFile as BrainFile);
+// The 'shipped pirate' scenarios ASK the game which brain that is, rather than
+// importing a file and saying so on a label. They did the latter, and it went
+// wrong the only way it could: the file was `pirate-attack-g1` — a name
+// brain-names.ts calls CANNOT BE FLOWN — under two `<option>`s reading
+// "Shipped pirate (league r2)", so the one page whose whole job is showing what
+// the game flies was showing a brain the game refuses. Both the weights and the
+// label come off `brain-names.ts` + `brains.ts` now, so a change to
+// SHIPPED_BRAINS moves this page with it.
+const shippedPirate = pirateBrainFor(0, false);
+// brains.ts loads defensively and hands back null if the weights did not parse.
+// In the game that is a fall back to the scripted AI; on a page whose only job
+// is showing the shipped brain fly, it is the whole point failing, and saying so
+// beats drawing a fight nobody can interpret.
+if (!shippedPirate) throw new Error('viewer: the shipped pirate brain did not load');
+const pirateBrain = shippedPirate.brain;
+const SHIPPED_PIRATE_NAME = pirateBrainNameFor(0, false);
 const pirateR1Brain = brainFromFile(pirateR1BrainFile as BrainFile);
 const traderBrain = brainFromFile(traderBrainFile as BrainFile);
 const packBrain = brainFromFile(packBrainFile as BrainFile);
@@ -260,12 +274,23 @@ function renderHud(): void {
       `PIRATE ${i + 1}   hp ${Math.max(0, pi.hp).toFixed(2)}  shots ${pi.shotsFired}  hits ${pi.shotsHit}` +
       `  acc ${(pi.shotsFired ? (100 * pi.shotsHit) / pi.shotsFired : 0).toFixed(0)}%${pi.alive ? '' : '  ✝'}`);
   });
-  lines.push('', `BRAIN      ${(pirateBrainFile as BrainFile).meta.name} f=${(pirateBrainFile as BrainFile).meta.fitness}`);
+  // NOT "the brain flying right now" — the scripted and random rows have none.
+  // It was a fitness figure off a JSON file, which said nothing about the
+  // scenario on screen and everything about a run nobody can reproduce.
+  lines.push('', `SHIPPED    ${SHIPPED_PIRATE_NAME}  (what the "shipped pirate" rows fly)`);
   if (p) lines.push(`FITNESS    ${episode.fitnessAttack(0).toFixed(2)} (attack metric, pirate 1)`);
   hud.textContent = lines.join('\n');
 }
 
-(document.getElementById('scenario') as HTMLSelectElement).addEventListener('change', (e) => {
+const scenarioSelect = document.getElementById('scenario') as HTMLSelectElement;
+// Name the brain on the rows that claim to fly the shipped one, so the label
+// cannot outlive the choice it describes.
+for (const id of ['trained-vs-trader', 'trained-vs-evader']) {
+  const option = scenarioSelect.querySelector<HTMLOptionElement>(`option[value="${id}"]`);
+  if (option) option.textContent = option.textContent!.replace(
+    'Shipped pirate', `Shipped pirate (${SHIPPED_PIRATE_NAME})`);
+}
+scenarioSelect.addEventListener('change', (e) => {
   scenario = (e.target as HTMLSelectElement).value as ScenarioId;
   resetEpisode(1);
 });

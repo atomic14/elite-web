@@ -106,8 +106,10 @@ console.log('\ncombat simulator: nothing leaves the exercise');
   //
   // Node has no localStorage, and this is where the whole safety property is
   // observed, so it is a real object with real counters rather than a mock that
-  // returns undefined. Slot 4 throughout: CLAUDE.md says harnesses never touch
-  // slots 1-3, and this one cannot even reach a real browser's storage.
+  // returns undefined. There are no numbered slots to stay out of any more:
+  // `test/harness.ts` has already called `useHarnessSaves()` (invariant 3), so
+  // no key this process can compute is a player's — and this one is a Map in
+  // this process anyway, out of reach of a real browser's storage entirely.
   const held = new Map<string, string>();
   const writes: string[] = [];
   const removes: string[] = [];

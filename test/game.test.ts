@@ -165,4 +165,33 @@ console.log('\nthe game, headless');
       found.length === 0,
       'the shell is the port surface; a DOM call here puts the orchestrator back in the contaminated bucket');
   }
+
+  // --- every ScreenId is wired ---------------------------------------------
+  //
+  // `ScreenHost` carried a second shape for a whole migration: a nullable
+  // screen in the stack, a `handled` getter, and an update() that could hand
+  // the frame back. All of it was unreachable, and the comments describing it
+  // were the last thing still claiming there were unmigrated screens. The
+  // shape is gone and an unregistered id throws instead — which is only an
+  // improvement if the Game registers all of them, so that is checked here
+  // rather than asserted in a docstring.
+  //
+  // The ids come out of the TYPE, not a list in this file: adding a `ScreenId`
+  // and forgetting the registration in game.ts has to fail somewhere, and this
+  // is the somewhere.
+  {
+    const host = readFileSync(new URL('../src/ui/screen-host.ts', import.meta.url), 'utf8');
+    const ids = [...(host.split('export type ScreenId =')[1] ?? '').split(';')[0]
+      .matchAll(/'([a-z-]+)'/g)].map((m) => m[1]);
+    check(`the ScreenId union parses (${ids.length} ids)`, ids.length > 0);
+    const unregistered = withoutSaving(() => {
+      const g = new Game(() => headlessShell());
+      return ids.filter((id) => {
+        try { g.screens.open(id as never); return false; } catch { return true; }
+      });
+    }).value;
+    check(`the Game registers a Screen for every ScreenId (${unregistered.join(', ') || 'all wired'})`,
+      unregistered.length === 0,
+      'ScreenHost.open throws on an id with nothing registered, so a missing registration is a crash on first use');
+  }
 }
