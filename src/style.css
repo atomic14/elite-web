@@ -507,12 +507,6 @@ body.screen-open #exercise { display: none; }
 #screen .menu b { color: var(--hud-amber); font-weight: normal; display: inline-block; width: 34px; }
 #screen .info { font-size: 12px; line-height: 1.7; }
 
-/* The extended description: an overlay under the 1984 line, and it must read
-   as secondary to it. Dimmer and indented, so a page with no overlay does not
-   look like a page missing something. */
-#screen .sysmore { opacity: 0.82; margin-top: 10px; }
-#screen .sysmore p { margin: 0 0 7px; }
-#screen .sysmore p:last-child { margin-bottom: 0; }
 #screen canvas { display: block; margin: 0 auto; }
 #screen .big {
   text-align: center;
@@ -631,6 +625,28 @@ body.screen-open #exercise { display: none; }
   line-height: 1.8;
   color: var(--hud-green);
 }
+
+/* The extended description: an overlay under the 1984 line, and it must read
+   as secondary to it. Dimmer and indented, so a page with no overlay does not
+   look like a page missing something. */
+/* The extended description: an overlay under the 1984 line, and it must read
+   as secondary to it. Dimmer and set apart, so a page with no overlay does not
+   look like a page missing something.
+
+   Left-aligned, unlike the line above it. `.sysdesc` centres, which is right
+   for the one short sentence the 1984 generator writes and wrong for two
+   paragraphs of four sentences each — centred prose gives the eye no fixed
+   left edge to return to, and it costs real legibility once the block is more
+   than a line or two deep. */
+#screen .sysmore {
+  opacity: 0.82;
+  margin-top: 12px;
+  text-align: left;
+  border-top: 1px solid rgba(51, 255, 51, 0.18);
+  padding-top: 10px;
+}
+#screen .sysmore p { margin: 0 0 9px; }
+#screen .sysmore p:last-child { margin-bottom: 0; }
 
 /* new pilot's briefing */
 #screen .brief { max-width: 38em; margin: 6px auto 0; text-align: left; line-height: 1.95; }
