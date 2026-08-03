@@ -63,6 +63,15 @@ NPM_PACKAGES = {
 PYTHON_IMPORTS = {
     'argparse': 'argparse', 'json': 'json', 'math': 'math',
     'pathlib': 'pathlib', 'sys': 'sys', 'pil': 'PIL (Pillow)',
+    # `re` arrived when this very file started importing it, which is the table
+    # working as intended: an unreferenced entry synthesises nothing, so listing
+    # a few more stdlib names than tools/ currently uses costs nothing and saves
+    # the next unresolved-endpoint hunt.
+    're': 're', 'os': 'os', 'io': 'io', 'time': 'time', 'shutil': 'shutil',
+    'subprocess': 'subprocess', 'hashlib': 'hashlib', 'random': 'random',
+    'typing': 'typing', 'dataclasses': 'dataclasses', 'collections': 'collections',
+    'itertools': 'itertools', 'functools': 'functools', 'textwrap': 'textwrap',
+    'numpy': 'numpy', 'requests': 'requests',
 }
 
 # --- 2. data files ----------------------------------------------------------
