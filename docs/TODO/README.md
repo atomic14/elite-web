@@ -273,7 +273,16 @@ possible, and one piece of wording nobody could read.
 - [ ] 66 — [The pass aims where you were, not where you will be](66-the-pass-aims-where-you-were.md) — combat bug · medium · small
 - [ ] 67 — [Short attack runs are not flyable, so the rhythm is fixed at ~9s](67-short-attack-runs-are-not-flyable.md) — combat feel · medium · medium
 - [ ] 68 — [A vocabulary of tactics, not one behaviour](68-a-vocabulary-of-tactics.md) — combat feel/design · medium · large
-- [ ] 69 — [The setup panel says "HULL (0)" and means "ask the hull"](69-the-panel-says-hull-zero.md) — UI/UX · low · small
+- [x] 69 — [The setup panel says "HULL (0)" and means "ask the hull"](69-the-panel-says-hull-zero.md) — UI/UX · low · small
+
+69 is done: a delegated row reads `FROM THE HULL — NONE` / `FROM THE HULL — 60%`
+and a set one reads `0` / `60%`, so the mode is words and the number after it is
+a consequence. `null` still means "whatever this hull carries" — the behaviour
+did not move, only the wording — and one `setOrHull()` phrases both rows, which
+is the whole of it: the record never quoted the string, so there was no second
+home to keep in step. The assertions went to a new `test/combat-sim-rows.test.ts`
+along with TODO 41's, because "what a row READS AS" is a different question from
+the panel's shape and the panel's file was full of the second one.
 
 65 came out of trying to act on 62-64 and failing. Two retrains across a wider
 training distribution both came out worse than the shipped brain, and tripling

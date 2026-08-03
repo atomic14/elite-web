@@ -78,6 +78,7 @@ import './hud-binding.test.ts';
 // --- the docked combat trainer ----------------------------------------------
 import './combat-sim.test.ts';
 import './combat-sim-panel.test.ts';
+import './combat-sim-rows.test.ts';
 import './combat-sim-scenarios.test.ts';
 import './combat-sim-report.test.ts';
 import './combat-sim-dealt.test.ts';

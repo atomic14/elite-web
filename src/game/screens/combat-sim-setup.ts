@@ -291,6 +291,30 @@ export function nudgeOrHull(
 }
 
 /**
+ * `2` / `FROM THE HULL — NONE` — a set number, or the mode that produced one.
+ *
+ * The delegated reading used to be `HULL (${n})`, which put the SETTING ("leave
+ * it to the hull") and the VALUE that setting currently gives in one string with
+ * nothing saying which half was which — and on a hull that carries none,
+ * `HULL (0)` read like a broken interpolation. `null` is a real and useful state
+ * and stays: "whatever this hull carries" is not "zero", and it stays right when
+ * the hull row above changes. So the wording moved instead. `FROM THE ...` is
+ * the phrase the OPPOSITION row already uses for the same idea, the mode is in
+ * words and the number is a consequence of it, and a set value is a bare
+ * number — so a delegated none and an explicit zero cannot be read for one
+ * another, which is what arrowing off `null` and back has to be visible as.
+ *
+ * One function for both rows, because both say the same thing and there is no
+ * second place that should get to phrase it differently.
+ */
+export function setOrHull(
+  set: number | null, hull: number, show: (n: number) => string,
+): string {
+  if (set !== null) return show(set);
+  return `FROM THE HULL — ${hull === 0 ? 'NONE' : show(hull)}`;
+}
+
+/**
  * A seed for a fight nobody asked to repeat.
  *
  * The clock, NOT the seeded rng — and not `Math.random`, which is banned across
@@ -498,14 +522,13 @@ export function setupCells(d: SimDraft): SetupCell[] {
       },
       {
         label: pad('MISSILES'),
-        value: g.missiles === null ? `HULL (${hull.spec.missiles ?? 0})` : String(g.missiles),
+        value: setOrHull(g.missiles, hull.spec.missiles ?? 0, String),
         change: (n) => { g.missiles = nudgeOrHull(g.missiles, n, 0, 8); },
       },
       {
         label: pad('E.C.M.'),
-        value: g.ecm === null
-          ? `HULL (${Math.round((hull.spec.ecmChance ?? 0) * 100)}%)`
-          : `${Math.round(g.ecm * 100)}%`,
+        value: setOrHull(g.ecm, hull.spec.ecmChance ?? 0,
+          (n) => `${Math.round(n * 100)}%`),
         change: (n) => {
           const next = nudgeOrHull(g.ecm === null ? null : g.ecm * 10, n, 0, 10);
           g.ecm = next === null ? null : next / 10;

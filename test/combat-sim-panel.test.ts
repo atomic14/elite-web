@@ -1,11 +1,13 @@
 // The setup panel's SHAPE: three groups, one fence, and a height that holds.
 //
-// The fifth combat-trainer file, and the only one about the panel as a thing to
-// look at rather than a draft to build. It exists because the panel was thirteen
-// rows in one flat column, every one the same weight — including the one row
-// that is still set when you undock — so finding a setting meant reading rather
-// than scanning, and a warning appearing mid-interaction moved the row out from
-// under the cursor.
+// The fifth combat-trainer file, and the one about the panel as a thing to look
+// at rather than a draft to build. It exists because the panel was thirteen rows
+// in one flat column, every one the same weight — including the one row that is
+// still set when you undock — so finding a setting meant reading rather than
+// scanning, and a warning appearing mid-interaction moved the row out from under
+// the cursor. What is here is the layout, the reserved heights, the way a long
+// list is navigated and the keys the panel offers; what a row READS AS is a
+// different question and is asserted in combat-sim-rows.test.ts.
 //
 // Everything here is pure: `setupCells()` and the notes are functions of a
 // draft, so the shape can be asserted under node with no browser. The two rules
@@ -23,11 +25,9 @@ import {
   MODES, defaultGroup, freshDraft, setupCells,
 } from '../src/game/screens/combat-sim-setup.ts';
 import {
-  brainNote, brainNoteReserve, careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
+  careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
 } from '../src/game/screens/combat-sim-notes.ts';
-import {
-  AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, brainName, isNamedBrain,
-} from '../src/game/brain-names.ts';
+import { AS_SHIPPED } from '../src/game/brain-names.ts';
 
 const read = (path: string): string =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -140,80 +140,6 @@ console.log('\ncombat simulator — the notes hold their own height');
   check('...and the stylesheet gives the calm one a quiet green, not the red',
     /\.note-calm \{ color: var\(--hud-green\); opacity: 0\.5;/.test(read('src/style.css'))
     && /\.note-warn \{ color: var\(--hud-red\); \}/.test(read('src/style.css')));
-}
-
-// --- a brain row says what the brain DOES ------------------------------------
-//
-// The row said PIRATE-ATTACK-T29 and nothing else, which is a filename. The line
-// under the panel follows the CURSOR rather than the draft, so it gets its own
-// reserved block: the help above it holds one slot for the mode and one for the
-// fight, and a line that came and went with the cursor would land in either.
-
-console.log('\ncombat simulator — a brain row says what it does');
-{
-  const d = freshDraft(newCommander());
-  d.groups.push(defaultGroup(1));
-  const cells = setupCells(d);
-  const cell = (label: string) =>
-    cells.find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
-
-  // Every row that names a brain offers one, and no other row does — the line
-  // is contextual help for THIS row, not a fourth line of the fight's help.
-  const named = cells.filter((c) => c.brain !== undefined).map((c) => c.label.trim());
-  eq('the three brain rows carry a brain, and nothing else does',
-    named.map((l) => l.replace(/&nbsp;/g, '')).join(' / '),
-    'THE OPPOSITION FLIES (THIS FIGHT) / THIS GROUP FLIES / CHANGE THE DEFAULT ENEMY AI');
-  check('...and each of them has something to say about it',
-    cells.filter((c) => c.brain !== undefined).every((c) => !!brainNote(c.brain)));
-
-  // A group left on "as the game flies" will fly a real policy, so the line
-  // describes THAT one rather than the sentinel.
-  check('a group on "as the game flies" describes the brain it resolves to',
-    brainNote(cell('THIS GROUP FLIES').brain) === brainNote('scripted'));
-  cell('THIS GROUP FLIES').change!(1);
-  const picked = setupCells(d)
-    .find((c) => c.label.replace(/&nbsp;/g, '') === 'THIS GROUP FLIES')!;
-  // Read off `brain`, not scraped out of the value with a regex: the value used
-  // to end in `(pirate-attack-g3)` and the stem is in the note now, so a test
-  // that parses the display was testing the formatting.
-  check('...and a picked one describes itself',
-    brainNote(picked.brain) === brainNote(picked.brain!));
-
-  // THE row's value is the NAME, not the file. A sentence under the row could
-  // not fix a row whose value was `pirate-attack-t29`: the thing being chosen
-  // between still read as build artefacts. The stem is still there — second, and
-  // in a face the stylesheet quietens — for anyone reading the training log.
-  const primary = (v: string): string => v.replace(/<span class="stem">.*?<\/span>/, '').trim();
-  const filenames = setupCells(d).filter((c) => c.brain !== undefined)
-    .filter((c) => /[a-z]/.test(primary(c.value)));
-  check('no brain row reads as a filename first', filenames.length === 0,
-    filenames.map((c) => c.value).join(', '));
-  check('...it reads as the name the brain was given',
-    setupCells(d).filter((c) => c.brain !== undefined)
-      .every((c) => primary(c.value).includes(brainName(c.brain!)!)));
-  // ...and the file is NOT in the value at all. It was appended in a quieter
-  // face, which still put a build artefact in the column a pilot reads to make
-  // the choice; it is at the end of the note now.
-  check('...and the file stem is out of the value entirely',
-    setupCells(d).filter((c) => c.brain !== undefined && isNamedBrain(c.brain))
-      .every((c) => !c.value.includes(c.brain!)));
-  check('...but still reachable, at the end of the note',
-    setupCells(d).filter((c) => c.brain !== undefined && isNamedBrain(c.brain))
-      .every((c) => (brainNote(c.brain) ?? '').includes(c.brain!.toUpperCase())));
-  check('...quietened by the stylesheet rather than by being left out',
-    /#screen \.stem \{ opacity: 0\.45;/.test(read('src/style.css')));
-
-  // Held open whether or not there is a line in it, like every other note block.
-  const over = [...Object.keys(BRAINS), AS_THE_GAME_FLIES, AS_SHIPPED]
-    .filter((id) => (brainNote(id) ?? '').length > brainNoteReserve().length);
-  check('the reserve is an upper bound on every line it can hold',
-    over.length === 0, over.join(', '));
-  check('...and it is one of them, not padding',
-    [...Object.keys(BRAINS), AS_THE_GAME_FLIES, AS_SHIPPED]
-      .some((id) => brainNote(id) === brainNoteReserve()));
-  const screens = read('src/ui/screens.ts');
-  check('the renderer holds that space whether the line is there or not',
-    /reservedNotes\(p\.brainNote \? \[p\.brainNote\] : \[\], \[p\.brainReserve\]/.test(screens));
 }
 
 // --- and a long list can be got to the end of -------------------------------

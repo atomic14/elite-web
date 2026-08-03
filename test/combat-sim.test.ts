@@ -281,7 +281,9 @@ console.log('\ncombat simulator — the custom picker');
   // fit: "whatever the hull carries" is a real value, not a zero
   const g = d.groups[0];
   eq('a group carries the hull\'s own missiles until told otherwise', g.missiles, null);
-  check('...and says so', cell('MISSILES').value.startsWith('HULL'));
+  // ...in words, so that the mode is readable apart from the number it gives —
+  // test/combat-sim-panel.test.ts owns the wording and the zero case.
+  check('...and says so', cell('MISSILES').value.startsWith('FROM THE HULL'));
   cell('MISSILES').change!(1);
   eq('...then takes a number', g.missiles, 0);
   cell('MISSILES').change!(-1);
