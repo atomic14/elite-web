@@ -26,6 +26,16 @@ flies into it. So the shipped band is 700-1100: it destaggers a gang, which was
 the other half of what Chris asked for, and leaves the runs the same LENGTH as
 before.
 
+## Where the code is
+
+- `src/game/break-off.ts` — the phase machine (`nextAttackPhase`), the band
+  (`EXTEND_RANGE_MIN`/`MAX`, whose comment holds the table above), the miss
+  distance and the throttle rule.
+- `src/game/npc.ts` — `attack()`, which flies the three phases. The `extending`
+  branch is the one that steers for nothing.
+- `src/game/combat-sim-report.ts` — `PASS_CLOSE`/`PASS_FAR`, what counts as a
+  pass, and a comment on why `PASS_FAR` must stay below the shortest run.
+
 ## What is actually failing
 
 **The entire 180 happens in the closing leg.** `extending` flies dead straight —
@@ -79,6 +89,46 @@ arriving already pointed with the whole remaining distance available as run-in.
 
 ## Verify
 
-The probe in the Why section: 40 five-ship engagements, merge-to-merge intervals
-and apex distances, against the shipped numbers. Then fly it — the gap is a feel
-question and 9.4s was reported by a human before it was measured.
+`npm run flight-probe` gives the one-on-one shape (passes, range spread, rams).
+The GAP is a five-ship measurement and there is no tool for it; this is the
+snippet the numbers above came from:
+
+```js
+// node --experimental-strip-types <this file>   — from the repo root
+import * as THREE from 'three';
+const { Episode } = await import('../src/ai-training/scenario.ts');
+const { FIXED_DT } = await import('../src/game/world-step.ts');
+const { BREAK_OFF_RANGE } = await import('../src/game/break-off.ts');
+const gaps = [], apex = [];
+for (let e = 0; e < 40; e++) {
+  const ep = new Episode({ seed: 30000007 + e * 7919,
+    pirates: Array.from({ length: 5 }, () => ({ kind: 'scripted' })),
+    trader: { kind: 'holding' }, traderArmed: false,
+    traderClass: 'playerCobra', maxTime: 70 });
+  ep.setup();
+  const gap = new THREE.Vector3();
+  const last = new Map(), inside = new Map(), peak = new Map();
+  let t = 0;
+  while (!ep.done) {
+    ep.step(FIXED_DT); t += FIXED_DT;
+    ep.pirates.forEach((p, i) => {
+      if (!p.alive) return;
+      const d = gap.copy(ep.trader.pos).sub(p.pos).length();
+      peak.set(i, Math.max(peak.get(i) ?? 0, d));
+      const now = d < BREAK_OFF_RANGE;             // a MERGE
+      if (now && !inside.get(i)) {
+        if (last.has(i)) { gaps.push(t - last.get(i)); apex.push(peak.get(i)); }
+        last.set(i, t); peak.set(i, 0);
+      }
+      inside.set(i, now);
+    });
+  }
+}
+const q = (a, f) => [...a].sort((x, y) => x - y)[Math.floor(a.length * f)];
+console.log('seconds between merges', q(gaps, 0.1), q(gaps, 0.5), q(gaps, 0.9));
+console.log('how far out in between ', q(apex, 0.1), q(apex, 0.5), q(apex, 0.9));
+// shipped, as of 2026-08-03: 7.85 / 9.35 / 12.40s, apex 931 / 1125 / 1294
+```
+
+Then fly it. The gap is a feel question and 9.4s was reported by a human before
+it was ever measured.

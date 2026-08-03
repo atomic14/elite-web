@@ -23,6 +23,8 @@
     "elite-a": "npm run generate:elite-a -- --check && node --experimental-strip-types --no-warnings test/elite-a.ts",
     "campaign": "node --experimental-strip-types --no-warnings test/campaign.ts",
     "survivability": "node --experimental-strip-types --no-warnings train/survivability.ts",
+    "flight-probe": "node --experimental-strip-types --no-warnings train/flight-probe.ts",
+    "defence-probe": "node --experimental-strip-types --no-warnings train/defence-probe.ts",
     "portability": "node tools/portability.test.mjs && node tools/portability.mjs",
     "sizes": "node tools/sizes.mjs",
     "coverage": "node tools/coverage.mjs"

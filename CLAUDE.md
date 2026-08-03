@@ -69,6 +69,12 @@ npm run elite-a    # THE ALIGNMENT GATE: the pack's hashes, the generated
 npm run train -- <attack|evade|pack|defend> [--gens N --pop N --out NAME ...]
 npm run evaluate   # held-out tournament
 npm run survivability # can a shielded commander survive a gang? (a BOT answer)
+npm run flight-probe  # is it FLYING or is it a turret? — passes, range spread,
+                   # speed and rams, per attacking policy. `-- <episodes>`
+npm run defence-probe # is the defender fighting or just surviving? — pools left
+                   # AND kills, broken down by pirate count, hull and laser, on
+                   # held-out seeds. `-- <episodes> [brain...]`. The breakdown is
+                   # the point: docs/TODO/65 is a finding the average hid
 ```
 
 Node >= 22.6 (train and evaluate run TS directly via

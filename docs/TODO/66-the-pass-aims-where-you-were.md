@@ -66,6 +66,12 @@ clean pass arrives where the commander now is.
 
 ## Verify
 
-`node --experimental-strip-types train/flight-probe.ts` for the static case,
-then fly waves in the trainer and read `damageBySource.ram` in the exported
-record against the two fights already on file.
+`npm run flight-probe` for the static case — the `rams` column, against a target
+that holds still. It should not rise.
+
+Then fly waves in the trainer and read `damageBySource.ram` in the exported
+record. The fight this item is measured from is Chris's `seed1227898432` (wave
+10, five ships): 460 ram points over 4 events out of 1,569 taken. A comparable
+fight should show materially fewer. Exported records live wherever the trainer's
+X — EXPORT FILE button put them; the JSON shape is `CombatSimReport` in
+`src/game/combat-sim-report.ts`.

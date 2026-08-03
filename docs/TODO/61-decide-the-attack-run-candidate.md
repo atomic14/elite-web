@@ -65,5 +65,15 @@ Three honest options, and the evidence for each is already recorded:
 
 ## Verify
 
-`npm test` — the guard is the acceptance test. Then `ls
-src/ai-training/brains/` and confirm every file is one `brains.ts` imports.
+`npm test` — the guard IS the acceptance test; it is in `test/ai.test.ts` and
+reads "the weights directory is exactly what brains.ts imports". Then:
+
+```sh
+ls src/ai-training/brains/          # every file here must be imported
+grep -n "brains/" src/game/brains.ts   # ...by one of these lines
+npm run flight-probe -- 40 && npm run defence-probe   # if you fly it first
+```
+
+To fly it instead: `npm run dev`, dock, `T`, set THE OPPOSITION FLIES (THIS
+FIGHT) to MAKES RUNS, and launch. That row is exercise-scoped; the fenced row
+below it changes the whole career and is not what you want for a comparison.

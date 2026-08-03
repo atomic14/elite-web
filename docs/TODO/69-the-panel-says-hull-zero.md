@@ -46,5 +46,7 @@ hull changes — so the fix is wording, not behaviour.
 
 ## Verify
 
-`T` at any station, add a custom group, and read the MISSILES and E.C.M. rows
-for a hull that carries none and one that carries two.
+`npm run dev`, open `/play`, dock, press `T`, add a custom group, and read the
+MISSILES and E.C.M. rows for a hull that carries none against one that carries
+two — a Python carries 2 missiles and a 60% E.C.M. chance, a Krait carries
+neither (`src/game/ship-specs.ts`). Then `npm test` for the panel assertions.

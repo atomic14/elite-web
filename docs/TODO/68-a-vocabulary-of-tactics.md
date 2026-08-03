@@ -21,6 +21,20 @@ human"), and one that hangs very close and pivots. The second is what
 `pirate-attack-g3` does — median range 240, 0.00 passes — so it is not
 hypothetical.
 
+## Where the code is
+
+- `src/game/break-off.ts` — the one tactic that exists, as a worked example of
+  what a tactic module looks like: constants with their arithmetic, a pure phase
+  function, and `describeFlight` which names it for the record.
+- `src/game/npc.ts` — `attack()` flies it; `NpcState` is where a `tactic` field
+  goes and is walked generically by `snapshot.ts`, so it saves for free.
+- `src/game/separation.ts` — the newest rule, and the smallest complete example
+  of adding one.
+- `src/game/ship-specs.ts` — `turnRate` and `maxSpeed` per hull, which is what a
+  capability gate reads. `TURN` there converts to pitch/roll.
+- `src/game/rng.ts` — the ONLY source of chance. `Math.random` is banned in
+  world code and `npm test` enforces it.
+
 ## The shape
 
 A tactic is a choice of four things: where to aim, what throttle, when to shoot,

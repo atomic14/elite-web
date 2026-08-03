@@ -136,11 +136,16 @@ function outcomeOf(ep: Episode): SimOutcome {
  * both sets of figures out of it.
  */
 export function probeEpisode(
-  name: string, brain: Brain, seed: number, hull: TargetHullId = 'playerCobra',
+  name: string, brain: Brain | null, seed: number, hull: TargetHullId = 'playerCobra',
 ): EpisodeShape {
   const ep = new Episode({
     seed,
-    pirates: [{ kind: 'policy', brain } as Controller],
+    // `null` means the SCRIPTED attack run, which is what every pirate flies
+    // since d563e3d. This file could not measure the shipped AI at all until
+    // that was true: `probe()` loaded a weights file per name, so `scripted`
+    // threw, and `printFlightShapes` swallowed it in a `catch` and printed a
+    // table with the row silently missing.
+    pirates: [(brain === null ? { kind: 'scripted' } : { kind: 'policy', brain }) as Controller],
     // A target that stops and turns — how a human knife-fights, and the one
     // opponent that separates a pursuer from a turret.
     //
@@ -223,7 +228,7 @@ export function probeEpisode(
 export function probe(
   name: string, episodes: number, hull: TargetHullId = 'playerCobra',
 ): FlightShape {
-  const brain: Brain = brainFromFile(
+  const brain: Brain | null = name === 'scripted' ? null : brainFromFile(
     JSON.parse(readFileSync(new URL(`${name}.json`, BRAINS), 'utf8')) as BrainFile);
   const ranges: number[] = [];
   const speeds: number[] = [];
@@ -267,7 +272,15 @@ export function printFlightShapes(names: string[], episodes: number): void {
   console.log('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const name of names) {
     let s: FlightShape;
-    try { s = probe(name, episodes); } catch { continue; }
+    try {
+      s = probe(name, episodes);
+    } catch (err) {
+      // SAY SO. This used to `continue`, so a name that could not be loaded
+      // vanished from the table with no row and no message, and the reader had
+      // no way to tell "flew badly" from "was never flown".
+      console.log(`| ${name.padEnd(26)} | could not be probed: ${(err as Error).message}`);
+      continue;
+    }
     console.log(`| ${name.padEnd(26)} | ${s.meanSpeed.toFixed(0).padStart(5)} | `
       + `${(s.forwardShare * 100).toFixed(0).padStart(7)}% | `
       + `${`${s.rangeP10.toFixed(0)}/${s.rangeMedian.toFixed(0)}/${s.rangeP90.toFixed(0)}`.padStart(17)} | `
@@ -278,4 +291,29 @@ export function printFlightShapes(names: string[], episodes: number): void {
   console.log('\npasses = closed inside ' + PASS_CLOSE + ' and broke back out past ' + PASS_FAR
     + ', per episode — a loiter scores none');
   console.log('a TURRET reads: low speed, few passes, a collapsed range spread, low on-six');
+}
+
+// --- the command line the header has always documented ------------------------
+//
+// It did not exist. The header said
+//   node --experimental-strip-types train/flight-probe.ts [episodes]
+// and the file had no entry point, so running it printed nothing and exited 0 —
+// which is the worst possible failure for a measuring tool, and it is why
+// docs/TODO/66 quoted a verification step that could not be run.
+
+/**
+ * The trained policies still in the bundle, for comparison against what ships.
+ * Named rather than derived from `SHIPPED_BRAINS`, for the same reason
+ * `SIM_BRAINS` is: what ships is now `scripted`, so deriving this would collapse
+ * the list and quietly drop the things the probe exists to compare against.
+ */
+const TRAINED_ALTERNATIVES = ['pirate-attack-g3', 'pirate-pack-r4-selectonly'];
+
+const isMain = process.argv[1]?.endsWith('flight-probe.ts') ?? false;
+if (isMain) {
+  const episodes = Number(process.argv[2] ?? 40);
+  // What SHIPS first, then the trained alternatives it is compared against.
+  // `scripted` is the shipped pirate AI since d563e3d, not a curiosity.
+  printFlightShapes(
+    ['scripted', ...TRAINED_ALTERNATIVES], Number.isFinite(episodes) ? episodes : 40);
 }

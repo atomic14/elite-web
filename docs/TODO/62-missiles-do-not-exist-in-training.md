@@ -36,7 +36,32 @@ Three things, and the first is enough on its own:
    pirate in a training episode has ever *decided* to launch a missile.
 
    Measured: 200 hurt pirates, each given a full rack, 45 seconds apiece —
-   **1,399 laser requests and 0 missile requests.**
+   **1,399 laser requests and 0 missile requests.** To reproduce, drive
+   `NpcShip.attack` the way an episode does and count what it asks to fire:
+
+   ```js
+   // node --experimental-strip-types <this file>
+   import * as THREE from 'three';
+   const R = 'src';
+   const { FIXED_DT } = await import(`../${R}/game/world-step.ts`);
+   const { NpcShip } = await import(`../${R}/game/npc.ts`);
+   const { seedWorld } = await import(`../${R}/game/rng.ts`);
+   let laser = 0, missile = 0;
+   for (let e = 0; e < 200; e++) {
+     seedWorld(30000007 + e * 7919);
+     const npc = new NpcShip('pirate', new THREE.Vector3(0, 0, -1200), 5);
+     npc.state.threatTier = 2;
+     npc.state.missiles = 2;                                   // arm it
+     npc.state.energy = Math.round(npc.maxEnergy * 0.3);        // hurt it
+     const target = new THREE.Vector3();
+     for (let f = 0; f < 60 * 45; f++) {
+       const d = npc.object.position.distanceTo(target);
+       const ev = npc.attack(FIXED_DT, target, d, true, undefined, [npc]);
+       if (ev) ev.weapon === 'missile' ? missile++ : laser++;
+     }
+   }
+   console.log({ laser, missile });   // { laser: 1399, missile: 0 }
+   ```
 
    `scenario.ts` already knows about this class of debt and has paid it once:
    *"`NpcShip.update` does this for the live sky; an episode drives
@@ -97,7 +122,9 @@ Three things, and the first is enough on its own:
 
 ## Verify
 
-Re-run the probe in the Why section: 200 hurt pirates with a full rack should
-now produce a non-zero missile count and an emptied rack. Then
-`npm run train -- defend --gens 20` and confirm the log shows episodes ending in
-missile kills.
+Re-run the snippet in "What is actually failing": it should now report a
+non-zero `missile` count, and a ship given two missiles should end with none.
+Then `npm run train -- defend --gens 20` and confirm episodes end in missile
+kills, and `npm run defence-probe` to see what it does to the shipped policy's
+numbers — a defender that has never met a missile should get noticeably worse
+when one exists, and that drop is the measurement working, not a regression.

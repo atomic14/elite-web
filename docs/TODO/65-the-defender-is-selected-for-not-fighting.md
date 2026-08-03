@@ -40,7 +40,8 @@ happens; the outcome decides everything.
 
 ## The evidence
 
-`jameson-defend-g1`, 400 held-out episodes, broken down (2026-08-03):
+`npm run defence-probe` prints this. `jameson-defend-g1`, held-out episodes,
+broken down (2026-08-03):
 
 ```
 by pirate count     pools left      pirates killed
@@ -53,10 +54,15 @@ by hull flown
   playerCobra          76.1%              7.5%
   playerCobraSlow      77.0%              4.9%
   traderCobra          76.6%             12.4%     <- 2.5x the kills
+
+by laser
+  beam                 77.3%              4.3%
+  military             77.0%              9.6%     <- 2.2x the kills
 ```
 
-The hull moves the kill rate by 2.5× and moves pools-left not at all. The
-selection metric cannot see the difference, so widening the training
+The hull moves the kill rate by 2.5× and the laser by 2.2×, and NEITHER moves
+pools-left at all. The selection metric cannot see the difference, so widening
+the training
 distribution along that axis — which this session did — adds search space the
 selector is blind to. That is why two retrains across the wider distribution
 came out WORSE than the narrow shipped brain rather than better, and why
@@ -104,7 +110,8 @@ tripling the search budget was not the answer.
 
 ## Verify
 
-Re-run the breakdown in the Evidence section against the new champion. The
-per-hull kill spread should be visible in the selection metric, and the
+`npm run defence-probe -- 120 jameson-defend-g1 <the-new-brain>` and compare the
+two blocks it prints. The per-hull and per-laser kill spreads should now be
+visible to the selection metric, and the
 `by pirate count` pools gradient should not have collapsed — a policy that
 trades all its survival for kills has overcorrected.
