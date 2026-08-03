@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **8 / 11 complete**. Five reviewers with separate lenses; every
+Progress: **9 / 11 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -103,6 +103,16 @@ the bank at zero with the ship still flying. `test/energy-low.test.ts` walks
 all 256 values of the bank through the real `regenerate`, a real `WorldStep`
 frame and a real HUD frame; the campaign is byte-identical.
 
+50 is done, and it went the way the item asked: fewer homes rather than a
+longer list to keep in step. A command key is `BINDINGS` in `controls.ts`; what
+it DOES is one line in `command-help.ts` beside it, welded by
+`Record<Command, CommandHelp>`, so a command nobody has written down does not
+compile. The `?` panel, the manual page and the docked menu — the one with a
+click path — are painted from that pair by `ui/key-help.ts` and hold no copy of
+a key, which is three homes gone and the two undocumented keys (the distress
+beacon, ⇧Y) documented everywhere at once. The README is the one surface left
+in prose, and `test/key-help.test.ts` holds it to the table in both directions.
+
 Order: 49 is why several of these survived — 46 is item 1 on its list, a guard
 that greps persistence.ts for a field NAME while the value is clobbered four
 lines later — so it is worth doing early rather than last.
@@ -114,8 +124,8 @@ lines later — so it is worth doing early rather than last.
 - [x] 47 — [The trainer credits no damage for ordnance](47-the-trainer-credits-no-damage-for-ordnance.md) — trainer · high · medium
 - [x] 48 — [The energy dead band, and dying at full shields](48-the-energy-dead-band.md) — combat · high · small
 - [x] 49 — [Guards that do not guard](49-guards-that-do-not-guard.md) — test integrity · high · medium
-- [ ] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium
-- [ ] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
+- [x] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium
+- [x] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
 - [ ] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium
 - [x] 53 — [Delete the legacy save migration](53-delete-the-legacy-save-migration.md) — simplification · medium · small
 
