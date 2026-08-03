@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **15 / 15 complete**. Five reviewers with separate lenses; every
+Progress: **15 / 16 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -159,6 +159,7 @@ lines later — so it is worth doing early rather than last.
 - [x] 54 — [Import can write a save the shelf cannot read](54-import-can-write-an-unreadable-save.md) — save integrity · medium · small
 - [x] 55 — [Make saving and loading legible](55-make-saving-legible.md) — UI/UX · high · medium
 - [x] 56 — [A commander, not a career](56-a-commander-not-a-career.md) — naming/UX · medium · medium
+- [ ] 57 — [Ship only what ships](57-ship-only-what-ships.md) — simplification/UI · medium · large
 
 ## Follow-ups
 
