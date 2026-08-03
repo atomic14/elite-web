@@ -2,6 +2,7 @@ import {
   type StarSystem, type MarketEntry, ECONOMY_NAMES, GOVERNMENT_NAMES, COMMODITIES, speciesName,
 } from '../galaxy/galaxy.ts';
 import { planetDescription } from '../galaxy/goatsoup.ts';
+import { systemDescription } from '../galaxy/descriptions.ts';
 import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
   type CommanderData, type Contract,
@@ -932,6 +933,16 @@ export function renderSystemData(
 ): void {
   const d = distanceTenths(current, sys);
   const portrait = portraitUrl(sys, galaxy);
+  // The 1984 line above is always there; this is an overlay and is usually
+  // absent — no entry, or no file for this galaxy at all. Absent renders
+  // exactly what this page rendered before the overlay existed, which is what
+  // keeps generated prose from becoming load-bearing.
+  const more = systemDescription(sys, galaxy);
+  const extended = more ? `
+    <div class="info sysdesc sysmore">
+      <p>${more.description}</p>
+      <p>${more.inhabitants}</p>
+    </div>` : '';
   // onerror rather than a manifest: 256 files exist today, but a half-finished
   // regeneration should degrade to the old text-only page, not a broken icon.
   const face = portrait ? `
@@ -958,6 +969,7 @@ export function renderSystemData(
     </div>
     <div class="rule"></div>
     <div class="info sysdesc">${planetDescription(sys)}</div>
+    ${extended}
     ${news ? `<div class="info sysdesc" style="color:var(--hud-amber);margin-top:8px">${news}</div>` : ''}
     <div class="buttons"><button data-key="Escape">BACK</button></div>
   `);

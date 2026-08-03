@@ -177,6 +177,21 @@ lines later — so it is worth doing early rather than last.
 - [x] 56 — [A commander, not a career](56-a-commander-not-a-career.md) — naming/UX · medium · medium
 - [x] 57 — [Ship only what ships](57-ship-only-what-ships.md) — simplification/UI · medium · large
 
+## Content
+
+Progress: **0 / 1 complete**. The 1984 galaxy says one line about each world.
+This adds a second paragraph beside it, written offline by a model and
+committed — the same pipeline `tools/species-prompts.ts` already uses for the
+inhabitant portraits, for the same reason: the game deploys as a static site,
+so nothing can call a model at build or play time.
+
+The pipeline is built and gated; what remains is the generation run itself and
+the read-them-and-choose that follows it. Every entry is optional by design —
+a missing one renders exactly what the game rendered before — so this can ship
+one galaxy at a time and a refused record costs nothing.
+
+- [ ] 58 — [Extended system descriptions, generated offline](58-extended-system-descriptions.md) — content/tooling · low · large
+
 ## Follow-ups
 
 - [x] 41 — [Name the opposition, not the file](41-name-the-opposition-not-the-file.md) — UI/UX · high · medium

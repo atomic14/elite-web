@@ -57,6 +57,10 @@ npm run sizes      # no file over 400 lines without a stated reason
 npm run coverage   # what the tests touch, and what they never touch
 npm run generate:elite-a   # regenerate src/game/elite-a from the vendored pack
                    # `-- --check` is the non-writing drift gate, part of `check`
+npm run generate:descriptions  # the extended system descriptions — an OPTIONAL
+                   # overlay on the 1984 galaxy, written offline by a model and
+                   # committed. `-- --check` is its drift gate, part of `check`
+                   # and needing no key. Costs money; read docs/TODO/58 first
 npm run elite-a    # THE ALIGNMENT GATE: the pack's hashes, the generated
                    # catalogue, the 20,070 oracle rows, the live laser paths,
                    # the identities, the roster and the geometry — under a

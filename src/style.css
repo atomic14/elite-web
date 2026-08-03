@@ -506,6 +506,13 @@ body.screen-open #exercise { display: none; }
 #screen .menu { font-size: 14px; line-height: 2.1; margin: 8px 0 0 18%; }
 #screen .menu b { color: var(--hud-amber); font-weight: normal; display: inline-block; width: 34px; }
 #screen .info { font-size: 12px; line-height: 1.7; }
+
+/* The extended description: an overlay under the 1984 line, and it must read
+   as secondary to it. Dimmer and indented, so a page with no overlay does not
+   look like a page missing something. */
+#screen .sysmore { opacity: 0.82; margin-top: 10px; }
+#screen .sysmore p { margin: 0 0 7px; }
+#screen .sysmore p:last-child { margin-bottom: 0; }
 #screen canvas { display: block; margin: 0 auto; }
 #screen .big {
   text-align: center;

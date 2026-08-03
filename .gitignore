@@ -24,3 +24,6 @@ __pycache__/
 # local architecture-review output; keep the adjudicated baseline
 .architecture-review/*
 !.architecture-review/baseline.json
+
+# scratch worktrees from parallel agent runs
+.claude/worktrees/

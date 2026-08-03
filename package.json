@@ -12,7 +12,8 @@
     "dev": "vite",
     "lint": "tsc --noEmit",
     "generate:elite-a": "node tools/import-elite-a.mjs",
-    "check": "npm run lint && npm test && npm run sizes && npm run generate:elite-a -- --check",
+    "generate:descriptions": "node --experimental-strip-types --no-warnings tools/generate-descriptions.ts",
+    "check": "npm run lint && npm test && npm run sizes && npm run generate:elite-a -- --check && npm run generate:descriptions -- --check",
     "prebuild": "npm run check",
     "build": "vite build",
     "preview": "vite preview",
@@ -30,6 +31,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@types/node": "^26.1.1",
     "@types/three": "^0.185.1",
     "typescript": "^7.0.2",
