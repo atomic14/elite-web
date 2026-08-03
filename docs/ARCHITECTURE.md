@@ -322,8 +322,9 @@ src/
                             the namespace, and the boot pointer. `engine/
                             keymap.ts` is the one other localStorage writer, and
                             it holds a layout preference, not a career
-    save-file.ts            what a save IS — its name, its id, and the one line
-                            a player tells two of them apart by. PURE
+    save-file.ts            what a save IS — its name, its id, the one line a
+                            player tells two of them apart by, and what loading
+                            one is about to COST them. PURE
     cargo.ts                canisters and capsules adrift, scooping them, and
                             what a laser hit does to one (their released banks)
     jettison.ts             dumping cargo, and whether it buys off the gang
@@ -338,9 +339,14 @@ src/
       contracts.ts          work on offer here: pick one and sign for it
       status.ts             what you are flying, carrying and wanted for
       data.ts               the 1984 manual entry, plus today's local news
-      saves.ts              the commander file: the list, the save prompt and
-                            renaming a commander — which changes what you are
+      saves.ts              the commander file: the list, the run you are in as
+                            a line above it, and the question ENTER asks before
+                            a load. Opening it writes NOTHING
+      save-naming.ts        typing a name at the station — naming a SAVE, and
+                            renaming the COMMANDER, which changes what you are
                             called and deliberately does not move your saves
+      typed-name.ts         one frame of typing a name, shared by the three
+                            screens that ask for one
       new-commander.ts      starting one: the name is asked for, refused if it
                             is already flying, and IS the identity the autosaves
                             are keyed by

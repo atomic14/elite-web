@@ -33,11 +33,7 @@ import {
   writeDockSave, writeFlightSave, writeNamedSave, writeSave,
 } from '../src/game/storage.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
-import {
-  SavePromptScreen, SavesScreen, type SavesContext,
-} from '../src/game/screens/saves.ts';
-import type { Input } from '../src/engine/input.ts';
-import { installLocation, installStore } from './save-fixtures.ts';
+import { installStore } from './save-fixtures.ts';
 import { check, eq } from './harness.ts';
 
 /**
@@ -246,12 +242,14 @@ console.log('\nfly out of a station, die, and take the way back');
     check('...and the docked checkpoint is still there to be offered', !!offer);
 
     // The death screen offers the commander file, so a screen CAN be open over
-    // a dead ship — and opening one writes a checkpoint. It must still know the
-    // run is over, or the wreck would be written over the way back.
+    // a dead ship — and the way back is a save it is showing you. Opening one
+    // writes nothing at all now (docs/TODO/55, and test/game.test.ts holds that
+    // for every screen); this is the same claim against the REAL bytes, on the
+    // one path where the write would have landed on the way back itself.
     const bytes = JSON.stringify(offer);
     g.openSaves();
     for (let i = 0; i < 3; i++) g.update(1 / 60, 4 + i / 60);
-    eq('opening the commander file over a wreck writes no checkpoint',
+    eq('opening the commander file over a wreck leaves the way back untouched',
       JSON.stringify(readSave(dockId(career))), bytes);
     g.screens.back();
     eq('...and closing it leaves the game-over panel, not empty space', g.mode, 'dead');
@@ -269,92 +267,6 @@ console.log('\nfly out of a station, die, and take the way back');
     check('nothing in any of that could have been a player key',
       [...store.held.keys()].every((k) => k.startsWith(saveNamespace())));
   } finally {
-    restore();
-  }
-}
-
-// --- the screens -------------------------------------------------------------
-
-console.log('\nthe save prompt, and the list it sits on top of');
-{
-  const { store, restore } = installStore();
-  const loc = installLocation();
-  try {
-    const taps: string[] = [];
-    const input = {
-      pressed: (code: string) => {
-        const i = taps.indexOf(code);
-        if (i < 0) return false;
-        taps.splice(i, 1);
-        return true;
-      },
-      drainPresses: () => taps.splice(0, taps.length),
-      held: () => false,
-    } as unknown as Input;
-
-    const commander = { ...newCommander(), name: 'CHRIS' };
-    let saved: string[] = [];
-    let said: string[] = [];
-    const ctx = () => ({
-      commander,
-      systems: [],
-      career: 'CHRIS',
-      message: (t: string) => { said.push(t); },
-      capture: () => stubWorld(commander),
-      checkpoint: () => {},
-      saveNamed: (name: string) => { saved.push(name); return 'ok' as const; },
-    });
-
-    const prompt = new SavePromptScreen(ctx as unknown as () => SavesContext);
-    prompt.open();
-    taps.push('Enter');
-    eq('the prompt defaults to the commander name and saves it',
-      prompt.input(input) === 'back' ? saved.join() : 'stayed', 'CHRIS');
-
-    // ...and typing REPLACES the default rather than appending to it
-    saved = []; said = [];
-    prompt.open();
-    taps.push('KeyA', 'KeyB');
-    prompt.input(input);
-    taps.push('Enter');
-    prompt.input(input);
-    eq('typing replaces the offered default', saved.join(), 'AB');
-
-    // ...and a name that exists asks first (decision 4)
-    saved = []; said = [];
-    writeSave(fileId('CHRIS'), makeRecord('CHRIS', 'CHRIS', 'file', stubWorld(commander)));
-    prompt.open();
-    taps.push('Enter');
-    check('a name that already exists is not written on the first Enter',
-      prompt.input(input) === 'stay' && saved.length === 0);
-    taps.push('KeyY');
-    check('...and is written once it is confirmed',
-      prompt.input(input) === 'back' && saved.join() === 'CHRIS');
-
-    saved = [];
-    prompt.open();
-    taps.push('Enter');
-    prompt.input(input);
-    taps.push('Escape');
-    check('...or left alone if it is not',
-      prompt.input(input) === 'stay' && saved.length === 0);
-
-    // --- and the list, whose Enter is a RELOAD ------------------------------
-    //
-    // Aiming the boot pointer is the whole of a load, so a refused pointer
-    // would reload into the newest save on the shelf instead of the one that
-    // was picked — a load nobody asked for, off the back of an unchecked write.
-    said = [];
-    const list = new SavesScreen(ctx as unknown as () => SavesContext);
-    list.open();
-    store.failKeys = /-boot$/;
-    taps.push('Enter');
-    const outcome = list.input(input);
-    store.failKeys = null;
-    check('a save the store cannot aim the boot at is not loaded, and says so',
-      outcome === 'stay' && loc.reloads() === 0 && said.join().includes('STORAGE FULL'));
-  } finally {
-    loc.restore();
     restore();
   }
 }

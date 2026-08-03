@@ -100,11 +100,12 @@ You start docked at Lave Station with 100.0 Cr, a full tank and 3 missiles.
 **Saving** is a deliberate act and an automatic safety net, and the two can
 never overwrite each other. **S** at a station opens the commander file: name a
 save and it is yours to keep — the same name again replaces it, and it asks
-first. Alongside it the game keeps its own: a **station checkpoint** written
-when you dock and again as you launch, and the last three **in-flight
+first. Alongside it the game keeps its own: a **station autosave** written every
+time you dock and every time you launch, and the last three **flight
 autosaves**, taken every 20 seconds. Close the tab mid-fight and you resume
-where you left off; die, and the station checkpoint puts you back where you
-launched from.
+where you left off; die, and the station autosave puts you back where you
+launched from. Loading over the run you are in says so before it happens, names
+what it is about to cost, and can be backed out of.
 
 ## New to Elite?
 
@@ -173,7 +174,7 @@ because browsers claim the function keys.
 | **T** | **combat training simulator** — practise a fight; nothing in it reaches your commander |
 | H | new pilot's briefing |
 | B | switch keyboard layout |
-| S | commander file — named saves and autosaves (S saves · ENTER loads · D deletes · R renames the commander) |
+| S | commander file — named saves and autosaves (S saves the run · ENTER loads, asking first · D deletes · R changes what you are called) |
 | X / Z | export · import a save file |
 | Q | start a new commander (confirms first) |
 
@@ -275,7 +276,7 @@ detected — as on the original's dashboard.
   attack; fine on docking).
 - **Hyperspace** — 7.0 LY fuel range, per-jump fuel cost by real chart
   distance, 5-second countdown.
-- **Death** — ship destroyed → ENTER takes you back to the station checkpoint
+- **Death** — ship destroyed → ENTER takes you back to the station autosave
   you launched from, with what you left with (unless an escape pod saves you,
   at the cost of your cargo), or S opens the commander file to pick a save of
   your own. The in-flight autosaves are dropped: dying costs you the run.

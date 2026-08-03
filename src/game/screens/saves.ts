@@ -1,45 +1,60 @@
 // The commander file: the saves you made, the saves the game made, and the
 // three screens over them.
 //
-// `storage.ts` owns where a save lives and `save-file.ts` owns what one is.
-// What lives here is the half above both: the list, the deliberate act of
-// naming a save, and renaming a commander — plus the keyboard state machine for
-// each, behind the Screen contract (invariant 13). Saves that leave the browser
-// as a file are `save-transfer.ts`, and STARTING a commander is
-// `new-commander.ts`: that one is about identity rather than about the shelf,
-// and it borrows `typedName` from here because the alphabet is the same.
+// `storage.ts` owns where a save lives and `save-file.ts` owns what one is and
+// what taking one costs. What lives here is the half above both: the list, the
+// deliberate act of naming a save, and renaming a commander — plus the keyboard
+// state machine for each, behind the Screen contract (invariant 13). Typing a
+// name is `typed-name.ts`, saves that leave the browser as a file are
+// `save-transfer.ts`, and STARTING a commander is `new-commander.ts`.
 //
 // Following the same discipline as NpcShip: these screens decide nothing about
 // game state. They return an OUTCOME and the host applies it, so the mode
 // machine stays in one place instead of being poked at from two.
+//
+// AND NOTHING HERE WRITES BECAUSE IT WAS LOOKED AT (docs/TODO/55). `open()`
+// used to push a checkpoint so the list would include the run you were standing
+// in; the run is a LINE ABOVE THE TABLE now, read out of state, because a
+// screen that files a save for you the moment you press S is a screen you
+// cannot open to check something.
 
 import { generateGalaxy } from '../../galaxy/galaxy.ts';
-import { DEFAULT_NAME, type CommanderData } from '../commander.ts';
+import type { CommanderData } from '../commander.ts';
+import { deleteSave, listSaves, setBootId } from '../storage.ts';
 import {
-  deleteSave, listSaves, namedSaveExists, setBootId,
-} from '../storage.ts';
-import {
-  MAX_SAVE_NAME, newestFirst, normaliseSaveName, summariseSave,
-  type SaveSummary,
+  loadCost, newestFirst, saveLabel, summariseSave,
+  type LiveRun, type SaveSummary,
 } from '../save-file.ts';
+import { rating } from '../rating.ts';
 import type { WorldSnapshot } from '../snapshot.ts';
-import { renderSaves, renderNaming, renderSavePrompt } from '../../ui/screens.ts';
+import { renderSaves } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import type { StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
 import { sfx } from '../../audio.ts';
 
-/** The slice of the Game these screens are allowed to see. */
+/** The slice of the Game the screens over the shelf are allowed to see. */
 export interface SavesContext {
   readonly commander: CommanderData;
   readonly systems: StarSystem[];
   /** which career's autosaves this session writes — see state.ts */
   readonly career: string;
+  /**
+   * The ship is destroyed. Read, never set: this screen is reachable over a
+   * wreck (the game-over panel offers it), and three of its promises are only
+   * true for a commander who still has a ship — a checkpoint that can be
+   * written, a run that can be lost, and a name worth changing.
+   */
+  readonly dead: boolean;
   message(text: string, seconds: number): void;
   /** the whole world right now, for a save that is about to be written */
   capture(): WorldSnapshot;
-  /** write the career's docked checkpoint before we leave it */
-  checkpoint(): void;
+  /**
+   * Write the career's docked checkpoint before we leave it.
+   * @returns whether the bytes landed — false for a full store, and false for a
+   * dead commander, who has nothing to check-point.
+   */
+  checkpoint(): boolean;
   /** write a save the player named. The result is the reply, not an exception. */
   saveNamed(name: string): 'ok' | 'full' | 'failed';
 }
@@ -87,40 +102,23 @@ export function checkpointSummary(ctx: SavesContext): SaveSummary | null {
 }
 
 /**
- * One frame of typing into a name field.
+ * The run in progress, for the line above the table.
  *
- * ONE HOME, because THREE screens type a name — a save's, a rename, and a new
- * commander's (screens/new-commander.ts) — and the keys they accept have to be
- * the alphabet `normaliseSaveName` keeps, or a name is one thing on the way in
- * and another on the way out.
- *
- * @param pristine true while the buffer still holds an offered default, which
- * the first keystroke REPLACES rather than appends to: there is no way to
- * select text on these screens, so a pre-filled field would otherwise make
- * typing a new name mean typing it onto the end of the old one. A screen that
- * offers nothing passes false and can ignore the flag on the way back.
- * @returns the buffer after the frame, or null when nothing it accepts was
- * pressed — so a caller re-renders only when something changed.
+ * This is what `open()` used to buy by writing a checkpoint: the list showed
+ * where you were because the act of looking had just filed it. Reading it out
+ * of state costs nothing and cannot lose anything (docs/TODO/55).
  */
-export function typedName(
-  buffer: string, pristine: boolean, i: Input,
-): { buffer: string; pristine: boolean } | null {
-  let next = buffer;
-  let fresh = pristine;
-  let changed = false;
-  if (i.pressed('Backspace')) {
-    if (fresh) { next = ''; fresh = false; } else next = next.slice(0, -1);
-    changed = true;
-  }
-  for (const code of i.drainPresses()) {
-    const m = /^(?:Key([A-Z])|Digit([0-9])|Space)$/.exec(code);
-    if (!m) continue;
-    if (fresh) { next = ''; fresh = false; }
-    if (next.length >= MAX_SAVE_NAME) break;
-    next += code === 'Space' ? ' ' : (m[1] ?? m[2]);
-    changed = true;
-  }
-  return changed ? { buffer: next, pristine: fresh } : null;
+export function liveRun(ctx: SavesContext): LiveRun {
+  const c = ctx.commander;
+  return {
+    career: ctx.career,
+    name: c.name,
+    place: systemNamer(ctx)(c.galaxy, c.systemIndex),
+    credits: c.credits,
+    rating: rating(c.combatScore ?? c.kills ?? 0).toUpperCase(),
+    day: c.day ?? 0,
+    over: ctx.dead,
+  };
 }
 
 /** The commander file: everything on the shelf, and what you can do to it. */
@@ -130,6 +128,13 @@ export class SavesScreen implements Screen {
   private rows: SaveSummary[] = [];
   /** a delete waiting on a Y — deleting a save is not undoable */
   private pendingDelete: SaveSummary | null = null;
+  /**
+   * ...and a load waiting on a second Enter, for the same reason and a worse
+   * one: a delete costs you a save you can see, and a load can cost you the run
+   * you are in, which is not on the list at all (docs/TODO/55). The panel names
+   * both sides before it happens and ESC backs out of it.
+   */
+  private pendingLoad: SaveSummary | null = null;
 
   private readonly ctx: () => SavesContext;
 
@@ -137,11 +142,11 @@ export class SavesScreen implements Screen {
     this.ctx = ctx;
   }
 
-  /** Write where we are, so the list includes the run you are looking at. */
+  /** Looking at the shelf. It writes NOTHING — see this file's header. */
   open(): void {
-    this.ctx().checkpoint();
     this.selected = 0;
     this.pendingDelete = null;
+    this.pendingLoad = null;
     this.render();
   }
 
@@ -149,10 +154,17 @@ export class SavesScreen implements Screen {
     const ctx = this.ctx();
     this.rows = saveRows(ctx);
     if (this.selected >= this.rows.length) this.selected = Math.max(0, this.rows.length - 1);
-    renderSaves(this.rows, this.selected, ctx.career, this.pendingDelete?.name ?? null);
+    const live = liveRun(ctx);
+    renderSaves(this.rows, this.selected, live, {
+      deleting: this.pendingDelete,
+      loading: this.pendingLoad && { row: this.pendingLoad, cost: loadCost(this.pendingLoad, live) },
+    });
   }
 
   select(row: number): void {
+    // A confirmation is modal: the question names a row, so the row it names
+    // must not move under it.
+    if (this.pendingDelete || this.pendingLoad) return;
     this.selected = Math.max(0, Math.min(this.rows.length - 1, row));
     this.render();
   }
@@ -160,6 +172,7 @@ export class SavesScreen implements Screen {
   input(i: Input): ScreenOutcome {
     const ctx = this.ctx();
     if (this.pendingDelete) return this.confirmDelete(i, ctx);
+    if (this.pendingLoad) return this.confirmLoad(i, ctx);
     const n = this.rows.length;
     // Arrows only. Every other list screen also takes W/S, and this is the one
     // screen where S means something else — it SAVES.
@@ -171,13 +184,28 @@ export class SavesScreen implements Screen {
       this.selected = (this.selected + 1) % n;
       this.render();
     }
-    if (i.pressed('KeyS')) return { open: 'save-name' };
-    if (i.pressed('KeyR')) return { open: 'naming' };
+    if (i.pressed('KeyS')) {
+      // A wreck captures as a DOCKED world at the point of death, so saving one
+      // and loading it back was a way to un-die. The panel does not offer S
+      // over a wreck; this is the same answer for the key.
+      if (ctx.dead) {
+        ctx.message('YOUR SHIP IS GONE — THERE IS NOTHING LEFT TO SAVE', 4);
+        sfx.refused();
+        return 'stay';
+      }
+      return { open: 'save-name' };
+    }
+    if (i.pressed('KeyR')) {
+      // Renaming writes a checkpoint to persist the new name, and a dead
+      // commander has none to write, so the panel offers it only to the living.
+      if (ctx.dead) return 'stay';
+      return { open: 'naming' };
+    }
     if (i.pressed('KeyD')) {
       const row = this.rows[this.selected];
       if (!row) return 'stay';
       if (row.kind === 'dock' && row.career === ctx.career) {
-        ctx.message('THAT IS THE STATION YOU CAN ALWAYS GET BACK TO', 4);
+        ctx.message('THAT AUTOSAVE IS YOUR WAY BACK — IT CANNOT BE DELETED', 4);
         sfx.refused();
         return 'stay';
       }
@@ -188,18 +216,8 @@ export class SavesScreen implements Screen {
     if (i.pressed('Enter')) {
       const row = this.rows[this.selected];
       if (!row) return 'back';
-      // Write the career we are leaving before we leave it, then boot the one
-      // that was picked. Every load in this file is a reload.
-      ctx.checkpoint();
-      if (!setBootId(row.id)) {
-        // A refused pointer would reload into the NEWEST save rather than the
-        // one that was picked, which is a load nobody asked for. Say so and
-        // stay: the shelf is untouched either way.
-        ctx.message('STORAGE FULL — COULD NOT SWITCH SAVES', 4);
-        sfx.refused();
-        return 'stay';
-      }
-      location.reload();
+      this.pendingLoad = row;
+      this.render();
       return 'stay';
     }
     if (i.pressed('Escape')) return 'back';
@@ -209,7 +227,7 @@ export class SavesScreen implements Screen {
   private confirmDelete(i: Input, ctx: SavesContext): ScreenOutcome {
     if (i.pressed('KeyY')) {
       deleteSave(this.pendingDelete!.id);
-      ctx.message(`DELETED ${this.pendingDelete!.name}`, 3);
+      ctx.message(`DELETED ${saveLabel(this.pendingDelete!)}`, 3);
       sfx.commanderDeleted();
       this.pendingDelete = null;
       this.render();
@@ -221,154 +239,44 @@ export class SavesScreen implements Screen {
     }
     return 'stay';
   }
-}
 
-/**
- * Typing a name for a save. Elite-style: letters straight in, no DOM focus to
- * fight.
- *
- * The name IS the identity of a manual save, so typing one that exists REPLACES
- * it — and because the default offered is the commander's own name, a second
- * career would otherwise overwrite the first by pressing Enter twice. It asks
- * first (decision 4).
- */
-export class SavePromptScreen implements Screen {
-  readonly id = 'save-name' as const;
-  private buffer = '';
-  /** true until the player types: the offered default is replaced, not appended */
-  private pristine = true;
-  private confirming = false;
-
-  private readonly ctx: () => SavesContext;
-
-  constructor(ctx: () => SavesContext) {
-    this.ctx = ctx;
-  }
-
-  open(): void {
-    this.buffer = normaliseSaveName(this.ctx().commander.name) || DEFAULT_NAME;
-    this.pristine = true;
-    this.confirming = false;
-    this.render();
-  }
-
-  render(): void {
-    renderSavePrompt(this.buffer, this.confirming);
-  }
-
-  input(i: Input): ScreenOutcome {
-    const ctx = this.ctx();
-    if (i.pressed('Escape')) {
-      if (!this.confirming) return 'back';
-      this.confirming = false;
+  /**
+   * The second Enter. Every load in this file is a `location.reload()`, so the
+   * whole act is: keep where we are, aim the boot pointer, and go.
+   */
+  private confirmLoad(i: Input, ctx: SavesContext): ScreenOutcome {
+    const row = this.pendingLoad!;
+    if (i.pressed('Escape') || i.pressed('KeyN')) {
+      this.pendingLoad = null;
       this.render();
       return 'stay';
     }
-    if (this.confirming) {
-      if (i.pressed('KeyY') || i.pressed('Enter')) return this.write(ctx);
-      if (i.pressed('KeyN')) { this.confirming = false; this.render(); }
+    // The remedy the panel offers, and it stacks: the prompt returns here, and
+    // the run has a name on it by the time the second Enter is pressed.
+    if (i.pressed('KeyS') && !ctx.dead) return { open: 'save-name' };
+    if (!i.pressed('Enter')) return 'stay';
+    // Write the run we are leaving before we leave it. A commander who has just
+    // been told "PUT DOWN AT LAVE AS YOU ARE NOW" must not have that quietly
+    // fail: a refused checkpoint is the one case where loading really does cost
+    // the run, so it refuses the load instead (docs/TODO/44's rule).
+    if (!ctx.dead && !ctx.checkpoint()) {
+      ctx.message('STORAGE FULL — COULD NOT KEEP THIS RUN, SO NOTHING WAS LOADED', 5);
+      sfx.refused();
+      this.pendingLoad = null;
+      this.render();
       return 'stay';
     }
-    if (i.pressed('Enter')) {
-      const name = normaliseSaveName(this.buffer);
-      if (!name) {
-        ctx.message('A SAVE NEEDS A NAME', 3);
-        sfx.refused();
-        return 'stay';
-      }
-      if (namedSaveExists(name)) {
-        this.confirming = true;
-        this.render();
-        return 'stay';
-      }
-      return this.write(ctx);
-    }
-    const typed = typedName(this.buffer, this.pristine, i);
-    if (typed) {
-      this.buffer = typed.buffer;
-      this.pristine = typed.pristine;
+    if (!setBootId(row.id)) {
+      // A refused pointer would reload into the NEWEST save rather than the
+      // one that was picked, which is a load nobody asked for. Say so and
+      // stay: the shelf is untouched either way.
+      ctx.message('STORAGE FULL — COULD NOT SWITCH SAVES', 4);
+      sfx.refused();
+      this.pendingLoad = null;
       this.render();
+      return 'stay';
     }
-    return 'stay';
-  }
-
-  private write(ctx: SavesContext): ScreenOutcome {
-    const name = normaliseSaveName(this.buffer);
-    const result = ctx.saveNamed(name);
-    if (result === 'ok') {
-      ctx.message(`SAVED AS ${name}`, 3);
-      sfx.commanderNamed();
-      return 'back';
-    }
-    ctx.message(result === 'full'
-      ? 'NO ROOM FOR ANOTHER SAVE — DELETE ONE FIRST'
-      : 'SAVE FAILED — STORAGE FULL. NOTHING WAS CHANGED', 5);
-    sfx.refused();
-    return 'back';
-  }
-}
-
-/**
- * Renaming the COMMANDER, which is not the same act as naming a save.
- *
- * WHAT IT DOES, and it is stated on the screen rather than left to be found
- * out: it changes what you are CALLED — `CommanderData.name`, which is what the
- * status screen, the docked menu and the save prompt show — and it does NOT
- * move your saves. They stay filed under the name you were created with, which
- * is what `save:auto:<CAREER>:*` is keyed by (save-file.ts).
- *
- * That is a decision, not an omission (docs/TODO/56). Moving them would be a
- * write across five keys — the checkpoint, three flight slots and the boot
- * pointer — with a half-done state in the middle of it, and TODO 44's rule is
- * that nothing may be deleted on the strength of a write that failed. A rename
- * that half-succeeded would leave a commander addressable under two names or
- * under neither, so the cheap act stays cheap and the screen says what it did.
- *
- * Pushed on top of the file list rather than sitting beside it as a peer mode,
- * so cancelling is just `back` and the list underneath re-paints itself. It
- * owns its own buffer — nothing else has any business reading a half-typed
- * name.
- */
-export class NamingScreen implements Screen {
-  readonly id = 'naming' as const;
-  private buffer = '';
-
-  private readonly ctx: () => SavesContext;
-
-  constructor(ctx: () => SavesContext) {
-    this.ctx = ctx;
-  }
-
-  open(): void {
-    // start blank: pre-filling looks helpful but there is no way to select
-    // it, so typing a new name just appends to the old one
-    this.buffer = '';
-    this.render();
-  }
-
-  render(): void {
-    const ctx = this.ctx();
-    renderNaming(this.buffer, ctx.commander.name, ctx.career);
-  }
-
-  input(i: Input): ScreenOutcome {
-    const ctx = this.ctx();
-    if (i.pressed('Escape')) return 'back';
-    if (i.pressed('Enter')) {
-      const name = normaliseSaveName(this.buffer) || DEFAULT_NAME;
-      ctx.commander.name = name;
-      ctx.checkpoint();
-      // Both halves, because the second is the surprising one and a player who
-      // has just renamed themselves is about to look at the list.
-      ctx.message(`COMMANDER ${name} — SAVES STAY FILED UNDER ${ctx.career}`, 4);
-      sfx.commanderNamed();
-      return 'back';
-    }
-    const typed = typedName(this.buffer, false, i);
-    if (typed) {
-      this.buffer = typed.buffer;
-      this.render();
-    }
+    location.reload();
     return 'stay';
   }
 }

@@ -104,9 +104,10 @@ import { hitCone, LASER_RANGE, AIM_ASSIST } from './gunnery.ts';
 import { freshTimers } from './encounters.ts';
 import { breachLoss } from './systems.ts';
 import {
-  SavesScreen, SavePromptScreen, NamingScreen, checkpointSummary,
+  SavesScreen, checkpointSummary,
   type SavesContext,
 } from './screens/saves.ts';
+import { SavePromptScreen, NamingScreen } from './screens/save-naming.ts';
 import { NewCommanderScreen, startNewCommander } from './screens/new-commander.ts';
 import { exportSaveFile, importSaveFile } from './screens/save-transfer.ts';
 import {
@@ -820,9 +821,10 @@ export class Game {
       commander: this.state.commander,
       systems: this.state.systems,
       career: this.state.career,
+      dead: this.baseMode === 'dead',
       message: (text, seconds) => this.showMessage(text, seconds),
       capture: () => this.persistence.capture(),
-      checkpoint: () => { this.persistence.checkpoint(); },
+      checkpoint: () => this.persistence.checkpoint(),
       saveNamed: (name) => this.persistence.saveNamed(name),
     };
   }

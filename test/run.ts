@@ -37,6 +37,7 @@ import './state.test.ts';
 import './snapshot.test.ts';
 import './persistence.test.ts';
 import './saves.test.ts';
+import './save-screens.test.ts';
 import './save-transfer.test.ts';
 import './career-identity.test.ts';
 import './new-commander.test.ts';

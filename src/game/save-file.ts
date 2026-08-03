@@ -1,5 +1,6 @@
-// What a save IS: its name, the id it lives under, and the one line a player
-// tells two of them apart by. PURE — no localStorage, no DOM, no clock.
+// What a save IS: its name, the id it lives under, the one line a player tells
+// two of them apart by, and what taking one COSTS. PURE — no localStorage, no
+// DOM, no clock.
 //
 // `storage.ts` owns WHERE a save lives and is still the only file that may
 // touch localStorage. This owns WHAT one is, which is why the name rules, the
@@ -12,7 +13,7 @@
 // a typed name cannot reach, which is what makes "an autosave can never
 // overwrite a named save" a property of the key space rather than a promise.
 
-import type { CommanderData } from './commander.ts';
+import { formatCredits, type CommanderData } from './commander.ts';
 import { rating } from './rating.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 
@@ -222,8 +223,6 @@ export interface SaveSummary {
   credits: number;
   rating: string;
   day: number;
-  /** true for the docked checkpoint: the one that is always safe to take */
-  safe: boolean;
 }
 
 /** How long ago, in words. Rounded down, because "just now" must not lie forward. */
@@ -271,16 +270,103 @@ export function summariseSave(
     credits: c.credits,
     rating: rating(c.combatScore ?? c.kills ?? 0).toUpperCase(),
     day: c.day ?? 0,
-    safe: rec.kind === 'dock',
   };
 }
 
-/** The label a row shows for what KIND of save it is. */
-export function kindLabel(kind: SaveKind): string {
-  return kind === 'file' ? 'SAVED' : kind === 'dock' ? 'STATION' : 'IN FLIGHT';
+/**
+ * What a row is CALLED on the list, and the only place a save's kind becomes
+ * words.
+ *
+ * A named save is called what the player typed. An autosave is called what it
+ * IS, because its stored `name` is the commander it belongs to — which the
+ * COMMANDER column already says, so printing it twice told you nothing and left
+ * "did I make this, or did the game?" to a KIND column that answered neither
+ * (`SAVED` is an act, `STATION` is a place) and to a `●` footnote underneath
+ * doing the same job a second way (docs/TODO/55).
+ */
+export function saveLabel(s: Pick<SaveSummary, 'kind' | 'name'>): string {
+  if (s.kind === 'file') return s.name;
+  return s.kind === 'dock' ? 'STATION AUTOSAVE' : 'FLIGHT AUTOSAVE';
 }
 
 /** Newest first — the order both halves of the list are shown in. */
 export function newestFirst(a: SaveSummary, b: SaveSummary): number {
   return b.savedAt - a.savedAt;
+}
+
+// --- what taking one costs ---------------------------------------------------
+//
+// ONE HOME for the answer to "what does ENTER do to the run I am in", and it is
+// here rather than in the screen because it is a claim about the SHELF: which
+// keys the load is about to write, and whether the run being left has anywhere
+// to land. The screen places the sentence; it does not decide it.
+//
+// `ENTER — LOAD` used to say nothing at all, and the act it named is not
+// symmetrical — going back to an earlier save of the commander you are flying
+// throws that commander's progress away, while loading somebody else's leaves
+// them on the shelf exactly as you stand. The screen said neither.
+
+/** The run in progress, as much of it as the shelf has to describe. */
+export interface LiveRun {
+  /** whose autosaves this session writes — `SaveRecord.career` for this session */
+  career: string;
+  /** what the pilot is called TODAY, which a rename moves and `career` does not */
+  name: string;
+  /** the system they are standing in */
+  place: string;
+  credits: number;
+  /** combat rank, so the line above the table reads in the table's own columns */
+  rating: string;
+  day: number;
+  /** the ship is destroyed: there is no run left to lose */
+  over: boolean;
+}
+
+/** What ENTER on a row is about to do, said before it happens. */
+export interface LoadCost {
+  /** the sentence under the buttons */
+  note: string;
+  /** true when something a player would miss goes away */
+  grave: boolean;
+  /** whether "save it first" is a remedy worth offering here */
+  saveFirst: boolean;
+}
+
+/**
+ * The three ways a load can land, in the words the player is shown.
+ *
+ * 1. The ship is already gone — nothing is at risk, and saying so is what stops
+ *    the warning below crying wolf on the one screen you reach by dying.
+ * 2. The row belongs to the commander you are flying. This is the sharp one:
+ *    the run is kept as that commander's station autosave only until the next
+ *    launch writes over it, so the honest word is LOST and the remedy is a
+ *    named save.
+ * 3. The row belongs to somebody else. Nothing is lost — the load writes the
+ *    current commander's station autosave on the way out (screens/saves.ts),
+ *    which is why the screen may promise "as you are now" and mean it.
+ */
+export function loadCost(row: SaveSummary, live: LiveRun): LoadCost {
+  if (live.over) {
+    return {
+      note: `YOUR SHIP IS GONE, SO NOTHING HERE IS AT RISK. THIS CARRIES ON AS ${row.career} `
+        + `FROM DAY ${row.day} WITH ${formatCredits(row.credits)}.`,
+      grave: false,
+      saveFirst: false,
+    };
+  }
+  if (row.career === live.career) {
+    return {
+      note: `LOADING ${saveLabel(row)} FLIES ${live.career} FROM DAY ${row.day} `
+        + `WITH ${formatCredits(row.credits)} AGAIN. ANYTHING DONE SINCE — YOU ARE AT `
+        + `DAY ${live.day} WITH ${formatCredits(live.credits)} — IS LOST UNLESS YOU SAVE IT FIRST.`,
+      grave: true,
+      saveFirst: true,
+    };
+  }
+  return {
+    note: `LOADING ${saveLabel(row)} FLIES ${row.career} INSTEAD. ${live.career} IS PUT DOWN AT `
+      + `${live.place} AS YOU ARE NOW, STAYS ON THIS LIST, AND CAN BE LOADED BACK ANY TIME.`,
+    grave: false,
+    saveFirst: false,
+  };
 }

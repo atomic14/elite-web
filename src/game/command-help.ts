@@ -148,7 +148,7 @@ export const COMMAND_HELP: Record<Command, CommandHelp> = {
   endExercise: { what: 'end the exercise — nothing in it reaches your commander' },
 
   // --- after the end ---------------------------------------------------------
-  respawn: { what: 'back to the station checkpoint you launched from' },
+  respawn: { what: 'back to the station autosave you launched from' },
 
   // --- whatever is on screen -------------------------------------------------
   toggleHelp: { what: 'this controls guide', keyline: 'CONTROLS GUIDE' },

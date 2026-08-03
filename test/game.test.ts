@@ -184,14 +184,26 @@ console.log('\nthe game, headless');
     const ids = [...(host.split('export type ScreenId =')[1] ?? '').split(';')[0]
       .matchAll(/'([a-z-]+)'/g)].map((m) => m[1]);
     check(`the ScreenId union parses (${ids.length} ids)`, ids.length > 0);
-    const unregistered = withoutSaving(() => {
-      const g = new Game(() => headlessShell());
-      return ids.filter((id) => {
-        try { g.screens.open(id as never); return false; } catch { return true; }
-      });
-    }).value;
-    check(`the Game registers a Screen for every ScreenId (${unregistered.join(', ') || 'all wired'})`,
-      unregistered.length === 0,
+    const g = withoutSaving(() => new Game(() => headlessShell())).value;
+    const opening = withoutSaving(() => ids.filter((id) => {
+      try { g.screens.open(id as never); return false; } catch { return true; }
+    }));
+    check(`the Game registers a Screen for every ScreenId (${opening.value.join(', ') || 'all wired'})`,
+      opening.value.length === 0,
       'ScreenHost.open throws on an id with nothing registered, so a missing registration is a crash on first use');
+
+    // --- and NO screen writes to the shelf because it was looked at ----------
+    //
+    // docs/TODO/55's first rule. `SavesScreen.open()` used to push a checkpoint
+    // so the list would include the run you were standing in, which made LOOKING
+    // AT YOUR SAVES move your way back — and it is the shape of mistake any
+    // screen can make, so the claim is held for all of them at once rather than
+    // for the one that made it.
+    //
+    // `withoutSaving` is what makes this real: the writes are refused, so the
+    // keys come back as evidence instead of as bytes on the shelf.
+    check(`opening a screen writes nothing (${opening.refused.join(', ') || 'nothing refused'})`,
+      opening.refused.length === 0,
+      'a screen that files a save the moment you open it is a screen you cannot open to check something');
   }
 }

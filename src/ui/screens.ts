@@ -12,7 +12,9 @@ import { rating } from '../game/rating.ts';
 import {
   EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';
-import { kindLabel, type SaveSummary } from '../game/save-file.ts';
+import {
+  saveLabel, type LiveRun, type LoadCost, type SaveSummary,
+} from '../game/save-file.ts';
 import { describeContract, type MarketEstimate } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import {
@@ -317,53 +319,106 @@ export function renderEquip(
   `);
 }
 
+/** What the commander file is being asked, if anything. */
+export interface SavesPending {
+  /** a delete waiting on Y */
+  deleting: SaveSummary | null;
+  /** a load waiting on a second ENTER, and what it is about to cost */
+  loading: { row: SaveSummary; cost: LoadCost } | null;
+}
+
+/** `DAVE, FILED UNDER ▶ CHRIS`, or just `▶ CHRIS` when nothing was renamed. */
+function whoLine(live: LiveRun): string {
+  const filed = `<span style="color:var(--hud-amber)">&#9654; ${live.career}</span>`;
+  return live.name === live.career ? filed : `${live.name}, FILED UNDER ${filed}`;
+}
+
 /**
- * The commander file: the saves you named, the saves the game made, and which
- * commander you are flying.
+ * The commander file: the saves you named, the saves the game made, and the run
+ * you are in — which is a LINE and not a row, because it is not a save.
  *
- * One line shape for both halves — WHEN, WHAT, WHERE, and what you were worth —
+ * Every column answers one question a player actually asks (docs/TODO/55).
+ * COMMANDER is whose run this is, and it is the filing name rather than what
+ * the pilot is called today, which is the one thing a rename does not move —
+ * so the line above the table says both when they differ. SAVE is what the row
+ * IS: a name you typed, or the words STATION AUTOSAVE / FLIGHT AUTOSAVE, which
+ * answers "did I make this, or did the game?" without a legend and without the
+ * `●` footnote that used to answer it a second way.
+ *
+ * One line shape for both halves — WHEN, WHERE, and what you were worth —
  * because a player choosing "one of the autosaves" has to tell them apart at a
  * glance, and two different line shapes make that a reading exercise.
  */
 export function renderSaves(
   rows: SaveSummary[],
   selected: number,
-  career: string,
-  confirmDelete: string | null,
+  live: LiveRun,
+  pending: SavesPending,
 ): void {
+  // A confirmation is MODAL: it names one row, so while it is up the rows stop
+  // offering themselves to a click and the one key that acts on a different
+  // noun — R, the pilot's name — stops being offered at all.
+  const asking = Boolean(pending.deleting || pending.loading);
   const body = rows.map((r, i) => `
-      <tr class="${i === selected ? 'sel' : ''} pick" data-row="${i}">
-        <td>${r.career === career ? '&#9654;' : ''}${r.name}</td>
-        <td>${kindLabel(r.kind)}${r.safe ? ' &#9679;' : ''}</td>
+      <tr class="${i === selected ? 'sel' : ''} ${asking ? '' : 'pick'}"
+        ${asking ? '' : `data-row="${i}"`}>
+        <td>${r.career === live.career ? '&#9654;' : ''}${r.career}</td>
+        <td>${saveLabel(r)}</td>
         <td>${r.when}</td>
         <td>${r.where}</td>
         <td class="num">${formatCredits(r.credits)}</td>
         <td>${r.rating}</td>
         <td class="num">DAY ${r.day}</td>
       </tr>`).join('')
-    || '<tr><td colspan="7" style="opacity:0.5">&mdash; NOTHING SAVED YET &mdash;</td></tr>';
-  const buttons = confirmDelete
+    || `<tr><td colspan="7" style="opacity:0.5">&mdash; NOTHING SAVED YET
+        ${live.over ? '' : '&mdash; S SAVES THE RUN ABOVE'} &mdash;</td></tr>`;
+  const standing = `${live.place} &middot; ${formatCredits(live.credits)}
+    &middot; ${live.rating} &middot; DAY ${live.day}`;
+  const buttons = pending.deleting
     ? `<div class="buttons">
-         <button data-key="KeyY">Y &mdash; DELETE ${confirmDelete}</button>
+         <button data-key="KeyY">Y &mdash; DELETE ${saveLabel(pending.deleting)}</button>
          <button data-key="Escape">ESC &mdash; KEEP IT</button>
        </div>
-       <div class="keyline note-warn">DELETE ${confirmDelete}? THIS CANNOT BE UNDONE.</div>`
-    : `<div class="buttons">
-         <button data-key="KeyS">S &mdash; SAVE</button>
-         <button data-key="Enter">ENTER &mdash; LOAD</button>
-         <button data-key="KeyD">D &mdash; DELETE</button>
-         <button data-key="KeyR">R &mdash; RENAME COMMANDER</button>
-         <button data-key="Escape">ESC &mdash; DONE</button>
-       </div>
-       <div class="keyline">
-         &#9654; IS THE COMMANDER YOU ARE FLYING &middot; &#9679; IS THE STATION YOU CAN
-         ALWAYS GET BACK TO &middot; AUTOSAVES CANNOT OVERWRITE A SAVE YOU NAMED
-       </div>`;
+       <div class="keyline note-warn">
+         DELETE ${saveLabel(pending.deleting)}? THIS CANNOT BE UNDONE.
+       </div>`
+    : pending.loading
+      ? `<div class="buttons">
+           <button data-key="Enter">ENTER &mdash; LOAD ${saveLabel(pending.loading.row)}</button>
+           ${pending.loading.cost.saveFirst
+    ? '<button data-key="KeyS">S &mdash; SAVE THIS RUN FIRST</button>' : ''}
+           <button data-key="Escape">ESC &mdash;
+             ${live.over ? 'BACK' : `KEEP FLYING ${live.career}`}</button>
+         </div>
+         <div class="keyline ${pending.loading.cost.grave ? 'note-warn' : ''}">
+           ${pending.loading.cost.note}
+         </div>`
+      : `<div class="buttons">
+           ${live.over ? '' : '<button data-key="KeyS">S &mdash; SAVE THIS RUN</button>'}
+           <button data-key="Enter">ENTER &mdash; LOAD THIS ONE</button>
+           <button data-key="KeyD">D &mdash; DELETE THIS ONE</button>
+           <button data-key="Escape">ESC &mdash; ${live.over ? 'BACK' : 'DONE'}</button>
+         </div>
+         <div class="keyline">
+           &#9654; IS THE COMMANDER YOU ARE FLYING &middot; A STATION AUTOSAVE IS WRITTEN
+           EVERY TIME YOU DOCK AND EVERY TIME YOU LAUNCH, AND IT IS WHERE A DEATH PUTS
+           YOU BACK &middot; A FLIGHT AUTOSAVE IS THE LAST MINUTE OF FLYING, AND DOCKING
+           OR DYING DROPS IT
+         </div>`;
   show(`
     <h2>COMMANDER FILE</h2>
     <div class="rule"></div>
+    <div class="info" style="text-align:center">
+      ${live.over
+    ? `YOUR SHIP IS DESTROYED &mdash; ${whoLine(live)} AT ${standing}`
+    : `YOU ARE FLYING ${whoLine(live)} &mdash; ${standing}`}
+    </div>
+    ${live.over || asking ? '' : `<div class="buttons">
+      <button data-key="KeyR">R &mdash; CHANGE WHAT YOU ARE CALLED</button>
+    </div>`}
+    <div class="rule"></div>
     <table>
-      <tr><th>NAME</th><th>KIND</th><th>WHEN</th><th>WHERE</th>
+      <tr><th>COMMANDER</th><th>SAVE</th><th>WHEN</th><th>WHERE</th>
         <th class="num">CASH</th><th>RATING</th><th class="num">DAY</th></tr>
       ${body}
     </table>
@@ -1287,14 +1342,14 @@ export function renderGameOver(c: CommanderData, offer: SaveSummary | null): voi
       ${offer
         ? `Back to <b>${offer.place} STATION</b> as you left it &mdash;
            ${offer.when}, ${formatCredits(offer.credits)}, day ${offer.day}`
-        : 'No station checkpoint was found &mdash; you will start again at Lave'}
+        : 'NO STATION AUTOSAVE WAS FOUND &mdash; you will start again at Lave'}
     </div>
     <div class="buttons">
       <button data-key="Enter">ENTER &mdash; BACK TO THE STATION</button>
       <button data-key="KeyS">S &mdash; COMMANDER FILE</button>
     </div>
     <div class="keyline">
-      THE STATION CHECKPOINT IS WRITTEN WHEN YOU DOCK AND AGAIN AS YOU LAUNCH
+      THE STATION AUTOSAVE IS WRITTEN EVERY TIME YOU DOCK AND EVERY TIME YOU LAUNCH
     </div>
   `);
 }

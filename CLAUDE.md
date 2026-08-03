@@ -327,7 +327,7 @@ To keep it that way:
 - **Tests are organised like `src/`.** One file per subsystem in `test/`,
   grouped the way `src/` is — the world (`galaxy`, `economy`, `contracts`,
   `trade`, `world`, `world-step`, `station`, `game`, `state`, `snapshot`,
-  `persistence`, `saves`, `save-transfer`), the ships and being shot at
+  `persistence`, `saves`, `save-screens`, `save-transfer`), the ships and being shot at
   (`flight`, `geometry`, `npc`, `systems`, `combat`, `gunnery`,
   `instrumentation`, `damage-paths`, `energy-low`, `elite-a-*`,
   `ship-identity`, `ship-roles`, `role-variants`), the brains (`ai`,

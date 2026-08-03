@@ -102,8 +102,8 @@ console.log('\nimporting a file cannot reach a career that already exists');
 
     const ctx = {
       commander: mine.state.commander, systems: mine.state.systems, career,
-      message: () => {}, capture: () => mine.captureSnapshot(),
-      checkpoint: () => {}, saveNamed: () => 'ok' as const,
+      dead: false, message: () => {}, capture: () => mine.captureSnapshot(),
+      checkpoint: () => true, saveNamed: () => 'ok' as const,
     } as unknown as SavesContext;
     pickFile(file, () => importSaveFile(ctx, () => {}));
     check('the import was taken', loc.reloads() === 1);
@@ -161,7 +161,11 @@ console.log('\nloading a named save leaves the checkpoint it came from');
     eq('the commander file is open', g.mode, 'saves');
     g.input.injectPress('Enter');
     step();
-    eq('...and Enter aims the next boot at the save that was picked',
+    check('the first Enter only asks — nothing has been aimed anywhere yet',
+      bootSave()?.id === dockId(career) && loc.reloads() === 0);
+    g.input.injectPress('Enter');
+    step();
+    eq('...and the second Enter aims the next boot at the save that was picked',
       bootSave()?.id, fileId('OLD'));
     check('...having asked for a reload', loc.reloads() === 1);
 
