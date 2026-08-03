@@ -179,18 +179,25 @@ lines later — so it is worth doing early rather than last.
 
 ## Content
 
-Progress: **0 / 1 complete**. The 1984 galaxy says one line about each world.
-This adds a second paragraph beside it, written offline by a model and
+Progress: **1 / 1 complete**. The 1984 galaxy says one line about each world.
+There is a second paragraph beside it now, written offline by a model and
 committed — the same pipeline `tools/species-prompts.ts` already uses for the
 inhabitant portraits, for the same reason: the game deploys as a static site,
 so nothing can call a model at build or play time.
 
-The pipeline is built and gated; what remains is the generation run itself and
-the read-them-and-choose that follows it. Every entry is optional by design —
-a missing one renders exactly what the game rendered before — so this can ship
-one galaxy at a time and a refused record costs nothing.
+Galaxy 1 is described, all 256 worlds, generated on Sonnet 5 for $0.95 (the
+token counts are in the file; the money is only ever printed, because a token
+count stays true and a price list does not). Every entry is optional by design
+— a missing one renders exactly what the game rendered before — so galaxies
+2-8 can follow whenever, and a refused record costs nothing:
+`npm run generate:descriptions -- 2 --model claude-sonnet-5`.
 
-- [ ] 58 — [Extended system descriptions, generated offline](58-extended-system-descriptions.md) — content/tooling · low · large
+The measurement worth keeping is that reading four entries proved nothing. The
+first full run was excellent one world at a time and a template in bulk — 207
+of 256 mentioned arrival, because the prompt had asked for it. Counting found
+it; a gate holds it at zero now. **Read the set, not the sample.**
+
+- [x] 58 — [Extended system descriptions, generated offline](58-extended-system-descriptions.md) — content/tooling · low · large
 
 ## Follow-ups
 
