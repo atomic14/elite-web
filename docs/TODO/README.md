@@ -40,7 +40,7 @@ rest and can go at any point.
 
 ## From the code review (2026-08-02)
 
-Progress: **7 / 10 complete**. Five reviewers with separate lenses; every
+Progress: **7 / 11 complete**. Five reviewers with separate lenses; every
 finding below was verified against the code before it was written down. Two
 reviewers found item 43 independently, by different routes.
 
@@ -94,6 +94,7 @@ so it is worth doing early rather than last.
 - [ ] 50 — [Key bindings have six homes](50-key-bindings-have-six-homes.md) — UI/docs · medium · medium
 - [ ] 51 — [The market estimate lies](51-the-market-estimate-is-wrong.md) — economy · medium · medium
 - [ ] 52 — [Say true things](52-say-true-things.md) — docs/dead code · medium · medium
+- [ ] 53 — [Delete the legacy save migration](53-delete-the-legacy-save-migration.md) — simplification · medium · small
 
 ## Follow-ups
 
