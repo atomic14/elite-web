@@ -64,7 +64,14 @@ AUTOSAVES CANNOT OVERWRITE A SAVE YOU NAMED
 8. **In-flight autosaves are invisible while docked**, which is exactly where
    you stand when you want them — after dying and coming back.
 
-9. **Getting to the prompt is `S` then `S`.** The first opens the file, the
+9. **"Career" is our word, not the player's.** Chris, 2026-08-03: *"'career'
+   doesn't really carry any meaning to an end user. They are playing a
+   character."* Elite's own noun is **commander**, and it is already on the
+   screen twice (COMMANDER FILE, RENAME COMMANDER). The list should say a save
+   belongs to a commander; nothing player-facing should say career. See TODO 56
+   for the identity behind it.
+
+10. **Getting to the prompt is `S` then `S`.** The first opens the file, the
    second saves. Defensible, but the station menu calls `S` "COMMANDER FILE"
    and the panel calls it "SAVE", so the same key is two different promises
    one keystroke apart.
@@ -85,7 +92,8 @@ keys. That is the register the rest of the flow should match.
 - **The list must answer, without a legend:** which row am I in right now,
   which did I make, which did the game make, which run does each belong to.
 - No jargon unless the screen teaches it in the same breath. Not "career",
-  not "checkpoint", not "record".
+  not "checkpoint", not "record". The player has a COMMANDER; that word does
+  the work, and it is Elite's own.
 
 ## Explicitly NOT in scope
 
