@@ -13,6 +13,8 @@
 // seven of the eight galaxies are ungenerated. A test suite that only proved
 // the populated case would pass today and prove nothing.
 
+import { readFileSync } from 'node:fs';
+import { escapeHtml } from '../src/engine/escape-html.ts';
 import {
   systemDescription, overlay, type SystemDescription,
 } from '../src/galaxy/descriptions.ts';
@@ -171,3 +173,22 @@ check('so is the same framing at a distance',
 // described from the cockpit on the way in.
 eq('a world can still be hard to get to',
   faults('The only landing field lies inland. Ships put down twice a week.', 'description').length, 0);
+
+// --- escaping has ONE home --------------------------------------------------
+
+// Two surfaces paint this generated prose into HTML now: the game's DATA ON
+// page and the encyclopaedia. The sweep after TODO 59 found them doing it with
+// two different functions — `src/engine/escape-html.ts` had been written and
+// its own header claimed to be the single home, but `ui/screens.ts` still
+// carried a private copy, and the two had ALREADY diverged: the shared one
+// escapes a double quote and the private one did not.
+//
+// That is this project's named failure with a new hat on, so it gets a test
+// rather than a resolution to be careful. A third home is a failure here.
+const escapers = ['src/ui/screens.ts', 'src/encyclopaedia/entry.ts']
+  .map((f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
+check('no surface defines its own HTML escaper',
+  escapers.every((src) => !/function\s+escape\w*\s*\(/.test(src)));
+check('every surface imports the shared one',
+  escapers.every((src) => src.includes("from '../engine/escape-html.ts'")));
+eq('and it escapes the quote the private copy missed', escapeHtml('a"b'), 'a&quot;b');

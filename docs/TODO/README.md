@@ -205,6 +205,23 @@ it; a gate holds it at zero now. **Read the set, not the sample.**
 - [x] 58 — [Extended system descriptions, generated offline](58-extended-system-descriptions.md) — content/tooling · low · large
 - [x] 59 — [The galaxy encyclopaedia](59-the-galaxy-encyclopaedia.md) — content/new page · low · large
 
+## From the bug sweep (2026-08-03)
+
+Progress: **0 / 1 complete**. A sweep after TODO 59 with every gate green —
+2748 unit tests, the campaign, the Elite-A alignment gate, portability at zero
+contaminated — plus the browser playtest, which is the one that found
+something.
+
+One defect was found and fixed inside the sweep rather than written up: HTML
+escaping had grown a second home. `src/engine/escape-html.ts` was written
+during TODO 59 with a header claiming to be the single home for it, and
+`ui/screens.ts` was never migrated onto it — so two implementations shipped,
+already diverged (one escaped a double quote, the other did not). That is this
+project's named failure with a new hat on, so it now has a test that fails if a
+third appears.
+
+- [ ] 60 — [The playtest agent strands itself after two or three legs](60-the-playtest-agent-strands-itself.md) — verification · medium · medium
+
 ## Follow-ups
 
 - [x] 41 — [Name the opposition, not the file](41-name-the-opposition-not-the-file.md) — UI/UX · high · medium
