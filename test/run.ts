@@ -59,6 +59,7 @@ import './combat.test.ts';
 import './gunnery.test.ts';
 import './fire-resolution.test.ts';
 import './missiles.test.ts';
+import './missile-cap.test.ts';
 import './instrumentation.test.ts';
 import './damage-paths.test.ts';
 import './elite-a-catalogue.test.ts';

@@ -336,6 +336,12 @@ export class WorldStep {
     // Snapshot: despawns and destructions below rebuild world.npcs, and the
     // fleet handed to update() should be consistent for every ship in the
     // frame rather than shrinking underneath the loop.
+    //
+    // `missileInbound` is read here, ONCE, for the same reason: it is the
+    // one-in-the-air cap, and asking the ordnance per ship instead would let
+    // the first launcher in a frame silence the rest of the gang within that
+    // frame. That is a different program, and `test/missile-cap.test.ts` is
+    // what stops it moving.
     const view: WorldView = {
       station: world.station,
       dockZ: world.stationDockZ,

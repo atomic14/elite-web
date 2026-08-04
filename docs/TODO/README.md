@@ -468,7 +468,7 @@ combat computer bleeds off a turn — can be moved with no test failing at all.*
 - [ ] 80 — [The defence probe's headline is the metric 65 threw out](80-the-defence-headline-is-the-metric-65-rejected.md) — training methodology · medium · small
 - [ ] 81 — [Two rows in the brain picker both say they are what ships](81-two-rows-both-say-they-are-what-ships.md) — UI/UX · medium · small
 - [ ] 82 — [The tournament and survivability do not score what ships](82-the-tournament-does-not-score-what-ships.md) — training methodology · medium · small
-- [ ] 83 — [The one-warhead-in-the-air cap has no test](83-the-one-warhead-cap-has-no-test.md) — test gap · medium · small
+- [x] 83 — [The one-warhead-in-the-air cap has no test](83-the-one-warhead-cap-has-no-test.md) — test gap · medium · small
 - [ ] 84 — [The probe's "on-six" column cannot move](84-the-on-six-column-cannot-move.md) — training methodology · low · small
 - [ ] 85 — [The combat computer flies a ramp the policy was not fitted at](85-the-combat-computer-flies-a-ramp-the-policy-was-not-fitted-at.md) — training fidelity · medium · small
 - [ ] 86 — [The co-pilot you buy parks your ship](86-the-co-pilot-you-buy-parks-your-ship.md) — combat feel/design · medium · medium
@@ -491,6 +491,42 @@ constants and three call sites in the attack run — that no test imports at all
 83 is one guard on a stated fairness rule with a recorded failure behind it. 87
 is three assertions that expand to `f(x) === f(x)` in the file whose own comment
 says "assert the rule rather than the copies".
+
+**83 is done**, in a new `test/missile-cap.test.ts` rather than in
+`test/missiles.test.ts` — that file is about a warhead LEAVING the rail and this
+rule is about one that may not, which is a second thing and would have taken it
+past the ceiling. Twenty-four assertions, and no line of `src/` moved: the rule
+was already right, it was only unguarded. `npm test` goes from **2,982 to 3,006
+passed, 0 failed**. The review's own mutation, `if (missileInbound && false)`,
+now fails **14** of them and nothing else in the suite — which is the whole
+finding restated as a gate. The other two ways the three parts can drift were
+broken too, because a gate nobody has broken is not one: moving the
+`missileInbound` read inside the NPC loop in `world-step.ts` fails 2 of the new
+assertions and drops the gang from 8 warheads to 2, putting the guard ahead of
+the reload tick fails 4, and putting it behind `npcMissileEmergency` fails 7.
+Only the loop mutation reaches any older test, and only as a symptom —
+`missiles.test.ts`'s "it kills her" goes red because a quarter as many warheads
+get away, which is a lethality figure and not the rule.
+
+The gang case is four hurt Pythons and one dead wingman flown through the real
+`WorldStep` for 900 frames. With the sky to themselves they spend all **8**
+rounds; **898** of those 900 frames have a warhead up and **0** launches happen
+in them, the longest unbroken silence being **8.1s**, or 4.0x the 2s reload — so
+it is the sky holding them and not their own rails. The same seed with a decoy
+warhead launched through `Ordnance.launchHostile` and parked 30,000 units out
+launches **nothing** and ends with every rack full. Over 12 seeds that is 96
+warheads against 0, and the answer does not change at 60 seeds: **480 against
+0**, with 53,880 occupied frames and not one launch in any of them.
+
+One thing in the item is wrong and the test asserts the opposite. It suggests
+adding "two pirates in ONE frame cannot both launch"; the once-per-frame read
+gives exactly the reverse, as `scenario.ts:908` says in a comment and as its own
+"what is actually failing" bullet says two paragraphs earlier. Four ships do
+launch on a frame that began clear, and `mostInOneFrame > 1` is now the
+assertion that catches the read moving inside the loop. The item is also wrong
+that `chooseWeapon` spends the round — it decides and reports, and
+`launchNpcMissile` spends — so "spends no round" is pinned at the unit level as
+an unstarted reload and end-to-end by the capped gang's four full racks.
 
 **81, 82 and 84 are the same root**: `d563e3d` made the scripted attack run what
 ships, and the surfaces that describe or measure the AI did not all follow.
