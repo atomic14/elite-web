@@ -14,14 +14,21 @@
 //
 // docs/TODO/83: the rule has three cooperating parts and had no gate at all.
 // Deleting the guard in `chooseWeapon` — `if (missileInbound && false) return
-// shot;` — left the whole suite green; it fails 14 assertions in this file now.
+// shot;` — left the whole suite green; it fails 13 assertions in this file now.
 // The other two parts are gated here as well, because each can drift on its
-// own: moving the `missileInbound` read inside the NPC loop fails 2 here,
-// putting the guard ahead of the reload tick fails 4, and putting it behind
-// `npcMissileEmergency` fails 7. Only the loop mutation shows up anywhere else
-// in `npm test`, and only as a symptom — `missiles.test.ts`'s "it kills her"
-// goes red because a quarter as many warheads get away, which reports the
-// lethality and not the rule.
+// own: moving the `missileInbound` read inside the NPC loop fails 2 here, and
+// arming the reload before refusing — the guard behind `npcMissileEmergency`
+// rather than in front of it — fails 6. Two of those show up outside this file:
+// the loop mutation reddens `missiles.test.ts`'s "it kills her", which reports
+// the lethality and not the rule, and the arming one reddens a selection
+// comparison in `selection.test.ts` that turns on 0.3 points of shaped score.
+//
+// Measured on 2026-08-04, one mutation at a time against a clean tree. The
+// counts moved when docs/TODO/77 took the reload tick out of `chooseWeapon`:
+// there used to be a fourth mutation here, "the guard ahead of the reload
+// tick" (4 assertions), and there is no tick left in this function to be ahead
+// of. The rule it protected is now structural rather than positional — see the
+// last block in this file.
 
 import * as THREE from 'three';
 
@@ -74,14 +81,14 @@ console.log('\nmissile cap: the ship, asked twice');
     dist > MISSILE_LAST_STAND_MIN_RANGE && dist < MISSILE_MAX_RANGE);
 
   const clear = desperate();
-  const withClearSky = clear.chooseWeapon(laser, FIXED_DT, dist, at, false);
+  const withClearSky = clear.chooseWeapon(laser, dist, at, false);
   eq('with the sky clear, a hurt pirate reaches for the rack',
     withClearSky?.weapon, 'missile');
   eq('...and starts the reload that gates the next one',
     clear.state.missileReload, MISSILE_RELOAD);
 
   const capped = desperate();
-  const withOneUp = capped.chooseWeapon(laser, FIXED_DT, dist, at, true);
+  const withOneUp = capped.chooseWeapon(laser, dist, at, true);
   check('with one already in the air, the same ship shoots instead',
     withOneUp === laser);
   eq('...and it is the LASER the flight asked for, not silence', withOneUp?.weapon, 'laser');
@@ -89,7 +96,7 @@ console.log('\nmissile cap: the ship, asked twice');
 
   // ...so the cap DELAYS a launch rather than cancelling it. The frame the sky
   // clears, the same ship — never rearmed, never reset — launches.
-  const freed = capped.chooseWeapon(laser, FIXED_DT, dist, at, false);
+  const freed = capped.chooseWeapon(laser, dist, at, false);
   eq('...so the moment the sky clears it launches after all', freed?.weapon, 'missile');
   eq('...and only then does the reload start', capped.state.missileReload, MISSILE_RELOAD);
 
@@ -101,7 +108,7 @@ console.log('\nmissile cap: the ship, asked twice');
   healthy.state.missiles = 2;
   healthy.faceToward(new THREE.Vector3());
   check('an unhurt pirate that has made no passes holds its fire with the sky CLEAR too',
-    healthy.chooseWeapon(laser, FIXED_DT, dist, at, false) === laser
+    healthy.chooseWeapon(laser, dist, at, false) === laser
     && healthy.state.missileReload === 0);
 }
 
@@ -294,37 +301,50 @@ console.log('\nmissile cap: the gang, through the step');
 
 // --- and the reload is not spent on a refusal --------------------------------
 //
-// The guard sits AFTER the reload tick and BEFORE `npcMissileEmergency`,
-// deliberately. Ahead of the tick, a capped ship's reload would freeze; behind
-// the reasons, a refusal would arm the 2s timer and cost the gang a round of
-// nothing. Both are one-line reorderings that change no other assertion here.
+// The guard sits BEFORE `npcMissileEmergency`, deliberately: behind the reasons,
+// a refusal would arm the 2s timer and cost the gang a round of nothing. That is
+// a one-line reordering and it changes no other assertion here.
+//
+// It used to sit after a reload TICK inside `chooseWeapon` as well, and the
+// ordering of those two was its own gated rule — ahead of the tick, a capped
+// ship's reload froze. There is no tick here to be ahead of since docs/TODO/77:
+// the clock is `NpcShip.tickClocks`, which the orchestrator runs every frame
+// whatever the ship is doing, so a capped ship reloads because a silenced ship
+// is still a ship and not because of where a line sits in this function. The
+// claim below is unchanged and is now driven the way a frame drives it.
 
 console.log('\nmissile cap: where the guard sits');
 {
   seedWorld(83_200);
   const npc = new NpcShip('pirate', new THREE.Vector3(0, 0, -1200), 83_200, PYTHON);
   npc.state.missiles = 2;
-  npc.state.energy = Math.round(npc.maxEnergy * MISSILE_LAST_STAND_HULL) - 1;
+  /** Hurt past the last-stand line — and held there, since `tickClocks` heals. */
+  const hurt = (): void => {
+    npc.state.energy = Math.round(npc.maxEnergy * MISSILE_LAST_STAND_HULL) - 1;
+  };
+  hurt();
   npc.faceToward(new THREE.Vector3());
   const at = new THREE.Vector3();
   const laser: FireEvent = { at: 'player', weapon: 'laser' };
 
-  npc.chooseWeapon(laser, FIXED_DT, 1200, at, false);
+  npc.chooseWeapon(laser, 1200, at, false);
   eq('a launch arms the reload', npc.state.missileReload, MISSILE_RELOAD);
 
   // Held under the cap for the whole reload: the clock must still run down, or
   // a ship silenced by the sky would come out of it still reloading.
   let ticks = 0;
   while (npc.state.missileReload > 0 && ticks < 60 * 10) {
-    npc.chooseWeapon(laser, FIXED_DT, 1200, at, true);
+    npc.tickClocks(FIXED_DT);
+    hurt();
+    npc.chooseWeapon(laser, 1200, at, true);
     ticks += 1;
   }
   check('...and the clock runs down UNDER the cap, not despite it'
     + ` (${(ticks * FIXED_DT).toFixed(2)}s of ${MISSILE_RELOAD}s)`,
   Math.abs(ticks * FIXED_DT - MISSILE_RELOAD) < 2 * FIXED_DT);
   eq('...and the cap outlasts the reload: reloaded, and still shooting',
-    npc.chooseWeapon(laser, FIXED_DT, 1200, at, true), laser);
+    npc.chooseWeapon(laser, 1200, at, true), laser);
   eq('...having spent none of the reload it just finished', npc.state.missileReload, 0);
   eq('...and then the sky clears and the next round goes',
-    npc.chooseWeapon(laser, FIXED_DT, 1200, at, false)?.weapon, 'missile');
+    npc.chooseWeapon(laser, 1200, at, false)?.weapon, 'missile');
 }

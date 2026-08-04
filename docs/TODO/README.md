@@ -462,7 +462,7 @@ combat computer bleeds off a turn — can be moved with no test failing at all.*
 
 - [x] 75 — [A gang never knows it is losing](75-a-gang-never-knows-it-is-losing.md) — combat bug/training fidelity · high · small
 - [ ] 76 — [Wingman avoidance can be deleted and nothing notices](76-wingman-avoidance-has-no-test.md) — test gap · medium · small
-- [ ] 77 — [A brain-flown ship is "evading" forever](77-a-brain-flown-ship-is-evading-forever.md) — combat bug · medium · small
+- [x] 77 — [A brain-flown ship is "evading" forever](77-a-brain-flown-ship-is-evading-forever.md) — combat bug · medium · small
 - [ ] 78 — [Every ram in training lands on the fore shield](78-every-ram-in-training-hits-the-fore-shield.md) — training fidelity · medium · small
 - [ ] 79 — [The "trader that shoots back" in the attack pool never fires](79-the-armed-hauler-in-the-pool-never-fires.md) — training methodology · medium · small
 - [ ] 80 — [The defence probe's headline is the metric 65 threw out](80-the-defence-headline-is-the-metric-65-rejected.md) — training methodology · medium · small
@@ -530,15 +530,18 @@ rule is about one that may not, which is a second thing and would have taken it
 past the ceiling. Twenty-four assertions, and no line of `src/` moved: the rule
 was already right, it was only unguarded. `npm test` goes from **2,982 to 3,006
 passed, 0 failed**. The review's own mutation, `if (missileInbound && false)`,
-now fails **14** of them and nothing else in the suite — which is the whole
-finding restated as a gate. The other two ways the three parts can drift were
-broken too, because a gate nobody has broken is not one: moving the
-`missileInbound` read inside the NPC loop in `world-step.ts` fails 2 of the new
-assertions and drops the gang from 8 warheads to 2, putting the guard ahead of
-the reload tick fails 4, and putting it behind `npcMissileEmergency` fails 7.
-Only the loop mutation reaches any older test, and only as a symptom —
-`missiles.test.ts`'s "it kills her" goes red because a quarter as many warheads
-get away, which is a lethality figure and not the rule.
+fails **13** of them and nothing else in the suite — which is the whole finding
+restated as a gate. The other ways the parts can drift were broken too, because
+a gate nobody has broken is not one: moving the `missileInbound` read inside the
+NPC loop in `world-step.ts` fails 2 of the new assertions and drops the gang from
+8 warheads to 2, and arming the reload before refusing — the guard behind
+`npcMissileEmergency` rather than in front of it — fails 6. The loop mutation
+reaches one older test as a symptom, `missiles.test.ts`'s "it kills her", which
+is a lethality figure and not the rule; the arming mutation reaches a selection
+comparison in `selection.test.ts` that turns on 0.3 points of shaped score.
+(These counts are the re-measurement taken when **77** moved the reload tick out
+of `chooseWeapon`; before it they were 14, 4 for a fourth mutation that no longer
+exists — "the guard ahead of the reload tick" — and 7.)
 
 The gang case is four hurt Pythons flown through the real `WorldStep` for 900
 frames. (It was four and a dead wingman, so that `matesLost > 0` outlasted them
@@ -561,6 +564,71 @@ assertion that catches the read moving inside the loop. The item is also wrong
 that `chooseWeapon` spends the round — it decides and reports, and
 `launchNpcMissile` spends — so "spends no round" is pinned at the unit level as
 an unstarted reload and end-to-end by the capped gang's four full racks.
+
+**77 is done, and the fix was to give the ship one clock instead of three.**
+`underFire` decayed in exactly one place — inside `attack()`, the scripted run —
+so for anything flying a trained policy it was a latch: one hit set it to 1.2 and
+nothing ever took it back down. The item offered two homes and the wider one was
+taken. `NpcShip.tickClocks(dt)` now runs the generator, the evasion decay and the
+missile reload together, once a frame, before anything decides; `attack()` decays
+nothing, `chooseWeapon` no longer takes a `dt` and has lost its "CALL IT ONCE PER
+FRAME" warning along with the tick that earned it, and `Episode.step` pays one
+debt where it used to pay two and miss a third. `missileReload` was the same bug
+one class down and is fixed by the same line: it ticked inside `chooseWeapon`,
+which `update()` reaches only down the `aggressiveToPlayer` branch, so a rack
+froze mid-reload whenever the pirate was doing anything else and the two-second
+gap between launches measured time spent hunting rather than time.
+
+**The readout was the thing that lied, and it is now worth reading.** Over 200
+held-out flight-probe episodes, the share of sampled frames the SPENT ITS TIME
+column spent saying `evading` goes from **42.1% to 1.5%** for
+`pirate-pack-r4-selectonly` and from **8.2% to 0.3%** for `pirate-attack-g3`; the
+scripted control is unchanged, and the same figures at 40 episodes are 39.1% →
+1.3% and 4.3% → 0.2%. The pack brain had been reporting itself as evading for two
+fifths of every fight while actually being hit for a fiftieth of it, and the
+column could only ever hold two values — `own policy` until the first hit,
+`evading` for ever after.
+
+**Nothing else moved, and that is measured rather than assumed.** `npm run
+campaign` is identical to the last decimal, because the pirate a player meets is
+scripted and its clock was already right. Six episode configurations at 40 seeds
+and again at 200 — policy solo, pack, scripted solo, and scripted and policy
+threes against an armed `jameson-defend-g2` — give **0 of 6 differing report
+digests** at both sizes and the same 318 warheads over the 1,200 episodes, so
+`EPISODE_SCHEMA` stays at **5**: no episode reads the flag on the path that
+changed, because a policy pirate never enters `attack()` (that is **73**) and a
+scripted one saw the same within-frame value either way. No encoder observes
+`underFire`, so no brain was invalidated. The only episode figure that moves is
+the latch itself — pirates ending a fight still flagged fall from 696 to 366 of
+2,400. Where it does bite in the live sky is the ship the item named: the armed
+trader on `jameson-defend-g2` reaches `brainFly` down the `fleeing` branch and
+never calls `attack()`, and through the real `update()` its `underFire` read
+1.200 at 0.6s, 1.2s, 5s and 10s after one ram where it now reads 0.600 and then
+zero. A pirate hit at long range and left to amble was latched forever too, which
+the item did not mention.
+
+The tests are a new `test/ship-clocks.test.ts` — twenty assertions — rather than
+more of `break-off.test.ts`, which the ceiling caught at 438 lines and which was
+right to catch it: everything else in the suite tests a ship DOING something, and
+this is the file for what is true of it while it does anything at all. It flies
+both paths the way a frame flies them, then again through `NpcShip.update`, which
+is where the bug lived. `npm test` goes **3,005 to 3,024 passed, 0 failed**.
+
+Every rule it protects was broken and restored. Deleting the line that decays the
+flag fails **11**: eight of the new ones, plus one in `defence-answer.test.ts`
+and two in `selection.test.ts` that it reaches on its own, because a permanently
+evasive scripted pirate flies a different fight. Deleting the reload line beside
+it fails **6**, two here and four in `missile-cap.test.ts`. And the shape the bug
+actually had — the clocks ticking inside the `aggressiveToPlayer` branch instead
+of above it — fails **4**, all of them in the new file, which is the gate that
+did not exist before. Re-measuring `missile-cap.test.ts`'s own mutations after
+the reload tick left `chooseWeapon` is what corrected the figures in the 83
+paragraph above.
+
+One thing in the item is wrong: it expects `describeFlight` to have been reading
+`evading` for the armed trader, and it never was, because `fleeing` outranks
+`evading` in that function. The trader's damage was to the two rules that read
+the flag on a handover, not to its readout.
 
 **81, 82 and 84 are the same root**: `d563e3d` made the scripted attack run what
 ships, and the surfaces that describe or measure the AI did not all follow.

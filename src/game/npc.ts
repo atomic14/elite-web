@@ -635,10 +635,10 @@ export class NpcShip {
     view: WorldView,
   ): FireEvent | null {
     if (!this.state.alive) return null;
-    // Before anything decides: a ship's generator does not care what it is
-    // doing, and the roles that return early below are exactly the ones the
-    // contract gives a rate of 0 anyway.
-    this.regenerate(dt);
+    // Before anything decides: elapsed time does not care what the ship is
+    // doing, and the roles that return early below are exactly the ones every
+    // clock in here gives a rate of 0 to anyway. See `tickClocks`.
+    this.tickClocks(dt);
 
     const { station, fleet, playerLegal, brains } = view;
 
@@ -678,7 +678,7 @@ export class NpcShip {
         // only the flying, since attack() keeps its gun. See break-off.ts.
         : this.attack(dt, player.position, distPlayer, true, undefined, view.fleet,
           this.velocityOf(player.quaternion, player.speed));
-      return this.chooseWeapon(shot, dt, distPlayer, player.position,
+      return this.chooseWeapon(shot, distPlayer, player.position,
         view.missileInbound);
     }
 
@@ -1041,7 +1041,9 @@ export class NpcShip {
     // can complete in the room 220 units leaves, so it flew through instead.
     // break-off.ts has the arithmetic and Chris's account of flying it.
     this.state.flownBy = 'scripted';
-    this.state.underFire = Math.max(0, this.state.underFire - dt);
+    // `underFire` is NOT decayed here. It used to be, and this was the only
+    // place it decayed, so it was a decay for a scripted ship and a latch for
+    // every brain-flown one — see `tickClocks` (docs/TODO/77).
     // WHICH WAY IT IS FIGHTING, before anything reads the numbers that follow
     // from it. `tacticSwitchReason` is roll-free on purpose — a switch that
     // drew from the stream to decide whether to switch would burn a number per
@@ -1252,15 +1254,21 @@ export class NpcShip {
    * seam docs/TODO/64 widened; what it REPORTS is resolved by
    * `fire-resolution.ts`, the one home both worlds call.
    *
-   * CALL IT ONCE PER FRAME, not once per decision. It ticks `missileReload`
-   * itself, so a caller at the brains' 10 Hz would reload six times too slowly.
+   * IT DECIDES; IT DOES NOT KEEP TIME. This used to tick `missileReload` itself
+   * and carry a "CALL IT ONCE PER FRAME" warning, which the one caller that
+   * matters did not honour: `update()` reaches it only down the
+   * `aggressiveToPlayer` branch, so a rack stopped reloading the moment the
+   * pirate stopped being hostile-and-in-range and the gap between two launches
+   * measured time spent hunting rather than time. The clock is `tickClocks`
+   * now, which every frame runs (docs/TODO/77), and there is no `dt` here to
+   * tempt a second one. Asking twice in a frame is now merely wasteful rather
+   * than wrong.
    */
   chooseWeapon(
-    shot: FireEvent | null, dt: number, dist: number, targetPos: THREE.Vector3,
+    shot: FireEvent | null, dist: number, targetPos: THREE.Vector3,
     missileInbound: boolean,
   ): FireEvent | null {
     if (this.state.missiles <= 0) return shot;
-    this.state.missileReload = Math.max(0, this.state.missileReload - dt);
     if (this.state.missileReload > 0) return shot;
     // A FRACTION, not points: `npcMissileLastStand` asks "how much of this
     // hull is left", and `healthFraction` is the one place that division
@@ -1495,13 +1503,44 @@ export class NpcShip {
   }
 
   /**
+   * EVERYTHING THAT RUNS ON ELAPSED TIME, whatever the ship is doing.
+   *
+   * One home for the clocks, because each of them used to tick inside the one
+   * branch that happened to read it — which quietly redefined "seconds since"
+   * as "seconds spent doing a particular thing":
+   *
+   * - `underFire` ticked only in `attack()`. For anything flying a trained
+   *   policy it was therefore a LATCH, not the decay `UNDER_FIRE_SECONDS`
+   *   documents: one hit and it stayed at 1.2 for the rest of the ship's life.
+   *   The armed trader flying the defence brain never calls `attack()` at all,
+   *   so it read `evading` forever and handed a permanently-set flag to
+   *   `nextAttackPhase` and `tacticSwitchReason` whenever it did hand over
+   *   (docs/TODO/77).
+   * - `missileReload` ticked only inside `chooseWeapon`, which `update()` calls
+   *   only when the ship is hostile and in range. Same defect, smaller blast
+   *   radius: a rack froze mid-reload whenever the pirate was doing anything
+   *   else, so the 2s gap between launches was 2s of hunting.
+   * - `regenerate` was already correct, and is here rather than beside the
+   *   others at the call site because a caller that pays one of these debts and
+   *   forgets another is exactly what this method exists to prevent.
+   *
+   * PUBLIC, and the one call a training episode owes the ship per frame — see
+   * `brainFly` for why an episode drives the ship directly. `Episode.step`
+   * calls this where it used to call `regenerate` alone.
+   */
+  tickClocks(dt: number): void {
+    this.regenerate(dt);
+    this.state.underFire = Math.max(0, this.state.underFire - dt);
+    this.state.missileReload = Math.max(0, this.state.missileReload - dt);
+  }
+
+  /**
    * Recover from elapsed simulation time. Stations, rocks and the derelict get
    * a rate of 0 and never move.
    *
-   * PUBLIC and called from two places for the same reason `brainFly` is:
-   * `update()` runs it for the live sky, and a training episode runs it for the
-   * pirates it drives directly (ai-training/scenario.ts). One implementation,
-   * so the trainer cannot fight a world where ships never heal.
+   * PUBLIC because the Elite-A energy oracle measures the recharge on its own
+   * (test/elite-a-live-combat.test.ts); everything that FLIES reaches it
+   * through `tickClocks`, which is the one per-frame entry point.
    */
   regenerate(dt: number): void {
     const next = regeneratedEnergy(

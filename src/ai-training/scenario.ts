@@ -14,10 +14,12 @@
 // orchestrator standing where the game's step stands — two implementations of
 // one contract, which had quietly diverged four times (docs/TODO/64). Every call
 // below that looks redundant is a debt to that split being paid:
-// `p.npc.regenerate(dt)`, the target's `regenerate` inside `fly()`, and
+// `p.npc.tickClocks(dt)`, the target's `regenerate` inside `fly()`, and
 // `p.npc.chooseWeapon(...)`, which is the one that decides whether a missile
 // leaves the rail. A pirate had carried a rack the whole time and had never once
-// been asked (docs/TODO/62).
+// been asked (docs/TODO/62). The first of those was `regenerate` alone until
+// docs/TODO/77 gave the ship one entry point for every clock, so an episode can
+// no longer pay one of those debts and miss another.
 //
 // WHAT A SHOT COSTS IS NO LONGER HERE AT ALL. `resolveNpcShot` below is the
 // trainer's tally over `game/fire-resolution.ts` — the game's own resolver, over
@@ -385,7 +387,7 @@ export const EPISODE_SCHEMA = 5;
 //
 // AND THE POOLS COME BACK, by `systems.ts`'s own `regenerate` and no other rule
 // — the same call `world-step.ts` makes for the commander every frame, and the
-// same debt `p.npc.regenerate(dt)` pays on the pirate side.
+// same debt `p.npc.tickClocks(dt)` pays on the pirate side.
 //
 // This block used to say the opposite, and said it deliberately: "the target's
 // pools DO NOT RECHARGE ... an episode with regeneration in it cannot be lost by
@@ -929,11 +931,13 @@ export class Episode {
     for (let i = 0; i < this.pirates.length; i++) {
       const p = this.pirates[i];
       if (!p.alive) continue;
-      // The generator runs whatever the ship is doing. `NpcShip.update` does
-      // this for the live sky; an episode drives `brainFly`/`attack` directly,
-      // so it owes the ship the same call — the trainer flies the real game,
-      // and a world where pirates never heal would be a second one.
-      p.npc.regenerate(dt);
+      // The clocks run whatever the ship is doing: the generator, the evasion
+      // decay and the missile reload. `NpcShip.update` does this for the live
+      // sky; an episode drives `brainFly`/`attack` directly, so it owes the
+      // ship the same call — the trainer flies the real game, and a world where
+      // pirates never heal, or where a policy pirate is permanently `underFire`
+      // after one hit, would be a second one (docs/TODO/77).
+      p.npc.tickClocks(dt);
       const ctrl = this.opts.pirates[i];
       const toTarget = this.tmp.copy(this.trader.pos).sub(p.pos);
       const range = toTarget.length();
@@ -960,14 +964,15 @@ export class Episode {
       // WHICH WEAPON leaves the rail is the ship's decision and not the
       // flight's, and until docs/TODO/62 this call was missing here — so a
       // training pirate had a full rack, every reason to use it, and no way to
-      // ask. Every frame, not every decision: it ticks its own reload.
+      // ask. It no longer keeps its own time: `tickClocks` above runs the
+      // reload, so this is a decision and nothing else (docs/TODO/77).
       //
       // It used to pass `matesLost(this.fleet)` as well, and that argument was
       // the one thing an episode answered differently from the game: an episode
       // never prunes its fleet, so a training pirate unlocked its rack the
       // moment a wingman died and the same pirate in the same fight in the game
       // did not. The reason is gone from both (docs/TODO/75).
-      const fired = p.npc.chooseWeapon(shot, dt, range, this.trader.pos, missileInbound);
+      const fired = p.npc.chooseWeapon(shot, range, this.trader.pos, missileInbound);
       if (fired && this.trader.alive) {
         const e = this.resolveNpcShot(p, fired);
         if (e) events.push(e);

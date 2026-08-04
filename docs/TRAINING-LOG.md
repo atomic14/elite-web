@@ -2777,3 +2777,76 @@ The suite goes from 3,006 assertions to 3,005: the one that leaves is
 the only test of the deleted reason. The two that remain were each broken to
 check they are gates — deleting the hull line fails **23** assertions, deleting
 the two-passes line fails **5**.
+
+## 2026-08-04 — the evasion clock ticks on both flights (TODO 77), and the trainer's world does not move
+
+`NpcState.underFire` was decremented in exactly one place — inside
+`NpcShip.attack`, the SCRIPTED run. Anything flying a trained policy therefore
+latched: `takeDamage` set it to `UNDER_FIRE_SECONDS` (1.2) and nothing ever took
+it back down, so one hit made a brain-flown ship permanently "under fire" for the
+rest of its life. `missileReload` had the same defect one class down — it ticked
+inside `chooseWeapon`, which `NpcShip.update` reaches only when the ship is
+hostile and in range.
+
+Both clocks moved to `NpcShip.tickClocks(dt)`, one per-frame call beside the
+generator, made by `world-step.ts` and by `Episode.step`. `attack()` no longer
+decays anything and `chooseWeapon` no longer takes a `dt`.
+
+### What it did to the trainer's numbers: nothing
+
+`EPISODE_SCHEMA` **stays at 5**, and that is a measurement rather than a hope.
+Six configurations — policy solo against a holding and a running target, a
+three-ship pack, scripted solo, and scripted and policy threes against an armed
+`jameson-defend-g2` — at 40 seeds and again at 200, comparing a SHA-1 of the
+whole `EpisodeReport`:
+
+| | 40 seeds/case | 200 seeds/case |
+| --- | --- | --- |
+| cases whose report digests differ | **0 of 6** | **0 of 6** |
+| warheads launched across all cases | 64 = 64 | 318 = 318 |
+| pirates still `underFire > 0` at the end | 139 → **71** of 480 | 696 → **366** of 2400 |
+
+Byte-identical because nothing in an episode READS the flag on the path that
+changed. A policy pirate never enters `attack()` (docs/TODO/73 — an episode does
+not hand over), and a scripted one saw the same within-frame value either way:
+the decay simply moved from just inside `attack()` to just before it. No encoder
+observes `underFire`, so no brain is invalidated and no weights changed.
+
+### What it did to the readout, which is the point
+
+`describeFlight` returns `evading` while `underFire > 0`, so the trainer's SPENT
+ITS TIME column and `train/flight-probe.ts`'s `doing` field were quoting a stale
+word for the whole remaining life of any brain-flown ship that had ever been hit.
+Held-out flight-probe episodes, share of sampled frames per phrase:
+
+| brain | `evading` before | after |
+| --- | --- | --- |
+| `pirate-pack-r4-selectonly` | 42.1% | **1.5%** |
+| `pirate-attack-g3` | 8.2% | **0.3%** |
+| scripted (the control) | 0% | 0% |
+
+200 episodes; at 40 the same figures are 39.1% → 1.3% and 4.3% → 0.2%. The pack
+brain was reporting itself as evading for two fifths of every fight while
+actually being hit for a fiftieth of it — and the column could only ever hold two
+values, `own policy` before the first hit and `evading` after it. It now holds
+what the ship is doing.
+
+### What did NOT move
+
+`npm run campaign` prints identical output either side — 40 commanders × 60 legs,
+every row to the last decimal, only the wall-clock line differing (0.7s against
+0.6s) — because the pirate a player meets is scripted and its evasion clock was
+already correct. `npm run elite-a` is byte-identical, and `npm test` was
+byte-identical over all 3,005 assertions before the new ones were added, which is
+the strongest form of that claim available: not one existing check moved.
+`test/ship-clocks.test.ts` is new and takes the suite to 3,024.
+
+The live sky does change in one place the campaign cannot see, and it is the
+reason this was worth doing: a ship that is hit and then flies something OTHER
+than the scripted run. The armed trader on `jameson-defend-g2` reaches `brainFly`
+through the `fleeing` branch and never calls `attack()` at all; measured through
+`NpcShip.update`, its `underFire` read 1.200 at 0.6s, 1.2s, 5s and 10s after a
+single ram and now reads 0.600, 0.000, 0.000, 0.000. A pirate under the `trained`
+A/B flag goes from `evading` at every one of those marks to `own policy` from
+1.2s on. A pirate hit at long range and left to amble was latched at 1.200
+forever and now cools off on schedule.

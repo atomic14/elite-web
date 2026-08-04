@@ -49,6 +49,7 @@ import './flight.test.ts';
 import './geometry.test.ts';
 import './npc.test.ts';
 import './break-off.test.ts';
+import './ship-clocks.test.ts';
 import './pass-aim.test.ts';
 import './extend-arc.test.ts';
 import './tactics.test.ts';
