@@ -23,6 +23,7 @@ import {
   BREAK_OFF_RANGE, CLOSING_THROTTLE_MIN,
   EXTEND_RANGE_MIN, EXTEND_RANGE_MAX, rollExtendRange, UNDER_FIRE_SECONDS,
 } from '../src/game/break-off.ts';
+import { TACTIC_IDS } from '../src/game/tactics.ts';
 import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
@@ -266,22 +267,36 @@ check('a ship with a short roll turns back early',
 // two samplers ask — the game's trainer and train/flight-probe.ts — and a
 // phrase invented twice drifts.
 
-check('a ship flying its run reports the phase it is in',
-  describeFlight('closing', 0, false) === 'closing'
-  && describeFlight('passing', 0, false) === 'passing'
-  && describeFlight('extending', 0, false) === 'extending');
+// Since docs/TODO/68 it is TWO words — the tactic and then the leg — because
+// the tactic is what explains the leg, and the column counts seconds per
+// phrase, so a ship that changed its mind mid-fight shows up as two runs of
+// time rather than as one label that only says what it is doing now.
+check('a ship flying its run reports the tactic and the phase it is in',
+  describeFlight('closing', 0, false, 'scripted', 'run') === 'run closing'
+  && describeFlight('passing', 0, false, 'scripted', 'slash') === 'slash passing'
+  && describeFlight('extending', 0, false, 'scripted', 'knife') === 'knife extending');
 
 // Being shot at outranks the phase, because it is the answer to "why has it
-// stopped flying the run" — which is the interesting thing to see in a log.
+// stopped flying the run" — which is the interesting thing to see in a log. The
+// tactic stays in front of it: it is what the ship goes back to.
 check('...but being hit outranks it, whatever it had planned',
-  describeFlight('extending', UNDER_FIRE_SECONDS, false) === 'evading'
-  && describeFlight('closing', 0.1, false) === 'evading');
+  describeFlight('extending', UNDER_FIRE_SECONDS, false, 'scripted', 'run') === 'run evading'
+  && describeFlight('closing', 0.1, false, 'scripted', 'ram') === 'ram evading');
 
 check('...and fleeing outranks even that',
   describeFlight('closing', UNDER_FIRE_SECONDS, true) === 'fleeing');
 
+// A brain-flown ship's tactic is DORMANT until it hands over at
+// BRAIN_HANDOVER_RANGE, so naming one would report a plan nothing is executing
+// — the same lie `flownBy` was added to stop.
+check('...and a brain-flown ship names no tactic, because it is flying none',
+  describeFlight('closing', 0, false, 'brain', 'knife') === 'own policy'
+  && describeFlight('closing', 0.4, false, 'brain', 'knife') === 'evading');
+
 // It must describe the ship, not a guess about it: every phase the flight can
-// be in has to come back as something, or a log would silently lose frames.
-check('every attack phase has a name',
-  (['closing', 'passing', 'extending'] as AttackPhase[])
-    .every((p) => describeFlight(p, 0, false).length > 0));
+// be in has to come back as something, or a log would silently lose frames —
+// and now every TACTIC too, or a ship rolling a new one would vanish from the
+// column that exists to show it.
+check('every attack phase and every tactic has a name',
+  (['closing', 'passing', 'extending'] as AttackPhase[]).every(
+    (p) => TACTIC_IDS.every((t) => describeFlight(p, 0, false, 'scripted', t).length > 0)));

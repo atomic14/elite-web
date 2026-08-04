@@ -138,12 +138,20 @@ export const CLEAR_RANGE = 340;
  * `extendRange` is the ship's OWN rolled turn-back range, not the band's — so a
  * ship that rolled a short run curves harder for it, which is what makes the
  * short end of the band flyable rather than merely permitted.
+ *
+ * @param cap the angle this ship's TACTIC holds at its tightest, defaulting to
+ * the one above. The sweep in `EXTEND_ARC_ANGLE`'s table is what makes it safe
+ * to vary: 45, 60 and 70 degrees are within a quarter of a second of each other
+ * on the merge-to-merge clock and flat on contact, so the shape of a run-out is
+ * a free feel axis where the length of one is not. `tactics.ts` spends it.
  */
-export function extendArcAngle(dist: number, extendRange: number): number {
+export function extendArcAngle(
+  dist: number, extendRange: number, cap: number = EXTEND_ARC_ANGLE,
+): number {
   if (dist <= CLEAR_RANGE) return 0;
   const span = extendRange - CLEAR_RANGE;
   // A rolled range inside the clearance leaves no room to ramp through: the
   // ship is already at its turn-back point, so give it the whole angle.
-  if (span <= 0) return EXTEND_ARC_ANGLE;
-  return EXTEND_ARC_ANGLE * Math.min(1, (dist - CLEAR_RANGE) / span);
+  if (span <= 0) return cap;
+  return cap * Math.min(1, (dist - CLEAR_RANGE) / span);
 }

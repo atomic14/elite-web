@@ -100,7 +100,32 @@ const pacifist = wired({ aim: 1, throttle: 0, fire: false });
 // validation base, because nothing here is being selected and the held-out
 // seeds are the ones a claim about defenders is normally made on.
 const BASE = 8_675_309;
-const EPISODES = 24;
+
+/**
+ * 96, and the number is load-bearing rather than generous.
+ *
+ * It was 24, and 24 was UNDER-POWERED ALL ALONG — which is the useful half of
+ * this comment, because it was not obvious until something moved. The quantity
+ * the last assertion in this section turns on is the terminal-hp gap between
+ * the two genomes, and 24 episodes cannot resolve it. Flown on the same code at
+ * three sizes, the gap is 0.7 percentage points of hull at 24, 2.4 at 48 and
+ * 3.8 at 96, and the old rule's margin follows it.
+ *
+ * What exposed that was docs/TODO/68's vocabulary of tactics, which squeezed
+ * the gap: measured like for like at 96 episodes, against HEAD before it, a
+ * gang takes 257 -> 234 points off the turret and 276 -> 257 off the pacifist,
+ * so the old rule's margin goes 40.0 -> 31.7. A real cost, comfortably
+ * asserted. On the 24-episode fixture the same pair of runs read 73 -> 0.5,
+ * which looked like a collapse and was mostly sampling — the honest lesson is
+ * that a two-genome comparison on a stochastic fight needs the episodes, not
+ * that the vocabulary nearly broke the claim.
+ *
+ * The whole file costs about a second either way, so there is nothing to buy
+ * back by shrinking it. If a future change squeezes the gap again, widen this
+ * rather than loosening the assertion — and if it inverts, that is a real
+ * finding about the flight model and should be reported as one.
+ */
+const EPISODES = 96;
 
 interface Flown {
   outcome: number;
@@ -203,6 +228,13 @@ check('...on the outcome, not only on the shaping',
 // The rule this replaced, spelled out here so that reverting to it fails: the
 // champion score was terminal hp scaled by 1000, with shaped fitness clamped to
 // ±499 on top. Both genomes are the same pilot; one of them shoots.
+//
+// The ordering is decided by hp, because the shaped term never gets near its
+// clamp — 11 to 18 points, against a hp term worth 1000. So this is the trap
+// two lines above, priced: the pilot that clears the fight ends with less hull
+// than the one that never fired, and the old rule read that as the better
+// genome. `EPISODES` above carries why this fixture is the size it is, and how
+// much of the margin the vocabulary of tactics spent.
 const oldScore = (hp: number, shaped: number): number =>
   hp * 1000 + Math.max(-499, Math.min(499, shaped));
 check(`the rule this replaced ranked them the other way round`

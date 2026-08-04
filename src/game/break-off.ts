@@ -34,6 +34,15 @@
 // same distance. The only difference any of them gets is the one that was
 // already there: a Thargoid's `THARGOID_FIRE_RATE` multiplier on the shared
 // cooldown, stated in gunnery.ts as a fire rate rather than as a second range.
+//
+// ...and it still is. WHICH of the numbers below a given ship uses is
+// `tactics.ts`, which names four ways of flying the one run; every one of them
+// is a departure from a constant here rather than a second rule, and every
+// hostile picks from the same table. The type is imported for `describeFlight`
+// alone and is erased at build, so nothing in this file depends on that one at
+// run time — the dependency goes the other way.
+
+import type { TacticId } from './tactics.ts';
 
 /**
  * A ship this close to what it is fighting stops closing and turns away.
@@ -290,10 +299,18 @@ export const CLOSING_THROTTLE_MIN = 0.45;
  * angle: a ship 900 units out and dead on its line has no reason to slow down,
  * and one 300 out and 80 degrees off has every reason. The band this replaced
  * (`dist > 700 ? max : max * 0.45`) got both of those backwards.
+ *
+ * @param floor the slowest this ship's TACTIC lets it get, defaulting to the
+ * constant above. A tactic is a choice of how much speed to trade for turn
+ * radius — `tactics.ts`'s `slash` keeps 0.72 of its top speed and turns wide on
+ * purpose — and every value it may pass stays above `MIN_CRUISE_FRACTION` for
+ * the reason `CLOSING_THROTTLE_MIN` gives.
  */
-export function closingThrottle(headingErrorRad: number): number {
+export function closingThrottle(
+  headingErrorRad: number, floor: number = CLOSING_THROTTLE_MIN,
+): number {
   const aligned = Math.max(0, Math.cos(headingErrorRad));
-  return CLOSING_THROTTLE_MIN + (1 - CLOSING_THROTTLE_MIN) * aligned;
+  return floor + (1 - floor) * aligned;
 }
 
 export function nextAttackPhase(
@@ -315,28 +332,50 @@ export function nextAttackPhase(
 }
 
 /**
- * What a ship is doing, as one word for a record or a readout.
+ * What a ship is doing, as a phrase for a record or a readout.
  *
- * Its own function because two samplers ask — the game's trainer and
- * `train/flight-probe.ts` — and a phrase invented twice is a phrase that drifts.
- * It reads the SAME fields the flight reads, so it cannot describe a ship doing
- * something the ship is not doing.
+ * Its own function because three surfaces ask — the trainer's SPENT ITS TIME
+ * column, the live cockpit strip beside it, and `train/flight-probe.ts` — and a
+ * phrase invented three times is a phrase that drifts. It reads the SAME fields
+ * the flight reads, so it cannot describe a ship doing something the ship is not
+ * doing.
+ *
+ * TWO WORDS SINCE docs/TODO/68: the tactic, then the leg. `slash closing`,
+ * `knife extending`, `ram closing`. The tactic is repeated in every bucket
+ * rather than hoisted into a column of its own, and that repetition is the whole
+ * point of the readout — the column counts SECONDS per phrase, so a ship that
+ * changed its mind after being hit reads
+ *
+ *   RUN CLOSING 8.2s · RUN EXTENDING 6.9s · SLASH CLOSING 5.1s · SLASH EVADING 1.2s
+ *
+ * and the switch is visible as a fact about time rather than as a label that
+ * only ever shows what the ship is doing now. That is the question the item asks
+ * the column to answer: "the same ship changing its mind after being hit".
  *
  * `evading` outranks the phase because it is the answer to "why has it stopped
  * flying the run": a ship that is being hit breaks off whatever it had planned,
- * and that is the interesting thing to see in a log.
+ * and that is the interesting thing to see in a log. It keeps the tactic in
+ * front of it, because the tactic is what it will go back to.
+ *
+ * `fleeing` and `own policy` carry NO tactic, and that is honesty rather than
+ * brevity: a trader running for the system edge is not flying an attack run at
+ * all, and a brain-flown ship's tactic is dormant until it hands over at
+ * `BRAIN_HANDOVER_RANGE`. Naming one would be reporting a plan nothing is
+ * executing — the same lie `flownBy` was added to stop.
  */
 export function describeFlight(
   phase: AttackPhase, underFire: number, fleeing: boolean,
   flownBy: 'brain' | 'scripted' = 'scripted',
+  tactic: TacticId = 'run',
 ): string {
   if (fleeing) return 'fleeing';
-  if (underFire > 0) return 'evading';
   // A brain-flown ship is not IN a phase — `attackPhase` is only touched by the
   // scripted run, so reporting it here would quote a stale word. It flies its
   // own policy and that is the honest name for what it is doing. This is not a
   // hypothetical: the first cut of this readout said `closing 45s` for a g3
-  // pirate that never ran the closing logic at all.
-  if (flownBy === 'brain') return 'own policy';
-  return phase;
+  // pirate that never ran the closing logic at all. Being shot at is the one
+  // thing that is true of it either way.
+  if (flownBy === 'brain') return underFire > 0 ? 'evading' : 'own policy';
+  if (underFire > 0) return `${tactic} evading`;
+  return `${tactic} ${phase}`;
 }

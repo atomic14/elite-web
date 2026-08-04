@@ -19,6 +19,8 @@ import {
 } from './break-off.ts';
 import { leadTime, passMissDistance } from './pass-aim.ts';
 import { extendArcAngle } from './extend-arc.ts';
+import { TACTICS, type TacticId } from './tactics.ts';
+import { chooseTactic, tacticSwitchReason, type TacticHull } from './tactic-choice.ts';
 import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
 import { separationFrom, SEPARATION_PUSH } from './separation.ts';
 import type { BrainSelection } from './brain-names.ts';
@@ -164,6 +166,28 @@ export interface NpcState {
   extendRange: number;
   /** which side this run passes on, +1 or -1, re-rolled with extendRange */
   passSide: number;
+  /**
+   * WHICH WAY this ship flies its attack run — see tactics.ts.
+   *
+   * Rolled once at spawn from the hull's own capability set, and re-rolled only
+   * when something happens that a pilot would act on: hurt, a last stand, or a
+   * spell with the guns cold. It is state for `hasEcm`'s reason and
+   * `extendRange`'s — a shake of the dice decides what the ship does next, so it
+   * cannot be re-derived on restore, by which time the stream is somewhere else
+   * entirely.
+   */
+  tactic: TacticId;
+  /** seconds on the current tactic — the dwell the switch reads */
+  tacticClock: number;
+  /**
+   * Seconds since this ship last got a shot away.
+   *
+   * The SLEEPER's clock: "this is not working, try something else". It ticks in
+   * `attack()` and only in `attack()`, because a tactic governs the scripted
+   * flight and a brain-flown ship's is dormant until it hands over — the same
+   * line `flownBy` draws.
+   */
+  dryFor: number;
   /**
    * Completed attack runs, over this ship's whole life.
    *
@@ -517,6 +541,7 @@ export class NpcShip {
       alive: true, provoked: false, provokedByPlayer: false, missiles: 0,
       isMissionTarget: false, fleeing: false, attackPhase: 'closing', underFire: 0, flownBy: 'scripted',
       extendRange: EXTEND_RANGE_MAX, passSide: 1, passesMade: 0,
+      tactic: 'run', tacticClock: 0, dryFor: 0,
       inert: false, tradeTimer: 0,
       wantsDespawn: false, docked: false, docking: false, organised: false,
       satisfied: false, threatTier: 0, speed: 0, fireCooldown: 0, missileReload: 0,
@@ -570,7 +595,27 @@ export class NpcShip {
       this.armed = spec.armed ?? false;
     }
     randomDirection(this.state.packOffset).multiplyScalar(250 + random() * 500);
+    // WHICH WAY THIS ONE FIGHTS, decided by a shake of the dice on warp-in —
+    // Chris's own example of the rule that makes something state. A rock has no
+    // attack run to fly and never reaches `attack()`, so it does not draw: the
+    // roll is taken here, last, so that adding it moved every existing draw in
+    // the constructor by nothing.
+    if (role !== 'asteroid') {
+      this.state.tactic = chooseTactic(this.tacticHull, 1, 'spawn', random());
+    }
     this.bindTransform(position);
+  }
+
+  /**
+   * What `tactics.ts` needs to know about this hull: how big it is, how fast it
+   * goes, how hard it turns.
+   *
+   * A getter over the three fields rather than a stored object, because none of
+   * them can change — the ship is the hull it was built as — and a second copy
+   * of an immutable fact is a second copy to keep in step.
+   */
+  private get tacticHull(): TacticHull {
+    return { radius: this.radius, maxSpeed: this.maxSpeed, turnRate: this.turnRate };
   }
 
   /**
@@ -990,6 +1035,11 @@ export class NpcShip {
     // break-off.ts has the arithmetic and Chris's account of flying it.
     this.state.flownBy = 'scripted';
     this.state.underFire = Math.max(0, this.state.underFire - dt);
+    // WHICH WAY IT IS FIGHTING, before anything reads the numbers that follow
+    // from it. `tacticSwitchReason` is roll-free on purpose — a switch that
+    // drew from the stream to decide whether to switch would burn a number per
+    // hostile per frame — so the dice come out only when the answer is yes.
+    const tactic = TACTICS[this.updateTactic(dt)];
     const wasPhase = this.state.attackPhase;
     this.state.attackPhase = nextAttackPhase(
       this.state.attackPhase, dist, this.state.underFire > 0, this.state.extendRange);
@@ -1049,7 +1099,7 @@ export class NpcShip {
       const outLen = out.length();
       if (outLen > 1e-4) {
         out.divideScalar(outLen);
-        const psi = extendArcAngle(dist, this.state.extendRange);
+        const psi = extendArcAngle(dist, this.state.extendRange, tactic.arcAngle);
         const arc = this.tmpLead.copy(this.object.position)
           .addScaledVector(out, Math.cos(psi) * dist)
           .addScaledVector(side, Math.sin(psi) * dist);
@@ -1085,7 +1135,8 @@ export class NpcShip {
       const aim = dist > this.state.extendRange
         ? this.tmpDir.copy(targetPos).add(this.state.packOffset)
         : this.tmpDir.copy(mark).addScaledVector(
-          this.passOffset(mark), passMissDistance(dist, closing, this.state.speed));
+          this.passOffset(mark),
+          passMissDistance(dist, closing, this.state.speed, tactic.missDistance));
       // ...and bend that line away from any wingman in the way, so a gang picks
       // different runs in rather than discovering each other at the merge.
       // Prevention; the nudge in `passing` above is the cure.
@@ -1103,7 +1154,8 @@ export class NpcShip {
       // attacking — and `aim` is `this.tmpDir`, which `facing()` also uses as
       // its scratch, so passing it in would zero the very vector being read.
       this.state.speed = approach(
-        this.state.speed, this.maxSpeed * closingThrottle(this.facing(targetPos)),
+        this.state.speed,
+        this.maxSpeed * closingThrottle(this.facing(targetPos), tactic.throttleFloor),
         this.accel * dt);
     }
     this.advance(dt);
@@ -1124,11 +1176,47 @@ export class NpcShip {
       this.role === 'thargoid' ? THARGOID_FIRE_RATE : 1);
     if (reload !== null) {
       this.state.fireCooldown = reload;
+      // It got one away, so whatever it is doing is working. The sleeper's
+      // clock is reset by the TRIGGER rather than by the hit, because "did my
+      // plan give me a shot" is the question, and whether the bolt connected is
+      // gunnery.ts's coin and not this ship's doing.
+      this.state.dryFor = 0;
       return isPlayer
         ? { at: 'player', weapon: 'laser' }
         : { at: npcTarget!, weapon: 'laser' };
     }
     return null;
+  }
+
+  /**
+   * Advance the tactic clocks and, if something happened that a pilot would act
+   * on, take a new tactic. @returns the one to fly this step.
+   *
+   * The DECISION is `tactics.ts`'s and all of it: this reads the ship's own
+   * fields into a situation, asks whether there is a reason, and applies the
+   * answer. A module decides and reports; the ship applies — the same bargain
+   * `attack()` has with `break-off.ts` and `gunnery.ts`.
+   */
+  private updateTactic(dt: number): TacticId {
+    this.state.tacticClock += dt;
+    this.state.dryFor += dt;
+    const why = tacticSwitchReason({
+      tactic: this.state.tactic,
+      health: this.healthFraction,
+      underFire: this.state.underFire,
+      sinceChosen: this.state.tacticClock,
+      sinceShot: this.state.dryFor,
+    });
+    if (why !== null) {
+      this.state.tactic = chooseTactic(
+        this.tacticHull, this.healthFraction, why, random(), this.state.tactic);
+      this.state.tacticClock = 0;
+      // A new plan starts with a clean sleeper clock, or a ship that switched
+      // BECAUSE its guns were cold would be judged on the old tactic's silence
+      // and switch again on the next frame it was allowed to.
+      this.state.dryFor = 0;
+    }
+    return this.state.tactic;
   }
 
   /**

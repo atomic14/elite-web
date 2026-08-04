@@ -252,6 +252,12 @@ src/
                             stretch that makes a run pass by what it meant to
     extend-arc.ts           the curve the run-OUT flies, so the turn-around and
                             the run out overlap instead of being sequential
+    tactics.ts              the VOCABULARY: four named ways of flying that one
+                            run, each a set of three of the numbers above, with
+                            the sweep that chose them
+    tactic-choice.ts        the CHOICE: which of them a hull can physically
+                            execute, which one it takes, and what makes a ship
+                            change its mind mid-fight
     ship-specs.ts           the roster: which hull flies which role, and its
                             stats — all of them Harmless's, none copied from
                             the pack

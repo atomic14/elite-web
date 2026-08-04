@@ -163,17 +163,25 @@ export const MAX_MISS_STRETCH = 3;
  * It is given the same closing speed `leadTime` is given, resolved once by the
  * caller along the one line of sight both of them are about — two answers to
  * one question, never read twice.
+ *
+ * @param intended how wide this ship MEANS to pass, defaulting to the constant
+ * above. It is a parameter because a tactic is a choice of how wide to pass and
+ * nothing else — `tactics.ts` names four of them, and `run`'s is exactly this
+ * default, so a caller that does not care gets the pass that shipped. The
+ * correction is the same arithmetic whatever the intent: it is the intent that
+ * varies, never the rule that turns it into a heading.
  */
 export function passMissDistance(
   dist: number, closingSpeed: number, ownSpeed: number,
+  intended: number = PASS_MISS_DISTANCE,
 ): number {
-  if (ownSpeed <= 0) return PASS_MISS_DISTANCE;
+  if (ownSpeed <= 0) return intended;
   // Inside the miss distance there is no heading that opens it: take the cap
   // and let the pass commit. This is also the guard on the square root.
-  const room = dist > PASS_MISS_DISTANCE
-    ? dist / Math.sqrt(dist * dist - PASS_MISS_DISTANCE * PASS_MISS_DISTANCE)
+  const room = dist > intended
+    ? dist / Math.sqrt(dist * dist - intended * intended)
     : MAX_MISS_STRETCH;
   const stretch = Math.min(
     MAX_MISS_STRETCH, Math.max(1, (closingSpeed / ownSpeed) * room));
-  return PASS_MISS_DISTANCE * stretch;
+  return intended * stretch;
 }

@@ -240,6 +240,10 @@ console.log('\npurity');
     'combat-sim-scenarios.ts',
     'combat-sim-report.ts',
     'brains.ts',
+    // which way a hostile flies its attack run, and which of them a hull may be
+    // given: a table of numbers and the gates/weights/switches over it, both
+    // reached by a training episode through `attack()`
+    'tactics.ts', 'tactic-choice.ts',
     // the whole world step, as of the extraction out of game.ts — this is the
     // line that says the simulation can advance without a browser
     'world-step.ts',

@@ -329,6 +329,14 @@ console.log('\nNPC targeting');
     let inside = false;
     let low = Infinity;
     while (!ep.done) {
+      // PINNED to the standard run, every step, because this asserts which SIDE
+      // a pass goes and `PASS_MISS_DISTANCE` is the distance it is measured
+      // against. Since docs/TODO/68 a ship rolls one of several tactics and two
+      // of them deliberately aim a different width — a `knife` pass intends 70 —
+      // so leaving the roll in would measure the vocabulary and blame
+      // `passOffset`. That each tactic clears the hull it is offered to is
+      // asserted where the vocabulary lives, in test/tactics.test.ts.
+      p.npc.state.tactic = 'run';
       ep.step(FIXED_DT);
       if (!p.alive) break;
       const d = ep.trader.pos.distanceTo(p.pos);

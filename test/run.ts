@@ -51,6 +51,8 @@ import './npc.test.ts';
 import './break-off.test.ts';
 import './pass-aim.test.ts';
 import './extend-arc.test.ts';
+import './tactics.test.ts';
+import './tactic-choice.test.ts';
 import './systems.test.ts';
 import './energy-low.test.ts';
 import './combat.test.ts';

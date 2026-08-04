@@ -33,6 +33,18 @@ export const PLAYER_SPEED_KEPT = 0.3;
 export const NPC_SPEED_KEPT = 0.3;
 const STATION_SPEED_KEPT = 0.4;
 
+/**
+ * The commander's own contact radius, in world units.
+ *
+ * Exported because a second module now needs the same number for a reason that
+ * is not a collision: `tactics.ts` gates how tightly a hull may aim its pass on
+ * whether that pass clears both hulls, and "both hulls" is an NPC's radius plus
+ * this. It was a bare 25 in the overlap test below and quoted as prose in
+ * pass-aim.ts's comment, which is one number in two places and a comment kept
+ * in step by hope.
+ */
+export const COMMANDER_HULL_RADIUS = 25;
+
 /** Scratch vectors, so a per-frame call allocates nothing. */
 export interface CollisionScratch {
   a: THREE.Vector3;
@@ -59,7 +71,7 @@ export function playerVsNpcs(
   for (const npc of npcs) {
     if (!npc.state.alive) continue;
     const gap = npc.object.position.distanceTo(playerPos);
-    if (gap >= npc.radius + 25) continue;
+    if (gap >= npc.radius + COMMANDER_HULL_RADIUS) continue;
     const away = scratch.a.copy(playerPos).sub(npc.object.position).normalize();
     playerPos.copy(npc.object.position).addScaledVector(away, npc.radius + 120);
     setPlayerSpeed(PLAYER_SPEED_KEPT);
