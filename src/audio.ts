@@ -1,6 +1,8 @@
 // Tiny WebAudio synth — bleeps and zaps in the spirit of the BBC sound chip.
 // The context is created lazily on the first user gesture.
 
+import { COUNTDOWN } from './constants/jump.ts';
+
 let ctx: AudioContext | null = null;
 
 function ac(): AudioContext | null {
@@ -151,12 +153,19 @@ export const sfx = {
    * The hyperspace countdown, with `n` seconds left on it: a blip that climbs
    * a hundred hertz a second towards the jump.
    *
-   * Named for the occasion because the pitch used to be `700 + (5 - n) * 100`
-   * written out in the world step, which put audio design inside the
-   * simulation. Same tone as before, decided here.
+   * Named for the occasion because the pitch used to be written out in the
+   * world step, which put audio design inside the simulation. Same tone as
+   * before, decided here.
+   *
+   * The 700 and the 100 are this file's; the length of the countdown is not,
+   * and it wrote `(5 - n)` out as a digit until `COUNTDOWN` was somewhere it
+   * could be imported from. A longer countdown would have started BELOW 700
+   * and climbed to it — the first blip of a jump is meant to be the base note
+   * whatever the drive's warning is. `test/audio.test.ts` asserts that climb
+   * rather than this expression.
    */
   countdown(n: number): void {
-    const f = 700 + (5 - n) * 100;
+    const f = 700 + (COUNTDOWN - n) * 100;
     sweep('square', f, f, 0.07, 0.08);
   },
   /**

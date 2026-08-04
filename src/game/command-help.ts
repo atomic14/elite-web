@@ -21,6 +21,7 @@
 // holds it to this table in both directions.
 
 import type { Command } from './controls.ts';
+import { TORUS_MULTIPLIER } from '../constants/torus.ts';
 
 /**
  * Which table of the `?` guide a FLIGHT command belongs in.
@@ -125,7 +126,10 @@ export const COMMAND_HELP: Record<Command, CommandHelp> = {
     section: 'flight',
   },
   toggleTorus: {
-    what: 'torus jump drive (8×; cuts out when something massive is near)',
+    // The one caption that carries a number, and it is the drive's own rather
+    // than a digit: it read "8×" while the step wrote 7 and only agreed
+    // because the step's 7 is one less than the total.
+    what: `torus jump drive (${TORUS_MULTIPLIER}×; cuts out when something massive is near)`,
     section: 'flight',
   },
   togglePause: { what: 'pause', section: 'flight' },

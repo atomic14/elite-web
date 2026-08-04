@@ -25,6 +25,9 @@ import {
   type NpcSpec,
 } from '../src/game/ship-specs.ts';
 import { SUN_HEAT_START, SUN_KILL_DIST } from '../src/constants/sun.ts';
+import { MASS_LOCK_PLANET_ALTITUDE, MASS_LOCK_STATION } from '../src/constants/torus.ts';
+import { PLANET_CRASH_ALTITUDE } from '../src/constants/planet.ts';
+import { PLAYER_INTEREST_RANGE } from '../src/constants/player-interest.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import { check, eq } from './harness.ts';
 
@@ -81,10 +84,15 @@ console.log('\ncombat arena');
     `${locked} systems refuse the torus drive`);
   check('...and never inside the station\'s docking box', notClear === 0,
     `${notClear} systems dock you mid-fight`);
+  // The margins are stated against the constants they are margins against,
+  // rather than against 20,000 with the four numbers written out in the failure
+  // line. Both products are exactly the 20,000 this asserted before.
   check(`...comfortably above the planet (worst ${Math.round(worst.alt)} at ${where.alt})`,
-    worst.alt > 20_000, 'mass lock starts at 4,000 and the ground at 80');
+    worst.alt > MASS_LOCK_PLANET_ALTITUDE * 5 && worst.alt > PLANET_CRASH_ALTITUDE,
+    `mass lock starts at ${MASS_LOCK_PLANET_ALTITUDE} and the ground at ${PLANET_CRASH_ALTITUDE}`);
   check(`...clear of the station (worst ${Math.round(worst.station)} at ${where.station})`,
-    worst.station > 20_000, 'the station mass-locks at 5,000');
+    worst.station > MASS_LOCK_STATION * 4,
+    `the station mass-locks at ${MASS_LOCK_STATION}`);
   check(`...and so far from the sun the cabin never warms (worst ${Math.round(worst.sun)} at ${where.sun})`,
     worst.sun > SUN_HEAT_START && worst.sun > SUN_KILL_DIST * 10);
 
@@ -139,10 +147,11 @@ console.log('\ncombat arena');
     check('...none of them inside the docking box',
       ships.every((n) => dockingOutcome(n.object.position, n.object.quaternion,
         world.station, world.stationDockZ, scratch) === 'clear'));
-    // and near enough that the fight starts: 9,000 is where an NPC begins to
-    // care about the player at all (npc.ts update()).
+    // and near enough that the fight starts: `PLAYER_INTEREST_RANGE` is where
+    // an NPC begins to care about the player at all (npc.ts update()). It was
+    // 9,000 written out, in a file that can import the rule.
     check('...all of them close enough to engage',
-      ships.every((n) => n.object.position.distanceTo(origin) < 9000));
+      ships.every((n) => n.object.position.distanceTo(origin) < PLAYER_INTEREST_RANGE));
     // pointed at you — the constructor's orientation is random, which is right
     // for a system and wrong for a duel
     const nose = new THREE.Vector3();

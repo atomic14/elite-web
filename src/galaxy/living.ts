@@ -19,6 +19,7 @@
 //  - everything here is pure data + maths: no three.js, no DOM
 
 import type { StarSystem } from './galaxy.ts';
+import { distanceTenths, daysForJump } from './navigation.ts';
 import { random } from '../game/rng.ts';
 
 /** A trade run in flight between two systems. */
@@ -97,7 +98,7 @@ export class LivingGalaxy {
     this.systems = systems;
     this.neighbours = systems.map((sys) =>
       systems
-        .map((other) => ({ index: other.index, d: chartDistance(sys, other) }))
+        .map((other) => ({ index: other.index, d: distanceTenths(sys, other) }))
         .filter((x) => x.index !== sys.index && x.d > 0 && x.d <= 70)
         .sort((a, b) => a.d - b.d)
         .slice(0, 10)
@@ -181,7 +182,7 @@ export class LivingGalaxy {
         if (dest === null) continue;
         const commodity = this.pickExport(sys, gradients, rng);
         const tonnes = 5 + Math.floor(rng() * 25);
-        const distDays = 1 + Math.ceil(chartDistance(sys, this.systems[dest]) / 20);
+        const distDays = daysForJump(distanceTenths(sys, this.systems[dest]));
 
         // does it survive the trip? lawless space eats convoys
         const risk = Math.min(0.5,
@@ -224,7 +225,7 @@ export class LivingGalaxy {
     let bestScore = 0;
     for (let attempt = 0; attempt < 4; attempt++) {
       const cand = this.systems[options[Math.floor(rng() * options.length)]];
-      const dist = chartDistance(sys, cand);
+      const dist = distanceTenths(sys, cand);
       // trade flows between unlike economies, and toward wealth
       const contrast = Math.abs(cand.economy - sys.economy) / 7;
       const score = contrast * (cand.productivity / 40000) * (1 - dist / 100) * (0.6 + rng() * 0.8);
@@ -370,11 +371,4 @@ export class LivingGalaxy {
       st.heat = s.heat ?? 0;
     }
   }
-}
-
-/** Chart distance in tenths of a light year (the original's metric). */
-function chartDistance(a: StarSystem, b: StarSystem): number {
-  const dx = a.x - b.x;
-  const dy = (a.y - b.y) / 2;
-  return Math.round(4 * Math.sqrt(dx * dx + dy * dy));
 }

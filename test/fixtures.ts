@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import { brainFromFile, type BrainFile } from '../src/ai-training/policy.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 
 /**
  * Galaxy 1: the canonical universe, and the most-shared fixture in the suite.

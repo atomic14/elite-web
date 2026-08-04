@@ -43,7 +43,7 @@ import * as THREE from 'three';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { BREAK_OFF_RANGE } from '../src/constants/attack-run.ts';
 import { quantile } from '../src/game/combat-sim-report.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { PIRATES, pilotFor, type TargetBehaviour } from './ram-probe.ts';
 
 /**

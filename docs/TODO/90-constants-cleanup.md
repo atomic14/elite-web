@@ -77,6 +77,30 @@ different expressions — `NPC_LASER_RANGE`, or `NPC_LASER_RANGE / 0.75` which i
 **`SIGHT_Y`'s CSS twin stays duplicated.** docs/TODO/93 owns the phosphor and
 the stylesheets; CSS was ruled out of 90's scope.
 
+**`VIEW_QUATS` stays in `game/views.ts`.** Four `THREE.Quaternion`s are objects
+and the home may not import three, so the only part of the table that could move
+is its four yaw angles — and splitting one table across two files buys nothing
+here: the angles have no second home to diverge from, and 0/π/±π/2 is the
+DEFINITION of front, rear, left and right rather than a number anybody would
+tune. It has its own entry on the gate's list saying so. Slice 5 also found that
+nothing tested it — left and right could be swapped with the suite still green —
+and `test/world-step.test.ts` holds all four against the nose now.
+
+**`ARENA_RADII = 16` stays a literal in `game/combat-sim-opening.ts`.** It is
+the same number as `WITCHPOINT_RADII` and a DIFFERENT RULE: the witchpoint was
+chosen for how big the planet looks and how long the cruise in takes, the arena
+for its margins to the sun, the station and the ground across 768 systems.
+Moving where a jump drops the player should not silently move where an exercise
+is fought. Its old comment said it was not imported because game.ts cannot be
+loaded without a browser; that reason expired in slice 5 and the honest one is
+written there now.
+
+**The step's docking-computer gains stay for the station slice.** `world-step.ts`
+steers the autopilot at `1.2 * dt` and closes the throttle gap at
+`Math.min(1, dt * 1.5)`. They are the docking computer's numbers, not the
+clock's, and the rest of that subject is `docking.ts`, `station.ts` and
+`autopilot.ts`.
+
 ### LEGACY AND MIGRATION WERE DELETED. Do not reinstate them.
 
 Chris, 2026-08-04: *"We don't have any data to migrate yet — anything legacy can
@@ -288,11 +312,19 @@ For each: is the value right and the prose wrong, or the other way round? A
 one-unit move on the first, ten on the second, 1.2 on the third — small, but
 each is a real change to how a ship flies.
 
-### Five of the six transcribed-number comments are still out there
+### Three of the six transcribed-number comments are still out there
 
 The survey listed six places where reasoning cites another file's value by
 writing the number out: `save-file.ts:36`, `input.ts:53`, `player.ts:52-56`,
-`docking.ts:11`, `jettison.ts:29`, `starfield.ts:48`.
+`docking.ts:11`, `jettison.ts:29`, `starfield.ts:48`. **Slice 3 did
+`player.ts`'s and slice 5 did `input.ts`'s and `starfield.ts`'s**, leaving
+`save-file.ts`, `docking.ts` and `jettison.ts`.
+
+`starfield.ts` is the one worth copying: its two fade thresholds were justified
+by "max ship speed is 400" and "8 x 400 = 3200", two numbers the file could not
+see, and both are expressions over `PLAYER_FLIGHT.maxSpeed` and
+`TORUS_MULTIPLIER` now — 520 and 2400 to the bit. A prose figure became a
+derivation, which is stronger than a corrected sentence.
 
 **The flight slice did `player.ts`'s, and found it already wrong.** The
 commander's pitch cap was argued against four pirate hulls by transcribing
@@ -327,6 +359,39 @@ an agent to a half-built home. **Add it when the last slice lands**, not before.
 
 The gate catches a second home mechanically, which is stronger than the
 instruction. The instruction is what stops one being written in the first place.
+
+### What slice 5 left inline in the world step, and for whom
+
+The world clock slice named every inline number in `world-step.ts` that was its
+own subject and left the rest where the SLICE THAT OWNS THE SUBJECT will find
+it. None of these is visible to the gate — it reads column-zero declarations,
+and every one of these is a literal in the middle of a function.
+
+| left inline | where | whose |
+| --- | --- | --- |
+| `npcTargetTimer = 2` — how often the sky re-decides who is hunting whom | `world-step.ts` | the rest of the fight; `npc-targeting.ts` owns the rule and has no constants file yet |
+| `stationDockZ + 40` — the NPC bounding cube | `world-step.ts` | the station. **This is the survey's live divergence**: `docking.ts`'s `HULL_BOX_MARGIN` is 50 for the player, measured, and 40 lets an NPC through a Dodo's hull. Naming it is free; fixing it is a behaviour change |
+| `9000 + random() * 4000` — where an arrival pirate wave warps in | `world-step.ts` | spawning. The survey thinks the 9,000 is `PLAYER_INTEREST_RANGE`, which is already home, but "almost certainly" is not an argument for asserting it |
+| `multiplyScalar(150)` — how far a thargon appears from its mother | `world-step.ts` | spawning |
+| the hermit's 900 / 320 / speed 40, and the generation ship's 6,000 | `world-step.ts` | encounters. **And the hermit's message says "SLOW TO 20" while the gate is `speed < 40`** — either the line is stale or the tolerance is deliberate, and nothing says which |
+| `strandedHintTimer = 8` | `world-step.ts` | the survey's "2 the first time and 8 thereafter" pair with `state.ts:142`, which is the saves slice's file |
+| `energyLowTimer = 1.2` and every message duration | `world-step.ts` | nobody: these are how long a line stays on the console, and the console's own slice can decide whether they are rules |
+
+### The README is a prose home for the torus multiplier
+
+`README.md`'s key table says "torus jump drive (8×, stars streak; cuts out when
+mass-locked)". Slice 5 made the manual's caption and the briefing read
+`TORUS_MULTIPLIER`, and markdown cannot import. `test/key-help.test.ts` holds
+the README to the binding table by KEY only, never by description, so this one
+is checked by nothing. It belongs with the non-TypeScript homes below.
+
+### `CARRY_LIMIT` is still module-private in `engine/input.ts`
+
+Three unread taps of one key, chosen against `MAX_STEPS_PER_FRAME`. Slice 5 put
+the budget in the home and the comment names it now instead of writing "is 5",
+but the constant itself waits for the console slice — and when it lands, the
+relationship wants a check rather than a sentence, in the shape
+`test/combat-model.test.ts` uses for the rate ramps.
 
 ### The scan cannot see four things
 
@@ -367,6 +432,15 @@ Slice 4 did it, for all eighteen names it moved or deleted, and both files were
 clean: neither harness names a pool constant, a sun distance, a recharge rate or
 any of the deleted legacy names. They reach `poolsLeft` and `energyLeft` through
 the kit, and both of those are still exported from `game/systems.ts`.
+
+Slice 5 did it for all twenty-two names it moved, renamed or created, and both
+files were clean of every one of them. The only things either harness takes from
+a file this slice touched are `distanceTenths` (still exported from
+`galaxy/navigation.ts`) and `g.massLocked()` (still a method on Game), and both
+still resolve. **`test/playtest.js` did hold a sixth home for the escape cost**
+— `if (g.commander.fuel < 10) break; // no fuel to jump clear` — and it takes
+`WITCHSPACE_ESCAPE_COST` out of `constants/jump.ts` now, alongside the
+`PLAYER_FLIGHT` import it already had.
 
 ### `src/constants/` is not in docs/ARCHITECTURE.md
 

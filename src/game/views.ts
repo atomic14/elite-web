@@ -12,7 +12,18 @@
 
 import * as THREE from 'three';
 
-/** Yaw for each view: front, rear, left, right. */
+/**
+ * Yaw for each view: front, rear, left, right.
+ *
+ * IT STAYS HERE, and it is a table rather than a constant. Four
+ * `THREE.Quaternion`s are objects, and `src/constants/` may not import three —
+ * so the only version of this that could live in the home is the four angles,
+ * with the table built back up here from them. That would split one table
+ * across two files to buy nothing: the angles have no second home to diverge
+ * from, and they are not a tuning choice but the definition of what "rear" and
+ * "left" mean. Compare npc.ts's `ZERO`/`UP`, which docs/TODO/90 excludes for
+ * the neighbouring reason.
+ */
 export const VIEW_QUATS = [0, Math.PI, Math.PI / 2, -Math.PI / 2].map((a) =>
   new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a));
 

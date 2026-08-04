@@ -35,7 +35,7 @@ import {
   Episode, EPISODE_SCHEMA, type EpisodeReport,
 } from '../src/ai-training/scenario.ts';
 import { defenceFight } from '../train/defence-fight.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { Ordnance, fireEcm, autopilotEcm } from '../src/game/ordnance.ts';
 import { ECM_ENERGY_COST } from '../src/constants/ordnance.ts';
 import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';

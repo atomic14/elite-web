@@ -18,7 +18,7 @@ import { CLEAR_RANGE, EXTEND_ARC_ANGLE } from '../src/constants/extend-arc.ts';
 import {
   BREAK_OFF_RANGE, EXTEND_RANGE_MIN, EXTEND_RANGE_MAX,
 } from '../src/constants/attack-run.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { check } from './harness.ts';
 
 console.log('\nthe curve an attack run runs out on');

@@ -67,14 +67,18 @@ import {
   CombatInstrumentation, type CombatObserver,
 } from './instrumentation.ts';
 import {
-  checkJump, resolveJump, refusalMessage, COUNTDOWN,
+  checkJump, resolveJump, refusalMessage,
   checkGalacticJump, resolveGalacticJump, galacticRefusalMessage,
 } from './hyperspace.ts';
 import { constrictorLurksHere } from './missions.ts';
 import {
-  WorldStep, massLocked, FIXED_DT,
+  WorldStep, massLocked,
   type StepEvent, type StepHost,
 } from './world-step.ts';
+import { COUNTDOWN, WITCHSPACE_ESCAPE_COST } from '../constants/jump.ts';
+import { WITCHPOINT_RADII } from '../constants/planet.ts';
+import { TORUS_MULTIPLIER } from '../constants/torus.ts';
+import { FIXED_DT, MAX_FRAME_TIME, MAX_STEPS_PER_FRAME } from '../constants/world-clock.ts';
 import { random, randomDirection, seedWorld } from './rng.ts';
 import {
   bootCareer, bootCommander, bootSave, clearFlightSaves, withoutSaving,
@@ -142,33 +146,6 @@ import { freshState, type GameState } from './state.ts';
 
 
 type Mode = 'docked' | 'flight' | 'market' | 'chart' | 'local' | 'equip' | 'status' | 'data' | 'contracts' | 'saves' | 'save-name' | 'naming' | 'briefing' | 'dead';
-
-/**
- * The world advances in slices of exactly this — re-exported from
- * world-step.ts, which is where the world step lives and where a trainer can
- * import it without a browser.
- */
-export { FIXED_DT };
-/** Longest real interval we will try to simulate, before dropping the backlog. */
-const MAX_FRAME_TIME = 0.25;
-/** ...and the most steps one frame may run, so a stall cannot spiral. */
-const MAX_STEPS_PER_FRAME = 5;
-
-/**
- * How far out of the planet you drop from witch-space, in planet radii.
- *
- * Was 12, which measured badly against what it is supposed to feel like: the
- * planet came out 9.6 degrees wide — a sixth of the screen height, a ball
- * hanging in front of you rather than a world you have yet to reach — and the
- * clean torus run to the station took 17.8 seconds.
- *
- * 24 turned out to be too far the other way — a 43 second cruise before
- * anything happens. 16 puts the planet at 7.2 degrees and the clean run at
- * about 28 seconds: still a journey you notice, no longer one you resent.
- * The arrival pirates scatter along the corridor proportionally
- * (populateSystem uses the route length) so the ambush spread scales with it.
- */
-const WITCHPOINT_RADII = 16;
 
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -1241,7 +1218,9 @@ export class Game {
     const c = this.state.commander;
     const salvage = c.cargo.reduce((s, q) => s + q, 0);
     c.cargo = c.cargo.map(() => 0);
-    c.fuel = Math.max(c.fuel, 10); // enough for one jump clear
+    // enough for one jump clear, which is what the escape costs — the same
+    // number the step's stranded hint is offered below.
+    c.fuel = Math.max(c.fuel, WITCHSPACE_ESCAPE_COST);
     this.state.session.beaconTimer = -1;
     // dumped at the nearest system to where the mis-jump left us
     const target = this.state.chart.targetIndex ?? c.systemIndex;
@@ -1371,12 +1350,14 @@ export class Game {
 
     // The dust is seen, never simulated — so it is updated out here, from
     // wherever the step left the ship. It needs our actual velocity to streak:
-    // the torus drive multiplies our travel by 8, and that is what smears the
-    // stars.
+    // the torus drive multiplies our travel by `TORUS_MULTIPLIER`, and that is
+    // what smears the stars. Read from the drive rather than written out again,
+    // because a dust cloud that disagrees with the physics is exactly what
+    // "very fast" is being sold with.
     this.dust.update(
       this.state.player.position,
-      this.state.player.getForward(this.tmp)
-        .multiplyScalar(this.state.player.speed * (this.state.session.torusEngaged && !this.massLocked() ? 8 : 1)),
+      this.state.player.getForward(this.tmp).multiplyScalar(this.state.player.speed
+        * (this.state.session.torusEngaged && !this.massLocked() ? TORUS_MULTIPLIER : 1)),
     );
   }
 

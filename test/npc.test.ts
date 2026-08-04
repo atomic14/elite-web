@@ -14,7 +14,7 @@ import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { BREAK_OFF_RANGE } from '../src/constants/attack-run.ts';
 import { PASS_MISS_DISTANCE } from '../src/constants/pass-aim.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { check } from './harness.ts';
 
 // --- NPCs actually fly ------------------------------------------------------

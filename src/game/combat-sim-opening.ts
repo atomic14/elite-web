@@ -40,25 +40,33 @@ import type { World } from './world.ts';
 /**
  * Where the arena sits, as a multiple of the planet's radius.
  *
- * 16 is witchpoint distance — the same number `game.ts` arrives you at, though
- * deliberately NOT imported from there: game.ts cannot be loaded without a
- * browser and this file is in the purity block. It is anti-SUNWARD, which is
- * what makes one rule work in all 256 systems of every galaxy: the station
- * orbits at 2.4 radii on the sunward side (system-scene.ts leans `stationDir`
- * 35% into the sun direction), so putting the arena on the far side maximises
- * the distance to the only two things that can end an exercise by themselves.
+ * The same distance a jump leaves you at (`WITCHPOINT_RADII`), and A SEPARATE
+ * RULE AT THE SAME NUMBER — deliberately a literal rather than that constant.
+ * Moving where hyperspace drops the player should not silently move where an
+ * exercise is fought, because the two were chosen for different things: the
+ * witchpoint for how big the planet looks and how long the cruise in takes,
+ * this for the margins below. It USED to say it was not imported because
+ * game.ts held the constant and cannot be loaded without a browser; that
+ * reason expired when the witchpoint moved to constants/planet.ts, and the
+ * remaining one is the honest one.
+ *
+ * It is anti-SUNWARD, which is what makes one rule work in all 256 systems of
+ * every galaxy: the station orbits at 2.4 radii on the sunward side
+ * (system-scene.ts leans `stationDir` 35% into the sun direction), so putting
+ * the arena on the far side maximises the distance to the only two things that
+ * can end an exercise by themselves.
  *
  * Measured across galaxies 1, 2 and 8 — 768 systems — the worst case is
- * 67,500 units of altitude (mass-lock wants 4,000, the ground is at 80),
- * 392,000 from the sun and 77,704 from the station, whose mass-lock radius is
- * 5,000 and whose docking box is 205 across. It scales with the planet, so
- * there is no system where the margins are thinner in proportion.
+ * 67,500 units of altitude, 392,000 from the sun and 77,704 from the station,
+ * whose docking box is 205 across. It scales with the planet, so there is no
+ * system where the margins are thinner in proportion.
  *
- * The sun figure is the one that used to be argued here by writing
- * `SUN_KILL_DIST` and `SUN_HEAT_START` out as digits. It is not, now:
- * `test/arena.test.ts` holds the worst case against both constants themselves
- * (constants/sun.ts), so the claim "the cabin never warms" cannot outlive a
- * change to either.
+ * The four numbers those margins are margins AGAINST used to be written out
+ * here as digits. They are not, now: `test/arena.test.ts` holds the worst case
+ * against the constants themselves — `SUN_HEAT_START` and `SUN_KILL_DIST`
+ * (constants/sun.ts), `MASS_LOCK_PLANET_ALTITUDE` and `MASS_LOCK_STATION`
+ * (constants/torus.ts), and `PLANET_CRASH_ALTITUDE` (constants/planet.ts) — so
+ * no claim here can outlive a change to one of them.
  *
  * The mistake to avoid is `test/gang-trial.js`'s hardcoded (90000, 40000,
  * 90000): a fixed offset is an absolute point in a system whose furniture

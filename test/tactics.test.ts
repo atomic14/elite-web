@@ -26,7 +26,7 @@ import {
 import { PASS_MISS_DISTANCE } from '../src/constants/pass-aim.ts';
 import { EXTEND_ARC_ANGLE } from '../src/constants/extend-arc.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { check } from './harness.ts';
 
 console.log('\na vocabulary of tactics');

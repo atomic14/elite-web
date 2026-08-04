@@ -476,8 +476,105 @@ pinning is that the fleet which comes back is the same fleet from anywhere in
 the stream. `world.ts`'s own comment claimed "no draw from the rng" and was
 wrong about that.
 
-**Still to do**, in the groups the gate's list already names: the world clock and
-the jump, spawning and population, the career, the galaxy, the station, the
+**Slice 5 — the world clock and the jump — landed.** Five new files, and the
+count went from 98 home / 347 out across 89 files to **115 home / 341 out across
+87**. Two whole entries left the gate's list — `game/hyperspace.ts` and
+`galaxy/navigation.ts` have no constants at all now — and two files dropped from
+"everything in it" to a named pair of three.js vectors: `game/world-step.ts` and
+`game/game.ts` are on the mutable-vectors entry with `npc.ts` and `player.ts`.
+
+| moved | file |
+| --- | --- |
+| the slice the world advances in, and the frame loop's clamp on catching up | `constants/world-clock.ts` |
+| the torus drive's multiplier and the three radii that cut it out | `constants/torus.ts` |
+| the countdown, the fare in days, the escape and the two mis-jump chances | `constants/jump.ts` |
+| where a jump leaves you, and where the ground is | `constants/planet.ts` |
+| the two numbers the 1984 chart distance is made of | `constants/chart-metric.ts` |
+
+**The torus multiplier had five homes and two spellings, and expressing it cost
+nothing.** `world-step.ts` added `speed * 7 * dt` ON TOP of the `speed * dt`
+`player.update()` had already applied; `game.ts` sized the dust streaks at
+`speed * 8`; the manual captioned the key "8×"; the briefing said "eight times
+speed"; and `world/starfield.ts` justified both its fade thresholds in prose
+with "8 x 400 = 3200". They agreed only because 7 + 1 = 8 and nothing anywhere
+said so. `TORUS_MULTIPLIER` is the TOTAL — which is what all five mean — the
+step adds `TORUS_MULTIPLIER - 1` with the reason beside it, and `8 - 1 === 7`
+exactly. The dust, the caption and the starfield's two thresholds are all
+derived from it now; the starfield's are `PLAYER_FLIGHT.maxSpeed * 1.3` and
+`maxSpeed * TORUS_MULTIPLIER * 0.75`, which are 520 and 2400 to the bit.
+Breaking the constant to 9 moves all five together and the equivalence harness
+reports exactly that.
+
+**The three inline mass-lock radii are one rule with three answers.** 5,000 at
+the station, 4,000 of ALTITUDE over the planet and 4,500 to any live ship that
+is not a rock, all three unnamed inside `massLocked()`. They are in `torus.ts`
+rather than in a file of their own because the cut-out is the drive's price and
+nobody can act on one without the other.
+
+**Three relationships were asked for and all three are expressions now.**
+`audio.ts`'s countdown pitch is `700 + (COUNTDOWN - n) * 100`, so the first blip
+of a jump is 700 Hz whatever the warning is; the world step's stranded hint and
+`game.ts`'s rescue floor both read `WITCHSPACE_ESCAPE_COST`, so "enough fuel to
+jump clear" is one number in three places; and `galaxy/living.ts`'s two
+re-inlined copies of `navigation.ts`'s rules are gone — its private
+`chartDistance()` was byte-identical to `distanceTenths` down to the doc
+sentence, and its `1 + ceil(d/20)` was `daysForJump`.
+
+**The gate that should have caught that fourth home read four hand-picked
+files.** `test/galaxy.test.ts`'s "only navigation.ts implements the distance
+metric" scanned `screens.ts`, `contracts.ts`, `game.ts` and `campaign.ts` — the
+places it had gone wrong before — and `living.ts` was not among them. It walks
+all 165 files in `src/` now, in both the old spelling and one written with the
+new constants, and putting the copy back fails two checks.
+
+**`VIEW_QUATS` stays, and it is a table rather than a constant.** Four
+`THREE.Quaternion`s are objects and this directory may not import three, so the
+only part of it that could move is the four yaw angles — which would split one
+table across two files to buy nothing, since the angles have no second home and
+are the definition of what "rear" and "left" mean rather than a tuning choice.
+Recording that decision turned up that **nothing tested it**: swapping left for
+right passed the whole suite. `test/world-step.test.ts` now holds all four
+against the nose.
+
+**The measured-threshold shape, because probing at the constant is `f(x) ===
+f(x)`.** The first version of the mass-lock gate asked whether
+`MASS_LOCK_STATION - 1` locks and `MASS_LOCK_STATION + 1` does not, and moving
+the constant moved the probe with it: all three rungs stayed green at 4,510.
+Each threshold is bisected out of the real function now and compared to the
+constant that is supposed to say it — the station, the planet altitude, the ship,
+the ground, and the tank the beacon is offered below — so re-inlining a literal
+anywhere costs a red line. All five were confirmed red that way.
+
+**Two more of the survey's six transcribed-number comments are references now**,
+leaving three (`save-file.ts`, `docking.ts`, `jettison.ts`). `input.ts`'s
+`CARRY_LIMIT` said "MAX_STEPS_PER_FRAME is 5" from a file that could not see it;
+`combat-sim-opening.ts`'s `ARENA_RADII` wrote out the mass lock's 4,000, the
+ground's 80 and the station's 5,000, and said it could not import the witchpoint
+because game.ts needs a browser — a reason that expired when the witchpoint
+moved here. `test/arena.test.ts` holds its margins against the constants
+themselves, and both products are exactly the 20,000 it asserted before.
+`ARENA_RADII` itself stays a literal: it is a separate rule at the same number,
+and moving where hyperspace drops the player should not move where an exercise
+is fought.
+
+Byte-identical, verified against a worktree at HEAD: **11,910 compared, 0
+changed** — every name in `src/constants/` then against now, the six constants
+that moved, the twelve inline numbers that got names read out of HEAD's source,
+all four navigation functions over three whole galaxies, `daysForJump` over 400
+distances, 400 seeded days of the living galaxy plus all 256 neighbour lists,
+`jumpCost`/`checkJump`/`resolveJump` over 256 targets at five tanks and two
+mission stages, six 900-step seeded worlds with their per-frame mass-lock trace,
+a swept walk across all three mass-lock radii and the ground, a 600-step torus
+cruise, and the stranded hint at seven fuel levels. Breaking each moved constant
+in turn reported 21, 2, 2,727, 2 and 3,073 changes before being restored.
+
+One deliberate change that is NOT byte-identical, and it is prose: the briefing's
+"the torus drive — eight times speed" is `${TORUS_MULTIPLIER} times speed`, so
+the page now reads "8 times speed". The manual's caption interpolates to the
+same bytes it had.
+
+**Still to do**, in the groups the gate's list already names: spawning and
+population, the career, the galaxy, the station, the
 console, the combat trainer, saves, and the policy seam. Plus two things no slice
 has touched: `MAX_TRADERS` still has two homes, and CLAUDE.md does not yet carry
 the read-it-do-not-grep-it instruction below — the gate catches a second home

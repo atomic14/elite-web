@@ -13,16 +13,22 @@ import {
   refusalMessage,
 } from '../src/game/hyperspace.ts';
 import {
-  WITCHSPACE_ESCAPE_COST,
   witchspaceChance,
   distanceTenths,
+  daysForJump,
 } from '../src/galaxy/navigation.ts';
+import {
+  WITCHSPACE_ESCAPE_COST, MISJUMP_CHANCE, MISJUMP_CHANCE_PLANS,
+  JUMP_DAYS_BASE, TENTHS_PER_JUMP_DAY,
+} from '../src/constants/jump.ts';
+import { TENTHS_PER_CHART_UNIT, CHART_Y_SQUASH } from '../src/constants/chart-metric.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import {
   generateGalaxy,
   speciesName,
   describeSystem,
   COMMODITIES,
+  type StarSystem,
 } from '../src/galaxy/galaxy.ts';
 import { planetDescription } from '../src/galaxy/goatsoup.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
@@ -166,28 +172,50 @@ console.log('\nliving galaxy');
 console.log('\nchart metric has one owner');
 {
   const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
-  const files = [
-    ['src/ui/screens.ts', read('../src/ui/screens.ts')],
-    ['src/game/contracts.ts', read('../src/game/contracts.ts')],
-    ['src/game/game.ts', read('../src/game/game.ts')],
-    ['test/campaign.ts', read('../test/campaign.ts')],
-  ] as const;
-  // the metric itself: 4 * sqrt(dx^2 + (dy/2)^2)
-  const forked = files.filter(([, src]) => /4 \* Math\.sqrt/.test(src)).map(([n]) => n);
+
+  // EVERY .ts IN src/, NOT A HAND-PICKED FOUR. The old version of this check
+  // read ui/screens.ts, contracts.ts, game.ts and campaign.ts — the files that
+  // had forked it once — and galaxy/living.ts, which had forked it AGAIN with
+  // a byte-identical private `chartDistance()` and a hand-inlined
+  // `daysForJump` beside it, was not among them. A list of the places it went
+  // wrong before is not a scan; this is.
+  const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
+      : /\.ts$/.test(e.name) ? [new URL(e.name, dir)] : []));
+  const SRC = new URL('../src/', import.meta.url);
+  const files: (readonly [string, string])[] = walk(SRC)
+    .map((url) => [`src/${url.pathname.slice(SRC.pathname.length)}`, readFileSync(url, 'utf8')] as const)
+    .filter(([name]) => name !== 'src/galaxy/navigation.ts');
+  files.push(['test/campaign.ts', read('../test/campaign.ts')] as const);
+
+  // the metric itself: TENTHS_PER_CHART_UNIT * sqrt(dx^2 + (dy/CHART_Y_SQUASH)^2),
+  // in either the old spelling or one written with the constants
+  const forked = files.filter(([, src]) =>
+    /(4|TENTHS_PER_CHART_UNIT) \* Math\.sqrt/.test(src)).map(([n]) => n);
   check(`only navigation.ts implements the distance metric${forked.length ? ' — found in ' + forked.join(', ') : ''}`,
     forked.length === 0);
   // the half-weight-y comparison, which galacticJump used to inline
-  const inlined = files.filter(([, src]) => /\(s\.y - from\.y\) \/ 2|dy \* dy/.test(src)).map(([n]) => n);
+  const inlined = files.filter(([, src]) =>
+    /\(s\.y - from\.y\) \/ 2|dx \* dx \+ dy \* dy(?! \+)/.test(src)).map(([n]) => n);
   check(`nobody re-inlines the squared form${inlined.length ? ' — found in ' + inlined.join(', ') : ''}`,
     inlined.length === 0);
-  // and the jump-day formula, which game.ts and campaign.ts each had a copy of
-  const days = files.filter(([, src]) => /1 \+ Math\.ceil\([a-zA-Z.()\[\] ]*\/ 20\)/.test(src)).map(([n]) => n);
+  // and the jump-day formula, which game.ts, campaign.ts and living.ts each
+  // had a copy of
+  const days = files.filter(([, src]) =>
+    /(1|JUMP_DAYS_BASE) \+ Math\.ceil\([a-zA-Z.()\[\] ]*\/ (20|TENTHS_PER_JUMP_DAY)\)/.test(src))
+    .map(([n]) => n);
   check(`only navigation.ts computes jump days${days.length ? ' — found in ' + days.join(', ') : ''}`,
     days.length === 0);
+  // the control: the scan reads real files and its patterns do fire
+  check(`...and the scan read the whole tree (${files.length} files)`,
+    files.length > 100 && /(4|TENTHS_PER_CHART_UNIT) \* Math\.sqrt/
+      .test(read('../src/galaxy/navigation.ts')));
 
   const nav = read('../src/galaxy/navigation.ts');
-  check('navigation.ts imports nothing but the system type',
-    (nav.match(/^import /gm) ?? []).length === 1 && /import type \{ StarSystem \}/.test(nav));
+  check('navigation.ts imports nothing but the system type and its constants',
+    (nav.match(/^import /gm) ?? []).length === 3
+    && /import type \{ StarSystem \}/.test(nav)
+    && !/from '(?!\.\/galaxy\.ts|\.\.\/constants\/)/.test(nav));
 }
 
 // --- inhabitant portraits ---------------------------------------------------
@@ -275,4 +303,44 @@ console.log('\nhyperspace');
   }
   check('the courier run is the dangerous one',
     witchspaceChance(3) > witchspaceChance(0));
+  check('...and the two chances are the ones constants/jump.ts states',
+    witchspaceChance(3) === MISJUMP_CHANCE_PLANS && witchspaceChance(0) === MISJUMP_CHANCE
+    && MISJUMP_CHANCE > 0 && MISJUMP_CHANCE_PLANS < 1);
+}
+
+// --- the chart metric, and what a jump costs in days ------------------------
+//
+// Two numbers turn chart coordinates into tenths of a light year, and they had
+// six homes between them: `distanceTenths`, `distanceSq` and `distanceSqToPoint`
+// in navigation.ts, a byte-identical private copy in living.ts, and both
+// charts' `y / 2` and `fuel / 4` in ui/screens.ts. They are
+// constants/chart-metric.ts now. What is asserted is the CLAIMS they are made
+// of — the original's asymmetry, and the scale that makes a full tank 7.0 LY —
+// rather than the expression, which would pass whatever the constants said.
+
+console.log('\nthe chart metric');
+{
+  const at = (x: number, y: number) => ({ x, y }) as StarSystem;
+  const origin = at(0, 0);
+
+  check(`one unit of chart x is ${TENTHS_PER_CHART_UNIT} tenths of a light year`,
+    distanceTenths(origin, at(1, 0)) === TENTHS_PER_CHART_UNIT
+    && distanceTenths(origin, at(10, 0)) === TENTHS_PER_CHART_UNIT * 10);
+  check(`...and one unit of chart y is ${CHART_Y_SQUASH}x less, which is the`
+    + " original's half-height chart",
+  distanceTenths(origin, at(0, CHART_Y_SQUASH)) === TENTHS_PER_CHART_UNIT);
+  // The scale exists to make the classic range come out. MAX_FUEL is the
+  // career's constant; the arithmetic that meets it is this file's subject.
+  check('a full 70-tenth tank is the classic 7.0 LY of chart distance',
+    distanceTenths(origin, at(70 / TENTHS_PER_CHART_UNIT, 0)) === 70);
+
+  // The days rule: a base day plus one per TENTHS_PER_JUMP_DAY, rounded up.
+  // living.ts had its own copy of this too, inlined beside its own copy of the
+  // metric, so a convoy aged differently from a commander flying the same leg.
+  check(`the shortest jump still costs ${JUMP_DAYS_BASE} day and a bit`,
+    daysForJump(1) === JUMP_DAYS_BASE + 1 && daysForJump(0) === JUMP_DAYS_BASE);
+  check(`...and a day per ${TENTHS_PER_JUMP_DAY} tenths after that, rounded up`,
+    daysForJump(TENTHS_PER_JUMP_DAY) === JUMP_DAYS_BASE + 1
+    && daysForJump(TENTHS_PER_JUMP_DAY + 1) === JUMP_DAYS_BASE + 2
+    && daysForJump(TENTHS_PER_JUMP_DAY * 3) === JUMP_DAYS_BASE + 3);
 }

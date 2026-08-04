@@ -15,9 +15,18 @@
 //
 // It lives under galaxy/ because it is a property of the star map, not of the
 // UI that draws it or the ship that flies it. Everything above may import it;
-// it imports nothing but the system type.
+// it imports nothing but the system type and the two numbers the metric is.
+//
+// A FOURTH COPY had grown in galaxy/living.ts by the time the constants move
+// reached this file — a private `chartDistance()`, byte-identical down to the
+// doc sentence, and a hand-inlined `daysForJump` beside it. Both are this
+// file's now.
 
 import type { StarSystem } from './galaxy.ts';
+import { TENTHS_PER_CHART_UNIT, CHART_Y_SQUASH } from '../constants/chart-metric.ts';
+import {
+  JUMP_DAYS_BASE, TENTHS_PER_JUMP_DAY, MISJUMP_CHANCE, MISJUMP_CHANCE_PLANS,
+} from '../constants/jump.ts';
 
 /**
  * Chart distance in tenths of a light-year, after the original's asymmetric
@@ -26,8 +35,8 @@ import type { StarSystem } from './galaxy.ts';
  */
 export function distanceTenths(a: StarSystem, b: StarSystem): number {
   const dx = a.x - b.x;
-  const dy = (a.y - b.y) / 2;
-  return Math.round(4 * Math.sqrt(dx * dx + dy * dy));
+  const dy = (a.y - b.y) / CHART_Y_SQUASH;
+  return Math.round(TENTHS_PER_CHART_UNIT * Math.sqrt(dx * dx + dy * dy));
 }
 
 /**
@@ -37,7 +46,7 @@ export function distanceTenths(a: StarSystem, b: StarSystem): number {
  */
 export function distanceSq(a: StarSystem, b: StarSystem): number {
   const dx = a.x - b.x;
-  const dy = (a.y - b.y) / 2;
+  const dy = (a.y - b.y) / CHART_Y_SQUASH;
   return dx * dx + dy * dy;
 }
 
@@ -50,7 +59,7 @@ export function distanceSq(a: StarSystem, b: StarSystem): number {
  */
 export function distanceSqToPoint(s: StarSystem, x: number, y: number): number {
   const dx = s.x - x;
-  const dy = (s.y - y) / 2;
+  const dy = (s.y - y) / CHART_Y_SQUASH;
   return dx * dx + dy * dy;
 }
 
@@ -66,24 +75,24 @@ export function nearestSystemTo(from: StarSystem, systems: readonly StarSystem[]
 }
 
 /**
- * Days a jump takes. One day to make it, plus one per 2.0 LY covered.
+ * Days a jump takes: `JUMP_DAYS_BASE` to make it, plus one per
+ * `TENTHS_PER_JUMP_DAY` covered, rounded up.
  *
- * Duplicated in game.ts and test/campaign.ts before this existed, which meant
- * the campaign's careers aged at whatever rate its own copy said.
+ * Duplicated in game.ts and test/campaign.ts before this existed, and again in
+ * galaxy/living.ts, which meant the campaign's careers aged at whatever rate
+ * its own copy said and a convoy's did too.
  */
 export function daysForJump(tenths: number): number {
-  return 1 + Math.ceil(tenths / 20);
+  return JUMP_DAYS_BASE + Math.ceil(tenths / TENTHS_PER_JUMP_DAY);
 }
-
-/** Flat fuel cost, in tenths of a LY, of escaping a mis-jump. */
-export const WITCHSPACE_ESCAPE_COST = 10;
 
 /**
  * Chance a jump drops you into witch-space instead.
  *
  * Raised during the Constrictor mission's final stage — the ambush is the
- * point of that leg, so it should not depend on luck alone.
+ * point of that leg, so it should not depend on luck alone. Which stage that
+ * is belongs to game/missions.ts; both chances are constants/jump.ts's.
  */
 export function witchspaceChance(missionStage: number): number {
-  return missionStage === 3 ? 0.22 : 0.09;
+  return missionStage === 3 ? MISJUMP_CHANCE_PLANS : MISJUMP_CHANCE;
 }

@@ -82,7 +82,7 @@
 import { readFileSync } from 'node:fs';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { defenceFight } from './defence-fight.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);

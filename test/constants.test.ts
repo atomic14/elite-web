@@ -93,6 +93,19 @@ const OUTSIDE: readonly Group[] = [
     files: {
       'game/npc.ts': ['ZERO', 'UP'],
       'player.ts': ['AXIS_X', 'AXIS_Z'],
+      'game/world-step.ts': ['ZERO'],
+      'game/game.ts': ['ZERO', 'UP'],
+    },
+  },
+
+  {
+    why: 'STAYS: four `THREE.Quaternion`s, one per cockpit window, built from the four'
+      + ' yaw angles that DEFINE front/rear/left/right. The home may not import three,'
+      + ' so the only part of this that could move is the angle list — which would'
+      + ' split one table across two files to buy nothing, since the angles have no'
+      + ' second home and are not a tuning choice. The reasoning is beside it',
+    files: {
+      'game/views.ts': ['VIEW_QUATS'],
     },
   },
 
@@ -135,19 +148,6 @@ const OUTSIDE: readonly Group[] = [
       'game/threat.ts': ALL,
       'game/brains.ts': ALL,
       'game/brain-names.ts': ALL,
-    },
-  },
-
-  {
-    why: 'the clock the world advances on and the jump it is interrupted by: the fixed'
-      + ' slice, the four camera views, the countdown and what a witchspace escape'
-      + ' costs. The sun left with the pools — `SUN_KILL_DIST` is the bottom rung of'
-      + " constants/sun.ts's ladder and could not be held in order from here",
-    files: {
-      'game/world-step.ts': ALL,
-      'game/views.ts': ALL,
-      'game/hyperspace.ts': ALL,
-      'galaxy/navigation.ts': ALL,
     },
   },
 
@@ -213,7 +213,6 @@ const OUTSIDE: readonly Group[] = [
       'ui/key-help.ts': ALL,
       'game/command-help.ts': ALL,
       'game/controls.ts': ALL,
-      'game/game.ts': ALL,
       'game/screens/save-transfer.ts': ALL,
       'engine/input.ts': ALL,
       'engine/keymap.ts': ALL,

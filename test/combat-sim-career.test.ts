@@ -10,7 +10,8 @@
 
 import * as THREE from 'three';
 import { Ordnance } from '../src/game/ordnance.ts';
-import { WorldStep, FIXED_DT, type StepHost } from '../src/game/world-step.ts';
+import { WorldStep, type StepHost } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
 import {

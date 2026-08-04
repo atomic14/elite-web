@@ -65,7 +65,7 @@ import {
 } from '../src/game/combat-sim-report.ts';
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { IMPACT } from '../src/game/impact-damage.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { describeFlight } from '../src/game/break-off.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);

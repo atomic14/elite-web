@@ -37,8 +37,11 @@
   //   player.ts     the ramp the commander's controls integrate with
   //   constants/player-flight.ts
   //                 the ship's real pitch, roll, acceleration and rate ramp
+  //   constants/jump.ts
+  //                 what escaping a mis-jump costs, which is also what "enough
+  //                 fuel to jump clear" means
   const [galaxyMod, navMod, contractsMod, lawMod, commanderMod, storageMod, playerMod,
-    flightMod] =
+    flightMod, jumpMod] =
     await Promise.all([
       import('/src/galaxy/galaxy.ts'),
       import('/src/galaxy/navigation.ts'),
@@ -48,6 +51,7 @@
       import('/src/game/storage.ts'),
       import('/src/player.ts'),
       import('/src/constants/player-flight.ts'),
+      import('/src/constants/jump.ts'),
     ]);
   const { COMMODITIES, generateMarket } = galaxyMod;
   const { distanceTenths } = navMod;
@@ -57,6 +61,7 @@
   const { useHarnessSaves, clearHarnessSaves, saveNamespace } = storageMod;
   const { rampFlightRate } = playerMod;
   const { PLAYER_FLIGHT } = flightMod;
+  const { WITCHSPACE_ESCAPE_COST } = jumpMod;
 
   const V = g.player.position.clone().constructor;
   const Q = g.player.quaternion.clone().constructor;
@@ -586,7 +591,9 @@
       this.step(170);
       for (let tries = 0; g.witchspace && tries < 3; tries++) {
         this.note('encounter:witchspace');
-        if (g.commander.fuel < 10) break; // no fuel to jump clear
+        // no fuel to jump clear — the same threshold the world step offers the
+        // distress beacon below, read rather than written out as a 10
+        if (g.commander.fuel < WITCHSPACE_ESCAPE_COST) break;
         g.startHyperspace();
         for (let i = 0; i < 220 && g.mode === 'flight'; i++) {
           const t = this.nearestHostile(6000);

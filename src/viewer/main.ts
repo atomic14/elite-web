@@ -29,7 +29,7 @@ import { createStage } from './stage.ts';
 import { Episode, type ShotEvent, type EpisodeShip } from '../ai-training/scenario.ts';
 import { randomBrain, type Brain } from '../ai-training/policy.ts';
 import { makeRng } from '../game/rng.ts';
-import { FIXED_DT } from '../game/world-step.ts';
+import { FIXED_DT } from '../constants/world-clock.ts';
 import { defenceBrain, pirateBrainFor } from '../game/brains.ts';
 import { defenceBrainNameFor, pirateBrainNameFor } from '../game/brain-names.ts';
 

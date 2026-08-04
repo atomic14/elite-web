@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+import { TORUS_MULTIPLIER } from '../constants/torus.ts';
+import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
+
 /** Distant static stars on a sphere so large (400k) that parallax is imperceptible. */
 export function createStarfield(count = 2600, radius = 400000): THREE.Points {
   const positions = new Float32Array(count * 3);
@@ -30,9 +33,9 @@ export function createStarfield(count = 2600, radius = 400000): THREE.Points {
  *
  * Two layers over the same particles: dots for ordinary flight, and streaks
  * that stretch backwards along your heading as you go faster. The streaks are
- * invisible at cruise and take over under the torus drive (8x speed), which is
- * what sells "we are moving very fast" — the real starfield sits on a 400k
- * sphere precisely so it *doesn't* move, so it can't do that job.
+ * invisible at cruise and take over under the torus drive, which is what sells
+ * "we are moving very fast" — the real starfield sits on a 400k sphere
+ * precisely so it *doesn't* move, so it can't do that job.
  */
 export class SpaceDust {
   readonly points: THREE.Points;
@@ -43,12 +46,20 @@ export class SpaceDust {
   /** streak length in world units per unit of speed, at full strength */
   private static readonly LENGTH_PER_SPEED = 0.075;
   /**
-   * Streaks start above the fastest ordinary cruise (max ship speed is 400)
-   * so they read as a torus-drive effect and not as normal flight, and reach
-   * full strength well inside torus range (8 x 400 = 3200).
+   * Streaks start above the fastest ordinary cruise so they read as a
+   * torus-drive effect and not as normal flight, and reach full strength well
+   * inside torus range.
+   *
+   * BOTH ENDS ARE DERIVED NOW, because both were prose: the comment argued
+   * from "max ship speed is 400" and "8 x 400 = 3200", writing out two numbers
+   * this file could not see — the commander's top speed, which was
+   * module-private in player.ts, and the torus multiplier, which was a 7 in the
+   * world step. 1.3x cruise and 0.75 of torus top speed are the shipped 520 and
+   * 2400 exactly; they now move with the ship instead of describing one that
+   * has been retuned.
    */
-  private static readonly FADE_IN = 520;
-  private static readonly FULL = 2400;
+  private static readonly FADE_IN = PLAYER_FLIGHT.maxSpeed * 1.3;
+  private static readonly FULL = PLAYER_FLIGHT.maxSpeed * TORUS_MULTIPLIER * 0.75;
   /**
    * No dust closer than this. At `size` 3.5 with sizeAttenuation the sprite
    * subtends roughly 3.5/distance of the viewport, so 150 units keeps the

@@ -21,7 +21,7 @@ import {
 } from '../src/ai-training/scenario.ts';
 import { randomBrain, brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { makeRng } from '../src/game/rng.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { printDesignSweep, printPlayerHullSweep } from './profile-sweep.ts';
 import { printFlightShapes } from './flight-probe.ts';
 

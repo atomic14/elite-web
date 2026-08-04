@@ -39,6 +39,12 @@ import {
 } from '../src/game/brain-names.ts';
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
+import {
+  TORUS_MULTIPLIER, MASS_LOCK_STATION, MASS_LOCK_PLANET_ALTITUDE, MASS_LOCK_SHIP,
+} from '../src/constants/torus.ts';
+import { PLANET_CRASH_ALTITUDE, WITCHPOINT_RADII } from '../src/constants/planet.ts';
+import { WITCHSPACE_ESCAPE_COST } from '../src/constants/jump.ts';
 import { check } from './harness.ts';
 
 // --- the world builds without a browser --------------------------------------
@@ -129,7 +135,7 @@ console.log('\nheadless world step');
     // out at the witchpoint with the planet ahead, which is where an arrival
     // starts — and well clear of the sun, the station and the ground
     state.player.position.copy(state.world.station.position).normalize()
-      .multiplyScalar(state.world.planetRadius * 16);
+      .multiplyScalar(state.world.planetRadius * WITCHPOINT_RADII);
     state.player.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(
       state.player.position, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)));
     state.player.speed = 200;
@@ -198,7 +204,7 @@ console.log('\nheadless world step');
     const run = arrival(4242);
     run.state.session.torusEngaged = true;
     run.state.player.position.copy(run.state.world.station.position)
-      .add(new THREE.Vector3(0, 0, 3000));   // inside the 5000-unit mass lock
+      .add(new THREE.Vector3(0, 0, MASS_LOCK_STATION * 0.6));   // inside the mass lock
     const events = fly(run, 1);
     check('a mass lock returns a message instead of calling a HUD',
       events.some((e) => e.kind === 'message' && e.text.startsWith('MASS LOCK')));
@@ -451,6 +457,26 @@ console.log('\nheadless world step');
       SOURCES.every((s) => seen.has(s)) && seen.size === SOURCES.length);
   }
 
+  // THE FOUR WINDOWS. `VIEW_QUATS` is the one thing in this slice's files that
+  // stayed outside src/constants/ — four `THREE.Quaternion`s cannot live in a
+  // directory that may not import three — and the decision was recorded before
+  // anybody checked that the table is right. Swapping left for right passed the
+  // whole suite. It does not now.
+  {
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.7);
+    const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+    const look = (view: number) => viewDirection(q, view, new THREE.Vector3());
+    const [front, rear, left, right] = [0, 1, 2, 3].map(look);
+    check('the front view looks where the nose points',
+      front.distanceTo(nose) < 1e-9);
+    check('...the rear view looks the other way, which is why a rear laser is'
+      + ' worth fitting', rear.distanceTo(nose.clone().negate()) < 1e-9);
+    check('...and left and right are opposite each other, square to both',
+      left.distanceTo(right.clone().negate()) < 1e-9
+      && Math.abs(left.dot(front)) < 1e-9
+      && left.dot(new THREE.Vector3().crossVectors(front, new THREE.Vector3(0, 1, 0))) < 0);
+  }
+
   // massLocked() is the flight keys' rule and the torus drive's, and it is one
   // function over the state now rather than a method on the Game.
   {
@@ -459,6 +485,172 @@ console.log('\nheadless world step');
     check('mass lock is a free function over the state', massLocked(run.state));
     run.state.player.position.set(1e7, 1e7, 1e7);
     check('...and out in the deep it is clear', !massLocked(run.state));
+  }
+
+  // ...AND IT IS THREE RADII, MEASURED.
+  //
+  // The pair above is the whole of what this file used to say about the rule:
+  // "at the station" and "at 1e7", a pair of answers that any three numbers
+  // would have given. What is asserted now is where the step ACTUALLY lets go —
+  // found by bisecting the real `massLocked` along each axis — against the
+  // three constants that are supposed to say so (constants/torus.ts). Probing
+  // at `CONSTANT ± 1` would have been the constant twice: move it and the probe
+  // moves with it, and the check passes on any value. This one fails the moment
+  // the step stops reading one of the three, which is what the move claims.
+  {
+    const run = arrival(4246);
+    const { state } = run;
+    const world = state.world;
+    const DEEP = new THREE.Vector3(1e7, 1e7, 1e7);
+    for (const n of world.npcs) n.object.position.copy(DEEP).multiplyScalar(2);
+    const out = world.station.position.clone().sub(world.planetPos).normalize();
+
+    /** The largest distance along `place` that is still locked, to a millimetre. */
+    const edge = (place: (d: number) => void, lo: number, hi: number): number => {
+      place(lo);
+      if (!massLocked(state)) return NaN;      // not locked even at the near end
+      place(hi);
+      if (massLocked(state)) return Infinity;  // still locked at the far end
+      while (hi - lo > 1e-3) {
+        const mid = (lo + hi) / 2;
+        place(mid);
+        if (massLocked(state)) lo = mid; else hi = mid;
+      }
+      return Math.round(lo * 1e3) / 1e3;
+    };
+
+    const station = edge((d) => {
+      state.player.position.copy(world.station.position).addScaledVector(out, d);
+    }, 1, 60_000);
+    check(`the station lets go at exactly MASS_LOCK_STATION (measured ${station})`,
+      Math.abs(station - MASS_LOCK_STATION) < 1e-2);
+
+    // the far side of the planet from the station, so the station's own radius
+    // cannot be what answers
+    const down = out.clone().negate();
+    const altitude = edge((h) => {
+      state.player.position.copy(world.planetPos)
+        .addScaledVector(down, world.planetRadius + h);
+    }, 1, 60_000);
+    check('...the planet at an ALTITUDE off a radius that differs in every'
+      + ` system, exactly MASS_LOCK_PLANET_ALTITUDE (measured ${altitude})`,
+    Math.abs(altitude - MASS_LOCK_PLANET_ALTITUDE) < 1e-2);
+
+    // and a live ship, out where nothing else is
+    state.player.position.copy(DEEP);
+    const ship = world.npcs.find((n) => n.role !== 'asteroid')!;
+    const shipEdge = edge((d) => {
+      ship.object.position.copy(DEEP).add(new THREE.Vector3(0, 0, d));
+    }, 1, 60_000);
+    check(`...and a live ship at exactly MASS_LOCK_SHIP (measured ${shipEdge})`,
+      Math.abs(shipEdge - MASS_LOCK_SHIP) < 1e-2);
+
+    // The two exclusions are rules of their own, and neither depends on a value:
+    // a dead ship is wreckage, and a rock field would otherwise refuse you the
+    // drive for a whole system.
+    ship.object.position.copy(DEEP).add(new THREE.Vector3(0, 0, 10));
+    check('...but a dead ship holds nothing', !(() => {
+      ship.state.alive = false;
+      return massLocked(state);
+    })());
+    ship.object.position.copy(DEEP).multiplyScalar(2);
+    const rock = world.spawn('asteroid', DEEP.clone().add(new THREE.Vector3(0, 0, 10)), 0);
+    check('...and never a rock, however close',
+      rock.state.alive && !massLocked(state));
+
+    // The ladder constants/planet.ts states: the drive has to let go far enough
+    // out that the last of the approach is flown rather than fallen.
+    check(`...and the drive lets go ${MASS_LOCK_PLANET_ALTITUDE - PLANET_CRASH_ALTITUDE}`
+      + ' units above the ground, not below it',
+    MASS_LOCK_PLANET_ALTITUDE > PLANET_CRASH_ALTITUDE * 10);
+  }
+
+  // THE TORUS IS EIGHT TIMES ORDINARY FLIGHT, and the step adds seven of them
+  // because `player.update()` has already flown the first.
+  //
+  // That relationship had five homes and two spellings — the step's 7, the
+  // dust's 8, the manual's caption, the briefing's "eight times speed" and the
+  // starfield's fade thresholds — and nothing anywhere said 7 + 1 = 8. The
+  // TOTAL is what all five mean, so the total is what is measured, through the
+  // real step. Writing `TORUS_MULTIPLIER` where the step adds
+  // `TORUS_MULTIPLIER - 1` is the off-by-one the expression makes possible, and
+  // it is what this fails on.
+  {
+    const run = arrival(4247);
+    const { state } = run;
+    // Anti-sunward and well out — clear of the station, the ground and the sun,
+    // but NOT out at 2e7, where a double has lost enough mantissa that a
+    // one-step displacement of half a unit no longer measures exactly.
+    const DEEP = state.world.planetPos.clone().addScaledVector(
+      state.world.sunPos.clone().sub(state.world.planetPos).normalize(), -150_000);
+    for (const n of state.world.npcs) n.object.position.set(9e9, 9e9, 9e9);
+    const coast = { rollRate: 0, pitchRate: 0, throttle: 0, fire: false };
+    const flown = (torus: boolean, speed: number): number => {
+      state.player.position.copy(DEEP);
+      state.player.speed = speed;
+      state.session.torusEngaged = torus;
+      run.step.step(FIXED_DT, 0, { demand: coast, handsOn: false });
+      return state.player.position.distanceTo(DEEP);
+    };
+    for (const speed of [40, 240, 400]) {
+      const ordinary = flown(false, speed);
+      const torus = flown(true, speed);
+      check(`at ${speed} a coasting step covers speed x dt (${ordinary.toFixed(4)})`,
+        Math.abs(ordinary - speed * FIXED_DT) < 1e-9);
+      check(`...and with the drive in, ${TORUS_MULTIPLIER}x that in ONE step`
+        + ` (${torus.toFixed(4)}, ratio ${(torus / ordinary).toFixed(6)})`,
+      Math.abs(torus / ordinary - TORUS_MULTIPLIER) < 1e-9);
+    }
+  }
+
+  // The ground, at the bottom of constants/planet.ts's ladder — measured the
+  // same way, because the existing check flies at the planet's CENTRE and any
+  // altitude at all would pass it.
+  {
+    const run = arrival(4248);
+    const { state } = run;
+    const down = state.world.station.position.clone()
+      .sub(state.world.planetPos).normalize().negate();
+    const dies = (h: number): boolean => {
+      state.player.position.copy(state.world.planetPos)
+        .addScaledVector(down, state.world.planetRadius + h);
+      state.player.speed = 0;
+      run.log.deaths.length = 0;
+      run.step.step(FIXED_DT, 0,
+        { demand: { rollRate: 0, pitchRate: 0, throttle: 0, fire: false }, handsOn: false });
+      return run.log.deaths[0] === 'CRASHED INTO THE PLANET';
+    };
+    let lo = 1, hi = 10_000;
+    while (hi - lo > 1e-3) {
+      const mid = (lo + hi) / 2;
+      if (dies(mid)) lo = mid; else hi = mid;
+    }
+    check(`the ground is exactly PLANET_CRASH_ALTITUDE (measured ${lo.toFixed(3)})`,
+      Math.abs(lo - PLANET_CRASH_ALTITUDE) < 1e-2 && dies(1) && !dies(10_000));
+  }
+
+  // "Enough fuel to jump clear" is `WITCHSPACE_ESCAPE_COST`, and the step's
+  // stranded hint is one of the three places that decided it independently.
+  {
+    const stranded = (fuel: number): boolean => {
+      const run = arrival(4249);
+      run.state.session.witchspace = true;
+      run.state.commander.fuel = fuel;
+      return fly(run, 60 * 3).some((e) =>
+        e.kind === 'message' && e.text.startsWith('NO FUEL TO JUMP'));
+    };
+    // Bisected rather than probed at the constant, for the same reason as the
+    // mass lock above: the threshold the step actually has is the thing worth
+    // comparing to the constant, and `COST - 1` would pass whatever both said.
+    let lo = 0, hi = 40;
+    while (hi - lo > 1e-3) {
+      const mid = (lo + hi) / 2;
+      if (stranded(mid)) lo = mid; else hi = mid;
+    }
+    check('the tank the beacon starts being offered below is exactly what an'
+      + ` escape costs (measured ${hi.toFixed(3)})`,
+    Math.abs(hi - WITCHSPACE_ESCAPE_COST) < 1e-2
+      && stranded(0) && !stranded(WITCHSPACE_ESCAPE_COST * 4));
   }
 
   // --- ...and it SAVES without a browser -------------------------------------

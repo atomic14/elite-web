@@ -45,6 +45,11 @@ import { TRADER_ARRIVAL_RANGE } from './world.ts';
 import { planDocking, dockingOutcome } from './docking.ts';
 import { regenerate, updateCabinTemp, scoopFuel, energyLow } from './systems.ts';
 import { SUN_KILL_DIST } from '../constants/sun.ts';
+import { PLANET_CRASH_ALTITUDE } from '../constants/planet.ts';
+import { WITCHSPACE_ESCAPE_COST } from '../constants/jump.ts';
+import {
+  TORUS_MULTIPLIER, MASS_LOCK_STATION, MASS_LOCK_PLANET_ALTITUDE, MASS_LOCK_SHIP,
+} from '../constants/torus.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { resolveNpcFire, type FireWorld } from './fire-resolution.ts';
 import { IMPACT, npcImpactDamage, playerImpactDamage } from './impact-damage.ts';
@@ -58,41 +63,31 @@ import type { SoundEvent, SoundName } from './sounds.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import { AUTOSAVE_INTERVAL, type GameState } from './state.ts';
 
-/**
- * The world advances in slices of exactly this. 60Hz, matching the rate the
- * NPC brains decide at (10Hz, every sixth step) and the rate every combat
- * number in this project was measured against.
- *
- * It lived in game.ts, which cannot be imported without a browser — so the
- * training scenarios, which now fly this very step, could not ask what a slice
- * of the world is and picked 1/15 instead. That is a different world: at 1/15
- * a brain re-decides every 0.133s rather than every 0.1, and every discrete
- * `rotateTowards` step is four times as coarse.
- */
-export const FIXED_DT = 1 / 60;
-
 // WHAT A CANISTER ON THE HULL OR A FLUFFED SLOT COSTS IS NOT HERE. They were
 // `0.06` and `0.9` on the pre-parity normalized scale, named here so that TODO
 // 28 would have a shopping list. They are `IMPACT.canisterOnHull` and
 // `IMPACT.stationScrape` in game/impact-damage.ts now, stated in the
 // commander's own pool points beside every other non-laser number.
 
-/** view quaternions: front, rear, left, right (yaw about ship Y) */
+/** the origin, for `lookAt` — scratch that must never be written to */
 const ZERO = new THREE.Vector3();
 
 /**
  * Anything close enough to hold the torus drive down.
  *
  * A free function over the state, so the flight keys and the step share one
- * rule and `window.__game.massLocked()` keeps working for the harnesses.
+ * rule and `window.__game.massLocked()` keeps working for the harnesses. The
+ * three radii are one rule with three answers and live together in
+ * constants/torus.ts, beside the drive they exist to cut out.
  */
 export function massLocked(state: GameState): boolean {
   const { player, world } = state;
-  if (player.position.distanceTo(world.station.position) < 5000) return true;
-  if (player.position.distanceTo(world.planetPos) - world.planetRadius < 4000) return true;
+  if (player.position.distanceTo(world.station.position) < MASS_LOCK_STATION) return true;
+  if (player.position.distanceTo(world.planetPos) - world.planetRadius
+      < MASS_LOCK_PLANET_ALTITUDE) return true;
   for (const npc of world.npcs) {
     if (npc.state.alive && npc.role !== 'asteroid' &&
-        npc.object.position.distanceTo(player.position) < 4500) return true;
+        npc.object.position.distanceTo(player.position) < MASS_LOCK_SHIP) return true;
   }
   return false;
 }
@@ -288,8 +283,12 @@ export class WorldStep {
         out.push(say('MASS LOCK — TORUS DISENGAGED', 3));
         out.push(heard('torusDropped'));
       } else {
+        // ONE LESS THAN THE MULTIPLIER, because `player.update()` above has
+        // already flown the ship its ordinary `speed * dt` this frame. The
+        // total travel is `TORUS_MULTIPLIER` times ordinary flight, which is
+        // what the manual, the briefing and the dust streaks all mean by it.
         player.position.addScaledVector(
-          player.getForward(this.tmp), player.speed * 7 * dt);
+          player.getForward(this.tmp), player.speed * (TORUS_MULTIPLIER - 1) * dt);
       }
     }
 
@@ -536,7 +535,8 @@ export class WorldStep {
     if (session.beaconTimer > 0) {
       session.beaconTimer -= dt;
       if (session.beaconTimer <= 0) this.host.completeRescue();
-    } else if (session.witchspace && commander.fuel < 10 && session.beaconTimer < 0) {
+    } else if (session.witchspace && commander.fuel < WITCHSPACE_ESCAPE_COST
+      && session.beaconTimer < 0) {
       session.strandedHintTimer -= dt;
       if (session.strandedHintTimer <= 0) {
         session.strandedHintTimer = 8;
@@ -605,7 +605,7 @@ export class WorldStep {
     const { player, world } = this.state;
     const sunDist = player.position.distanceTo(world.sunPos);
     const altitude = player.position.distanceTo(world.planetPos) - world.planetRadius;
-    if (altitude < 80) {
+    if (altitude < PLANET_CRASH_ALTITUDE) {
       this.host.die('CRASHED INTO THE PLANET');
       return;
     }

@@ -1,6 +1,7 @@
 // Named sound occasions must preserve the tones they replaced. A tiny fake
 // AudioContext records oscillator shape without speakers, timing, or a browser.
 
+import { COUNTDOWN } from '../src/constants/jump.ts';
 import { check, eq } from './harness.ts';
 
 interface Tone {
@@ -105,10 +106,25 @@ for (const [name, [frequency, duration]] of Object.entries(expected)) {
   eq(`${name} keeps the standard gain`, tone.gain, 0.08);
 }
 
-for (const n of [5, 4, 3, 2, 1]) {
-  tones.length = 0;
-  sfx.countdown(n);
-  const tone = tones[0];
-  eq(`countdown ${n} owns its rising pitch`, tone.frequency, 700 + (5 - n) * 100);
-  check(`countdown ${n} keeps its envelope`, Math.abs(tone.duration - 0.07) < 1e-9);
+// The countdown blip is the one occasion whose pitch depends on a GAME rule —
+// how many seconds of warning the drive gives — and audio.ts used to write that
+// 5 out as a digit. So the assertion is the CLAIM rather than the expression:
+// the first blip of any countdown is 700 Hz and each second climbs a hundred
+// towards the jump, however long `COUNTDOWN` is. Restating
+// `700 + (COUNTDOWN - n) * 100` here would be the implementation twice and
+// would pass whatever either file said.
+{
+  const pitches: number[] = [];
+  for (let n = COUNTDOWN; n >= 1; n--) {
+    tones.length = 0;
+    sfx.countdown(n);
+    const tone = tones[0];
+    pitches.push(tone.frequency);
+    check(`countdown ${n} keeps its envelope`, Math.abs(tone.duration - 0.07) < 1e-9);
+  }
+  eq(`the first blip of a ${COUNTDOWN}-second countdown is the base note`,
+    pitches[0], 700);
+  check(`...and each of the ${pitches.length - 1} after it climbs a hundred hertz`
+    + ` (${pitches.join(' ')})`,
+  pitches.every((f, i) => i === 0 || f - pitches[i - 1] === 100));
 }

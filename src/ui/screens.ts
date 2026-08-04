@@ -27,6 +27,8 @@ import type {
 } from '../game/combat-sim-compare.ts';
 import type { SimSetupPanel, SimSetupRow } from '../game/screens/combat-sim-setup.ts';
 import { elementById, inertElement } from '../engine/inert-dom.ts';
+import { TORUS_MULTIPLIER } from '../constants/torus.ts';
+import { TENTHS_PER_CHART_UNIT, CHART_Y_SQUASH } from '../constants/chart-metric.ts';
 // The station menu's rows ARE the docked binding table — see ui/key-help.ts.
 // Writing them out here made a sixth home for a key, and the one with a click
 // path: `data-key` becomes a keystroke, so a hand-written row could advertise a
@@ -128,7 +130,7 @@ const BRIEFING: { title: string; body: string }[] = [
     body: `<b>L</b> to launch, then <b>H</b> to jump once you are clear of the
       station.<br/><br/>
       You come out of hyperspace a long way from the planet. Point at it and
-      press <b>J</b> for the torus drive — eight times speed. It cuts out near
+      press <b>J</b> for the torus drive — ${TORUS_MULTIPLIER} times speed. It cuts out near
       anything with mass: a planet, a station, or somebody who has come to meet
       you.<br/><br/>
       Watch the scanner in the middle of the console. You are the centre. Red
@@ -610,7 +612,7 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
   const sx = w / 256;
   const sy = h / 128;
   const px = (s: { x: number; y: number }) => s.x * sx;
-  const py = (s: { x: number; y: number }) => (s.y / 2) * sy;
+  const py = (s: { x: number; y: number }) => (s.y / CHART_Y_SQUASH) * sy;
   const current = systems[c.systemIndex];
 
   ctx.clearRect(0, 0, w, h);
@@ -619,7 +621,9 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
   // because sx and sy scale the two axes independently to fit the whole galaxy
   // into the canvas, so a circle in light years is not a circle in pixels.
   //
-  // Semi-axes are R*sx and R*sy with R = fuel/4, and nothing else. There used
+  // Semi-axes are R*sx and R*sy with R = fuel/TENTHS_PER_CHART_UNIT — the chart
+  // metric read backwards, which is why it is imported rather than written out
+  // as a 4 — and nothing else. There used
   // to be an extra *0.5 on the y radius, which halved the drawn reach
   // north/south: audited against distanceTenths across all 256 systems, it put
   // 4 of the 9 systems actually in range OUTSIDE the marker. With the correct
@@ -627,7 +631,8 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
   ctx.strokeStyle = '#2a8f36';
   ctx.setLineDash([3, 3]);
   ctx.beginPath();
-  ctx.ellipse(px(current), py(current), (c.fuel / 4) * sx, (c.fuel / 4) * sy, 0, 0, Math.PI * 2);
+  ctx.ellipse(px(current), py(current), (c.fuel / TENTHS_PER_CHART_UNIT) * sx,
+    (c.fuel / TENTHS_PER_CHART_UNIT) * sy, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
 
@@ -727,7 +732,8 @@ export function drawLocalChart(
   const current = systems[c.systemIndex];
   // x in chart units; y at half-weight so screen distance matches LY distance
   const px = (s: { x: number; y: number }) => cx + (s.x - current.x) * LOCAL_SCALE;
-  const py = (s: { x: number; y: number }) => cy + ((s.y - current.y) / 2) * LOCAL_SCALE;
+  const py = (s: { x: number; y: number }) =>
+    cy + ((s.y - current.y) / CHART_Y_SQUASH) * LOCAL_SCALE;
 
   ctx.clearRect(0, 0, w, h);
 
@@ -735,17 +741,18 @@ export function drawLocalChart(
   ctx.strokeStyle = '#1d6b26';
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
-  // A CIRCLE, and it has to be one. distanceTenths is 4*sqrt(dx^2 + (dy/2)^2)
-  // and py() plots dy/2, so the plotted space is already isotropic: equal
-  // pixels mean equal light years in every direction. Reachable is therefore
-  // a circle of radius (fuel/4)*LOCAL_SCALE.
+  // A CIRCLE, and it has to be one. distanceTenths divides dy by
+  // CHART_Y_SQUASH and so does py(), so the plotted space is already
+  // isotropic: equal pixels mean equal light years in every direction.
+  // Reachable is therefore a circle of radius
+  // (fuel/TENTHS_PER_CHART_UNIT)*LOCAL_SCALE.
   //
   // I briefly "fixed" a clipping problem by making this an ellipse. That was
   // wrong twice over — it halved the apparent range north/south, so systems
   // you could actually reach fell outside the marker. The clipping was never
   // the circle's fault: the canvas was 780x380 for a shape needing 664x664.
   // The canvas is square now (see renderLocalChart) and the circle fits.
-  ctx.arc(cx, cy, (c.fuel / 4) * LOCAL_SCALE, 0, Math.PI * 2);
+  ctx.arc(cx, cy, (c.fuel / TENTHS_PER_CHART_UNIT) * LOCAL_SCALE, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
 

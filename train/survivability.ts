@@ -51,7 +51,7 @@ import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/po
 import { readFileSync } from 'node:fs';
 import { durability } from '../src/game/systems.ts';
 import { MAX_SHIELD } from '../src/constants/pools.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
 const load = (name: string): Brain =>

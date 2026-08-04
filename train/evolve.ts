@@ -32,7 +32,7 @@ import {
 } from '../src/ai-training/policy.ts';
 import { observeFor, shipView, type ShipView } from '../src/ai-training/observation.ts';
 import { makeRng } from '../src/game/rng.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { defenceFight } from './defence-fight.ts';
 // WHAT A CHAMPION IS CHOSEN BY is `train/selection.ts` — the outcome per phase,
 // the shaping term and the stated ratio between them. It is a separate file

@@ -30,7 +30,7 @@ import { SPECS, CONSTRICTOR_SPEC, type NpcSpec } from '../src/game/ship-specs.ts
 import { registeredHull } from '../src/ships/registry.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { check } from './harness.ts';
 
 console.log('\nwhich tactic, and when');

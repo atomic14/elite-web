@@ -16,7 +16,7 @@
 import * as THREE from 'three';
 
 import { Episode } from '../src/ai-training/scenario.ts';
-import { FIXED_DT } from '../src/game/world-step.ts';
+import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { Game } from '../src/game/game.ts';
 import { handle } from '../src/game/console.ts';
 import { headlessShell } from '../src/engine/shell.ts';

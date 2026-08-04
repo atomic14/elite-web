@@ -7,19 +7,17 @@
 // rate instead of the chart distance — and having it stated once, here, is
 // most of the reason this file exists.
 //
-// The metric itself is galaxy/navigation.ts; this is the transaction.
+// The metric itself is galaxy/navigation.ts and the numbers are
+// constants/jump.ts; this is the transaction.
 
 import type { CommanderData } from './commander.ts';
 import { generateGalaxy, type StarSystem } from '../galaxy/galaxy.ts';
 
 import {
-  distanceTenths, daysForJump, witchspaceChance, WITCHSPACE_ESCAPE_COST,
-  nearestSystemTo,
+  distanceTenths, daysForJump, witchspaceChance, nearestSystemTo,
 } from '../galaxy/navigation.ts';
+import { WITCHSPACE_ESCAPE_COST } from '../constants/jump.ts';
 import { random } from './rng.ts';
-
-/** Seconds of warning before the drive engages. */
-export const COUNTDOWN = 5;
 
 export type Refusal = 'alreadyJumping' | 'noTarget' | 'noFuel';
 
