@@ -476,6 +476,46 @@ combat computer bleeds off a turn — can be moved with no test failing at all.*
 - [ ] 88 — [The flight readout still quotes two stale words](88-the-readout-still-quotes-two-stale-words.md) — UI/UX · low · small
 - [ ] 89 — [Nothing flies an NPC at another NPC in the live world](89-nothing-flies-npc-against-npc.md) — test gap · high · medium
 
+## One home for every constant, and what the survey found on the way
+
+Chris, 2026-08-04: a single namespaced source of truth for constants, *"it
+doesn't matter if you can't find a problem now — it's a ticking time bomb"*, and
+be very aware of constants that should be the same and have quietly diverged.
+
+**90 is the work.** Phase 1 is done: five agents read every hand-written source
+file in the project start to finish, with grep banned — because a diverged pair
+shares neither a name nor a value, so no search can find one. 539 constants.
+The inventory and every finding is
+[the survey](90-constants-survey.md); the plan and the decided shape are
+[the item](90-one-home-for-every-constant.md). CSS was ruled out of 90's scope
+and is 93.
+
+91, 92 and 93 are what the survey turned up that is not a refactor. Each is a
+real change to what the game does, and each lands on its own.
+
+- [ ] 90 — [One home for every constant](90-one-home-for-every-constant.md) — architecture · high · large
+- [ ] 91 — [Delete the target-speed input, and retrain](91-delete-the-target-speed-input.md) — training fidelity/AI · high · large
+- [ ] 92 — [The lead marker assumes every target is a freighter](92-the-lead-marker-assumes-a-freighter.md) — combat bug/UI · medium · small
+- [ ] 93 — [One home for the phosphor](93-one-home-for-the-phosphor.md) — architecture/UI · medium · medium
+
+The three findings worth knowing without opening the survey. **The HUD leads
+every locked target at 220**, a freighter's cruise, so it under-leads a
+Fer-de-Lance by a third and a Thargon by more — that is 92, and Chris chose the
+real speed plus a session at the stick. **A pirate brain reads a different
+target speed in training than in the game**, because `brains.ts` floors it at
+150 and the trainer does not, on the one input `brains.ts` says the policy has
+latched onto — that is 91, and Chris chose to delete the input rather than
+close the divergence, which costs a retrain of all three policies. And **NPCs
+fly through the Dodo's hull**: the player's collision box is `dockZ + 50` with
+the measurement beside it, the NPC one a bare `+ 40`, and the Dodo's tallest
+vertices are at 243 against a 196 plane.
+
+The trap that makes "review by meaning, never by value" non-negotiable:
+`BRAIN_RATE_RAMP` and the commander's `RATE_RAMP` are both **4.1396** and must
+never be fused. One is a feel setting; the other is what every shipped brain was
+fitted at. A pass that unified identical values would put every policy out of
+distribution with nothing going red.
+
 **75 is done, and the answer was to delete the reason.** "The gang is losing —
 one of us is already gone" was the third way into `npcMissileEmergency`, and it
 was unreachable in the sky: `matesLost` counted dead ships in `world.npcs` and
