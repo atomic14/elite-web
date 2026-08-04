@@ -154,3 +154,83 @@ const { brainFromFile } = await import('../src/ai-training/policy.ts');
 
 Then fly it: `T` at any station, fit the combat computer, and take damage
 deliberately. It should break off. Today it does not, and it cannot.
+
+## DONE, 2026-08-04 — `observeDefend`, 17 inputs, and `jameson-defend-g2`
+
+Done in ONE pass with docs/TODO/72, because they are one observation change.
+The full record is docs/TRAINING-LOG.md, "the defender can see itself and answer
+a missile"; what belongs here is the decision this item asked for and the part
+of the acceptance that did **not** land.
+
+### The decision: a separate encoder, and why
+
+`observeDefend()` at **17 inputs**, selected by `observeFor` off the brain's own
+input count, not two more slots on `observe()`.
+
+- Appending to `observe()` moves the layout of every brain in the project,
+  because `observePack` and `observePackWide` both call it first: one line,
+  three invalidated policies, three retrains (invariant 5). None of the three
+  numbers means anything to a pirate — it has one pool rather than three,
+  nothing launches a warhead at it in an episode, and its E.C.M. is rolled at
+  spawn and applied without the ship deciding.
+- So attack and pack are **byte-identical** and were not retrained.
+  `npm run flight-probe` is byte-identical to its pre-change output;
+  `test/defence-answer.test.ts` asserts both files still declare 14/11 and
+  18/11.
+- 17 rather than 18 because **the size IS the discriminator** and 18 is
+  `observePack`'s. `observeFor` asks for the defence encoder FIRST, by size
+  alone, precisely because a defender has no fleet and every other test would
+  fall through to the solo 14 and leave the tail holding stale memory — the case
+  the function's own comment warned about.
+
+### What is fed, from one place
+
+`systems.ts` `poolsLeft(sys)` and `energyLeft(sys)`. The trainer's
+`TargetShip.hp` IS `poolsLeft` and `CombatComputer.step` calls the same two, so
+the out-of-distribution trap this item cites cannot open between them.
+
+**Three slots, not one or two.** 14 is the whole ship (the same expression as
+`observePackWide` slot 25), 15 is the energy bank alone — what she dies at, what
+the shields will not recover past, and what the E.C.M. spends a quarter of — and
+16 is docs/TODO/72's warhead. The FORE/AFT SPLIT was left out with a reason: the
+total and the bank already give the shields' sum, only the split is missing, and
+every input is search space a fixed budget has to cover. It is one size (19)
+away for whoever wants it.
+
+### And the trap this item names, closed rather than avoided
+
+`combat-computer.ts` pinned the threat's speed at 280 "until the brain is
+retrained". It has been, and `Episode.observeTrader` has always fed the real
+speed, so the pin became the divergence. It feeds `threat.state.speed` now. The
+300 in `npc.ts` is untouched — those brains were not retrained.
+
+### Acceptance, honestly
+
+- **A defence policy's controls change with its own hull fraction** — asserted,
+  both ways: on a hand-built genome, and over 100 random 14-input genomes that
+  cannot (the family this item is about). ✅
+- **The game and the trainer compute the fraction in one place.** ✅
+- **`flies()` in evolve.ts sees the new field** — it sweeps two health values
+  now, and does so without changing what it measures for attack or pack. ✅
+- **Attack and pack untouched.** ✅
+- **A retrained defender that measurably disengages when hurt** — ❌ **NOT MET,
+  and this is the finding.** `jameson-defend-g2`'s median engagement range is
+  385 when hurt against 402 when whole: it closes very slightly, the same
+  direction g1 does. The range SPREAD widened as asked (p10/p90 134-1056 against
+  129-874), and kills went from 4.8% to 41.6% at pools-left held (89.2% → 98.3%)
+  — but the mechanism is not break-off. It is that g2 spends **4.3%** of the
+  fight hurt where g1 spends 15.3%, because it kills the attacker. Conditioning
+  on your own pools turned out to be worth having for a reason the item did not
+  guess.
+- Measured against the ablation, **the health inputs are not what unlocked the
+  fighting** — the 14-input family had already reached 41% kills (`t65c`). What
+  they bought is real but smaller than this item implies; what bought the
+  promotion was docs/TODO/72.
+
+### Still open, and named here because this item is where it will be looked for
+
+Both defence policies are near-stationary knife-fighters — mean speed 5 for g2
+and 8 for g1. It is not a regression and it is not obviously wrong for a
+defender (Chris's own median is 66), but the combat computer holds your ship
+almost still and pivots, and nobody has flown g2 yet. **Fly it before tuning
+it.**

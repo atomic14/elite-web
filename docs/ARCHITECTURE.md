@@ -450,7 +450,9 @@ src/
   world/slot.ts             which way the station's docking slot faces
 
   ai-training/              neural policies + the scenarios they train in
-    policy.ts               tiny MLP: observation -> discrete controls
+    policy.ts               tiny MLP: what shape a genome is, and running one
+    observation.ts          the four encoders and the choice between them —
+                            solo 14, defend 17, pack 18, pack-wide 26
     scenario.ts             Episode: pirates vs trader, on the REAL engine —
                             shared by trainer, tournament and viewer
     brains/*.json           trained weights, committed — EXACTLY the three the
@@ -653,7 +655,7 @@ hunt in packs, police enforce, hunters stalk offenders, Thargons swarm).
 Two roles fly with **trained neural policies** instead of the scripted
 steering: pirates attacking the player (`pirate-attack-g3`, and
 `pirate-pack-r4-selectonly` for an organised gang) and armed traders defending
-themselves (`jameson-defend-g1`). `game/brain-names.ts` decides which name flies
+themselves (`jameson-defend-g2`). `game/brain-names.ts` decides which name flies
 for whom and `game/brains.ts` turns that name into weights, so the ship and the
 combat trainer's report cannot disagree; `npm test` reads those files rather than
 a list. `brainFly()` runs the MLP at 10 Hz and integrates its discrete

@@ -116,7 +116,7 @@ export const SIM_BRAINS: readonly BrainId[] = [
   // `SHIPPED_*_BRAIN` still says which of them the game currently flies.
   'pirate-attack-g3',
   'pirate-pack-r4-selectonly',
-  'jameson-defend-g1',
+  'jameson-defend-g2',
   'scripted',
 ];
 

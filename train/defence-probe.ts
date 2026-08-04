@@ -126,7 +126,7 @@ export function probeDefence(brain: Brain, episodes: number): {
   for (const base of HELD_OUT_BASES) {
     for (let e = 0; e < episodes; e++) {
       const seed = base + e * 7919;
-      const { count, hull, laser, energyUnit } = defenceFight(seed);
+      const { count, hull, laser, energyUnit, ecm } = defenceFight(seed);
       const ep = new Episode({
         seed,
         pirates: Array.from({ length: count }, () => ({ kind: 'scripted' as const })),
@@ -135,6 +135,7 @@ export function probeDefence(brain: Brain, episodes: number): {
         traderClass: hull,
         traderLaser: laser,
         targetEnergyUnit: energyUnit,
+        targetEcm: ecm,
       });
       ep.setup();
       while (!ep.done) ep.step(FIXED_DT);
@@ -210,7 +211,7 @@ if (isMain) {
   const episodes = Number(process.argv[2] ?? 120);
   const names = process.argv.slice(3);
   printDefenceShape(
-    names.length ? names : ['jameson-defend-g1'],
+    names.length ? names : ['jameson-defend-g2'],
     Number.isFinite(episodes) ? episodes : 120,
   );
 }

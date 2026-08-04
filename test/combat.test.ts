@@ -23,7 +23,7 @@ import { IMPACT, npcImpactDamage } from '../src/game/impact-damage.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { check, eq } from './harness.ts';
-import { DT, load } from './fixtures.ts';
+import { DT, load, SHIPPED_DEFEND } from './fixtures.ts';
 // --- resolving a hit ---------------------------------------------------------
 //
 // The bounty, the kill credit, the contract tick and the legal offence used to
@@ -180,7 +180,7 @@ console.log('\ncollision rates');
   // A pirate flying the shipped policy at a trader flying the shipped defence
   // policy is a fight the game contains.
   const shipped = load('pirate-attack-g3');
-  const evader = load('jameson-defend-g1');
+  const evader = load(SHIPPED_DEFEND);
   {
     const vScripted = rams(() => ({
       pirates: [{ kind: 'policy', brain: shipped }], trader: { kind: 'scripted' },

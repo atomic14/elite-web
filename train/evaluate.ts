@@ -40,7 +40,7 @@ function tryLoad(name: string): Brain | null {
 
 const SHIPPED_PIRATE = 'pirate-attack-g3';
 const SHIPPED_PACK = 'pirate-pack-r4-selectonly';
-const SHIPPED_DEFEND = 'jameson-defend-g1';
+const SHIPPED_DEFEND = 'jameson-defend-g2';
 
 /**
  * Every policy this tool will score, if its weights are on disk.

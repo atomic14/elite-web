@@ -51,7 +51,9 @@ import {
   NpcShip, matesLost, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
   type FireEvent,
 } from '../game/npc.ts';
-import { Ordnance, type Missile, type OrdnanceWorld } from '../game/ordnance.ts';
+import {
+  Ordnance, autopilotEcm, fireEcm, type Missile, type OrdnanceWorld,
+} from '../game/ordnance.ts';
 import { resolveNpcFire, type FireWorld } from '../game/fire-resolution.ts';
 import { hitFromAhead } from '../game/shield-face.ts';
 import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
@@ -73,14 +75,14 @@ import type { LaserType } from '../game/commander.ts';
 import { pirateSpecForTier } from '../game/ship-specs.ts';
 import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
 import {
-  MAX_ENERGY, MAX_SHIELD, applyDamage, durability, freshSystems, regenerate,
-  type RegenOptions, type ShipSystems,
+  MAX_ENERGY, MAX_SHIELD, applyDamage, durability, energyLeft, freshSystems,
+  poolsLeft, regenerate, type RegenOptions, type ShipSystems,
 } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
-  observe, act, makeScratch, shipView, writeView,
-  PACK_WIDE_OBS_SIZE, type Brain, type Control,
+  act, makeScratch, PACK_WIDE_OBS_SIZE, type Brain, type Control,
 } from './policy.ts';
+import { observeFor, shipView, writeView } from './observation.ts';
 
 /** One ship in an episode, however it is flown. */
 export interface EpisodeShip {
@@ -323,8 +325,35 @@ function pirateSpecFor(seed: number, index: number, count: number): NpcSpec {
  * record describes a world in which the only thing that could reach her was a
  * laser — the reason `jameson-defend-g1` ends 240 held-out episodes with 99.2%
  * of her pools. Nothing should average a 2 with a 3 either.
+ *
+ * **4** since docs/TODO/72: the target can ANSWER one. It carries an E.C.M. and
+ * a policy has an output that presses it, so a schema-3 record describes a world
+ * in which the only thing that could kill her was undodgeable — and every death
+ * of every defence policy ever measured, 19 of 19 and 4 of 4 and 42 of 42, had a
+ * warhead in it. A `died` column across the two schemas is not one measurement.
+ *
+ * ## Two decisions this file owes docs/TODO/72, stated here
+ *
+ * **E.C.M. is an ACTION, not a reflex.** The cheap version — press it whenever
+ * one is inbound and the bank can afford it — models a competent human almost
+ * exactly and needs no head change. It was rejected because of what the SEARCH
+ * would do with it: docs/TODO/65 is about a selector that already rewards never
+ * being hit, and handing that search a free 250 pool points a warhead produces a
+ * policy that hides while the reflex banks the credit, and calls it an
+ * improvement. As an output it is a decision the policy must find and can get
+ * wrong, and the bank it spends is visible to it (`observeDefend` slot 15). The
+ * cost was confined rather than paid three times over: the head is
+ * `DEFEND_OUT_SIZE` and only a defence genome has it, so `pirate-attack-g3` and
+ * `pirate-pack-r4-selectonly` are byte-identical.
+ *
+ * **The one-in-the-air cap stays.** It was a FAIRNESS rule — the player only
+ * gets one press, so a gang gets one warhead — and with the counter in the
+ * world it becomes a balance lever instead. Leaving it alone is what keeps this
+ * schema comparable to 3 on every axis but the answer itself; lifting it would
+ * change the threat and the answer in the same measurement and neither number
+ * would mean anything.
  */
-export const EPISODE_SCHEMA = 3;
+export const EPISODE_SCHEMA = 4;
 
 // --- the target's scale, which is now the commander's ------------------------
 //
@@ -407,6 +436,15 @@ export interface EpisodeSetup {
     armed: boolean;
     /** part of the fit-out, because it doubles how fast the pools come back */
     energyUnit: boolean;
+    /**
+     * ...and the E.C.M., which is the only answer to a warhead there is.
+     *
+     * Beside the laser and the energy unit because it belongs to the same
+     * question — what is this commander FITTED with — and it changes a fight
+     * more than either: a missile is 250 of her 765 pool points and every death
+     * ever measured had one in it (docs/TODO/72).
+     */
+    ecm: boolean;
     controller: string;
     pools: { foreShield: number; aftShield: number; energy: number };
   };
@@ -484,6 +522,19 @@ export interface EpisodeOptions {
    * says otherwise, so every existing episode and archived run means what it did.
    */
   targetEnergyUnit?: boolean;
+  /**
+   * Does the target carry an E.C.M.?
+   *
+   * Off unless a caller says otherwise, so every existing episode and every
+   * archived run still means what it did — the same bargain `traderLaser` and
+   * `targetEnergyUnit` make. `train/defence-fight.ts` turns it on for every
+   * defence fight, and says why there rather than here.
+   *
+   * It only DOES anything for a policy with an E.C.M. head: the equipment
+   * without the output is theatre, which is the reason docs/TODO/62 declined to
+   * fit it.
+   */
+  targetEcm?: boolean;
   /**
    * Which of the 15 flyable hulls the target IS — its per-hit armour and the
    * size of its three pools. The Cobra Mk III unless a caller says otherwise,
@@ -577,6 +628,19 @@ class TargetShip implements EpisodeShip {
   readonly regen: RegenOptions;
   /** every point the pools can hold: both faces and the bank */
   readonly maxPool: number;
+  /**
+   * The fit-out `ordnance.ts` reads — which is only ever "is there an E.C.M."
+   * (`EcmFit`).
+   *
+   * This is the seam docs/TODO/72 asked for. `Ordnance.triggerEcm` took a
+   * `CommanderData` and an episode's target has never been one: it is a hull id
+   * and a `ShipSystems`, and giving it a whole commander to satisfy one boolean
+   * would have put a career, a cargo hold and a legal status inside a training
+   * episode. So the RULE was narrowed to what it reads, exactly as
+   * `OrdnanceWorld` and `FireWorld` were, and both worlds hand it the same
+   * shape.
+   */
+  readonly equipment: { readonly ecm: boolean };
   alive = true;
   shotsFired = 0;
   shotsHit = 0;
@@ -588,13 +652,14 @@ class TargetShip implements EpisodeShip {
   pitchRate = 0;
   rollRate = 0;
 
-  constructor(hull: TargetHull, shipId: PlayerHullId, energyUnit: boolean) {
+  constructor(hull: TargetHull, shipId: PlayerHullId, energyUnit: boolean, ecm: boolean) {
     this.hull = hull;
     this.radius = hull.radius;
     this.name = hull.name;
     this.shipId = shipId;
     this.sys = freshSystems();
     this.regen = { shipId, energyUnit };
+    this.equipment = { ecm };
     this.maxPool = durability(true);
     this.ship = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
     this.ship.speed = hull.maxSpeed * 0.5;
@@ -608,8 +673,14 @@ class TargetShip implements EpisodeShip {
   set laserTemp(v: number) { this.sys.laserTemp = v; }
   get laserCooldown(): number { return this.sys.laserCooldown; }
   set laserCooldown(v: number) { this.sys.laserCooldown = v; }
-  /** THE observation boundary: exact points in, a fraction out. */
-  get hp(): number { return this.pool / this.maxPool; }
+  /**
+   * THE observation boundary: exact points in, a fraction out.
+   *
+   * `systems.ts`'s own expression rather than this file's arithmetic, because
+   * the combat computer feeds the identical number to the identical slot of the
+   * identical encoder and the two must not be able to disagree (docs/TODO/71).
+   */
+  get hp(): number { return poolsLeft(this.sys); }
   /** Points left across all three pools, exact. */
   get pool(): number {
     return this.sys.foreShield + this.sys.aftShield + this.sys.energy;
@@ -698,6 +769,15 @@ export class Episode {
    * `CombatSimReport` calls `damageBySource.ram`.
    */
   traderRams = 0;
+  /**
+   * Warheads that actually REACHED her — counted where the impact is billed,
+   * for the reason `traderRams` above is: it cannot be recovered from
+   * `damageTaken`, which is lasers and rams and this in one total, and it is
+   * the number that says whether the E.C.M. is doing anything. `missilesFired`
+   * on the pirate side is how many were launched; the difference is how many
+   * were answered (docs/TODO/72).
+   */
+  warheadsTaken = 0;
   readonly escapeRange: number;
   /** the gun the armed target fires — see PLAYER_LASERS */
   private readonly playerLaser: typeof PLAYER_LASERS[LaserType];
@@ -777,7 +857,7 @@ export class Episode {
     this.trader = new TargetShip(
       TARGET_HULLS[opts.traderClass ?? 'traderCobra'](),
       opts.targetShipId ?? COBRA_MK_3_HULL_ID,
-      !!opts.targetEnergyUnit);
+      !!opts.targetEnergyUnit, !!opts.targetEcm);
     const trader = this.trader;
     this.fire = {
       target: {
@@ -893,8 +973,17 @@ export class Episode {
       let policyWantsFire = false;
       if (tCtrl.kind === 'policy') {
         const threat = this.nearestPirate() ?? this.pirates[0];
-        const c = act(tCtrl.brain, this.observeTrader(threat), this.scratch);
+        const c = act(
+          tCtrl.brain, this.observeTrader(threat, tCtrl.brain, missileInbound), this.scratch);
         policyWantsFire = c.fire && !!this.opts.traderArmed; // armed policies may shoot
+        // SHE ANSWERS THE WARHEAD — `ordnance.ts`'s own rule and its own price,
+        // through the same `fireEcm` the player's key and the combat computer
+        // both press, gated the same way the co-pilot's is (docs/TODO/72). Only
+        // a `DEFEND_OUT_SIZE` genome ever asks: `Control.ecm` is false for every
+        // brain without the head.
+        if (autopilotEcm(c.ecm, missileInbound)) {
+          fireEcm(this.trader, this.trader.sys, this.ordnance);
+        }
         this.trader.step(dt, { ...c, fire: false });
       } else if (tCtrl.kind === 'runner') {
         this.runningTrader(dt);
@@ -1004,6 +1093,7 @@ export class Episode {
   private applyOrdnance(dt: number): void {
     for (const e of this.ordnance.step(dt, this.trader.pos)) {
       if (e.kind !== 'hitPlayer' || !this.trader.alive) continue;
+      this.warheadsTaken += 1;
       this.trader.takeDamage(playerImpactDamage(IMPACT.warhead), this.hitFromFront(e.at));
     }
   }
@@ -1209,8 +1299,18 @@ export class Episode {
 
   // --- observation -------------------------------------------------------------
 
-  /** What the trader's policy sees. Same encoder the game feeds an NPC. */
-  private observeTrader(threat: PirateShip): Float32Array {
+  /**
+   * What the trader's policy sees. Same encoder the game feeds an NPC, and
+   * chosen the same way — `observeFor`, off the brain's own input count, so a
+   * genome this file can produce is by construction a genome the game can fly.
+   * It called `observe()` outright, which was right for exactly as long as
+   * every defence policy had fourteen inputs (docs/TODO/71).
+   *
+   * `mates` is null: the target has no fleet, here or in the game.
+   */
+  private observeTrader(
+    threat: PirateShip, brain: Brain, missileInbound: boolean,
+  ): Float32Array {
     const me = this.meView;
     const t = this.threatView;
     writeView(me, this.trader.pos, this.trader.quat);
@@ -1219,11 +1319,19 @@ export class Episode {
     me.cls.turnRate = this.trader.hull.maxPitch / TURN.pitch;
     me.laserTemp = this.trader.laserTemp;
     me.laserCooldown = this.trader.laserCooldown;
+    // The two docs/TODO/71 and /72 are about, from `systems.ts`'s expressions —
+    // the SAME calls `CombatComputer.step` makes, which is the whole of what
+    // keeps the policy in distribution when it leaves the trainer. `cls.hp` is
+    // 1 because `poolsLeft` is already a fraction.
+    me.hp = this.trader.hp;
+    me.cls.hp = 1;
+    me.energy = energyLeft(this.trader.sys);
+    me.missileInbound = missileInbound;
     me.pitchRate = this.trader.pitchRate;
     me.rollRate = this.trader.rollRate;
     writeView(t, threat.pos, threat.quat);
     t.speed = threat.speed;
-    return observe(me, t, this.obs);
+    return observeFor(brain, me, t, null, this.obs);
   }
 
   // --- geometry ----------------------------------------------------------------
@@ -1276,6 +1384,7 @@ export class Episode {
           ? (this.opts.traderLaser ?? 'pulse') : 'npc',
         armed: !!this.opts.traderArmed,
         energyUnit: this.trader.regen.energyUnit,
+        ecm: this.trader.equipment.ecm,
         controller: this.opts.trader.kind,
         pools: { foreShield: MAX_SHIELD, aftShield: MAX_SHIELD, energy: MAX_ENERGY },
       },

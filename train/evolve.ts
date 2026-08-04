@@ -25,10 +25,12 @@ import {
   Episode, type Controller, type TargetHullId,
 } from '../src/ai-training/scenario.ts';
 import {
-  randomBrain, mutate, brainFromFile, OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
-  observe, act, makeScratch, shipView,
-  type Brain, type BrainFile, type ShipView,
+  randomBrain, mutate, brainFromFile, widenBrain, act, makeScratch,
+  OBS_SIZE, DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
+  OUT_SIZE, DEFEND_OUT_SIZE, HIDDEN,
+  type Brain, type BrainFile,
 } from '../src/ai-training/policy.ts';
+import { observeFor, shipView, type ShipView } from '../src/ai-training/observation.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 import { defenceFight } from './defence-fight.ts';
@@ -93,7 +95,7 @@ const DT = FIXED_DT;
 const OUT_NAME = getStrArg('out',
   phase === 'attack' ? 'pirate-attack-g3'
     : phase === 'evade' ? 'trader-evade'
-      : phase === 'defend' ? 'jameson-defend-g1' : 'pirate-pack-r4-selectonly');
+      : phase === 'defend' ? 'jameson-defend-g2' : 'pirate-pack-r4-selectonly');
 
 const BRAINS_DIR = new URL('../src/ai-training/brains/', import.meta.url).pathname;
 const LOGS_DIR = new URL('./logs/', import.meta.url).pathname;
@@ -179,7 +181,18 @@ if (POOL && phase !== 'attack' && phase !== 'pack') {
 const SELECT_KILLS = args.includes('--select-kills');
 const VALIDATE_SELECT = args.includes('--validate-select');
 
-const OBS = phase === 'pack' ? (WIDE ? PACK_WIDE_OBS_SIZE : PACK_OBS_SIZE) : OBS_SIZE;
+/**
+ * The shape of the genomes this run searches over.
+ *
+ * `defend` is its own pair since docs/TODO/71 and /72: seventeen inputs, because
+ * a defender needs to see how hurt it is and whether a warhead is coming, and
+ * thirteen outputs, because it needs a button to answer one with. Nothing else
+ * moved — attack and pack search exactly the shapes they always did, which is
+ * what keeps the two shipped pirate brains valid.
+ */
+const OBS = phase === 'pack' ? (WIDE ? PACK_WIDE_OBS_SIZE : PACK_OBS_SIZE)
+  : phase === 'defend' ? DEFEND_OBS_SIZE : OBS_SIZE;
+const OUT = phase === 'defend' ? DEFEND_OUT_SIZE : OUT_SIZE;
 
 interface PoolEntry {
   ctrl: Controller;
@@ -246,8 +259,8 @@ const traderPool: PoolEntry[] = (() => {
   // Retrain a `trader-evade` brain (`npm run train -- evade`) and add it back
   // here if the variety is wanted.
   for (const [name, armed, hull] of [
-    ['jameson-defend-g1', true, 'playerCobra'],      // fights properly
-    ['jameson-defend-g1', true, 'playerCobraSlow'],  // slow knife-fight, shoots
+    ['jameson-defend-g2', true, 'playerCobra'],      // fights properly
+    ['jameson-defend-g2', true, 'playerCobraSlow'],  // slow knife-fight, shoots
   ] as const) {
     if (name === HOLD_OUT) { console.log(`(pool) holding out ${name}`); continue; }
     try {
@@ -306,7 +319,7 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
   }
   if (phase === 'defend') {
     // an armed Jameson against whatever the seed throws at it
-    const { count, hull, laser, energyUnit } = defenceFight(seed);
+    const { count, hull, laser, energyUnit, ecm } = defenceFight(seed);
     return new Episode({
       seed,
       pirates: Array.from({ length: count }, () => opponentController()),
@@ -315,6 +328,7 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
       traderClass: hull,
       traderLaser: laser,
       targetEnergyUnit: energyUnit,
+      targetEcm: ecm,
     });
   }
   // pack: 2-4 ships sharing one policy vs an armed scripted trader. Pack
@@ -366,7 +380,7 @@ function scriptedReference(gen: number): number {
     if (phase === 'evade') {
       ep = new Episode({ seed, pirates: [opponentController()], trader: { kind: 'scripted' } });
     } else if (phase === 'defend') {
-      const { count, hull, laser, energyUnit } = defenceFight(seed);
+      const { count, hull, laser, energyUnit, ecm } = defenceFight(seed);
       ep = new Episode({
         seed,
         pirates: Array.from({ length: count }, () => opponentController()),
@@ -375,6 +389,7 @@ function scriptedReference(gen: number): number {
         traderClass: hull,
         traderLaser: laser,
         targetEnergyUnit: energyUnit,
+        targetEcm: ecm,
       });
     } else if (phase === 'pack') {
       ep = new Episode({
@@ -403,17 +418,30 @@ const rng = makeRng(0xe11e + (phase === 'evade' ? 1 : phase === 'pack' ? 2 : 0))
 const seedName = getStrArg('seed-brain', '');
 let population: Brain[];
 if (seedName) {
-  const seedBrain = loadBrain(seedName);
+  const loaded = loadBrain(seedName);
+  // A seed brain from BEFORE the phase's shape changed is widened rather than
+  // refused: the extra weights are zero, so generation 0 flies exactly the
+  // policy on disk and the new inputs and the new head start inert. Without
+  // this, docs/TODO/71 and /72 would have made `--seed-brain jameson-defend-g1`
+  // impossible — and that command is where the only defence policy that has
+  // ever fought came from, so the retrain would have changed the search's
+  // starting point in the same run it changed the observation.
+  const seedBrain = loaded.obsSize === OBS && loaded.outSize === OUT
+    ? loaded : widenBrain(loaded, OBS, OUT);
+  if (seedBrain !== loaded) {
+    console.log(`widened ${seedName} from ${loaded.obsSize} inputs / ${loaded.outSize} `
+      + `outputs to ${OBS} / ${OUT} — the new weights are zero, so it starts as itself`);
+  }
   population = [seedBrain, ...Array.from({ length: POP - 1 }, (_, i) =>
     mutate(seedBrain, rng, i % 2 === 0 ? 0.05 : 0.12))];
 } else {
-  population = Array.from({ length: POP }, () => randomBrain(rng, OBS));
+  population = Array.from({ length: POP }, () => randomBrain(rng, OBS, HIDDEN, 0.5, OUT));
 }
 
 const logPath = `${LOGS_DIR}${OUT_NAME}-${Date.now()}.jsonl`;
 const started = Date.now();
 
-console.log(`phase=${phase} out=${OUT_NAME} pop=${POP} gens=${GENS} eps=${EPISODES} obs=${OBS}` +
+console.log(`phase=${phase} out=${OUT_NAME} pop=${POP} gens=${GENS} eps=${EPISODES} obs=${OBS} heads=${OUT}` +
   (opponentName ? ` opponent=${opponentName}` : '') + (seedName ? ` seed-brain=${seedName}` : ''));
 
 let best: Brain = population[0];
@@ -499,13 +527,25 @@ function flies(genome: Brain): { forward: number; degenerate: boolean } {
   for (const targetSpeed of [0, 90, 220, 400]) {
     // the freighter and the commander: the two hulls the pool trains against
     for (const [maxSpeed, turnRate] of [[220, 0.5], [400, 1.036]] as const) {
-      const me = view(260, 0.8, 1800, 200);
-      const tgt = view(maxSpeed, turnRate, 0, targetSpeed);
-      for (let i = 0; i < 60; i++) {
-        const c = act(genome, observe(me, tgt, obs), scratch);
-        if (c.throttle > 0) forward += 1;
-        frames += 1;
-        me.pos.z -= 25;
+      // ...and, since docs/TODO/71, HEALTHY AND HURT. A defence genome's
+      // observation includes its own pools, and this guard would otherwise
+      // sample every candidate at whatever was left in the buffer — judging a
+      // pilot on an observation the trainer never gives it, which is the exact
+      // failure the item warns about. It changes NOTHING for attack and pack:
+      // `observeFor` hands them the solo encoder, which does not read these
+      // fields, so both passes produce identical observations and identical
+      // shares.
+      for (const health of [1, 0.35]) {
+        const me = view(260, 0.8, 1800, 200);
+        me.hp = health;
+        me.energy = health;
+        const tgt = view(maxSpeed, turnRate, 0, targetSpeed);
+        for (let i = 0; i < 60; i++) {
+          const c = act(genome, observeFor(genome, me, tgt, null, obs), scratch);
+          if (c.throttle > 0) forward += 1;
+          frames += 1;
+          me.pos.z -= 25;
+        }
       }
     }
   }
@@ -608,6 +648,7 @@ const out: BrainFile = {
     hyperparams: { pop: POP, episodes: EPISODES, elites: ELITES, dt: +DT.toFixed(4) },
     obsSize: best.obsSize,
     hidden: best.hidden,
+    outSize: best.outSize,
   },
   weights: Array.from(best.weights).map((w) => +w.toFixed(5)),
 };

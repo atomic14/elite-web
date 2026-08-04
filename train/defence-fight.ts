@@ -52,6 +52,30 @@ export interface DefenceFight {
    * ships that will fly it.
    */
   energyUnit: boolean;
+  /**
+   * ...and her E.C.M., which is FITTED IN EVERY DEFENCE FIGHT rather than
+   * rotated, and that is a decision (docs/TODO/72).
+   *
+   * The argument is the one that keeps pulse out of `LASERS` above, only
+   * stronger. A commander who has bought a 20,000-credit combat computer has
+   * bought the 600-credit E.C.M., and a policy fitted in a world where a
+   * warhead cannot be answered has learned to fly a game harder than the one
+   * the player plays — the opposite of docs/TODO/62's failure and just as
+   * wrong.
+   *
+   * And rotating it would repeat docs/TODO/65's mistake in a new place. There
+   * is no "E.C.M. fitted" input in `observeDefend`, deliberately (17 slots, and
+   * the split is written down there), so a policy could not tell which world it
+   * was in — half its episodes would reward pressing a button that did nothing,
+   * and the variance would land on exactly the two columns the promotion turns
+   * on, `died` and pools kept.
+   *
+   * It is a constant FIELD rather than a constant at the call sites because
+   * this function is the one home for what a defender meets, and the two
+   * callers — `train/evolve.ts` and `train/defence-probe.ts` — must not be able
+   * to disagree about it. Making it an axis later is one line here.
+   */
+  ecm: boolean;
 }
 
 /**
@@ -77,5 +101,6 @@ export function defenceFight(seed: number): DefenceFight {
     hull: HULLS[(seed >>> 9) % HULLS.length]!,
     laser: LASERS[(seed >>> 15) % LASERS.length]!,
     energyUnit: ((seed >>> 6) & 1) === 1,
+    ecm: true,
   };
 }

@@ -49,8 +49,8 @@ because retraining a phase overwrites its committed brain file.
 > Which brains ship is likewise not settled by any entry below: it is
 > `src/game/brains.ts`, and `npm test` reads that file rather than a list. As
 > of Run 19 they are `pirate-attack-g3` (pirates), `pirate-pack-r4-selectonly`
-> (organised gangs) and `jameson-defend-g1` (armed traders and the combat
-> computer).
+> (organised gangs) and — since docs/TODO/71 and /72 — `jameson-defend-g2`
+> (armed traders and the combat computer), which replaced `jameson-defend-g1`.
 
 ## Infrastructure
 
@@ -2504,3 +2504,185 @@ ceiling, not the phase's.
 armed FREIGHTER lands about 51% more of its shots than the game's would. It does
 not touch the `playerCobra` rows (the commander's own deterministic laser); the
 `traderCobra` row is the one to distrust.
+
+## 2026-08-04 — the defender can see itself and answer a missile (TODO 71 + 72), and `jameson-defend-g2` ships
+
+The first entry that changes **what a policy observes and what it can do**, and
+the first defence brain promoted since g1. `EPISODE_SCHEMA` moves 3 → 4: a
+record from before today describes a world in which a warhead could not be
+answered, and the `died` column across the two is not one measurement.
+
+### What changed
+
+Two items, done as one pass because they are one observation change.
+
+**docs/TODO/71 — a defender could not see its own pools.** `observe()` is
+fourteen numbers and none of them was the ship's own condition, so a defender at
+full shields and one hit from the escape capsule emitted identical controls in
+identical geometry. That is why the kill rate was identical to the decimal
+either side of TODO 63.
+
+**docs/TODO/72 — the target could not answer a missile.** No E.C.M. fitted, no
+output that could press one, no observation that there was anything to press.
+Every death of every defence policy ever measured had a warhead in it — 19 of
+19, 4 of 4, 42 of 42.
+
+**The encoder decision, and it is the load-bearing one.** A separate
+`observeDefend()` at **17 inputs** and a separate `DEFEND_OUT_SIZE` at **13
+heads**, rather than two more slots on `observe()` and a twelfth output on
+everything. `observePack`/`observePackWide` both call `observe()` first and
+`OUT_SIZE` is shared, so the obvious version invalidates all three shipped
+brains and costs three retrains. This confines it to the defence phase:
+`pirate-attack-g3` and `pirate-pack-r4-selectonly` are **byte-identical** and
+were not retrained, `npm run flight-probe` is byte-identical to its pre-change
+output, and `test/defence-answer.test.ts` asserts both files still declare the
+shapes they were trained at.
+
+```
+observeDefend, 17 = the solo 14 plus
+  14  everything left, over everything she can hold   (systems.ts poolsLeft)
+  15  the energy bank alone                           (systems.ts energyLeft)
+  16  a hostile warhead is in the air                 (Ordnance.missileInbound)
+
+DEFEND_OUT_SIZE, 13 = pitch(3) roll(3) throttle(3) fire(2) + E.C.M.(2)
+```
+
+The fore/aft shield SPLIT was deliberately left out: 17 keeps the four encoder
+sizes distinct (18 is `observePack`'s), slots 14 and 15 already give the total
+and the bank so only the split is missing, and every input is search space a
+fixed generation budget has to cover. It is one size (19) away.
+
+**E.C.M. is an ACTION, not a reflex**, and it is **fitted in every defence
+fight** rather than rotated (`train/defence-fight.ts` says why: a commander with
+a 20,000-credit combat computer has the 600-credit E.C.M., and rotating an axis
+no input can see is TODO 65's mistake in a new place). The one-in-the-air cap
+stays. `autopilotEcm` gates the press on there being a warhead to answer, so the
+trainer (deciding every step) and the combat computer (10 Hz) spend the same one
+burst per warhead.
+
+`widenBrain()` is what made the retrain like-for-like: it re-strides a genome
+into a wider shape with the new weights at zero, so `--seed-brain
+jameson-defend-g1` still starts generation 0 as g1 exactly — the run changes the
+observation without also changing where the search starts.
+
+### The three runs
+
+Identical to the TODO 65 commands, so the comparison is like-for-like. 8m38s
+wall clock for all three in parallel; ~7 minutes each.
+
+```sh
+npm run train -- defend --gens 300 --pop 48 --eps 3 --validate-select --select-kills \
+  --seed-brain jameson-defend-g1 --out jameson-defend-t71a
+npm run train -- defend --gens 300 --pop 48 --eps 3 --validate-select --select-kills \
+  --out jameson-defend-t71b
+npm run train -- defend --gens 300 --pop 48 --eps 3 --validate-select \
+  --out jameson-defend-t71c
+```
+
+`npm run defence-probe -- 400`, 800 held-out episodes each, against the scripted
+attack run (1-4 pirates, three hulls, beam or military, energy unit by seed):
+
+| brain | pools left | died | broke | killed |
+| --- | --- | --- | --- | --- |
+| `jameson-defend-g1` (was shipped) | 89.2% | **30/800** | 13.6% | 4.8% |
+| **`jameson-defend-t71a` → g2** | **98.3%** | **0/800** | **58.8%** | **41.6%** |
+| `jameson-defend-t71b` | 98.5% | 0/800 | 13.6% | 5.2% |
+| `jameson-defend-t71c` | 98.2% | 1/800 | 3.4% | 3.3% |
+
+`t71a` is **8.7x the kills at strictly better survivability** — better on every
+column, not a trade. TODO 65's bar was "better kills AT equal survivability" and
+this clears it outright, which `t65c` (41.0% kills, 42/800 dead) did not.
+`--select-kills` plus the g1 seed is what produces the fighter, exactly as 65
+found: `t71b` and `t71c` are better runners than the runner.
+
+### Which half did it — the ablation that matters
+
+Same brains, same seeds, E.C.M. fitted and not:
+
+| brain | ecm | died | pools | broke | killed | launched/ep | landed/ep |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `jameson-defend-g1` | yes | 30/800 | 89.2% | 13.6% | 4.8% | 0.71 | 0.64 |
+| `jameson-defend-g1` | no | 30/800 | 89.2% | 13.6% | 4.8% | 0.71 | 0.64 |
+| `jameson-defend-g2` | yes | **0/800** | 98.3% | 58.8% | 41.6% | 0.80 | **0.00** |
+| `jameson-defend-g2` | no | 37/800 | 90.1% | 56.4% | 37.3% | 0.75 | 0.68 |
+
+Three things, and the third is the honest one.
+
+1. **g1 is identical with and without an E.C.M.**, to the episode — proof that
+   an 11-head policy cannot press it and therefore that fitting one is not what
+   flattered g2.
+2. **The E.C.M. is the whole of the survivability gain.** The same g2 without it
+   dies 37 times in 800 and takes 0.68 warheads an episode; with it, zero of
+   either. TODO 65's held brain died 42 times; this is the same policy family
+   with the counter the world was missing.
+3. **The health inputs are NOT what unlocked the fighting.** g2-without-E.C.M.
+   reads 37.3% kills / 90.1% pools / 37 deaths, which is `t65c`'s profile
+   (41.0% / 89.7% / 42) inside the noise. The 14-input family had already found
+   that fighter; what 71 bought was not a better fight, it was the ability to
+   condition on being hurt — and the search spent it differently from how the
+   item expected (below).
+
+### What the policy actually learned, which is not what TODO 71 predicted
+
+240 held-out episodes, sampled at 10 Hz:
+
+| brain | mean speed | range p10/med/p90 | median range whole / hurt | share of the fight spent hurt |
+| --- | --- | --- | --- | --- |
+| `jameson-defend-g1` | 8 | 129 / 361 / 874 | 374 / 307 | 15.3% |
+| `jameson-defend-g2` | 5 | 134 / **401** / **1056** | 402 / 385 | **4.3%** |
+
+The engagement-range spread widened rather than collapsed, which is the
+acceptance criterion 71 asked for. **It did not learn to break off when hurt.**
+Its median range when hurt is 385 against 402 when whole — it closes very
+slightly, the same direction g1 does. What it learned instead is to be hurt
+one-quarter as often, by killing the attacker. That is a legitimate answer to
+"condition on your own pools" and it is not the answer the item guessed at, and
+the item's own acceptance line about "disengages when hurt and re-engages when
+recovered" is **not met**.
+
+**Both defence policies are near-stationary knife-fighters** (speed 5 and 8).
+That is not new — g1 was already one — but it is the thing to fly before
+trusting: the combat computer holds your ship almost still and pivots.
+
+### The other two tools, and one of them had the same defect
+
+`npm run evaluate` (unchanged setup, no E.C.M., two shipped pirates on her tail):
+
+```
+| matchup                       | hurt  | kill | acc  | shots | on-six | lost  |
+| jameson-defend-g1 (was)       | 18.9% |   0% |  50% |   9.8 |   2.4s |  0.43 |
+| jameson-defend-g2 (SHIPPED)   | 18.5% |   2% |  48% |  10.1 |   1.6s |  0.50 |
+```
+
+`npm run survivability` **now fits the E.C.M.**, and it had to: the tool models a
+commander with a combat computer flying her ship — a fitted commander — and it
+was scoring a policy on a third distribution nothing had trained for. Its own
+header listed E.C.M. among the things it left out. Fitting one changes nothing
+for g1 (it cannot press it), so this does not flatter the new brain.
+
+| gang | brain | g1 destroyed | g2 destroyed | g1 lost/ep | g2 lost/ep |
+| --- | --- | --- | --- | --- | --- |
+| 1 | solo | 0% | 0% | 0.04 | **0.54** |
+| 1 | pack | 0% | 0% | 0.03 | **0.42** |
+| 2 | solo | 1% | **0%** | 0.35 | 0.60 |
+| 2 | pack | 1% | **0%** | 0.12 | **0.60** |
+| 3 | solo | 1% | **1%** | 0.56 | 0.79 |
+| 3 | pack | 0% | 0% | 0.19 | **0.67** |
+| 4 | solo | **6%** | **1%** | 1.20 | 1.24 |
+| 4 | pack | 2% | **0%** | 0.37 | **1.02** |
+
+A gang of four opportunists kills a fitted commander **one sixth** as often, and
+she takes three to fourteen times as many of them with her.
+
+### One more divergence closed on the way
+
+`combat-computer.ts` pinned the threat's speed at a constant **280** because
+that was the only value any defence policy had been flown against — the comment
+said in as many words "load-bearing until the brain is retrained". It has been.
+`Episode.observeTrader` has always fed the REAL speed, so the pin was the
+divergence rather than the protection, and the combat computer feeds
+`threat.state.speed` now. The 300/1.1 envelope stays: no encoder reads a
+target's `cls`.
+
+The 300 fed to the PIRATE brains in `npc.ts` is untouched — those brains were
+not retrained and it is still load-bearing for them.

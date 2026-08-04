@@ -111,3 +111,90 @@ which is the same claim from the commander's side — 62 moved it from 0%
 destroyed at every gang size to 1-4%, and a pack of four killing her in 8.3
 seconds is Chris's real 9.1-second death showing up in the trainer for the first
 time.
+
+## DONE, 2026-08-04 — an action, always fitted, and it is what shipped the brain
+
+Done in ONE pass with docs/TODO/71, as this file asked for. Full record in
+docs/TRAINING-LOG.md; the decisions this file asked for are below.
+
+### Action, not reflex — and the reason is the SEARCH, not the fidelity
+
+`DEFEND_OUT_SIZE = 13`: pitch(3) roll(3) throttle(3) fire(2) + **E.C.M.(2)**,
+and only a defence genome has it. Stated in `scenario.ts` as required.
+
+The reflex version models a competent human almost exactly and costs no
+retrain. It was rejected because of what the selector would do with it:
+docs/TODO/65 is about a search that already rewards never being hit, and handing
+it a free 250 pool points a warhead produces a policy that hides while the
+reflex banks the credit and the metric calls it an improvement. As an output it
+is a decision the policy has to find, can get wrong, and pays for out of a bank
+it can see (`observeDefend` slot 15).
+
+**It did not cost three retrains.** `OUT_SIZE` is shared, so a twelfth output on
+every policy would have invalidated `pirate-attack-g3` and
+`pirate-pack-r4-selectonly` too — for a button neither can press. The head is
+`DEFEND_OUT_SIZE` and `Control.ecm` is `false` for any 11-head genome, so both
+pirate brains are byte-identical and were not retrained.
+
+### The one-in-the-air cap STAYS
+
+It was a fairness rule — the player gets one press, so a gang gets one warhead —
+and with the counter in the world it becomes a balance lever instead. Leaving it
+alone is what keeps schema 4 comparable to 3 on every axis but the answer
+itself; lifting it would have changed the threat and the answer in the same
+measurement and neither number would have meant anything.
+
+### The seam
+
+`Ordnance.triggerEcm` took a `CommanderData`; it takes an `EcmFit` now —
+`{ equipment: { ecm } }`, the narrowest surface the rule reads. `CommanderData`
+satisfies it structurally and a training target supplies it directly. Same
+bargain as `OrdnanceWorld` (62) and `FireWorld` (64).
+
+`fireEcm(fit, sys, ordnance)` is new and is the burst AND its price in one call.
+`game.ts` used to read the reply and take `ECM_ENERGY_COST` off the bank itself,
+which was fine with one orchestrator; there are three presses now (the player's
+key, the combat computer, the episode's target) and every rule split across
+`world-step.ts` and `scenario.ts` has drifted. `autopilotEcm(wants, inbound)` is
+the gate: whether there is a warhead to answer is the world's business, and
+gating it makes the trainer (deciding every step) and the combat computer
+(10 Hz) spend the same ONE burst per warhead.
+
+### Fitted in every defence fight, not rotated
+
+`train/defence-fight.ts` carries `ecm: true` as a field rather than an axis, and
+says why: a commander with a 20,000-credit combat computer has the 600-credit
+E.C.M., and rotating an axis no input can see is docs/TODO/65's mistake in a new
+place — half the episodes would reward pressing a button that did nothing, and
+the variance would land on exactly the two columns a promotion turns on.
+`EpisodeSetup.target.ecm` records it and `EPISODE_SCHEMA` is **4**.
+
+`train/survivability.ts` fits it too, for the same reason and because its own
+header already listed E.C.M. among the things it left out.
+
+### Acceptance
+
+- **A target with E.C.M. destroys an inbound warhead and one without does not,
+  on the same seed** — asserted in `test/defence-answer.test.ts`: seed 8,722,823,
+  one warhead, exactly `IMPACT.warhead` fewer pool points. ✅
+- **The fit-out is in `EpisodeSetup` and the schema moved.** ✅
+- **A stated decision in `scenario.ts` on action-vs-reflex and on the cap.** ✅
+- **`npm run defence-probe` re-run** — and it did more than come back part of
+  the way. Same brain, same 800 held-out seeds, fitted and not:
+
+  | | died | pools | landed/ep |
+  | --- | --- | --- | --- |
+  | `jameson-defend-g2`, E.C.M. | **0/800** | 98.3% | **0.00** |
+  | `jameson-defend-g2`, none | 37/800 | 90.1% | 0.68 |
+  | `jameson-defend-g1` (no head), either | 30/800 | 89.2% | 0.64 |
+
+  Every death is a warhead, so answering every warhead is zero deaths. And g1
+  is identical fitted or not, to the episode, which is the control: fitting an
+  E.C.M. is not what flattered the new brain.
+
+- `npm run survivability`: a gang of four opportunists kills a fitted commander
+  **1%** of the time against g1's 6%, and loses 1.24 ships an episode doing it.
+
+**This is what shipped `jameson-defend-g2`.** docs/TODO/65 held `t65c` because
+41% kills came with 42 deaths in 800; the same fight with a counter in it is 42%
+kills and zero, which is the promotion criterion met rather than traded.

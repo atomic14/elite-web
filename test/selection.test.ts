@@ -75,7 +75,11 @@ function wired(o: Wiring): Brain {
   // the fire head is [don't, fire] and `act` takes the larger — this one bias
   // is the entire difference between the two genomes below
   weights[bias + 10] = o.fire ? 1 : -1;
-  return { weights, obsSize: OBS_SIZE, hidden: H };
+  // Fourteen inputs and eleven heads: the shape every policy had before
+  // docs/TODO/71 and /72, kept deliberately. These two genomes exist to assert
+  // the SELECTION RULE, and the rule must go on ranking a policy that cannot
+  // see its own pools — otherwise the assertion would be about the encoder.
+  return { weights, obsSize: OBS_SIZE, hidden: H, outSize: OUT_SIZE };
 }
 
 const turret = wired({ aim: 1, throttle: 0, fire: true });

@@ -70,13 +70,19 @@
 
   const auto = window.__auto = {
     log: [],
-    obsBuf: new Float32Array(18),
+    // 26 wide, as npc.ts's and combat-computer.ts's buffers are: which encoder
+    // runs is the brain's decision, not this harness's. It was 18.
+    obsBuf: new Float32Array(26),
     scratch: kit.makeScratch(),
     cPitch: 0, cRoll: 0, cTimer: 0, cControl: null,
+    // `hp`/`energy`/`missileInbound` are the defence encoder's (docs/TODO/71,
+    // /72), refilled per decision below from `systems.ts`'s own expressions.
     meView: { pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 0,
-      cls: { maxSpeed: 220, turnRate: 0.5 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
+      cls: { maxSpeed: 220, turnRate: 0.5, hp: 1 }, hp: 1, energy: 1, missileInbound: false,
+      laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
     tgView: { pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 280,
-      cls: { maxSpeed: 300, turnRate: 1.1 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
+      cls: { maxSpeed: 300, turnRate: 1.1, hp: 1 }, hp: 1, energy: 1, missileInbound: false,
+      laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
 
     cargoTonnes() {
       return g.commander.cargo.reduce((s, q, i) => s + (isTonne(i) ? q : 0), 0);
@@ -171,11 +177,15 @@
         me.pos.x = p.x; me.pos.y = p.y; me.pos.z = p.z;
         me.quat.x = q.x; me.quat.y = q.y; me.quat.z = q.z; me.quat.w = q.w;
         me.speed = g.player.speed; me.laserTemp = g.laserTemp; me.laserCooldown = g.laserCooldown;
+        me.hp = kit.poolsLeft(g.sys); me.energy = kit.energyLeft(g.sys);
+        me.missileInbound = g.missiles.some((m) => m.target === null);
         me.pitchRate = this.cPitch; me.rollRate = this.cRoll;
         const tp = target.object.position, tq = target.object.quaternion;
         tv.pos.x = tp.x; tv.pos.y = tp.y; tv.pos.z = tp.z;
         tv.quat.x = tq.x; tv.quat.y = tq.y; tv.quat.z = tq.z; tv.quat.w = tq.w;
-        this.cControl = kit.act(kit.defendBrain, kit.observe(me, tv, this.obsBuf), this.scratch);
+        this.cControl = kit.act(
+          kit.defendBrain, kit.observeFor(kit.defendBrain, me, tv, null, this.obsBuf),
+          this.scratch);
       }
       const c = this.cControl;
       // Trader-Cobra dynamics: the distribution the policy trained in, and

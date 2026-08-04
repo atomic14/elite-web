@@ -20,9 +20,12 @@
 // the scripted AI, rather than taking the game down.
 
 import {
-  observe, observePack, act, makeScratch, brainFromFile,
-  type Brain, type BrainFile,
+  act, makeScratch, brainFromFile, type Brain, type BrainFile,
 } from '../ai-training/policy.ts';
+import {
+  observe, observePack, observeDefend, observeFor,
+} from '../ai-training/observation.ts';
+import { energyLeft, poolsLeft } from './systems.ts';
 import {
   defenceBrainNameFor, isPackBrain, pirateBrainNameFor,
   SHIPPED_BRAINS, type BrainName, type BrainSelection,
@@ -33,7 +36,7 @@ import {
 import { BRAIN_HANDOVER_RANGE } from './break-off.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
-import defendBrainFile from '../ai-training/brains/jameson-defend-g1.json' with { type: 'json' };
+import defendBrainFile from '../ai-training/brains/jameson-defend-g2.json' with { type: 'json' };
 
 // The neuroevolution-trained pirate brain (see docs/TRAINING-LOG.md).
 //
@@ -117,7 +120,7 @@ const PACK_BRAIN: Brain | null = (() => {
 const LOADED: Record<BrainName, Brain | null> = {
   'pirate-attack-g3': PIRATE_BRAIN,
   'pirate-pack-r4-selectonly': PACK_BRAIN,
-  'jameson-defend-g1': DEFEND_BRAIN,
+  'jameson-defend-g2': DEFEND_BRAIN,
   // the pre-neuroevolution AI is code, not weights
   scripted: null,
 };
@@ -141,6 +144,14 @@ const TARGET_SPEED_FLOOR = 150;
 export function policyKit(): Record<string, unknown> {
   return {
     act, observe, observePack, makeScratch,
+    // `observeFor` is what a harness should actually call: it picks the encoder
+    // off the brain's own input count, so a console script cannot be left
+    // feeding fourteen numbers to a policy that reads seventeen — which is
+    // silent, and reads as "the defender has no ship left" (docs/TODO/71).
+    // `poolsLeft` and `energyLeft` are here for the same reason: those two
+    // slots must be filled from `systems.ts`'s expressions, not a harness's
+    // arithmetic.
+    observeDefend, observeFor, poolsLeft, energyLeft,
     pirateBrain: PIRATE_BRAIN, packBrain: PACK_BRAIN, defendBrain: DEFEND_BRAIN,
   };
 }

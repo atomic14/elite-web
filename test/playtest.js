@@ -118,7 +118,11 @@
 
     // ---- combat: hand the ship to the trained defence policy ----------
 
-    obsBuf: new Float32Array(18),
+    // 26 wide, as npc.ts's and combat-computer.ts's buffers are: which encoder
+    // runs is the brain's decision, not this harness's, so a buffer sized to
+    // today's shipped policy is one that reads past its end the day a wider
+    // one ships. It was 18.
+    obsBuf: new Float32Array(26),
     scratch: kit.makeScratch(),
     cPitch: 0, cRoll: 0, cTimer: 0, cControl: null,
     // `cls` is the OBSERVATION normaliser, not the ship. It stays at the
@@ -126,10 +130,16 @@
     // combat-computer.ts feeds it — because changing it moves the observation
     // out of the distribution the brain learned. The ship it actually flies is
     // PLAYER_FLIGHT, below.
+    //
+    // `hp`/`energy`/`missileInbound` are the defence encoder's (docs/TODO/71,
+    // /72) and are refilled per decision below from `systems.ts`'s own
+    // expressions, through the kit. `cls.hp` is 1 because both are fractions.
     meView: { pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 0,
-      cls: { maxSpeed: 220, turnRate: 0.5 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
+      cls: { maxSpeed: 220, turnRate: 0.5, hp: 1 }, hp: 1, energy: 1, missileInbound: false,
+      laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
     tgView: { pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 }, speed: 280,
-      cls: { maxSpeed: 300, turnRate: 1.1 }, laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
+      cls: { maxSpeed: 300, turnRate: 1.1, hp: 1 }, hp: 1, energy: 1, missileInbound: false,
+      laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0 },
 
     nearestHostile(range) {
       let best = null, bestD = range;
@@ -150,11 +160,15 @@
         me.pos.x = p.x; me.pos.y = p.y; me.pos.z = p.z;
         me.quat.x = q.x; me.quat.y = q.y; me.quat.z = q.z; me.quat.w = q.w;
         me.speed = g.player.speed; me.laserTemp = g.laserTemp; me.laserCooldown = g.laserCooldown;
+        me.hp = kit.poolsLeft(g.sys); me.energy = kit.energyLeft(g.sys);
+        me.missileInbound = g.missiles.some((m) => m.target === null);
         me.pitchRate = this.cPitch; me.rollRate = this.cRoll;
         const tp = target.object.position, tq = target.object.quaternion;
         tv.pos.x = tp.x; tv.pos.y = tp.y; tv.pos.z = tp.z;
         tv.quat.x = tq.x; tv.quat.y = tq.y; tv.quat.z = tq.z; tv.quat.w = tq.w;
-        this.cControl = kit.act(kit.defendBrain, kit.observe(me, tv, this.obsBuf), this.scratch);
+        this.cControl = kit.act(
+          kit.defendBrain, kit.observeFor(kit.defendBrain, me, tv, null, this.obsBuf),
+          this.scratch);
       }
       const c = this.cControl;
       // The ship that ships. This was 0.7 pitch / 1.2 roll / 120 accel /

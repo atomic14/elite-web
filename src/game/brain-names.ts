@@ -47,7 +47,7 @@
 export type BrainName =
   | 'pirate-attack-g3'
   | 'pirate-pack-r4-selectonly'
-  | 'jameson-defend-g1'
+  | 'jameson-defend-g2'
   | 'scripted';
 
 /**
@@ -114,12 +114,16 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
     character: 'A GANG THAT WATCHES ITS FLEET AND HOLDS OFF — MEDIAN RANGE 1447 AT SPEED 144. '
       + 'THREE OF THEM TAKE 23.7% OF YOUR POOLS AND KILL NOBODY.',
   },
-  // tournament, two shipped pirates on her tail: they hold her six 2.3s and she
-  // shoots down 0.42 of them an episode
-  'jameson-defend-g1': {
-    name: 'TURNS AND FIGHTS',
-    character: 'AN ARMED TRADER THAT TURNS AND FIGHTS — SHAKES TWO PIRATES OFF HER SIX IN 2.3s '
-      + 'AND SHOOTS DOWN 0.42 OF THEM AN EPISODE.',
+  // defence probe, 800 held-out fights against the scripted attack run (1-4 of
+  // them, three hulls, beam or military): 41.6% of her attackers destroyed,
+  // 98.3% of her pools left, 0 deaths, and 0.00 warheads landed on her out of
+  // 0.80 launched an episode. The incumbent it replaced killed 4.8%, kept 89.2%
+  // and died 30 times in the same 800 (docs/TRAINING-LOG.md).
+  'jameson-defend-g2': {
+    name: 'TURNS AND KILLS',
+    character: 'AN ARMED TRADER THAT TURNS ON THE SPOT AND SHOOTS BACK — DESTROYS 41.6% OF '
+      + 'HER ATTACKERS AND E.C.M.s EVERY MISSILE SENT AT HER, DYING 0 TIMES IN 800 FIGHTS '
+      + 'WHERE THE POLICY BEFORE IT DIED 30.',
   },
   // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
   // ships an episode to a commander who fights back
@@ -273,7 +277,7 @@ const TRAINED_SOLO: BrainName = 'pirate-attack-g3';
  * Anything flying on your behalf, or evading rather than attacking, keeps the
  * policy fitted for it.
  */
-const SHIPPED_DEFENCE: BrainName = 'jameson-defend-g1';
+const SHIPPED_DEFENCE: BrainName = 'jameson-defend-g2';
 
 /**
  * No overrides: what the live game flies. Frozen, because it is a shared default
@@ -343,7 +347,7 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
   'pirate-attack-g3': { trained: true },
   'pirate-pack-r4-selectonly': { pack: true },
-  'jameson-defend-g1': {},
+  'jameson-defend-g2': {},
   scripted: { scripted: true },
 };
 

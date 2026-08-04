@@ -277,7 +277,7 @@ are Vite entries in `vite.config.ts`; add new pages there or they won't build.
   the trader.
 - **`src/ai-training/brains/` holds exactly three files, and `npm test` fails if
   a fourth appears or one goes missing**: **`pirate-attack-g3`** (pirates),
-  **`pirate-pack-r4-selectonly`** (organised gangs), **`jameson-defend-g1`**
+  **`pirate-pack-r4-selectonly`** (organised gangs), **`jameson-defend-g2`**
   (armed traders and anything player-assist). It held 34 and the game loaded 9;
   TODO 57 deleted the 31 nothing flew, and docs/TRAINING-LOG.md plus
   `train/logs/` are the record of what they measured. Which name flies for whom

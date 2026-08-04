@@ -37,7 +37,7 @@ import { check, eq } from './harness.ts';
 console.log('\nwhich brain flies, by name');
 {
   const NAMED: BrainName[] = [
-    'pirate-attack-g3', 'pirate-pack-r4-selectonly', 'jameson-defend-g1',
+    'pirate-attack-g3', 'pirate-pack-r4-selectonly', 'jameson-defend-g2',
   ];
   const missing = NAMED.filter((n) => brainByName(n) === null);
   check(`every name the rule can return has weights behind it (${NAMED.length})`,
@@ -85,7 +85,7 @@ console.log('\nwhich brain flies, by name');
     pirateBrainNameFor(1, false) === 'scripted'
     && pirateBrainNameFor(1, true) === 'scripted');
   check('...and an armed trader still turns and fights with the defence policy',
-    defenceBrainNameFor() === 'jameson-defend-g1');
+    defenceBrainNameFor() === 'jameson-defend-g2');
   // The alternatives survive the change of default, and each is reachable.
   check('...while every trained policy is still selectable',
     pirateBrainNameFor(1, false, { trained: true }) === 'pirate-attack-g3'
@@ -97,7 +97,7 @@ console.log('\nwhich brain flies, by name');
     && Object.keys(liveBrainSelection(AS_SHIPPED)).length === 0);
   check('...a picked name reads back as itself',
     LIVE_BRAIN_IDS.every((id) => liveBrainId(liveBrainSelection(id)) === id
-      || (id === 'pirate-attack-g3' || id === 'jameson-defend-g1')));
+      || (id === 'pirate-attack-g3' || id === 'jameson-defend-g2')));
   // ...and a selection the picker cannot name says so rather than guessing. A
   // save made before TODO 57 deleted the six A/B flags is exactly this case: it
   // is not migrated, it must not throw, and the row offers to take it back.

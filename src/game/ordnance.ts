@@ -185,6 +185,58 @@ export function launchNpcMissile(npc: NpcShip, ordnance: Ordnance): OrdnanceOutc
   return ordnance.launchHostile(npc.nosePosition(new THREE.Vector3()));
 }
 
+/**
+ * WHO IS PRESSING IT — everything `triggerEcm` needs to know about the ship.
+ *
+ * `CommanderData` satisfies it structurally and is the only thing in the GAME
+ * that does. It exists because a training episode's target is not a commander —
+ * it is a hull id and a `ShipSystems` — and it must still carry the one piece of
+ * equipment that answers a warhead (docs/TODO/72). Same bargain as
+ * `OrdnanceWorld` above and `FireWorld` in fire-resolution.ts: the narrowest
+ * surface the rule reads, implemented by the game and by the trainer.
+ */
+export interface EcmFit {
+  readonly equipment: { readonly ecm: boolean };
+}
+
+/**
+ * The E.C.M. is pressed: the rule AND the price, in one call.
+ *
+ * The price was the orchestrator's — `game.ts` read the reply and took
+ * `ECM_ENERGY_COST` off the bank — which was fine while there was one
+ * orchestrator. There are two (`world-step.ts` and `ai-training/scenario.ts`)
+ * and every rule split across them has drifted (docs/TODO/64), so the burst and
+ * its price travel together and the caller's job is what it was: say the reply
+ * and play the sound. Spent ONLY on `ecmFired` — a refusal costs nothing, which
+ * is what makes an autopilot's hopeful press harmless rather than suicidal.
+ */
+export function fireEcm(
+  fit: EcmFit, sys: { energy: number }, ordnance: Ordnance,
+): OrdnanceOutcome {
+  const result = ordnance.triggerEcm(fit, sys.energy);
+  if (result.reply === 'ecmFired') sys.energy -= ECM_ENERGY_COST;
+  return result;
+}
+
+/**
+ * Does an AUTOPILOT press it this frame? What the policy asked for, gated on
+ * there being a warhead to answer.
+ *
+ * The twin of the gun gate in `NpcShip.brainFly` — "the brain decides where to
+ * be, the gun decides when to shoot" — for the same two reasons. Whether
+ * anything is in the sky is the world's fact, not the policy's guess; and the
+ * trainer re-decides every step where the combat computer re-decides at 10 Hz,
+ * so ungated the two worlds would spend a different number of bursts per
+ * warhead — a second physics wearing a button. Gated it is one either way,
+ * because a successful burst empties the sky.
+ *
+ * It does not stop a HUMAN wasting one on an empty sky: that is the player's
+ * key and the player's 64 energy points. It stops a co-pilot doing it.
+ */
+export function autopilotEcm(policyWantsIt: boolean, missileInbound: boolean): boolean {
+  return policyWantsIt && missileInbound;
+}
+
 export class Ordnance {
   readonly missiles: Missile[] = [];
   /** the ship a missile would fly at, also used by the HUD */
@@ -266,7 +318,7 @@ export class Ordnance {
    * Fire the E.C.M.: every missile in the sky dies, ours included.
    * Reports whether it was used and the named sound to apply.
    */
-  triggerEcm(commander: CommanderData, energy: number): OrdnanceOutcome {
+  triggerEcm(commander: EcmFit, energy: number): OrdnanceOutcome {
     if (!commander.equipment.ecm) {
       return outcome('noEcm');
     }

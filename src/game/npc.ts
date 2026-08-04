@@ -9,9 +9,11 @@ import type {
   NpcCombatProfileId, ShipDesignId, ShipIdentity,
 } from './ship-identity.ts';
 import {
-  observeFor, act, makeScratch, shipView, writeView, PACK_WIDE_OBS_SIZE,
-  type Brain, type ObservableMate,
+  act, makeScratch, PACK_WIDE_OBS_SIZE, type Brain,
 } from '../ai-training/policy.ts';
+import {
+  observeFor, shipView, writeView, type ObservableMate,
+} from '../ai-training/observation.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
 import {
   UNDER_FIRE_SECONDS,
@@ -450,13 +452,20 @@ export class NpcShip {
   /**
    * The observation views, refilled per decision — see policy.ts `shipView`.
    *
-   * TWO of these numbers are load-bearing, and both are fields brainFly never
+   * ONE of these numbers is load-bearing and it is a field brainFly never
    * writes: `meView.laserTemp` stays 0, so obs slot 1 (our laser heat) is
-   * always 0 in the game, and `meView.hp`/`cls.hp` stay 1, so the wide
-   * encoder's "our own health fraction" (slot 25) reads 1.0 however shot up
-   * the ship is. Every shipped brain was fitted against exactly that, so
-   * feeding either a real number moves the observation out of the distribution
+   * always 0 in the game. Every shipped brain was fitted against exactly that,
+   * so feeding it a real number moves the observation out of the distribution
    * the weights were trained in: a retrain, not a one-line fix.
+   *
+   * `hp` USED TO BE THE SECOND ONE and is filled truthfully now (docs/TODO/71).
+   * Nothing shipped reads it on this path — the solo encoder does not have the
+   * slot, `observePack` (18, what the gang policy is) does not reach it, and
+   * only `observePackWide`'s slot 25 and `observeDefend`'s slot 14 do. The
+   * armed trader that flies the defence policy is exactly the ship the item is
+   * about, and it could not see how hurt it was either. A 26-input pack brain
+   * must now be TRAINED against a real number rather than a constant 1.0; none
+   * is in the tree, and `npm test` holds the directory to the three that are.
    *
    * The rest are inert, and measurably so — brainFly overwrites the me
    * envelope and the target's pos/quat/speed on every decision, and no encoder
@@ -928,6 +937,22 @@ export class NpcShip {
       me.cls.maxSpeed = this.maxSpeed;
       me.cls.turnRate = this.turnRate;
       me.laserCooldown = this.state.fireCooldown;
+      // HOW HURT IT IS. An NPC has ONE pool where the commander has three, so
+      // its bank is both its overall condition and its energy — the same
+      // fraction in both slots, because for this ship they are the same fact.
+      // `cls.hp` is 1 because `healthFraction` is already normalized, which is
+      // the same conversion `packmates()` makes for a mate's health.
+      me.hp = this.healthFraction;
+      me.cls.hp = 1;
+      me.energy = this.healthFraction;
+      // ...and nothing is homing on it. A hostile warhead in this game flies at
+      // the COMMANDER (`Missile.target === null` is what makes it hostile), and
+      // an NPC's own E.C.M. is `state.hasEcm`, rolled at spawn and applied by
+      // ordnance.ts with nothing deciding. So a defence policy flown by an
+      // armed trader never sees slot 16 set and its E.C.M. head is not read
+      // here at all — the button belongs to the ship that has one to press
+      // (docs/TODO/72).
+      me.missileInbound = false;
       me.pitchRate = this.state.brainPitchRate;
       me.rollRate = this.state.brainRollRate;
       writeView(tv, targetPos, targetQuat);

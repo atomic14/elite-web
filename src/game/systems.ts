@@ -158,6 +158,34 @@ export function durability(bothFaces = false): number {
   return (bothFaces ? MAX_SHIELD * 2 : MAX_SHIELD) + MAX_ENERGY;
 }
 
+/**
+ * HOW MUCH OF THIS SHIP IS LEFT, 0..1 — both faces and the bank, over
+ * everything they can hold.
+ *
+ * ONE HOME, and that is the whole reason it is a function rather than three
+ * additions at each call site. It is the number a defence policy observes
+ * (`observeDefend` slot 14), and it is observed in two worlds: the trainer's
+ * `TargetShip` and the game's combat computer. Written out twice it would drift
+ * exactly once, and the policy would then be flown out of the distribution it
+ * was fitted in without anything failing — which is the trap `combat-computer.
+ * ts` already records twice, in the pinned 280 and 300 speeds (docs/TODO/71).
+ */
+export function poolsLeft(sys: ShipSystems): number {
+  return (sys.foreShield + sys.aftShield + sys.energy) / durability(true);
+}
+
+/**
+ * The ENERGY BANK alone, 0..1 — `observeDefend` slot 15, and the same argument
+ * as above for it being here.
+ *
+ * Separate from `poolsLeft` because the bank is what the ship DIES at, what the
+ * shields will not recover past (`energyLow`), and what the E.C.M. spends a
+ * quarter of. A full pair of shields hides an empty one.
+ */
+export function energyLeft(sys: ShipSystems): number {
+  return sys.energy / MAX_ENERGY;
+}
+
 export interface DamageResult {
   /** the hit got past the shields to the hull */
   reachedHull: boolean;

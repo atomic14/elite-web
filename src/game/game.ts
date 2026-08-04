@@ -97,7 +97,7 @@ import {
   commandsFor, globalCommands, type Command, type ControlMode,
 } from './controls.ts';
 import {
-  Ordnance, ordnanceMessage, ECM_ENERGY_COST,
+  Ordnance, ordnanceMessage, fireEcm,
   type OrdnanceOutcome,
 } from './ordnance.ts';
 import { hitCone, LASER_RANGE, AIM_ASSIST } from './gunnery.ts';
@@ -437,9 +437,10 @@ export class Game {
   }
 
   private triggerEcm(): void {
-    const outcome = this.ordnance.triggerEcm(this.state.commander, this.state.sys.energy);
-    if (outcome.reply === 'ecmFired') this.state.sys.energy -= ECM_ENERGY_COST;
-    this.applyOrdnance(outcome);
+    // The burst and its price are `fireEcm` — one call, because the combat
+    // computer presses the same button from `pilotDemand` and a training
+    // episode's target presses it too (docs/TODO/72).
+    this.applyOrdnance(fireEcm(this.state.commander, this.state.sys, this.ordnance));
   }
 
   private detonateEnergyBomb(): void {
@@ -1419,8 +1420,14 @@ export class Game {
     // is ours to do, immediately after reading it
     if (this.input.mouseFlight) this.input.decayMouse(dt);
     if (!this.state.session.ccEngaged) return hands;
-    const auto = this.autopilot.combatDemand(dt, this.handsOn(), DEFEND_BRAIN);
+    const auto = this.autopilot.combatDemand(
+      dt, this.handsOn(), DEFEND_BRAIN, this.ordnance.missileInbound);
     this.applyAutopilot(auto.events);
+    // A co-pilot that can answer a warhead — the same button, the same price
+    // and the same messages as the player's own E.C.M. key (docs/TODO/72). It
+    // is applied here rather than inside the autopilot because spending the
+    // bank is a consequence, and consequences are the orchestrator's.
+    if (auto.ecm) this.triggerEcm();
     return auto.demand
       ? { ...auto.demand, fire: auto.demand.fire || hands.fire }
       : hands;

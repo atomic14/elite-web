@@ -15,13 +15,15 @@
 import type * as THREE from 'three';
 import { rampToward, type FlightDemand } from '../player.ts';
 import {
-  act, observe, makeScratch, shipView, writeView, type Brain,
+  act, makeScratch, PACK_WIDE_OBS_SIZE, type Brain,
 } from '../ai-training/policy.ts';
+import { observeFor, shipView, writeView } from '../ai-training/observation.ts';
 import {
   isHostileToPlayer, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY, type NpcShip,
 } from './npc.ts';
+import { autopilotEcm } from './ordnance.ts';
 import { TURN } from './ship-specs.ts';
-import type { ShipSystems } from './systems.ts';
+import { energyLeft, poolsLeft, type ShipSystems } from './systems.ts';
 
 /** How far out it will look for something to fight. */
 export const THREAT_RANGE = 6500;
@@ -43,7 +45,17 @@ const DECISION_INTERVAL = 0.1;
 export type AutopilotStep =
   /** hands off — the reason is for the player */
   | { kind: 'disengage'; reason: string }
-  | { kind: 'fly'; demand: FlightDemand };
+  /**
+   * What it wants — and, separately, whether it is reaching for the E.C.M.
+   *
+   * NOT a field of `FlightDemand`, which is deliberately the four things a pair
+   * of hands produces and is flown by `PlayerShip.update`. The E.C.M. is a
+   * COMMAND key, not a flight axis: it spends a quarter of the bank and wipes
+   * the sky, which is a consequence, and consequences are the Game's (invariant
+   * 15). So it is reported beside the demand and `game.ts` presses it through
+   * `fireEcm` — the same call the player's own key makes.
+   */
+  | { kind: 'fly'; demand: FlightDemand; ecm: boolean };
 
 /** Minimal view of a ship, so this needs no PlayerShip and no scene. */
 export interface AutopilotShip {
@@ -67,8 +79,19 @@ export interface AutopilotState {
   roll: number;
   /** counts down to the next 10Hz decision */
   timer: number;
-  /** the decision being acted on right now */
-  control: { pitch: number; roll: number; throttle: number; fire: boolean } | null;
+  /**
+   * The decision being acted on right now.
+   *
+   * `ecm` rides along with the other four for the reason the whole object
+   * exists: it is held between decisions, so it is state, and state is saved.
+   * `snapshot.ts` walks this generically, so the field costs nothing to
+   * persist — but a save written before it will restore a `control` without
+   * one, which reads as `undefined` and therefore as "not pressing", which is
+   * the right answer for a career that has never had a policy that could.
+   */
+  control: {
+    pitch: number; roll: number; throttle: number; fire: boolean; ecm?: boolean;
+  } | null;
 }
 
 export function freshAutopilot(): AutopilotState {
@@ -78,22 +101,30 @@ export function freshAutopilot(): AutopilotState {
 export class CombatComputer {
   /** @see AutopilotState — public so the snapshot can walk it */
   readonly state: AutopilotState = freshAutopilot();
-  // 18 wide, matching what game.ts allocated: observe() fills 14, and the
-  // spare tail costs nothing but avoids a surprise if a pack observation is
-  // ever fed through here.
-  private readonly obs = new Float32Array(18);
+  // Wide enough for the WIDEST encoder, as npc.ts's buffer is, and for the same
+  // reason: which encoder runs is `observeFor`'s decision from the brain's own
+  // input count, so a buffer sized to today's shipped brain is a buffer that
+  // reads past its end the day a wider one is promoted. It was 18 and the
+  // defence policy is 17 now (docs/TODO/71); it costs 32 bytes to stop caring.
+  private readonly obs = new Float32Array(PACK_WIDE_OBS_SIZE);
   private readonly scratch = makeScratch();
   private readonly me = shipView(CC_MAX_SPEED, 0.5, 0);
   /**
-   * The threat's speed is a CONSTANT 280, and it has to stay one.
+   * The threat's speed WAS a constant 280, and is the real one now.
    *
-   * game.ts initialised this view with speed 280 and never updated it, so the
-   * defence policy has only ever been flown against that value — exactly like
-   * the 300 the pirate brains are fed in npc.ts, and for the same reason. Feed
-   * it a real speed and the observation goes out of distribution. It reads as
-   * an oversight; it is load-bearing until the brain is retrained.
+   * game.ts initialised this view with 280 and never updated it, so every
+   * defence policy up to `jameson-defend-g1` had only ever been flown against
+   * that value — exactly like the 300 the pirate brains are still fed in
+   * npc.ts. The comment here said, in as many words, "it is load-bearing until
+   * the brain is retrained".
+   *
+   * docs/TODO/71 and /72 retrained it. `jameson-defend-g2` was fitted in
+   * `Episode.observeTrader`, which has always written the attacker's REAL
+   * speed, so the pin is now the divergence rather than the protection: the
+   * constant is what would put the shipped policy out of distribution. The
+   * envelope numbers stay — no encoder reads a target's `cls`.
    */
-  private readonly target = shipView(300, 1.1, 280);
+  private readonly target = shipView(300, 1.1, 0);
 
   /** Forget the ramped rates, so re-engaging starts from level flight. */
   reset(): void {
@@ -107,6 +138,14 @@ export class CombatComputer {
    * @param manualInput the pilot touched the controls — always hands back.
    * @param brain the defence policy, or null if the weights failed to load.
    */
+  /**
+   * @param missileInbound is a hostile warhead in the sky? The world's answer,
+   * read once a frame by the step that calls this — the same fact
+   * `WorldView.missileInbound` gives an NPC and a training episode reads off
+   * its own `Ordnance`. It is an OBSERVATION here and a gate below: the policy
+   * decides whether to answer a warhead, and whether there is one to answer is
+   * not the policy's business (`autopilotEcm`).
+   */
   step(
     dt: number,
     player: AutopilotShip,
@@ -115,6 +154,7 @@ export class CombatComputer {
     legalStatus: number,
     manualInput: boolean,
     brain: Brain | null,
+    missileInbound = false,
   ): AutopilotStep {
     if (manualInput) return { kind: 'disengage', reason: 'MANUAL OVERRIDE' };
 
@@ -136,10 +176,24 @@ export class CombatComputer {
       this.me.speed = player.speed;
       this.me.laserTemp = sys.laserTemp;
       this.me.laserCooldown = sys.laserCooldown;
+      // HOW HURT SHE IS, and whether anything is coming — the two things
+      // docs/TODO/71 and /72 found missing, from `systems.ts`'s own expressions
+      // so the game and the trainer cannot come to compute them differently.
+      // A 14-input brain never reads them; `observeFor` decides.
+      this.me.hp = poolsLeft(sys);
+      this.me.energy = energyLeft(sys);
+      this.me.missileInbound = missileInbound;
       this.me.pitchRate = this.state.pitch;
       this.me.rollRate = this.state.roll;
       writeView(this.target, threat.object.position, threat.object.quaternion);
-      this.state.control = act(brain, observe(this.me, this.target, this.obs), this.scratch);
+      // ...and how fast it is actually going, which the trainer has always fed
+      // the policy and this file used to pin at 280. See `target` above.
+      this.target.speed = threat.state.speed;
+      // Which encoder this brain wants is policy.ts's question, asked the same
+      // way npc.ts asks it. It was `observe()` outright, which was correct for
+      // exactly as long as every defence policy had 14 inputs.
+      this.state.control = act(
+        brain, observeFor(brain, this.me, this.target, null, this.obs), this.scratch);
     }
 
     const c = this.state.control;
@@ -147,6 +201,7 @@ export class CombatComputer {
     this.state.roll = ccRamp(this.state.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
     return {
       kind: 'fly',
+      ecm: autopilotEcm(!!c.ecm, missileInbound),
       demand: {
         pitchRate: this.state.pitch,
         rollRate: this.state.roll,

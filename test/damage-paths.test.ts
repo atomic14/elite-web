@@ -374,7 +374,11 @@ console.log('\nthe old scale is gone, and cannot come back');
     'game/systems.ts': 'the commander\'s pools live here',
     'game/npc.ts': 'a ship\'s bank lives here',
     'game/cargo.ts': 'a drifting object\'s bank lives here',
-    'game/game.ts': 'the E.C.M. spends energy — a cost, not damage',
+    // It was game/game.ts. docs/TODO/72 gave the combat computer and a training
+    // target the same button, so the burst and its price moved into `fireEcm`
+    // beside the rule — three orchestrators spending it would have been the
+    // fourth copy of a damage number, which is what this whole file is about.
+    'game/ordnance.ts': 'the E.C.M. spends energy — a cost, not damage',
     'ai-training/scenario.ts': 'the stand-in target\'s hp setter, TODO 29',
   };
   const writers: string[] = [];

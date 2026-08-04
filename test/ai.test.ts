@@ -146,7 +146,7 @@ const ON_DISK = readdirSync(BRAINS).filter((f) => f.endsWith('.json'))
 // This used to be the three the SHIPPED rule flies, and that is too narrow —
 // SELECTABLE and SHIPPED are not the same list. Since `d563e3d` the shipped
 // solo and gang policy is `scripted`, a code path with no weights, so the
-// shipped rule names exactly one weights file (`jameson-defend-g1`): under the
+// shipped rule names exactly one weights file (`jameson-defend-g2`): under the
 // old wording `pirate-attack-g3` and `pirate-pack-r4-selectonly` — the two
 // trained policies the trainer's LIVE BRAINS row exists to fly — would both
 // read as weights nothing ships. They are flown, just not by default.
@@ -193,8 +193,14 @@ for (const name of ON_DISK) {
   const f = JSON.parse(readFileSync(`${BRAINS}${name}.json`, 'utf8')) as BrainFile;
   const obs = f.meta.obsSize ?? 14;
   const hidden = f.meta.hidden ?? 32;
-  const expected = obs * hidden + hidden + hidden * hidden + hidden + hidden * 11 + 11;
-  check(`${name}: ${f.weights.length} weights match its declared shape`,
+  // ...and how many HEADS, which is a declared shape since docs/TODO/72 gave
+  // the defence policy a twelfth and thirteenth output for the E.C.M. The
+  // defaults are what a file that says nothing means, which is what the three
+  // brains shipped before today say.
+  const out = f.meta.outSize ?? 11;
+  const expected = obs * hidden + hidden + hidden * hidden + hidden + hidden * out + out;
+  check(`${name}: ${f.weights.length} weights match its declared shape `
+    + `(${obs} in, ${hidden} hidden, ${out} out)`,
     f.weights.length === expected && f.weights.every((w) => Number.isFinite(w)));
 }
 

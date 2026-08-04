@@ -24,7 +24,7 @@ simulation. Design below.
 
 > As shipped, pirates attacking the player fly `pirate-attack-g3`, an
 > organised gang flies `pirate-pack-r4-selectonly`, and armed traders (and the
-> combat computer) defend with `jameson-defend-g1`. `src/game/brain-names.ts`
+> combat computer) defend with `jameson-defend-g2`. `src/game/brain-names.ts`
 > is where that pairing is stated — `SHIPPED_BRAINS` and the `*BrainNameFor`
 > rules — and `src/game/brains.ts` turns a name into weights; `npm test` reads
 > those files rather than a list. The scripted logic below remains for every

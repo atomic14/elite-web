@@ -29,9 +29,20 @@
 // before 2026-08-04 is on the old world and is not comparable with one printed
 // after it.**
 //
+// SHE CARRIES AN E.C.M. NOW (docs/TODO/72), and that is the second-biggest
+// thing these rows left out: a warhead is 250 of her 765 points, and until
+// today no defence policy had an output that could answer one. It is fitted
+// rather than rotated for the same reason `train/defence-fight.ts` fits it —
+// the commander being modelled here is one with a combat computer flying her
+// ship, which is a fitted commander, and a policy fitted in a world with an
+// E.C.M. and measured in one without is being scored on a distribution nothing
+// trained for. **A row printed before 2026-08-04 is on the old world twice
+// over.** A policy with no E.C.M. head is unaffected either way, so this does
+// not flatter one: it changes nothing at all for `jameson-defend-g1`.
+//
 // What the real game still has and this does not, all of it favouring the
-// player: E.C.M., the escape capsule, the torus drive and a station to run to.
-// Treat every row as a floor.
+// player: the escape capsule, the torus drive and a station to run to. Treat
+// every row as a floor.
 //
 // Not a substitute for flying it. `T` at any station is.
 
@@ -55,7 +66,7 @@ const MAX_TIME = 45;
 const BRAIN_NAMES = {
   pack: process.env.PACK_BRAIN ?? 'pirate-pack-r4-selectonly',
   solo: process.env.SOLO_BRAIN ?? 'pirate-attack-g3',
-  defend: process.env.DEFEND_BRAIN ?? 'jameson-defend-g1',
+  defend: process.env.DEFEND_BRAIN ?? 'jameson-defend-g2',
 };
 const pack = load(BRAIN_NAMES.pack);
 const solo = load(BRAIN_NAMES.solo);
@@ -93,6 +104,7 @@ function run(pirateBrain: Brain, gang: number): Result {
       trader: { kind: 'policy', brain: jameson },
       traderArmed: true,
       traderClass: 'playerCobra',
+      targetEcm: true,
       maxTime: MAX_TIME,
     });
     let death = MAX_TIME;

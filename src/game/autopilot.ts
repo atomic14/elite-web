@@ -53,6 +53,14 @@ export interface AutopilotDemand {
    * the autopilot applied itself on top of manual flight.
    */
   demand: FlightDemand | null;
+  /**
+   * It is reaching for the E.C.M. this frame.
+   *
+   * Reported rather than done, like every other consequence in this file: the
+   * burst spends a quarter of the bank and wipes the sky, and the Game presses
+   * it through the same `fireEcm` the player's own key does.
+   */
+  ecm: boolean;
   events: AutopilotEvent[];
 }
 
@@ -129,17 +137,21 @@ export class Autopilot {
    * @param handsOn the pilot is touching the controls — always hands back.
    * @param brain the defence policy, or null if the weights failed to load.
    */
-  combatDemand(dt: number, handsOn: boolean, brain: Brain | null): AutopilotDemand {
+  combatDemand(
+    dt: number, handsOn: boolean, brain: Brain | null, missileInbound = false,
+  ): AutopilotDemand {
     const s = this.state;
     const step = this.computer.step(
-      dt, s.player, s.sys, s.world.npcs, s.commander.legalStatus, handsOn, brain);
+      dt, s.player, s.sys, s.world.npcs, s.commander.legalStatus, handsOn, brain,
+      missileInbound);
     if (step.kind === 'disengage') {
       s.session.ccEngaged = false;
       return {
         demand: null,
+        ecm: false,
         events: [say(step.reason, step.reason === 'MANUAL OVERRIDE' ? 2 : 3)],
       };
     }
-    return { demand: step.demand, events: [] };
+    return { demand: step.demand, ecm: step.ecm, events: [] };
   }
 }
