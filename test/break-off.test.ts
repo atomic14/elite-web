@@ -17,14 +17,17 @@
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { seedWorld } from '../src/game/rng.ts';
-import { NpcShip, hostilesNear, MIN_CRUISE_FRACTION } from '../src/game/npc.ts';
+import { NpcShip, hostilesNear } from '../src/game/npc.ts';
 import {
   nextAttackPhase, closingThrottle, describeFlight, type AttackPhase,
-  BREAK_OFF_RANGE, CLOSING_THROTTLE_MIN,
-  EXTEND_RANGE_MIN, EXTEND_RANGE_MAX, rollExtendRange, UNDER_FIRE_SECONDS,
+  rollExtendRange,
 } from '../src/game/break-off.ts';
-import { TACTIC_IDS } from '../src/game/tactics.ts';
-import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
+import {
+  BREAK_OFF_RANGE, CLOSING_THROTTLE_MIN, EXTEND_RANGE_MAX, EXTEND_RANGE_MIN,
+  MIN_CRUISE_FRACTION, UNDER_FIRE_SECONDS,
+} from '../src/constants/attack-run.ts';
+import { TACTIC_IDS } from '../src/constants/tactics.ts';
+import { PLAYER_INTEREST_RANGE } from '../src/constants/player-interest.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
 import { PASS_FAR } from '../src/game/combat-sim-report.ts';
@@ -121,8 +124,8 @@ console.log('\nNPC break-off');
     readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const ONE_HOME = [
-    ['game/break-off.ts', BREAK_OFF_RANGE, ['game/npc.ts', 'game/brains.ts']],
-    ['game/player-interest.ts', PLAYER_INTEREST_RANGE,
+    ['constants/attack-run.ts', BREAK_OFF_RANGE, ['game/npc.ts', 'game/brains.ts']],
+    ['constants/player-interest.ts', PLAYER_INTEREST_RANGE,
       ['game/npc.ts', 'game/npc-targeting.ts', 'hud/hud-model.ts']],
   ] as const;
   for (const [home, value, consumers] of ONE_HOME) {

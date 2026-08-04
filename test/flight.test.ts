@@ -18,12 +18,9 @@ import {
 import { flightDemand, type FlightControls } from '../src/engine/flight-controls.ts';
 import { keymap } from '../src/engine/keymap.ts';
 import {
-  CombatComputer,
-  CC_ACCEL,
-  CC_MAX_SPEED,
-  CC_MAX_PITCH,
-  CC_MAX_ROLL,
+  CombatComputer, CC_MAX_PITCH, CC_MAX_ROLL,
 } from '../src/game/combat-computer.ts';
+import { CC_ACCEL, CC_MAX_SPEED } from '../src/constants/combat-computer.ts';
 import { freshSystems } from '../src/game/systems.ts';
 import { check } from './harness.ts';
 

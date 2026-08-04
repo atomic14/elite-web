@@ -254,13 +254,64 @@ as an unlisted one. It also fails if `src/constants/` imports anything outside
 itself, if a name is declared twice inside it, or if any file in `src/`
 redeclares a name that lives there — which is the `MAX_TRADERS` check.
 
-**Still to do**, in the groups the gate's list already names: the fight, the
-flight model, the rest of the commander's pools, spawning and population, the
-career, the galaxy, the station, the console, the combat trainer, saves, and the
-policy seam. Plus two things this slice did not touch: `MAX_TRADERS` still has
-two homes, and CLAUDE.md does not yet carry the read-it-do-not-grep-it
-instruction below — the gate catches a second home mechanically, but the
-instruction is what stops one being written.
+**Slice 2 — the fight — landed.** Eleven more files, and the count went from
+40 home / 412 out across 99 files to **77 home / 375 out across 91**.
+
+| moved | file |
+| --- | --- |
+| the three ranges the attack run turns on, and the run-out band | `constants/attack-run.ts` |
+| the ramp every shipped brain was fitted at, and the 10 Hz clock | `constants/brain-flight.ts` |
+| what a ram costs in speed, and the commander's hull radius | `constants/collision.ts` |
+| the purchasable co-pilot's envelope | `constants/combat-computer.ts` |
+| the run-out curve — its angle and how far past the target it starts | `constants/extend-arc.ts` |
+| how far each predator looks for its prey | `constants/hunt-ranges.ts` |
+| how far to the side of its target a ship aims a pass | `constants/pass-aim.ts` |
+| the one range at which a hostile engages you | `constants/player-interest.ts` |
+| keeping wingmen out of each other's way | `constants/separation.ts` |
+| which tactics a hull may fly, and what makes it re-decide | `constants/tactic-choice.ts` |
+| the four ways a hostile can fly the one attack run | `constants/tactics.ts` |
+
+`src/game/tactics.ts` and `src/game/player-interest.ts` are **deleted**: both
+were a table or a single constant plus its reasoning, with no logic left once
+the values moved. Six comments in `npc.ts` that named them by filename now name
+the real home.
+
+The heavy evidence moved whole, which was the point of taking this group
+second: `separation.ts`'s swept table, `break-off.ts`'s five-column band sweep
+over 40 episodes, `pass-aim.ts`'s two measured tables, `extend-arc.ts`'s
+`sec(psi)` cost table, `tactic-choice.ts`'s weights argument.
+
+**`BRAIN_RATE_RAMP` carries a warning not to fuse it with `player.ts`'s
+`RATE_RAMP`.** Both are 4.1396 and they are not one rule — they agree by
+history, having been recalibrated together from a flat 4.0, and their decays
+(5.2207 against 13.3886) are the evidence. One is a feel setting; the other is
+what every shipped genome was fitted at. They are in different files so they can
+move apart, and `player.ts` is a later slice.
+
+**Three constants stayed behind on purpose.** `RAM_MIN_SPEED`, `CC_MAX_PITCH`
+and `CC_MAX_ROLL` derive from `PLAYER_FLIGHT` and `TURN`, so they cannot live in
+an import-nothing leaf until those come forward. Slice 1 predicted exactly this
+tension and it is the one real cost of the leaf rule.
+
+**Three literals were deliberately NOT tidied**, because each is a derivation
+whose stated arithmetic no longer produces the shipped value, and expressing any
+of them moves behaviour: `slash.missDistance` is 175 against a stated 1.6 × 110
+= 176; `CLEAR_RANGE` is 340 against a stated 220 × 1.5 = 330; `CC_ACCEL` is 100
+against the trader Cobra's real 220 × `ACCEL_FRACTION` = 101.2. All three are on
+the survey's land-separately list.
+
+The suite reads 3066 rather than 3067 because `tactics.ts` left
+`test/ai.test.ts`'s purity list when the file stopped existing. That is not a
+lost gate: the table is now under the constants gate's import-nothing rule,
+which is stricter than the purity check it replaced.
+
+**Still to do**, in the groups the gate's list already names: the flight model,
+the rest of the commander's pools, spawning and population, the career, the
+galaxy, the station, the console, the combat trainer, saves, and the policy
+seam. Plus two things neither slice has touched: `MAX_TRADERS` still has two
+homes, and CLAUDE.md does not yet carry the read-it-do-not-grep-it instruction
+below — the gate catches a second home mechanically, but the instruction is what
+stops one being written.
 
 ## What to work out
 

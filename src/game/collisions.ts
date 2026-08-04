@@ -14,6 +14,9 @@
 
 import * as THREE from 'three';
 import type { NpcShip } from './npc.ts';
+import {
+  COMMANDER_HULL_RADIUS, NPC_SPEED_KEPT, PLAYER_SPEED_KEPT, STATION_SPEED_KEPT,
+} from '../constants/collision.ts';
 
 // WHAT A RAM COSTS IS NOT HERE. It was `RAM_DAMAGE = 0.45`, a normalized
 // fraction that meant 44 points to a ship and 115 to the commander once it had
@@ -21,29 +24,6 @@ import type { NpcShip } from './npc.ts';
 // `IMPACT.ram` in game/impact-damage.ts now, stated in the units they are spent
 // in. This file still says who touched whom and how much speed they keep; the
 // price stays the caller's, exactly as the header says.
-
-/**
- * Speed retained after a collision — a ram should cost you your run.
- *
- * It was written twice, here and as `COLLISION.speedRetained` in the training
- * simulator, with a test comparing the two. The simulator is gone and training
- * calls the functions below, so there is one number and nothing to compare.
- */
-export const PLAYER_SPEED_KEPT = 0.3;
-export const NPC_SPEED_KEPT = 0.3;
-const STATION_SPEED_KEPT = 0.4;
-
-/**
- * The commander's own contact radius, in world units.
- *
- * Exported because a second module now needs the same number for a reason that
- * is not a collision: `tactics.ts` gates how tightly a hull may aim its pass on
- * whether that pass clears both hulls, and "both hulls" is an NPC's radius plus
- * this. It was a bare 25 in the overlap test below and quoted as prose in
- * pass-aim.ts's comment, which is one number in two places and a comment kept
- * in step by hope.
- */
-export const COMMANDER_HULL_RADIUS = 25;
 
 /** Scratch vectors, so a per-frame call allocates nothing. */
 export interface CollisionScratch {

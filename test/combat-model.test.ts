@@ -15,13 +15,10 @@ import {
   NPC_LASER_RANGE,
 } from '../src/constants/npc-gun.ts';
 import { seedWorld } from '../src/game/rng.ts';
-import {
-  NpcShip,
-  MIN_CRUISE_FRACTION,
-  BRAIN_RATE_RAMP,
-  BRAIN_RATE_DECAY,
-} from '../src/game/npc.ts';
-import { PLAYER_SPEED_KEPT, NPC_SPEED_KEPT } from '../src/game/collisions.ts';
+import { NpcShip } from '../src/game/npc.ts';
+import { MIN_CRUISE_FRACTION } from '../src/constants/attack-run.ts';
+import { BRAIN_RATE_RAMP, BRAIN_RATE_DECAY } from '../src/constants/brain-flight.ts';
+import { PLAYER_SPEED_KEPT, NPC_SPEED_KEPT } from '../src/constants/collision.ts';
 import { IMPACT } from '../src/game/impact-damage.ts';
 import { shipTargetRadius } from '../src/ships/registry.ts';
 import {

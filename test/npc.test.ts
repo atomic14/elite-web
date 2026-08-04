@@ -12,8 +12,8 @@ import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
-import { BREAK_OFF_RANGE } from '../src/game/break-off.ts';
-import { PASS_MISS_DISTANCE } from '../src/game/pass-aim.ts';
+import { BREAK_OFF_RANGE } from '../src/constants/attack-run.ts';
+import { PASS_MISS_DISTANCE } from '../src/constants/pass-aim.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 import { check } from './harness.ts';
 

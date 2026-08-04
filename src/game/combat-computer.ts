@@ -18,29 +18,27 @@ import {
   act, makeScratch, PACK_WIDE_OBS_SIZE, type Brain,
 } from '../ai-training/policy.ts';
 import { observeFor, shipView, writeView } from '../ai-training/observation.ts';
-import {
-  isHostileToPlayer, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY, type NpcShip,
-} from './npc.ts';
+import { isHostileToPlayer, type NpcShip } from './npc.ts';
 import { autopilotEcm } from './ordnance.ts';
 import { TURN } from './ship-specs.ts';
 import { energyLeft, poolsLeft, type ShipSystems } from './systems.ts';
+import {
+  BRAIN_RATE_DECAY, BRAIN_RATE_RAMP, DECISION_INTERVAL,
+} from '../constants/brain-flight.ts';
+import { CC_ACCEL, CC_MAX_SPEED, THREAT_RANGE } from '../constants/combat-computer.ts';
 
-/** How far out it will look for something to fight. */
-export const THREAT_RANGE = 6500;
 /**
  * Turn caps, matching the trader-Cobra the defence brain was trained in. Fly
  * the policy on a more agile ship than it learned on and it oversteers.
  *
  * `0.5` is that hull's turnRate (SPECS.trader COBRA_MK3); the multipliers are
- * TURN, so this cannot drift away from the hull it names.
+ * TURN, so this cannot drift away from the hull it names. They are here rather
+ * than in constants/combat-computer.ts with the other three because that
+ * directory may not import `ship-specs.ts`, and writing 0.7/1.2 out would give
+ * the coupling a second home.
  */
 export const CC_MAX_PITCH = 0.5 * TURN.pitch;
 export const CC_MAX_ROLL = 0.5 * TURN.roll;
-/** The autopilot cruises rather than sprints. */
-export const CC_MAX_SPEED = 220;
-export const CC_ACCEL = 100;
-/** Decisions per second, as the NPCs get. */
-const DECISION_INTERVAL = 0.1;
 
 export type AutopilotStep =
   /** hands off — the reason is for the player */

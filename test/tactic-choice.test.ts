@@ -15,14 +15,16 @@
 
 import * as THREE from 'three';
 import { seedWorld } from '../src/game/rng.ts';
-import { TACTICS, TACTIC_IDS, type TacticId } from '../src/game/tactics.ts';
+import { TACTICS, TACTIC_IDS, type TacticId } from '../src/constants/tactics.ts';
 import {
-  PASS_CLEARANCE, RAM_MIN_SPEED,
-  TACTIC_HURT_HEALTH, TACTIC_LAST_STAND_HEALTH, TACTIC_MIN_DWELL, TACTIC_SLEEPER_SECONDS,
-  chooseTactic, tacticsFor, tacticSwitchReason,
+  RAM_MIN_SPEED, chooseTactic, tacticsFor, tacticSwitchReason,
   type TacticHull, type TacticReason,
 } from '../src/game/tactic-choice.ts';
-import { COMMANDER_HULL_RADIUS } from '../src/game/collisions.ts';
+import {
+  PASS_CLEARANCE, TACTIC_HURT_HEALTH, TACTIC_LAST_STAND_HEALTH,
+  TACTIC_MIN_DWELL, TACTIC_SLEEPER_SECONDS,
+} from '../src/constants/tactic-choice.ts';
+import { COMMANDER_HULL_RADIUS } from '../src/constants/collision.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { SPECS, CONSTRICTOR_SPEC, type NpcSpec } from '../src/game/ship-specs.ts';
 import { registeredHull } from '../src/ships/registry.ts';

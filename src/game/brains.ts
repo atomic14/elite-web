@@ -32,8 +32,8 @@ import {
 } from './brain-names.ts';
 // The break-off distance has ONE home, and it is neither this file nor npc.ts —
 // it was a constant here and a literal there, and only one of them ever got
-// fixed. See break-off.ts.
-import { BRAIN_HANDOVER_RANGE } from './break-off.ts';
+// fixed. See constants/attack-run.ts.
+import { BRAIN_HANDOVER_RANGE } from '../constants/attack-run.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import defendBrainFile from '../ai-training/brains/jameson-defend-g2.json' with { type: 'json' };

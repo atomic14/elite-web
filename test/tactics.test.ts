@@ -17,13 +17,14 @@
 //     two hulls. This is the assertion that caught `knife` at 70.
 
 import { seedWorld, makeRng } from '../src/game/rng.ts';
-import { TACTICS, TACTIC_IDS, type TacticId } from '../src/game/tactics.ts';
+import { TACTICS, TACTIC_IDS, type TacticId } from '../src/constants/tactics.ts';
 import { tacticsFor } from '../src/game/tactic-choice.ts';
-import { COMMANDER_HULL_RADIUS } from '../src/game/collisions.ts';
-import { CLOSING_THROTTLE_MIN, BREAK_OFF_RANGE } from '../src/game/break-off.ts';
-import { PASS_MISS_DISTANCE } from '../src/game/pass-aim.ts';
-import { EXTEND_ARC_ANGLE } from '../src/game/extend-arc.ts';
-import { MIN_CRUISE_FRACTION } from '../src/game/npc.ts';
+import { COMMANDER_HULL_RADIUS } from '../src/constants/collision.ts';
+import {
+  BREAK_OFF_RANGE, CLOSING_THROTTLE_MIN, MIN_CRUISE_FRACTION,
+} from '../src/constants/attack-run.ts';
+import { PASS_MISS_DISTANCE } from '../src/constants/pass-aim.ts';
+import { EXTEND_ARC_ANGLE } from '../src/constants/extend-arc.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 import { check } from './harness.ts';

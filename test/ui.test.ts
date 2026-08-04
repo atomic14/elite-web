@@ -19,7 +19,8 @@ import {
   DOCK_COMPUTER_RANGE,
   type AutopilotEvent,
 } from '../src/game/autopilot.ts';
-import { CombatComputer, CC_MAX_SPEED } from '../src/game/combat-computer.ts';
+import { CombatComputer } from '../src/game/combat-computer.ts';
+import { CC_MAX_SPEED } from '../src/constants/combat-computer.ts';
 import { check, eq, cmds, eqc, keys } from './harness.ts';
 
 // --- the screen contract ----------------------------------------------------

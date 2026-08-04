@@ -84,26 +84,24 @@ const OUTSIDE: readonly Group[] = [
     },
   },
 
+  {
+    why: 'per-module scratch vectors, reused so a per-frame path allocates nothing.'
+      + ' docs/TODO/90 rules them out by name: they are MUTABLE, so a shared home'
+      + ' would be a bug rather than a fix',
+    files: {
+      'game/npc.ts': ['ZERO', 'UP'],
+    },
+  },
+
   // --- pending slices --------------------------------------------------------
 
   {
-    why: 'the fight: how a hostile flies its attack run, what it is worth shooting at,'
-      + ' and what a collision costs',
+    why: 'what is left of the fight: how much a kill is worth, what a hit costs, and'
+      + ' which brain flies it',
     files: {
-      'game/break-off.ts': ALL,
-      'game/extend-arc.ts': ALL,
-      'game/pass-aim.ts': ALL,
-      'game/separation.ts': ALL,
-      'game/tactics.ts': ALL,
-      'game/tactic-choice.ts': ALL,
-      'game/npc.ts': ALL,
-      'game/npc-targeting.ts': ALL,
       'game/npc-energy.ts': ALL,
       'game/combat.ts': ALL,
-      'game/combat-computer.ts': ALL,
-      'game/collisions.ts': ALL,
       'game/impact-damage.ts': ALL,
-      'game/player-interest.ts': ALL,
       'game/threat.ts': ALL,
       'game/brains.ts': ALL,
       'game/brain-names.ts': ALL,
@@ -111,7 +109,11 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'the ship the player flies, and the clock the world advances on',
+    why: 'the ship the player flies, and the clock the world advances on. Two combat'
+      + ' constants wait on it: the combat computer\'s turn caps are `TURN` and'
+      + ' `RAM_MIN_SPEED` is `PLAYER_FLIGHT.maxSpeed`, and both are expressions today'
+      + ' — writing them in src/constants/ before their anchors arrive would mean'
+      + ' restating the anchor as a literal',
     files: {
       'player.ts': ALL,
       'game/ship-specs.ts': ALL,
@@ -119,6 +121,8 @@ const OUTSIDE: readonly Group[] = [
       'game/views.ts': ALL,
       'game/hyperspace.ts': ALL,
       'galaxy/navigation.ts': ALL,
+      'game/combat-computer.ts': ['CC_MAX_PITCH', 'CC_MAX_ROLL'],
+      'game/tactic-choice.ts': ['RAM_MIN_SPEED'],
     },
   },
 

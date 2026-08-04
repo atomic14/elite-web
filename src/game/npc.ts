@@ -16,15 +16,21 @@ import {
 } from '../ai-training/observation.ts';
 import { pirateBrainFor, defenceBrain } from './brains.ts';
 import {
-  UNDER_FIRE_SECONDS,
-  EXTEND_RANGE_MAX, nextAttackPhase, closingThrottle, rollExtendRange, type AttackPhase,
+  nextAttackPhase, closingThrottle, rollExtendRange, type AttackPhase,
 } from './break-off.ts';
+import {
+  EXTEND_RANGE_MAX, MIN_CRUISE_FRACTION, UNDER_FIRE_SECONDS,
+} from '../constants/attack-run.ts';
+import {
+  BRAIN_RATE_DECAY, BRAIN_RATE_RAMP, DECISION_INTERVAL,
+} from '../constants/brain-flight.ts';
 import { leadTime, passMissDistance } from './pass-aim.ts';
 import { extendArcAngle } from './extend-arc.ts';
-import { TACTICS, type TacticId } from './tactics.ts';
+import { TACTICS, type TacticId } from '../constants/tactics.ts';
 import { chooseTactic, tacticSwitchReason, type TacticHull } from './tactic-choice.ts';
-import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
-import { separationFrom, SEPARATION_PUSH } from './separation.ts';
+import { PLAYER_INTEREST_RANGE } from '../constants/player-interest.ts';
+import { separationFrom } from './separation.ts';
+import { SEPARATION_PUSH } from '../constants/separation.ts';
 import type { BrainSelection } from './brain-names.ts';
 import { THARGOID_FIRE_RATE } from '../constants/npc-gun.ts';
 import { MISSILE_RELOAD } from '../constants/ordnance.ts';
@@ -38,23 +44,6 @@ import type { NpcEnergyPoints } from './damage-units.ts';
 import { rampToward } from '../player.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
-
-/**
- * Hostiles cannot throttle below this fraction of their top speed.
- *
- * A fighter that can stop dead becomes a turret, because standing still is how
- * you hold a firing line — see CLAUDE.md's "threat is not fun". Only hostiles get it;
- * traders and haulers are allowed to come to rest.
- */
-export const MIN_CRUISE_FRACTION = 0.43;
-
-/**
- * How a brain-flown NPC's pitch/roll rates ramp up and bleed off — the
- * constants the trained policies were fitted with. The RULE is player.ts's
- * `rampToward`; only these two numbers are ours.
- */
-export const BRAIN_RATE_RAMP = 4.1396;
-export const BRAIN_RATE_DECAY = 5.2207;
 
 /**
  * Everything about a ship that can CHANGE.
@@ -171,7 +160,7 @@ export interface NpcState {
   /** which side this run passes on, +1 or -1, re-rolled with extendRange */
   passSide: number;
   /**
-   * WHICH WAY this ship flies its attack run — see tactics.ts.
+   * WHICH WAY this ship flies its attack run — see constants/tactics.ts.
    *
    * Rolled once at spawn from the hull's own capability set, and re-rolled only
    * when something happens that a pilot would act on: hurt, a last stand, or a
@@ -331,7 +320,7 @@ export function isHostileToPlayer(npc: NpcShip, legalStatus: number): boolean {
 /**
  * Is anything close enough and cross enough to turn the condition light red?
  *
- * The same range the ship itself engages at, from `player-interest.ts` — the
+ * The same range the ship itself engages at, from `constants/player-interest.ts` — the
  * light reports the rule rather than restating it, which is what stops the
  * console going red at a ship that has not decided anything.
  */
@@ -600,7 +589,7 @@ export class NpcShip {
   }
 
   /**
-   * What `tactics.ts` needs to know about this hull: how big it is, how fast it
+   * What `constants/tactics.ts` needs to know about this hull: how big it is, how fast it
    * goes, how hard it turns.
    *
    * A getter over the three fields rather than a stored object, because none of
@@ -913,7 +902,7 @@ export class NpcShip {
     this.state.flownBy = 'brain';
     this.state.brainTimer -= dt;
     if (!this.brainControl || this.state.brainTimer <= 0) {
-      this.state.brainTimer = 0.1;
+      this.state.brainTimer = DECISION_INTERVAL;
       const me = NpcShip.meView;
       const tv = NpcShip.targetView;
       writeView(me, this.object.position, this.object.quaternion);
@@ -1203,7 +1192,7 @@ export class NpcShip {
    * Advance the tactic clocks and, if something happened that a pilot would act
    * on, take a new tactic. @returns the one to fly this step.
    *
-   * The DECISION is `tactics.ts`'s and all of it: this reads the ship's own
+   * The DECISION is `tactic-choice.ts`'s and all of it: this reads the ship's own
    * fields into a situation, asks whether there is a reason, and applies the
    * answer. A module decides and reports; the ship applies — the same bargain
    * `attack()` has with `break-off.ts` and `gunnery.ts`.
@@ -1346,7 +1335,7 @@ export class NpcShip {
    * Two things measured it, over 160 seeded engagements of each pairing against
    * a target that holds still, target-in-the-list -> target-out-of-it:
    *
-   *   - IT WAS DELETING THE `ram` TACTIC. `tactics.ts` has a doomed ship aim at
+   *   - IT WAS DELETING THE `ram` TACTIC. `constants/tactics.ts` has a doomed ship aim at
    *     the hull rather than beside it (`missDistance: 0`, `aimsToHit: true`),
    *     and `tactic-choice.ts` goes to the trouble of exempting it from the
    *     clearance gate. Pinned to `ram`, a hunter connected 5 times and 0 times
@@ -1360,7 +1349,7 @@ export class NpcShip {
    *
    * The price is contact, and it is small: 0 -> 0.031 and 0 -> 0.125 per
    * engagement in a sky flying the whole tactic vocabulary, against the 0.33 an
-   * episode that tactics.ts already measured and accepted for the commander.
+   * episode that constants/tactics.ts already measured and accepted for the commander.
    */
   private matePositions(fleet: readonly NpcShip[]): readonly THREE.Vector3[] {
     const out = this.mateSlots;

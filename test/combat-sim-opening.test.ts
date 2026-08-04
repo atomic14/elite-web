@@ -33,7 +33,7 @@ import {
 import { SCENARIOS, type ExerciseSpec, type ScenarioId } from '../src/game/combat-sim-scenarios.ts';
 import { LASER_RANGE } from '../src/constants/player-gun.ts';
 import { NPC_LASER_RANGE } from '../src/constants/npc-gun.ts';
-import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
+import { PLAYER_INTEREST_RANGE } from '../src/constants/player-interest.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { readFileSync } from 'node:fs';
 import { check, eq } from './harness.ts';

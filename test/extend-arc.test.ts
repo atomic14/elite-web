@@ -13,10 +13,11 @@
 // curve from an intention.
 
 import { Episode } from '../src/ai-training/scenario.ts';
+import { extendArcAngle } from '../src/game/extend-arc.ts';
+import { CLEAR_RANGE, EXTEND_ARC_ANGLE } from '../src/constants/extend-arc.ts';
 import {
-  CLEAR_RANGE, EXTEND_ARC_ANGLE, extendArcAngle,
-} from '../src/game/extend-arc.ts';
-import { BREAK_OFF_RANGE, EXTEND_RANGE_MIN, EXTEND_RANGE_MAX } from '../src/game/break-off.ts';
+  BREAK_OFF_RANGE, EXTEND_RANGE_MIN, EXTEND_RANGE_MAX,
+} from '../src/constants/attack-run.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 import { check } from './harness.ts';
 

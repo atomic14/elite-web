@@ -30,13 +30,14 @@ import * as THREE from 'three';
 
 import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip, type FireEvent } from '../src/game/npc.ts';
-import { describeFlight, UNDER_FIRE_SECONDS } from '../src/game/break-off.ts';
+import { describeFlight } from '../src/game/break-off.ts';
+import { UNDER_FIRE_SECONDS } from '../src/constants/attack-run.ts';
 import { npcImpactDamage, IMPACT } from '../src/game/impact-damage.ts';
 import { brainByName } from '../src/game/brains.ts';
 import { SHIPPED_BRAINS, type BrainSelection } from '../src/game/brain-names.ts';
 import { SPECS } from '../src/game/ship-specs.ts';
 import { MISSILE_LAST_STAND_HULL, MISSILE_RELOAD } from '../src/constants/ordnance.ts';
-import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
+import { PLAYER_INTEREST_RANGE } from '../src/constants/player-interest.ts';
 import { check } from './harness.ts';
 
 const FRAME = 1 / 60;

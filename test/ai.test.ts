@@ -246,10 +246,11 @@ console.log('\npurity');
     'combat-sim-scenarios.ts',
     'combat-sim-report.ts',
     'brains.ts',
-    // which way a hostile flies its attack run, and which of them a hull may be
-    // given: a table of numbers and the gates/weights/switches over it, both
-    // reached by a training episode through `attack()`
-    'tactics.ts', 'tactic-choice.ts',
+    // which of the tactics a hull may be given, and what makes it re-decide —
+    // gates, weights and switches reached by a training episode through
+    // `attack()`. The table of numbers itself is src/constants/tactics.ts, which
+    // the constants gate holds as an import-nothing leaf
+    'tactic-choice.ts',
     // keeping wingmen out of each other's way — one vector out of two positions,
     // on the same path and for the same reason as the two above
     'separation.ts',

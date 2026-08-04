@@ -10,11 +10,11 @@
 // `train/flight-probe.ts` for the one-on-one shape against a target that holds
 // still, and `train/ram-probe.ts` for contact against one that moves.
 
+import { leadTime, passMissDistance } from '../src/game/pass-aim.ts';
 import {
   PASS_MISS_DISTANCE, MAX_LEAD_SECONDS, MAX_MISS_STRETCH,
-  leadTime, passMissDistance,
-} from '../src/game/pass-aim.ts';
-import { BREAK_OFF_RANGE } from '../src/game/break-off.ts';
+} from '../src/constants/pass-aim.ts';
+import { BREAK_OFF_RANGE } from '../src/constants/attack-run.ts';
 import { check } from './harness.ts';
 
 console.log('\nwhere the attack run aims');

@@ -49,10 +49,8 @@
 import * as THREE from 'three';
 
 import { PlayerShip, PLAYER_FLIGHT, rampToward, type FlightDemand } from '../player.ts';
-import {
-  NpcShip, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
-  type FireEvent,
-} from '../game/npc.ts';
+import { NpcShip, steerQuatToward, type FireEvent } from '../game/npc.ts';
+import { BRAIN_RATE_DECAY, BRAIN_RATE_RAMP } from '../constants/brain-flight.ts';
 import {
   Ordnance, autopilotEcm, fireEcm, type Missile, type OrdnanceWorld,
 } from '../game/ordnance.ts';
