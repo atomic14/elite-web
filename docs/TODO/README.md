@@ -474,6 +474,7 @@ combat computer bleeds off a turn — can be moved with no test failing at all.*
 - [ ] 86 — [The co-pilot you buy parks your ship](86-the-co-pilot-you-buy-parks-your-ship.md) — combat feel/design · medium · medium
 - [ ] 87 — [Three parity checks assert `f(x) === f(x)`](87-three-checks-that-restate-their-own-implementation.md) — test gap · low · small
 - [ ] 88 — [The flight readout still quotes two stale words](88-the-readout-still-quotes-two-stale-words.md) — UI/UX · low · small
+- [ ] 89 — [Nothing flies an NPC at another NPC in the live world](89-nothing-flies-npc-against-npc.md) — test gap · high · medium
 
 **75 is done, and the answer was to delete the reason.** "The gang is losing —
 one of us is already gone" was the third way into `npcMissileEmergency`, and it
