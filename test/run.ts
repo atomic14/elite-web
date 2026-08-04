@@ -52,6 +52,7 @@ import './break-off.test.ts';
 import './ship-clocks.test.ts';
 import './pass-aim.test.ts';
 import './extend-arc.test.ts';
+import './separation.test.ts';
 import './tactics.test.ts';
 import './tactic-choice.test.ts';
 import './systems.test.ts';

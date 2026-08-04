@@ -461,7 +461,7 @@ Fifteen of the eighteen were caught. **Three were not, and one more constant —
 combat computer bleeds off a turn — can be moved with no test failing at all.**
 
 - [x] 75 — [A gang never knows it is losing](75-a-gang-never-knows-it-is-losing.md) — combat bug/training fidelity · high · small
-- [ ] 76 — [Wingman avoidance can be deleted and nothing notices](76-wingman-avoidance-has-no-test.md) — test gap · medium · small
+- [x] 76 — [Wingman avoidance can be deleted and nothing notices](76-wingman-avoidance-has-no-test.md) — test gap · medium · small
 - [x] 77 — [A brain-flown ship is "evading" forever](77-a-brain-flown-ship-is-evading-forever.md) — combat bug · medium · small
 - [ ] 78 — [Every ram in training lands on the fore shield](78-every-ram-in-training-hits-the-fore-shield.md) — training fidelity · medium · small
 - [ ] 79 — [The "trader that shoots back" in the attack pool never fires](79-the-armed-hauler-in-the-pool-never-fires.md) — training methodology · medium · small
@@ -518,12 +518,70 @@ is why the same deletion costs the probe only 9%. 70 is the same shape a third
 time. Deleting `matesLost` closed the divergence between the two worlds; it did
 not make either of them richer.
 
-**76, 83 and 87 are the mutation sweep's three misses**, and they are not the
+**76, 83 and 87 were the mutation sweep's three misses**, and they are not the
 same kind of gap. 76 is a whole rule module — `separation.ts`, with its own swept
 constants and three call sites in the attack run — that no test imports at all.
 83 is one guard on a stated fairness rule with a recorded failure behind it. 87
 is three assertions that expand to `f(x) === f(x)` in the file whose own comment
-says "assert the rule rather than the copies".
+says "assert the rule rather than the copies". Two of the three are closed
+below; 87 is the one still open.
+
+**76 is done, and the module was right — the comment beside it was not.**
+`test/separation.test.ts` is 29 assertions, and the pure half of it asserts the
+rule rather than the arithmetic: the urgency curve as a constant slope over
+twenty steps rather than as `1 - d / SEPARATION_RANGE` written back down, the
+direction as a unit vector from the NEAREST mate against two far ones placed so
+that a blend would point somewhere else entirely, and the two guards — the last
+of them six hull separations from 0 to 0.5 units apart, because zero is the case
+that would otherwise put `NaN, NaN, NaN` into `object.position` and take the
+ship out of the world for the rest of the session. `npm test` goes from **3,024
+to 3,054 passed, 0 failed**. The review's own mutation,
+`if (nearest === null || true) return 0;`, fails **18** of them; deleting the
+identity skip fails 2, deleting the zero-distance guard fails 1 and prints the
+three NaNs, taking the last mate in range instead of the nearest fails 1, and
+bending the curve from linear to quadratic fails 3.
+
+The flying half is three merges, one per leg of the attack run, each flown twice
+— once with the pair in each other's fleet and once with the fleet empty, which
+is the same fixture with the push at zero. Closest approach goes **49.4 → 87.9**
+in `passing`, **49.0 → 87.6** in `closing` and **45.4 → 76.8** in `extending`,
+and the one contact `collisions.ts` reports in each control becomes none.
+Removing any ONE of the three call sites in `npc.ts` fails exactly one of those
+three, a different one each time, and fails it with `0.0 units wider` — with the
+fleet unseen the two arms are the same run to the last bit, which is what makes
+the control worth having. It lives beside its subsystem rather than in
+`test/npc.test.ts` as the item suggested: the rule being asserted is
+separation.ts's rather than a fact about `NpcShip`, and npc.test.ts is 361 lines
+with a 400-line ceiling over it.
+
+**`matePositions` said one thing and did another, and the comment was the one
+telling the truth.** It claimed "everything solid and alive except itself and
+the thing it is attacking" while excluding only `this`, the dead and the inert,
+so inside `SEPARATION_RANGE` a police ship steered away from the pirate it was
+attacking. Two measurements decided it, over 160 seeded engagements of each
+pairing against a target that holds still. It was deleting the `ram` tactic:
+`tactics.ts` has a doomed ship aim at the hull rather than beside it
+(`missDistance: 0`, `aimsToHit: true`) and `tactic-choice.ts` goes to the trouble
+of exempting it from the clearance gate, and pinned to `ram` a hunter connected
+**5 times and 0 times in 160 engagements** where without the push it connects
+**13.3 and 11.0 times per engagement** — one file exempting the tactic and
+another quietly vetoing it. It was also the second home of a distance
+`pass-aim.ts` already owns: the merge a run delivered sat at a **149.7/149.6**
+median against the **110** the aim asked for, and reads **115.2/113.5** with one
+rule deciding. The price is contact between two NPCs, 0 → **0.031** and
+**0.125** an engagement, against the 0.33 an episode `tactics.ts` had already
+measured and accepted for the commander.
+
+Nothing the player meets moved, and that is measured rather than assumed. `npm
+run campaign` is identical to the last decimal, `npm run elite-a` is 480 passed
+and `npm run portability` 0 contaminated. `npm run ram-probe` is byte-identical
+too — and the item is wrong to offer it as the end-to-end number for this
+decision, because an `Episode`'s fleet holds pirates and nothing else and its
+target is passed as `'player'`, so `matePositions` never contained the target
+there and the probe cannot see the change at all. The only sky the decision
+touches is the live one, where `view.fleet` is every NPC and `npcTarget` is one
+of them. `separation.ts` is on `test/ai.test.ts`'s `PURE` list now, which is the
+one free line the item asked for.
 
 **83 is done**, in a new `test/missile-cap.test.ts` rather than in
 `test/missiles.test.ts` — that file is about a warhead LEAVING the rail and this

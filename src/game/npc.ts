@@ -1328,12 +1328,43 @@ export class NpcShip {
    * a hull is a hull, so a trader minding its own business is as much of an
    * obstacle as a wingman. The array is an instance field rather than a fresh
    * one because this runs per ship per frame.
+   *
+   * THE TARGET IS NOT AN OBSTACLE. That is what the line above always claimed
+   * and what the code did not do until docs/TODO/76 found the two disagreeing,
+   * so it is a behaviour change and it is argued rather than assumed.
+   *
+   * A pirate attacking the PLAYER never saw the difference either way — the
+   * commander is not in the fleet. It is a police ship on a pirate, or a pirate
+   * on a trader, where the target IS a fleet member, and only ever inside
+   * `passing`: `SEPARATION_RANGE` (200) is inside `BREAK_OFF_RANGE` (220), so a
+   * ship is already committed to the pass before its target can be near enough
+   * to push it. Holding the committed line THROUGH the merge is that phase's
+   * whole job, and turning away in it is the 180 break-off.ts deleted.
+   *
+   * Two things measured it, over 160 seeded engagements of each pairing against
+   * a target that holds still, target-in-the-list -> target-out-of-it:
+   *
+   *   - IT WAS DELETING THE `ram` TACTIC. `tactics.ts` has a doomed ship aim at
+   *     the hull rather than beside it (`missDistance: 0`, `aimsToHit: true`),
+   *     and `tactic-choice.ts` goes to the trouble of exempting it from the
+   *     clearance gate. Pinned to `ram`, a hunter connected 5 times and 0 times
+   *     in 160 engagements; without the push it connects 13.3 and 11.0 times
+   *     per engagement. One file exempted the tactic and this one vetoed it.
+   *   - IT WAS THE SECOND HOME OF A DISTANCE. How far a run passes what it is
+   *     attacking is `pass-aim.ts`'s `passMissDistance`, swept; separation.ts is
+   *     "keeping wingmen out of each other's way" by its own title. With both
+   *     deciding, the delivered merge sat at a 149.7/149.6 median against the
+   *     110 the aim asked for; with one, 115.2/113.5.
+   *
+   * The price is contact, and it is small: 0 -> 0.031 and 0 -> 0.125 per
+   * engagement in a sky flying the whole tactic vocabulary, against the 0.33 an
+   * episode that tactics.ts already measured and accepted for the commander.
    */
   private matePositions(fleet: readonly NpcShip[]): readonly THREE.Vector3[] {
     const out = this.mateSlots;
     out.length = 0;
     for (const m of fleet) {
-      if (m === this || !m.state.alive || m.state.inert) continue;
+      if (m === this || m === this.npcTarget || !m.state.alive || m.state.inert) continue;
       out.push(m.object.position);
     }
     return out;

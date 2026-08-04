@@ -250,6 +250,9 @@ console.log('\npurity');
     // given: a table of numbers and the gates/weights/switches over it, both
     // reached by a training episode through `attack()`
     'tactics.ts', 'tactic-choice.ts',
+    // keeping wingmen out of each other's way — one vector out of two positions,
+    // on the same path and for the same reason as the two above
+    'separation.ts',
     // the whole world step, as of the extraction out of game.ts — this is the
     // line that says the simulation can advance without a browser
     'world-step.ts',
