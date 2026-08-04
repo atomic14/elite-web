@@ -11,7 +11,8 @@ import { newCommander, cargoTonnes } from '../src/game/commander.ts';
 import {
   dumpCargo, offerBribe, appetiteOf, OPPORTUNIST_FLOOR, GANG_FLOOR,
 } from '../src/game/jettison.ts';
-import { breachLoss, CARGO_LOSS_CHANCE, freshSystems } from '../src/game/systems.ts';
+import { breachLoss, freshSystems } from '../src/game/systems.ts';
+import { CARGO_LOSS_CHANCE } from '../src/constants/hull-breach.ts';
 import { Combat } from '../src/game/combat.ts';
 import {
   isContraband, contrabandTonnes, carryingContraband, CLEAN, FUGITIVE,

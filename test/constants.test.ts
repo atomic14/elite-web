@@ -25,7 +25,8 @@
 // docs/TODO/90 shipped with a census grep that only matched a right-hand side
 // beginning with an UPPER_CASE identifier. It therefore missed every derived
 // constant wrapped in a call, a paren or a digit — `Math.round(MAX_ENERGY / 4)`,
-// `0.1 / LEGACY_MAX_ENERGY`, `playerHull(...).energyRechargeRating` — and the
+// `(EXTEND_RANGE_MIN + EXTEND_RANGE_MAX) / 2`,
+// `playerHull(...).energyRechargeRating` — and the
 // item concluded from it that the codebase had exactly ONE derived constant when
 // it has at least twenty. So this scan looks at the LEFT of the `=` and never at
 // the right: a declaration is a declaration whatever it is initialised from.
@@ -110,6 +111,18 @@ const OUTSIDE: readonly Group[] = [
     },
   },
 
+  {
+    why: 'MOVED, apart from one BLOCKED derivation: the pools are constants/pools.ts, how'
+      + ' they come back is constants/recharge.ts, the sun and the cabin are'
+      + ' constants/sun.ts and what a breach costs is constants/hull-breach.ts. The'
+      + ' recharge ANCHOR cannot follow — it is a released hull\'s rating, read through'
+      + ' ship-identity.ts and the Elite-A catalogue, and this directory may not import.'
+      + ' Same shape as `WORLD_SPEED_PER_SOURCE_SPEED`; see docs/TODO/90-constants-cleanup.md',
+    files: {
+      'game/systems.ts': ['ANCHOR_RECHARGE_RATING'],
+    },
+  },
+
   // --- pending slices --------------------------------------------------------
 
   {
@@ -127,21 +140,14 @@ const OUTSIDE: readonly Group[] = [
 
   {
     why: 'the clock the world advances on and the jump it is interrupted by: the fixed'
-      + ' slice, the sun, the four camera views, the countdown and what a witchspace'
-      + ' escape costs',
+      + ' slice, the four camera views, the countdown and what a witchspace escape'
+      + ' costs. The sun left with the pools — `SUN_KILL_DIST` is the bottom rung of'
+      + " constants/sun.ts's ladder and could not be held in order from here",
     files: {
       'game/world-step.ts': ALL,
       'game/views.ts': ALL,
       'game/hyperspace.ts': ALL,
       'galaxy/navigation.ts': ALL,
-    },
-  },
-
-  {
-    why: "the commander's pools, past the capacities: the recharge, the heat, the sun"
-      + ' and the migration off the pre-TODO-27 scale',
-    files: {
-      'game/systems.ts': ALL,
     },
   },
 

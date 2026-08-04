@@ -373,13 +373,115 @@ derivations, thrust and both turn caps for all 48 roster rows, and every name in
 `src/constants/` at HEAD against every name in it now. The harness was broken
 (`ACCEL_FRACTION` 0.46 → 0.461) and reported 48 changes before being restored.
 
+**Slice 4 — the rest of the commander's pools, and the sun — landed.** Four
+files touched in the home, three of them new, and the count went from 83 home /
+363 out across 89 files to **98 home / 347 out across 89**. The file count does
+not move: `systems.ts`, `npc-energy.ts` and `world-step.ts` all keep other
+constants.
+
+| moved | file |
+| --- | --- |
+| how the pools come back — the two fractions, the shield rate, the energy unit | `constants/recharge.ts` |
+| the sun's ordered ladder, the cabin's lag and what you can scoop off it | `constants/sun.ts` |
+| what a hull breach costs — the two chances and the fittings that can go | `constants/hull-breach.ts` |
+| `LASER_COOL_RATE`, joining the cut-out and the pacing it argues with | `constants/player-gun.ts` |
+
+**The recharge is its own file, not part of `pools.ts`, and the split is by
+provenance.** A capacity is the released game's — 255 is a byte and every hull's
+comes out of the pack — while a refill rate is not in the pack at all: the
+source gives a `energyRechargeRating` and no clock. One file is numbers somebody
+could re-import; the other is Harmless policy nobody can look up.
+
+**`SUN_KILL_DIST` came out of `world-step.ts` to join them.** The four sun
+distances are one ordered ladder — heat starts, scooping, the cabin's fatal
+band, the sun itself — and they were four literals in two files with nothing
+holding the order. `game.ts` still carried a comment describing that ordering
+for constants that had already left it, which is a comment that cannot fail.
+`test/systems.test.ts` now walks in from deep space through the real `scoopFuel`
+and `updateCabinTemp` and asserts what each rung BUYS; each of the three
+interior rungs was moved and confirmed red.
+
+**Two inline magic numbers got names**: `CABIN_TEMP_LAG` (the `dt * 1.2` in
+`updateCabinTemp`) and `CABIN_TEMP_FATAL` (`0.99`). `ShipSystems.cabinTemp`'s
+doc said "1.0 is fatal" and had done for as long as the code said 0.99 — the
+prose is fixed and the reason 1.0 is unreachable (an exponential lag never
+arrives) is written beside the constant. `laserTemp`'s doc restated `0.98`; it
+names `LASER_CUTOUT` now.
+
+**`ANCHOR_RECHARGE_RATING` did not come**, exactly as slice 3 predicted. It is
+`playerHull(COBRA_MK_3_HULL_ID).energyRechargeRating`, so it reaches the Elite-A
+catalogue through `ship-identity.ts` and six generated tables. It is on the
+cleanup list beside `WORLD_SPEED_PER_SOURCE_SPEED` with the same reasoning, and
+`game/systems.ts` is now a NAMED entry on the gate's list rather than a whole
+file: that one constant is all it has left.
+
+**AND THE LEGACY CONSTANTS WERE DELETED RATHER THAN NAMESPACED.** This item's
+survey said `LEGACY_MAX_ENERGY = 4` and `ENERGY_BANKS = 4` were "the trap:
+historically the same fact, now permanently different, because a save on disk
+depends on one", and asked for a `MIGRATION` namespace to keep them apart. Chris,
+2026-08-04: *"We don't have any data to migrate yet — anything legacy can be
+removed and any migration is not needed. We will only need migrations once we
+start to release official versions."* No save on disk depends on it, because
+nobody outside this project has ever played. So the trap is resolved by
+subtraction: `LEGACY_MAX_ENERGY`, `LEGACY_MAX_SHIELD`,
+`LEGACY_ASTEROID_HULL_POINTS`, the roster's `legacyHullPoints` column,
+`migratedSystems` and `migratedNpcState` are gone, and the six names are on
+`test/damage-paths.test.ts`'s "cannot come back" list beside the TODO 26/27
+bridges. The precedent is docs/TODO/53, which deleted `migrateLegacySaves` on
+the same reasoning.
+
+That forced the one real decision of the slice. `ENERGY_REGEN_FRACTION` was
+`0.1 / LEGACY_MAX_ENERGY` and `SHIELD_REGEN_FRACTION` was
+`0.035 / LEGACY_MAX_SHIELD` — live constants over migration divisors. **They are
+literals now, 0.025 and 0.035, with the arithmetic written out beside them**,
+and that is the deliberate answer rather than the lazy one: a fraction of a pool
+per second is what they ARE on any scale, and expressing one over a constant
+that exists only to be a divisor for a scale nothing uses would have left a
+reader looking up `LEGACY_MAX_ENERGY` to discover it meant 4. `0.1 / 4 === 0.025`
+to the bit, so nothing moved. The two derivations that ARE real stayed
+derivations: `SHIELD_REGEN = MAX_SHIELD * SHIELD_REGEN_FRACTION`, and
+`ANCHOR_RECHARGE_RATING` off the catalogue.
+
+The claim those two fractions make — a 40-second bank and a 28.6-second shield
+face, unchanged since before the pools grew — is timed through the real
+`regenerate` in `test/systems.test.ts`. **Its tolerance was 0.2s and did not
+gate**: moving `ENERGY_REGEN_FRACTION` by 0.4% left it passing. It is 0.1s now,
+which is the tick quantisation and nothing else, and both fractions were moved
+by 0.4% and confirmed red.
+
+Byte-identical, verified against a worktree at HEAD: **2679 compared, 0
+changed** — every name in `src/constants/` then against now, the fifteen that
+left `systems.ts`, `SUN_KILL_DIST`, both newly-named inline literals,
+`energyRegenPerSecond` for all 15 hulls at both fits, `regenerate` from all 256
+bank values, `updateCabinTemp` and `scoopFuel` swept over 261 distances,
+`applyDamage` and the three pool readings over 87 damages, `breachLoss` over 400
+seeded trials, and all 49 roster rows minus the deleted column. 104 of those
+comparisons are the deletion's own proof: for every save that can actually
+exist, HEAD's `migratedSystems` and `migratedNpcState` are the identity, so
+removing them removes no behaviour. The harness was broken
+(`ENERGY_REGEN_FRACTION` 0.025 → 0.0251) and reported 284 changes before being
+restored.
+
+**The suite reads 3066 rather than 3070, and all eleven lost assertions were
+migration.** Four in `test/systems.test.ts` (`migratedSystems` as an identity, a
+1/1/4 save keeping its fractions, its carries starting clean, an empty save
+coming back whole), five in `test/snapshot.test.ts` (the pre-energy conversion's
+purity, its pass-through, a quarter-hull, no stray `hp`, a sliver not rounding
+to death) and two in `test/world-step.test.ts` (a pre-255 world through the real
+`Persistence.restore`). Seven new ones replace them: six for the sun's ladder,
+and one in `test/snapshot.test.ts` that is better than the check it stands in
+for — restoring a fleet DOES draw, because rebuilding a ship rolls a tumble
+axis, a pack offset, an E.C.M. coin and an opening tactic, so the property worth
+pinning is that the fleet which comes back is the same fleet from anywhere in
+the stream. `world.ts`'s own comment claimed "no draw from the rng" and was
+wrong about that.
+
 **Still to do**, in the groups the gate's list already names: the world clock and
-the jump, the rest of the commander's pools, spawning and population, the career,
-the galaxy, the station, the console, the combat trainer, saves, and the policy
-seam. Plus two things no slice has touched: `MAX_TRADERS` still has two homes,
-and CLAUDE.md does not yet carry the read-it-do-not-grep-it instruction below —
-the gate catches a second home mechanically, but the instruction is what stops
-one being written.
+the jump, spawning and population, the career, the galaxy, the station, the
+console, the combat trainer, saves, and the policy seam. Plus two things no slice
+has touched: `MAX_TRADERS` still has two homes, and CLAUDE.md does not yet carry
+the read-it-do-not-grep-it instruction below — the gate catches a second home
+mechanically, but the instruction is what stops one being written.
 
 ## What to work out
 

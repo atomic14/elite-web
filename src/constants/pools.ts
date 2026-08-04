@@ -1,10 +1,13 @@
 // The commander's three pools: what they hold, and how the console reads them.
 //
 // Four values and one division. `game/systems.ts` owns everything that HAPPENS
-// to the pools — the recharge, `applyDamage`, the migration off the pre-TODO-27
-// scale — and reads these; they are here because they are also what the console
-// draws, what a defence policy's 0..1 readings divide by, and what the E.C.M.
-// costs, and a capacity with four readers is not one module's private number.
+// to the pools — `applyDamage`, `regenerate`, the two 0..1 readings a defence
+// policy observes — and reads these; they are here because they are also what
+// the console draws, what those readings divide by, and what the E.C.M. costs,
+// and a capacity with four readers is not one module's private number.
+//
+// How fast they come back is `recharge.ts`, which is a different KIND of number
+// — a capacity is the released game's and a refill rate is ours.
 //
 // They arrived in this directory ahead of the rest of systems.ts because
 // `ECM_ENERGY_COST` could not be expressed without them: it was
@@ -21,6 +24,16 @@ export const MAX_SHIELD = 255;
  * Four, as the original's console did: TODO 27 made energy one 255-point pool,
  * but a player still flies by "how many banks left", so the console draws this
  * many segments (hud.ts, via the frame).
+ *
+ * A LIVE DISPLAY RULE, and it may change — `ENERGY_BANK_POINTS` and
+ * `LOW_ENERGY` derive from it precisely so that it can. It used to have a
+ * dangerous twin: `LEGACY_MAX_ENERGY = 4` in systems.ts, how many points the
+ * pool HELD before TODO 27, which looked like the same fact and was frozen
+ * because a save was read against it. Both fours are not something to
+ * reconcile any more — the pre-TODO-27 scale and everything that migrated off
+ * it were deleted (Chris, 2026-08-04: nobody has such a save). If a second 4
+ * ever reappears in this subject, it is a migration divisor coming back, and
+ * the question to ask is who it is for.
  */
 export const ENERGY_BANKS = 4;
 

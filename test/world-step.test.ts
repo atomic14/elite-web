@@ -15,7 +15,6 @@ import {
   type StepEvent,
   type StepHost,
 } from '../src/game/world-step.ts';
-import { MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
 import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';
 import { playerPoolPoints, type PlayerPoolPoints } from '../src/game/damage-units.ts';
 import { npcLaserDamageToPlayer } from '../src/game/gunnery.ts';
@@ -563,30 +562,11 @@ console.log('\nheadless world step');
     check('a restored world replays the run it came from, byte for byte',
       trace(b) === trace(a));
 
-    // A world written BEFORE the banks grew carries them on the old 1/1/4
-    // maxima and no carries. It must come back at the same FRACTION of the new
-    // pools — never full, never flat — and it must still load at all: an
-    // unreadable world costs a player their flight.
-    {
-      const legacy = JSON.parse(wire) as WorldSnapshot;
-      legacy.systems = {
-        energy: 3, foreShield: 0.5, aftShield: 0,
-        laserTemp: 0.25, laserCooldown: 0.1, cabinTemp: 0.4,
-      } as unknown as WorldSnapshot['systems'];
-      const old = arrival(99);
-      new Persistence(old.state, old.ordnance, new CombatComputer(),
-        stubHost(old.state, []))
-        .restore(JSON.parse(JSON.stringify(legacy)) as WorldSnapshot);
-      const sys = old.state.sys;
-      check(`a pre-255 save keeps its fractions (${sys.foreShield}/${sys.aftShield}`
-        + `/${sys.energy})`,
-        sys.energy === Math.round(0.75 * MAX_ENERGY)
-        && sys.foreShield === Math.round(0.5 * MAX_SHIELD)
-        && sys.aftShield === 0);
-      check('...starts its sub-tick carries clean, and leaves heat alone',
-        sys.energyCarry === 0 && sys.foreShieldCarry === 0 && sys.aftShieldCarry === 0
-        && sys.laserTemp === 0.25 && sys.cabinTemp === 0.4);
-    }
+    // TWO CHECKS STOOD HERE, on a world written before the banks grew: pools on
+    // the old 1/1/4 maxima, coming back at the same FRACTION of the new ones.
+    // The scale and its migration are deleted (2026-08-04, docs/TODO/90-constants-
+    // cleanup.md) — no save on it exists — so `restore` assigns the snapshot's
+    // pools straight across, and the round trip above already covers that.
 
     // A/B brain selection is STATE, so it is in the save — the whole reason it
     // stopped being five `window.__` flags. A save made while flying an

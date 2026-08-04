@@ -20,14 +20,32 @@
 // `impact-damage.ts`. TODO 28 deleted the conversion that stood here, and the
 // normalized scale it converted from: there is no scale left to convert.
 //
-// RECHARGE IS HARMLESS POLICY, stated as ours: the pack gives each hull an
-// `energyRechargeRating` and no clock, and what a rating is worth in seconds is
-// a browser-game decision — "exactly what the Cobra Mk III already did", see
-// ENERGY_REGEN_FRACTION. It accumulates in whole sub-ticks rather than a float
-// sum so 15, 60 and 144 Hz agree, the same clock the NPC banks run on.
+// RECHARGE IS HARMLESS POLICY, and the rates are `constants/recharge.ts` — the
+// pack gives each hull an `energyRechargeRating` and no clock, so what a rating
+// is worth in seconds is a browser-game decision. It accumulates in whole
+// sub-ticks rather than a float sum so 15, 60 and 144 Hz agree, the same clock
+// the NPC banks run on. What a hull is rated is the catalogue's, and dividing
+// one rating by the Cobra's is the only piece of this that could not move into
+// the constants directory: see ANCHOR_RECHARGE_RATING.
+//
+// THERE IS NO MIGRATION HERE ANY MORE. `migratedSystems` rescaled a save
+// written before TODO 27 made the pools 255 points, and `LEGACY_MAX_ENERGY` and
+// `LEGACY_MAX_SHIELD` were the divisors it did it with. Nobody outside this
+// project has ever played it, so no such save exists and the whole path served
+// nobody (Chris, 2026-08-04; the same answer docs/TODO/53 gave `migrateLegacySaves`).
+// A snapshot's `systems` is a complete `ShipSystems` and is assigned straight
+// across. `test/damage-paths.test.ts` fails if any of the names come back.
 
 import { random } from './rng.ts';
 import { LOW_ENERGY, MAX_ENERGY, MAX_SHIELD } from '../constants/pools.ts';
+import {
+  ENERGY_REGEN_FRACTION, ENERGY_UNIT_MULTIPLIER, SHIELD_REGEN,
+} from '../constants/recharge.ts';
+import { LASER_COOL_RATE } from '../constants/player-gun.ts';
+import { CABIN_TEMP_FATAL, CABIN_TEMP_LAG, SCOOP_RATE, SUN_HEAT_MAX, SUN_HEAT_START,
+  SUN_SCOOP_RANGE } from '../constants/sun.ts';
+import { BREAKABLE, CARGO_LOSS_CHANCE, EQUIPMENT_DAMAGE_CHANCE }
+  from '../constants/hull-breach.ts';
 import type { Equipment } from './commander.ts';
 import { eliteARegenTicks, eliteATicksPerPoint } from './elite-a/combat-math.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
@@ -49,25 +67,12 @@ export interface ShipSystems {
   foreShieldCarry: number;
   aftShieldCarry: number;
   energyCarry: number;
-  /** 0..1; the laser cuts out at 0.98 */
+  /** 0..1; the gun cuts out at `LASER_CUTOUT` and cools at `LASER_COOL_RATE` */
   laserTemp: number;
   laserCooldown: number;
-  /** 0..1; 1.0 is fatal */
+  /** 0..1; `CABIN_TEMP_FATAL` kills you */
   cabinTemp: number;
 }
-
-/**
- * What the banks held before TODO 27, and the divisors a legacy save is
- * migrated against. Migration data: nothing live reads them.
- *
- * They are NOT `ENERGY_BANKS` under another name, however alike 4 and 4 look:
- * that is how many segments the console draws today, this is how many points the
- * pool held in 1984's arithmetic, and a save on disk depends on the second. They
- * were historically one fact and are now permanently two, which is why the live
- * capacities moved to constants/pools.ts and these did not follow.
- */
-export const LEGACY_MAX_ENERGY = 4;
-export const LEGACY_MAX_SHIELD = 1;
 
 /**
  * You are down to your last bank: the shields stop recovering (below), the step
@@ -82,31 +87,21 @@ export function energyLow(energy: number): boolean {
 }
 
 /**
- * The fraction of a full pool the Cobra Mk III recovers each second — HARMLESS
- * POLICY, and the anchor for the whole recharge model. These are the
- * pre-TODO-27 rates as fractions (0.1 of a 4-point bank a second, 0.035 of a
- * 1.0 shield), so a Cobra flies exactly the recharge it flew before the pools
- * grew. Not recovered source arithmetic: the pack gives a RATING and no clock.
- */
-export const ENERGY_REGEN_FRACTION = 0.1 / LEGACY_MAX_ENERGY;
-export const SHIELD_REGEN_FRACTION = 0.035 / LEGACY_MAX_SHIELD;
-/** An energy unit doubles the bank's recharge, exactly as it always did. */
-export const ENERGY_UNIT_MULTIPLIER = 2;
-
-/** Shield points a second, per face, and only while energy is above LOW_ENERGY. */
-export const SHIELD_REGEN = MAX_SHIELD * SHIELD_REGEN_FRACTION;
-
-/**
- * The recharge rating the fractions above were anchored on — read from the
- * catalogue rather than written as `1`, so a hull rated 2 (the Fer-de-Lance)
- * recovers twice as fast as the Cobra whatever the Cobra's own rating becomes.
+ * The recharge rating `constants/recharge.ts`'s fractions were anchored on —
+ * read from the catalogue rather than written as `1`, so a hull rated 2 (the
+ * Fer-de-Lance) recovers twice as fast as the Cobra whatever the Cobra's own
+ * rating becomes.
+ *
+ * THE ONE CONSTANT OF THIS FILE'S THAT DID NOT MOVE, and the reason is the same
+ * one that kept `WORLD_SPEED_PER_SOURCE_SPEED` beside the roster: `playerHull`
+ * reaches a released hull through `ship-identity.ts` and the Elite-A
+ * catalogue's six generated tables, and `src/constants/` may not import
+ * anything. Writing `1` there instead would put a pack number in a Harmless
+ * file and break the derivation the comment above is about. It stays where both
+ * halves are in scope — see docs/TODO/90-constants-cleanup.md.
  */
 export const ANCHOR_RECHARGE_RATING =
   playerHull(COBRA_MK_3_HULL_ID).energyRechargeRating;
-
-export const LASER_COOL_RATE = 0.22;
-/** Chance a hit that reaches the hull wrecks cargo or a fitting. */
-export const EQUIPMENT_DAMAGE_CHANCE = 0.25;
 
 export function freshSystems(): ShipSystems {
   return {
@@ -225,10 +220,8 @@ export function applyDamage(
     // a fitting — "the ship's computer will keep you informed".
     //
     // ONE ROLL PER HIT, and that is the whole reason this line reads as it
-    // does. The chance is a property of the HIT, not of how big it was: making
-    // the pools 255 times larger multiplies the number of POINTS arriving, and
-    // a roll per point (or a chance scaled by the amount) would have multiplied
-    // how often equipment breaks by the unit conversion.
+    // does — see EQUIPMENT_DAMAGE_CHANCE for why the chance belongs to the hit
+    // rather than to the number of points in it.
     sys.energy = Math.max(0, sys.energy - remaining);
     wreckedSomething = roll() < EQUIPMENT_DAMAGE_CHANCE;
   }
@@ -298,59 +291,19 @@ export function regenerate(sys: ShipSystems, dt: number, opts: RegenOptions): vo
 }
 
 /**
- * A saved ship's systems, brought onto the 255-point scale.
- *
- * A world written before TODO 27 carries the pools on their former 1/1/4 maxima
- * and no carries; one written after round-trips untouched. The migration keeps
- * the FRACTION of each pool that was left, so a flight reloaded on half a
- * shield comes back on half a shield rather than full or flat. Pure, and
- * deliberately: restoring must not draw from the rng.
- */
-export function migratedSystems(saved: Partial<ShipSystems>): ShipSystems {
-  const fresh = freshSystems();
-  const scaled = (value: unknown, legacyMax: number, max: number): number => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) return max;
-    return Math.max(0, Math.min(max, Math.round((value / legacyMax) * max)));
-  };
-  // The carries are the marker: they exist in every save written since TODO 27
-  // and in none written before it, so a pool on the new scale is never rescaled
-  // a second time.
-  if (typeof saved.energyCarry === 'number') {
-    return { ...fresh, ...saved } as ShipSystems;
-  }
-  return {
-    ...fresh,
-    ...saved,
-    energy: scaled(saved.energy, LEGACY_MAX_ENERGY, MAX_ENERGY),
-    foreShield: scaled(saved.foreShield, LEGACY_MAX_SHIELD, MAX_SHIELD),
-    aftShield: scaled(saved.aftShield, LEGACY_MAX_SHIELD, MAX_SHIELD),
-    foreShieldCarry: 0,
-    aftShieldCarry: 0,
-    energyCarry: 0,
-  };
-}
-
-/** Distance at which the sun starts to be felt, and at which it is lethal. */
-export const SUN_HEAT_START = 110_000; // cabin temp begins to climb
-export const SUN_HEAT_MAX = 26_000;    // cabin temp reaches 1.0 (death follows)
-/** Close enough to scoop fuel, if you have the scoops for it. */
-export const SUN_SCOOP_RANGE = 80_000; // fuel scoops gather inside this
-/** Tonnes of fuel — tenths of a LY — per second while scooping. */
-export const SCOOP_RATE = 5;
-
-/**
  * Cabin temperature follows distance from the sun, lagging behind it.
  *
  * Sun-skimming with scoops means riding the hot zone on purpose, so the lag is
- * the mechanic: it gives you time to pull out.
+ * the mechanic: it gives you time to pull out. The ladder of distances this
+ * walks, and what each rung buys, is `constants/sun.ts`.
  *
  * @returns true if the cabin has reached a fatal temperature.
  */
 export function updateCabinTemp(sys: ShipSystems, dt: number, sunDist: number): boolean {
   const target = Math.max(0, Math.min(1,
     (SUN_HEAT_START - sunDist) / (SUN_HEAT_START - SUN_HEAT_MAX)));
-  sys.cabinTemp += (target - sys.cabinTemp) * Math.min(1, dt * 1.2);
-  return sys.cabinTemp >= 0.99;
+  sys.cabinTemp += (target - sys.cabinTemp) * Math.min(1, dt * CABIN_TEMP_LAG);
+  return sys.cabinTemp >= CABIN_TEMP_FATAL;
 }
 
 /** Fuel taken on this frame, in tenths of a LY. Zero when not scooping. */
@@ -363,26 +316,6 @@ export function scoopFuel(
 
 
 // --- what a hull hit costs you ---------------------------------------------
-
-/**
- * The fittings a hull breach can knock out, in the order they are offered.
- *
- * A table rather than seven `if (e.x) push(...)` lines, which is what this was
- * inside game.ts. Adding equipment meant remembering to add it here too; now
- * the only question is whether it belongs in the list.
- */
-const BREAKABLE: readonly (readonly [keyof Equipment, string])[] = [
-  ['ecm', 'E.C.M. SYSTEM'],
-  ['scoops', 'FUEL SCOOPS'],
-  ['rearLaser', 'REAR LASER'],
-  ['leftLaser', 'LEFT LASER'],
-  ['rightLaser', 'RIGHT LASER'],
-  ['dockingComputer', 'DOCKING COMPUTER'],
-  ['combatComputer', 'COMBAT COMPUTER'],
-];
-
-/** Cargo is lost this often when there is any aboard — equipment is rarer. */
-export const CARGO_LOSS_CHANCE = 0.7;
 
 export type BreachLoss =
   | { kind: 'cargo'; commodity: number }

@@ -37,8 +37,10 @@
 //   every id resolves and round-trips, every recommended lookup is a real
 //   variant with the matching tuple
 //                             ship-identity.test.ts, elite-a-catalogue.test.ts
-//   legacy player / NPC / systems migrations
-//                             ship-identity.test.ts, systems.test.ts
+//   a commander with no hull id loads as a Cobra Mk III (the one identity
+//   fallback left; the pre-energy and pre-255 SCALE migrations were deleted
+//   2026-08-04 — no save exists on either)
+//                             ship-identity.test.ts
 //   runtime lasers call the shared oracle
 //                             elite-a-live-combat.test.ts (15,600 outgoing)
 //                             elite-a-live-defence.test.ts (3,900 incoming)

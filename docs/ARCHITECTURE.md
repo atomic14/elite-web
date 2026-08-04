@@ -307,8 +307,9 @@ src/
                             episode can supply as easily as the World can
     systems.ts              the commander's three 255-point banks, what a hit
                             costs them, how they recharge (Harmless policy on
-                            the oracle's tick clock), laser heat, cabin temp,
-                            and the save migration
+                            the oracle's tick clock), laser heat, cabin temp
+                            and what a hull breach wrecks. The numbers are
+                            src/constants/ — pools, recharge, sun, hull-breach
     collisions.ts           who is overlapping whom, and how to separate them
     combat-computer.ts      the defence brain flying the PLAYER's ship
     autopilot.ts            is something else flying, and what does it want?

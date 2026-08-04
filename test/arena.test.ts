@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { dockingOutcome } from '../src/game/docking.ts';
 import { World } from '../src/game/world.ts';
-import { massLocked, SUN_KILL_DIST } from '../src/game/world-step.ts';
+import { massLocked } from '../src/game/world-step.ts';
 import { spawnOpposition, type OppositionUnit } from '../src/game/spawning.ts';
 import { arenaCentre } from '../src/game/combat-sim-opening.ts';
 import { freshState } from '../src/game/state.ts';
@@ -24,7 +24,7 @@ import {
   CONSTRICTOR_SPEC,
   type NpcSpec,
 } from '../src/game/ship-specs.ts';
-import { SUN_HEAT_START } from '../src/game/systems.ts';
+import { SUN_HEAT_START, SUN_KILL_DIST } from '../src/constants/sun.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import { check, eq } from './harness.ts';
 

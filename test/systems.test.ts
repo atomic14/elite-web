@@ -17,20 +17,20 @@ import {
   durability,
   energyRegenPerSecond,
   freshSystems,
-  migratedSystems,
   regenerate,
   repairAtStation,
   scoopFuel,
   updateCabinTemp,
-  ENERGY_UNIT_MULTIPLIER,
-  LEGACY_MAX_ENERGY,
-  LEGACY_MAX_SHIELD,
   type RegenOptions,
   type ShipSystems,
 } from '../src/game/systems.ts';
 import {
   ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY, MAX_SHIELD,
 } from '../src/constants/pools.ts';
+import { ENERGY_UNIT_MULTIPLIER } from '../src/constants/recharge.ts';
+import {
+  SUN_HEAT_MAX, SUN_HEAT_START, SUN_KILL_DIST, SUN_SCOOP_RANGE,
+} from '../src/constants/sun.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
 
 /** The hull the recharge policy is anchored on — see systems.ts. */
@@ -176,6 +176,60 @@ console.log('\nship systems');
   }
 }
 
+// --- the sun's ladder --------------------------------------------------------
+//
+// Four distances, met in this order flying in from deep space: the cabin starts
+// to warm (110,000), the scoops start to gather (80,000), the cabin passes the
+// fatal temperature (26,840, off `SUN_HEAT_MAX`'s ramp), and the ship is gone
+// regardless (21,000). They were four literals in two files and NOTHING held
+// them in that order — game.ts carried a comment describing the ordering for
+// constants that had already left it, which is a comment nobody can fail.
+//
+// So each rung is asserted by what it BUYS, walked in through the real
+// `scoopFuel` and `updateCabinTemp` rather than by sorting four numbers. Swap
+// any two and one of these goes red.
+
+console.log('\nthe sun — heat, scooping and the order they arrive in');
+
+{
+  /** Where the cabin settles after `seconds` of holding station at `dist`. */
+  const settlesAt = (dist: number, seconds: number): number => {
+    const s = freshSystems();
+    for (let i = 0; i < seconds * 60; i += 1) updateCabinTemp(s, 1 / 60, dist);
+    return s.cabinTemp;
+  };
+  /** ...and whether it ever reaches a fatal one. */
+  const cooks = (dist: number, seconds: number): boolean => {
+    const s = freshSystems();
+    for (let i = 0; i < seconds * 60; i += 1) {
+      if (updateCabinTemp(s, 1 / 60, dist)) return true;
+    }
+    return false;
+  };
+  const scoops = (dist: number): number => scoopFuel(1, dist, true, 0, 70);
+
+  check('outside the top of the ladder the cabin never warms at all',
+    settlesAt(SUN_HEAT_START + 1, 60) === 0 && scoops(SUN_HEAT_START) === 0);
+  check('you are warm before you can earn — the scoops start inside the heat',
+    scoops(SUN_SCOOP_RANGE - 1) > 0 && settlesAt(SUN_SCOOP_RANGE - 1, 60) > 0.3);
+  check('...and that outer edge is survivable, which is what sun-skimming IS',
+    !cooks(SUN_SCOOP_RANGE - 1, 300));
+  check('the whole fatal band is inside the scoop range, so the risk buys fuel',
+    scoops(SUN_HEAT_MAX) > 0 && cooks(SUN_HEAT_MAX, 30));
+  check('the heat kills you before the sun does, so the gauge is a real warning',
+    cooks(SUN_KILL_DIST + 1, 30));
+
+  // What the trade is worth, end to end: a full tank off the outer edge.
+  let fuel = 0;
+  let t = 0;
+  while (fuel < 70 && t < 120) {
+    fuel += scoopFuel(1 / 60, SUN_SCOOP_RANGE - 1, true, fuel, 70);
+    t += 1 / 60;
+  }
+  check(`...and a dry tank fills in 14 seconds of it (${t.toFixed(1)}s)`,
+    Math.abs(t - 14) < 0.1);
+}
+
 console.log('\nship systems — recharge, and the TODO 28 bridge');
 
 {
@@ -210,14 +264,25 @@ console.log('\nship systems — recharge, and the TODO 28 bridge');
     while (fill(sys) < MAX_ENERGY && t < 600) { regenerate(sys, 1 / 60, COBRA); t += 1 / 60; }
     return t;
   };
+  // The two figures are written out rather than recomputed from the fractions
+  // they are timing: `1 / ENERGY_REGEN_FRACTION` would be this loop's own input
+  // handed back to it, and would pass at any rate. 40 and 28.6 are the claim —
+  // "a Cobra flies the recharge it flew before the pools grew" — so moving
+  // either fraction has to cost a red line here.
+  //
+  // The tolerance is 0.1s, which is the tick quantisation and nothing else: the
+  // bank measures 40.03 against an arithmetic 40.0 and the face 28.55 against
+  // 28.57, because `recharge` awards whole points on a sub-tick clock. A
+  // quarter of a percent off either fraction fails this — 0.025 to 0.0251 puts
+  // the bank at 39.8. It was 0.2s and did not.
   const bank = seconds((s) => s.energy, 0);
-  check(`a Cobra Mk III still refills its bank in ~40s (${bank.toFixed(1)}s)`,
-    Math.abs(bank - LEGACY_MAX_ENERGY / 0.1) < 0.2);
+  check(`a Cobra Mk III still refills its bank in ~40s (${bank.toFixed(2)}s)`,
+    Math.abs(bank - 40) < 0.1);
   // from a HEALTHY bank: the shields wait for one, which is the tactical rule
   // and not the recharge rate.
   const face = seconds((s) => s.foreShield, MAX_ENERGY);
-  check(`...and a shield face in ~28.6s (${face.toFixed(1)}s)`,
-    Math.abs(face - LEGACY_MAX_SHIELD / 0.035) < 0.2);
+  check(`...and a shield face in ~28.6s (${face.toFixed(2)}s)`,
+    Math.abs(face - 28.6) < 0.1);
 
   // The hull's rating and the energy unit, each applied EXACTLY ONCE.
   const cobraRate = energyRegenPerSecond(COBRA_MK_3_HULL_ID, false);
@@ -260,33 +325,16 @@ console.log('\nship systems — recharge, and the TODO 28 bridge');
   check('...and a fractional amount cannot be minted as pool points at all', threw);
 }
 
-console.log('\nship systems — the banks a save and a station hand back');
+console.log('\nship systems — the banks a station hands back');
 
 {
-  // A save on the new scale comes back to the point; one written before it
-  // comes back at the same FRACTION of the new pools.
-  const exact: ShipSystems = {
-    energy: 137, foreShield: 12, aftShield: 250,
-    foreShieldCarry: 401, aftShieldCarry: 0, energyCarry: 12,
-    laserTemp: 0.4, laserCooldown: 0.1, cabinTemp: 0.2,
-  };
-  eq('an exact save round-trips untouched',
-    JSON.stringify(migratedSystems(JSON.parse(JSON.stringify(exact)) as ShipSystems)),
-    JSON.stringify(exact));
-  const legacy = migratedSystems(
-    { energy: 1, foreShield: 0.25, aftShield: 1, laserTemp: 0.5 } as Partial<ShipSystems>);
-  check(`a legacy save keeps its fractions (${legacy.foreShield}/${legacy.aftShield}`
-    + `/${legacy.energy})`,
-    legacy.energy === Math.round(MAX_ENERGY / LEGACY_MAX_ENERGY)
-    && legacy.foreShield === Math.round(MAX_SHIELD * 0.25)
-    && legacy.aftShield === MAX_SHIELD
-    && legacy.laserTemp === 0.5);
-  check('...with clean sub-tick carries, because it had none',
-    legacy.energyCarry === 0 && legacy.foreShieldCarry === 0
-    && legacy.aftShieldCarry === 0);
-  const empty = migratedSystems({});
-  check('...and a save with no systems at all comes back whole rather than dead',
-    empty.energy === MAX_ENERGY && empty.foreShield === MAX_SHIELD);
+  // There were four checks above this one, on `migratedSystems`: an exact save
+  // round-tripping, a pre-TODO-27 save keeping its fractions, its carries
+  // starting clean, and an empty save coming back whole. The function is gone
+  // (2026-08-04) — the pools have not been 1/1/4 for a long time and no save on
+  // that scale exists, so `Persistence.restore` assigns the snapshot's
+  // `ShipSystems` straight across. The round trip is still covered, by
+  // test/world-step.test.ts's whole-world save and by test/snapshot.test.ts.
 
   // Docking is the other place "full" is stated, and it is stated once.
   const worn = freshSystems();

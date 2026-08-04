@@ -44,6 +44,7 @@ import { spawnArrivingTrader } from './spawning.ts';
 import { TRADER_ARRIVAL_RANGE } from './world.ts';
 import { planDocking, dockingOutcome } from './docking.ts';
 import { regenerate, updateCabinTemp, scoopFuel, energyLow } from './systems.ts';
+import { SUN_KILL_DIST } from '../constants/sun.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { resolveNpcFire, type FireWorld } from './fire-resolution.ts';
 import { IMPACT, npcImpactDamage, playerImpactDamage } from './impact-damage.ts';
@@ -69,9 +70,6 @@ import { AUTOSAVE_INTERVAL, type GameState } from './state.ts';
  * `rotateTowards` step is four times as coarse.
  */
 export const FIXED_DT = 1 / 60;
-
-/** Fly this close to the sun and the ship is gone, temperature or not. */
-export const SUN_KILL_DIST = 21_000;
 
 // WHAT A CANISTER ON THE HULL OR A FLUFFED SLOT COSTS IS NOT HERE. They were
 // `0.06` and `0.9` on the pre-parity normalized scale, named here so that TODO

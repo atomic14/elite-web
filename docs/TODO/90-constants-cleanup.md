@@ -18,6 +18,7 @@ Three kinds, and they want different treatment:
 | what | where | unblocked by |
 | --- | --- | --- |
 | `WORLD_SPEED_PER_SOURCE_SPEED` = `PLAYER_FLIGHT.maxSpeed / playerHull(COBRA_MK_3_HULL_ID).maxSpeed` | `game/ship-specs.ts:107` | nothing scheduled — see below |
+| `ANCHOR_RECHARGE_RATING` = `playerHull(COBRA_MK_3_HULL_ID).energyRechargeRating` | `game/systems.ts` | nothing scheduled — the same case, see below |
 
 All of these are correctly-derived constants that an import-nothing leaf cannot
 reach. **This will keep happening**: the constants that most want to be
@@ -45,6 +46,17 @@ beside the roster, where both halves are already in scope, and the reasoning is
 written out beside it. Anyone who wants it in the home has to answer the leaf
 question first, for the whole directory.
 
+**`ANCHOR_RECHARGE_RATING` is the second of exactly that shape, found by slice
+4, and it is now the only constant left in `game/systems.ts`.** It is the Cobra
+Mk III's `energyRechargeRating`, read from the catalogue so that a hull rated 2
+recovers twice as fast whatever the Cobra's own rating becomes — the same
+`playerHull` reach, the same six generated tables, the same refusal to restate a
+pack number. The rest of the file's recharge model is `constants/recharge.ts`,
+which says in its header that this half could not follow and why. Slice 3
+predicted this would keep happening and it did, in the very next slice; the two
+of them together are the argument that whoever reopens the leaf rule should
+reopen it once, for the directory, rather than case by case.
+
 ---
 
 ## Decided — stated exceptions, leave them alone
@@ -64,6 +76,69 @@ different expressions — `NPC_LASER_RANGE`, or `NPC_LASER_RANGE / 0.75` which i
 
 **`SIGHT_Y`'s CSS twin stays duplicated.** docs/TODO/93 owns the phosphor and
 the stylesheets; CSS was ruled out of 90's scope.
+
+### LEGACY AND MIGRATION WERE DELETED. Do not reinstate them.
+
+Chris, 2026-08-04: *"We don't have any data to migrate yet — anything legacy can
+be removed and any migration is not needed. We will only need migrations once we
+start to release official versions."*
+
+Slice 4 deleted, in `src/`:
+
+| gone | what it was |
+| --- | --- |
+| `LEGACY_MAX_ENERGY`, `LEGACY_MAX_SHIELD` | the commander's pools before TODO 27 made them 255 points |
+| `migratedSystems` | rescaling a save written on those |
+| `LEGACY_ASTEROID_HULL_POINTS` | a rock's share of the pre-energy hull scale |
+| `migratedNpcState` | rebuilding a bank from a save written on that |
+| `legacyHullPoints` | the same scale as a roster column, on all 49 rows |
+
+**The reasoning is docs/TODO/53's, and it is a rule rather than a one-off.** 53
+deleted `migrateLegacySaves` and the TODO README records the argument: *"53
+asked who the code was for. Nobody but us has ever played, so the answer was
+nobody, and a careful migration serving nobody is still a hazard."* A migration
+is a second reading of a value's meaning, kept alive for a reader who does not
+exist, and it is exactly the second home this whole item is about.
+
+Two consequences worth knowing:
+
+- **The survey's `LEGACY_MAX_ENERGY` / `ENERGY_BANKS` trap is resolved by
+  subtraction.** It is listed under Coincidences as "historically the same fact,
+  now permanently different, because a save on disk depends on one". No save on
+  disk depends on one. There is a single 4 in the subject now, `ENERGY_BANKS`,
+  and it is free to move; `pools.ts` records what the other one was so that a
+  reappearing 4 is recognisable as a migration divisor coming back.
+- **`ENERGY_REGEN_FRACTION` and `SHIELD_REGEN_FRACTION` had to stop being
+  derivations.** They were `0.1 / LEGACY_MAX_ENERGY` and
+  `0.035 / LEGACY_MAX_SHIELD`. They are literals in `constants/recharge.ts` now,
+  0.025 and 0.035, with the pre-TODO-27 arithmetic written out beside them —
+  identical to the bit, and honest, because a fraction of a pool per second is
+  what they are on any scale.
+
+`test/damage-paths.test.ts`'s `GONE` list holds all six names against
+`game/systems.ts`, `game/npc-energy.ts`, `game/ship-specs.ts`, `game/world.ts`
+and `game/persistence.ts`, so reinstating any of them fails the build. Break it
+by putting one back; that is what the check is for.
+
+### The identity fallbacks are NOT migrations, and were left alone
+
+Slice 4 stopped at the SCALE conversions and this is the boundary it drew, so
+the next reader does not have to redraw it. Three things call themselves
+migrations and were kept:
+
+- **`migratedPlayerHullId`** (`ship-identity.ts`), called on every load from
+  `storage.ts` and `persistence.ts`. It maps a missing OR UNRESOLVABLE hull id
+  to the Cobra Mk III. The second half is corruption tolerance rather than
+  history — `test/ship-identity.test.ts` pins `'elite-a:player:99'` loading
+  rather than throwing — so deleting it decides what a hand-edited or damaged
+  save does, which is a live behaviour change and not the removal of dead code.
+- **`savedShipIdentity` returning undefined**, which lets a snapshot with no
+  ids take its design's recommended variant. Same shape.
+- **`role-variants.ts`'s re-derivation** for a snapshot with no profile id.
+
+All three belong to the saves slice, which has to decide what an unreadable save
+does before any of them can go. Recorded here so that "delete the migrations" is
+not read as "delete these too" without that decision being made.
 
 ---
 
@@ -159,6 +234,20 @@ both files.
 Until something checks them, **every slice must grep these two files for the
 names it moves.** That is the one place in this project where grep is the right
 tool, because the hazard is a name that is not there.
+
+Slice 4 did it, for all eighteen names it moved or deleted, and both files were
+clean: neither harness names a pool constant, a sun distance, a recharge rate or
+any of the deleted legacy names. They reach `poolsLeft` and `energyLeft` through
+the kit, and both of those are still exported from `game/systems.ts`.
+
+### `src/constants/` is not in docs/ARCHITECTURE.md
+
+Four slices in, the directory holds 98 names in 20 files and the architecture
+doc's tree does not mention it. Nobody has added it because it is half-built and
+its shape still moves each slice. **The last slice should add it**, and the entry
+that goes there is one line per file, which is the same sentence each file's
+header already opens with. Slice 4 corrected the one line that had gone actively
+wrong — `systems.ts` was described as holding "the save migration".
 
 ### `player-interest.ts` and `tactics.ts` were deleted
 

@@ -34,7 +34,6 @@ import type { PirateThreat } from './threat.ts';
 import { CONSTRICTOR_SPEC, pirateSpecForTier, specForDesign } from './ship-specs.ts';
 import type { NpcRole } from './ship-roles.ts';
 import { migratedPlayerHullId } from './ship-identity.ts';
-import { migratedSystems } from './systems.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { Ordnance } from './ordnance.ts';
 import { rngState, restoreRng } from './rng.ts';
@@ -204,11 +203,12 @@ export class Persistence {
     s.player.speed = snap.player.speed;
     s.player.pitchRate = snap.player.pitchRate;
     s.player.rollRate = snap.player.rollRate;
-    // A world written before TODO 27 carries the banks on their old 1/1/4
-    // maxima; one written after carries whole points on 255 and comes back
-    // untouched. Same rule as the commander's hull id above: migrate, never
-    // fail to load. systems.ts owns the arithmetic.
-    Object.assign(s.sys, migratedSystems(snap.systems));
+    // Straight across: `snap.systems` is a whole `ShipSystems`, every field of
+    // it written by `capture()`. This used to go through `migratedSystems`,
+    // which rescaled the pools of a world written before TODO 27 made them 255
+    // points — deleted with the rest of the pre-TODO-27 scale, because no save
+    // on it exists anywhere (Chris, 2026-08-04).
+    Object.assign(s.sys, snap.systems);
 
     // Which hull each ship gets is a GAME rule — the roster, the tier tables
     // and the Constrictor — so the World asks rather than deciding.

@@ -89,15 +89,6 @@ export const COBRA_MK_3_DESIGN = 10;
 export const ANCHOR_NPC_MAX_ENERGY =
   recommendedNpcProfile(COBRA_MK_3_DESIGN).maxEnergy;
 
-/**
- * What an asteroid used to be worth.
- *
- * Rocks are the one role with no roster row — their size is rolled from the
- * seed — so the hull points a pre-energy save was written against live here
- * rather than in `ship-specs.ts`. Migration data: nothing live reads it.
- */
-export const LEGACY_ASTEROID_HULL_POINTS = 0.6;
-
 // --- the two Harmless inventions --------------------------------------------
 
 /**
@@ -238,33 +229,13 @@ export function regeneratedEnergy(
   return eliteARegenerate(state, policy.maxEnergy, policy.regenPerSecond, dt);
 }
 
-// --- migrating a save written before energy ----------------------------------
-
-/**
- * A saved ship's state, brought onto the energy scale.
- *
- * A world written before this phase carries `hp` on the old per-hull scale and
- * no `energy`; one written after carries the exact integer and round-trips
- * untouched. The migration keeps the FRACTION of the hull that was left and
- * spends it against the profile's own bank, so a ship reloaded at half health
- * comes back at half health rather than full or dead.
- *
- * Pure, and deliberately: restore must not draw from the rng or reroll what a
- * ship is (see `savedShipIdentity`).
- *
- * @param legacyMaxHullPoints the hull the save was written against, or
- * undefined when it cannot be resolved — in which case the ship comes back
- * whole, because a fraction of an unknown hull is not a fraction.
- */
-export function migratedNpcState(
-  saved: Record<string, unknown>, maxEnergy: number, legacyMaxHullPoints: number | undefined,
-): Record<string, unknown> {
-  if (saved.energy !== undefined) return saved;
-  const { hp, ...rest } = saved;
-  const fraction = typeof hp === 'number' && legacyMaxHullPoints
-    ? Math.max(0, Math.min(1, hp / legacyMaxHullPoints)) : 1;
-  // Round, then keep a living ship alive: a sliver of hull was not death, and
-  // rounding it to zero would destroy ships on load.
-  const energy = Math.round(fraction * maxEnergy);
-  return { ...rest, energy: fraction > 0 ? Math.max(1, energy) : 0, regenCarry: 0 };
-}
+// --- what used to be here ----------------------------------------------------
+//
+// `migratedNpcState` rebuilt a bank from a save written before ships had one,
+// when a ship's toughness was `hp` on a normalized per-hull scale and
+// `LEGACY_ASTEROID_HULL_POINTS` was a rock's share of it. It is deleted, with
+// the whole pre-energy scale: nobody outside this project has ever played it,
+// so there is no such save anywhere and the conversion served nobody (Chris,
+// 2026-08-04 — the same answer docs/TODO/53 gave `migrateLegacySaves`).
+// `World.restoreNpcs` hands a snapshot's state straight to `restoreState` now.
+// `test/damage-paths.test.ts` fails if either name comes back.

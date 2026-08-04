@@ -273,16 +273,27 @@ console.log('\nthe old scale is gone, and cannot come back');
     'game/ordnance.ts', 'game/cargo.ts', 'game/combat-sim.ts',
     // the one resolver both of the two below call, since docs/TODO/64
     'game/fire-resolution.ts',
+    // the three the MIGRATIONS ran through, added when they were deleted: the
+    // roster carried the old hull column, the World spent it and Persistence
+    // rescaled the commander's pools.
+    'game/ship-specs.ts', 'game/world.ts', 'game/persistence.ts',
     'ai-training/scenario.ts',
   ];
   const all = files.map((f) => [f, code(f)] as const);
 
   // 1. THE TWO BRIDGES, AND EVERY CONSTANT THAT ONLY EXISTED FOR THEM.
+  //
+  // The last six are the MIGRATIONS off those scales, deleted 2026-08-04: there
+  // is no save written on either of them anywhere, so a careful conversion
+  // served nobody and was one more place a scale could come back (Chris; the
+  // same answer docs/TODO/53 gave `migrateLegacySaves`).
   const GONE = [
     'legacyDamageToEnergy', 'legacyDamageToPlayer', 'ENERGY_PER_LEGACY_HULL_POINT',
     'PLAYER_ENERGY_PER_LEGACY_POINT', 'LEGACY_FATAL_DAMAGE', 'RAM_DAMAGE',
     'NPC_VS_NPC_DAMAGE', 'CANISTER_HULL_DAMAGE', 'STATION_COLLISION_DAMAGE',
     'npcShotDamage', 'NPC_DAMAGE_LO', 'NPC_DAMAGE_SPREAD',
+    'LEGACY_MAX_ENERGY', 'LEGACY_MAX_SHIELD', 'LEGACY_ASTEROID_HULL_POINTS',
+    'legacyHullPoints', 'migratedSystems', 'migratedNpcState',
   ];
   const survivors: string[] = [];
   for (const [f, text] of all) {

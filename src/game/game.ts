@@ -154,8 +154,6 @@ const MAX_FRAME_TIME = 0.25;
 /** ...and the most steps one frame may run, so a stall cannot spiral. */
 const MAX_STEPS_PER_FRAME = 5;
 
-// Sun proximity tuning (ordered: heat starts < scooping < temp maxes < death).
-// The sun itself orbits ~320k out (world/system-scene.ts).
 /**
  * How far out of the planet you drop from witch-space, in planet radii.
  *

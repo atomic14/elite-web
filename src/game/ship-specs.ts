@@ -14,9 +14,12 @@
 // source number the rows DO consume is a released top speed, and it arrives
 // converted (`cruise`), never copied.
 //
-// HOW TOUGH A SHIP IS LEFT THIS FILE IN TODO 26. `legacyHullPoints` is what the
-// old `hp` column became: scaffolding for the two places still on the
-// normalized scale, and read by nothing that decides a fight.
+// HOW TOUGH A SHIP IS LEFT THIS FILE IN TODO 26, and there is no trace of it
+// here now. The old `hp` column survived as `legacyHullPoints` — scaffolding
+// that decided nothing, kept so a save written before ships had energy could be
+// rescaled. That save does not exist (Chris, 2026-08-04), so the migration and
+// the column both went; a row's toughness is the released bank its `profileId`
+// resolves to, and nothing else.
 //
 // Nothing here decides anything either: `ship-roles.ts` says which designs a
 // role may fly at all, population.ts chooses how many, contracts.ts chooses the
@@ -132,18 +135,12 @@ export interface NpcSpec extends ShipIdentity {
   /** the exact released build it flies as, resolved from the recommended default */
   profileId: NpcCombatProfileId;
   color: number;
-  /**
-   * The normalized hull points this row carried before TODO 26, ~1.0 for a
-   * Cobra Mk III.
-   *
-   * IT NO LONGER DECIDES HOW TOUGH A SHIP IS. Live combat reads the exact
-   * released bank through `profileId` (game/npc-energy.ts), so this is not a
-   * stale twin of a source number — it never was a source number. Two things
-   * still read it, both of them scaffolding with a date on them: the durability
-   * of a TRAINING episode's target, which is normalized until TODO 27, and the
-   * divisor a pre-energy snapshot's health fraction is migrated against.
-   */
-  legacyHullPoints: number;
+  // NO HULL POINTS. `legacyHullPoints` was here until 2026-08-04, ~1.0 for a
+  // Cobra Mk III on the normalized scale TODO 26 replaced. Its own comment
+  // claimed two readers and by then had only one — a training episode's target
+  // stopped being normalized at TODO 27 and nobody updated the sentence — and
+  // that one was the pre-energy save migration, which serves nobody. How tough
+  // a ship is comes through `profileId`.
   maxSpeed: number;
   /**
    * Radians/second of yaw authority — and OURS.
@@ -188,37 +185,37 @@ export function shipAccel(spec: NpcSpec): number {
  */
 export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
   trader: [
-    { ...flying('trader', SOURCE_DESIGN.cobraMk3), color: 0xffffff, legacyHullPoints: 1.0, maxSpeed: 220, turnRate: 0.5, bounty: 0, ecmChance: 0.4, cargoDrop: 3, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.python), color: 0xd9e8ff, legacyHullPoints: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 0, ecmChance: 0.5, cargoDrop: 5, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.anaconda), color: 0xcfe0d8, legacyHullPoints: 2.6, maxSpeed: 120, turnRate: 0.25, bounty: 0, ecmChance: 0.7, cargoDrop: 6, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.adder), color: 0xffe28a, legacyHullPoints: 0.5, maxSpeed: 260, turnRate: 0.8, bounty: 0, cargoDrop: 1 },
-    { ...flying('trader', SOURCE_DESIGN.worm), color: 0xbfd8bf, legacyHullPoints: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 0, cargoDrop: 1 },
-    { ...flying('trader', SOURCE_DESIGN.boa), color: 0xd8d8c0, legacyHullPoints: 2.2, maxSpeed: 140, turnRate: 0.3, bounty: 0, ecmChance: 0.6, cargoDrop: 5, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.shuttle), color: 0xc8e8c8, legacyHullPoints: 0.45, maxSpeed: 180, turnRate: 0.7, bounty: 0, cargoDrop: 1 },
-    { ...flying('trader', SOURCE_DESIGN.transporter), color: 0xc0d0e0, legacyHullPoints: 0.6, maxSpeed: 160, turnRate: 0.5, bounty: 0, cargoDrop: 2 },
+    { ...flying('trader', SOURCE_DESIGN.cobraMk3), color: 0xffffff, maxSpeed: 220, turnRate: 0.5, bounty: 0, ecmChance: 0.4, cargoDrop: 3, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.python), color: 0xd9e8ff, maxSpeed: 160, turnRate: 0.35, bounty: 0, ecmChance: 0.5, cargoDrop: 5, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.anaconda), color: 0xcfe0d8, maxSpeed: 120, turnRate: 0.25, bounty: 0, ecmChance: 0.7, cargoDrop: 6, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.adder), color: 0xffe28a, maxSpeed: 260, turnRate: 0.8, bounty: 0, cargoDrop: 1 },
+    { ...flying('trader', SOURCE_DESIGN.worm), color: 0xbfd8bf, maxSpeed: 200, turnRate: 0.9, bounty: 0, cargoDrop: 1 },
+    { ...flying('trader', SOURCE_DESIGN.boa), color: 0xd8d8c0, maxSpeed: 140, turnRate: 0.3, bounty: 0, ecmChance: 0.6, cargoDrop: 5, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.shuttle), color: 0xc8e8c8, maxSpeed: 180, turnRate: 0.7, bounty: 0, cargoDrop: 1 },
+    { ...flying('trader', SOURCE_DESIGN.transporter), color: 0xc0d0e0, maxSpeed: 160, turnRate: 0.5, bounty: 0, cargoDrop: 2 },
     // --- brought into the roster by TODO 25; cruise converted, turn ours -----
-    { ...flying('trader', SOURCE_DESIGN.cobraMk1), color: 0xe8e8ff, legacyHullPoints: 0.8, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 0, ecmChance: 0.3, cargoDrop: 2, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.dragon), color: 0xcfd8e8, legacyHullPoints: 2.5, maxSpeed: cruise(SOURCE_DESIGN.dragon), turnRate: 0.22, bounty: 0, ecmChance: 0.7, cargoDrop: 6, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.monitor), color: 0xd0d0c8, legacyHullPoints: 1.6, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 0, ecmChance: 0.5, cargoDrop: 4, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.ophidian), color: 0xdfe8ff, legacyHullPoints: 0.55, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 0, cargoDrop: 1 },
-    { ...flying('trader', SOURCE_DESIGN.ghavial), color: 0xd8e0d0, legacyHullPoints: 1.4, maxSpeed: cruise(SOURCE_DESIGN.ghavial), turnRate: 0.35, bounty: 0, ecmChance: 0.4, cargoDrop: 4, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.rattler), color: 0xe0d8c8, legacyHullPoints: 1.2, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 0, cargoDrop: 2, armed: true },
-    { ...flying('trader', SOURCE_DESIGN.iguana), color: 0xd8e8c8, legacyHullPoints: 0.9, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 0, cargoDrop: 1 },
-    { ...flying('trader', SOURCE_DESIGN.shuttleMk2), color: 0xc8e8d8, legacyHullPoints: 0.45, maxSpeed: cruise(SOURCE_DESIGN.shuttleMk2), turnRate: 0.6, bounty: 0, cargoDrop: 1 },
-    { ...flying('trader', SOURCE_DESIGN.chameleon), color: 0xd8d8e8, legacyHullPoints: 1.1, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 0, ecmChance: 0.4, cargoDrop: 3, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.cobraMk1), color: 0xe8e8ff, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 0, ecmChance: 0.3, cargoDrop: 2, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.dragon), color: 0xcfd8e8, maxSpeed: cruise(SOURCE_DESIGN.dragon), turnRate: 0.22, bounty: 0, ecmChance: 0.7, cargoDrop: 6, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.monitor), color: 0xd0d0c8, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 0, ecmChance: 0.5, cargoDrop: 4, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.ophidian), color: 0xdfe8ff, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 0, cargoDrop: 1 },
+    { ...flying('trader', SOURCE_DESIGN.ghavial), color: 0xd8e0d0, maxSpeed: cruise(SOURCE_DESIGN.ghavial), turnRate: 0.35, bounty: 0, ecmChance: 0.4, cargoDrop: 4, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.rattler), color: 0xe0d8c8, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 0, cargoDrop: 2, armed: true },
+    { ...flying('trader', SOURCE_DESIGN.iguana), color: 0xd8e8c8, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 0, cargoDrop: 1 },
+    { ...flying('trader', SOURCE_DESIGN.shuttleMk2), color: 0xc8e8d8, maxSpeed: cruise(SOURCE_DESIGN.shuttleMk2), turnRate: 0.6, bounty: 0, cargoDrop: 1 },
+    { ...flying('trader', SOURCE_DESIGN.chameleon), color: 0xd8d8e8, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 0, ecmChance: 0.4, cargoDrop: 3, armed: true },
   ],
   // The pirate roster is ALSO the threat-tier table — see PIRATE_TIERS below.
   // The first six are the mix that has always flown; the next four used to be
   // reachable only through a tier; the last seven are new.
   pirate: [
-    { ...flying('pirate', SOURCE_DESIGN.sidewinder), color: 0xff9a5c, legacyHullPoints: 0.55, maxSpeed: 300, turnRate: 1.1, bounty: 50 },
-    { ...flying('pirate', SOURCE_DESIGN.krait), color: 0xffb36c, legacyHullPoints: 0.7, maxSpeed: 290, turnRate: 1.0, bounty: 80 },
-    { ...flying('pirate', SOURCE_DESIGN.mamba), color: 0xff8a4c, legacyHullPoints: 0.65, maxSpeed: 310, turnRate: 1.05, bounty: 70 },
-    { ...flying('pirate', SOURCE_DESIGN.gecko), color: 0xffa050, legacyHullPoints: 0.6, maxSpeed: 290, turnRate: 1.0, bounty: 60 },
-    { ...flying('pirate', SOURCE_DESIGN.moray), color: 0xff9a70, legacyHullPoints: 0.6, maxSpeed: 280, turnRate: 1.0, bounty: 65 },
-    { ...flying('pirate', SOURCE_DESIGN.cobraMk3), color: 0xffc46c, legacyHullPoints: 1.1, maxSpeed: 260, turnRate: 0.8, bounty: 100, missiles: 1, cargoDrop: 2 },
-    { ...flying('pirate', SOURCE_DESIGN.worm), color: 0xffbb80, legacyHullPoints: 0.4, maxSpeed: 200, turnRate: 0.9, bounty: 40 },
-    { ...flying('pirate', SOURCE_DESIGN.ferDeLance), color: 0xff7a4c, legacyHullPoints: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 180, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
+    { ...flying('pirate', SOURCE_DESIGN.sidewinder), color: 0xff9a5c, maxSpeed: 300, turnRate: 1.1, bounty: 50 },
+    { ...flying('pirate', SOURCE_DESIGN.krait), color: 0xffb36c, maxSpeed: 290, turnRate: 1.0, bounty: 80 },
+    { ...flying('pirate', SOURCE_DESIGN.mamba), color: 0xff8a4c, maxSpeed: 310, turnRate: 1.05, bounty: 70 },
+    { ...flying('pirate', SOURCE_DESIGN.gecko), color: 0xffa050, maxSpeed: 290, turnRate: 1.0, bounty: 60 },
+    { ...flying('pirate', SOURCE_DESIGN.moray), color: 0xff9a70, maxSpeed: 280, turnRate: 1.0, bounty: 65 },
+    { ...flying('pirate', SOURCE_DESIGN.cobraMk3), color: 0xffc46c, maxSpeed: 260, turnRate: 0.8, bounty: 100, missiles: 1, cargoDrop: 2 },
+    { ...flying('pirate', SOURCE_DESIGN.worm), color: 0xffbb80, maxSpeed: 200, turnRate: 0.9, bounty: 40 },
+    { ...flying('pirate', SOURCE_DESIGN.ferDeLance), color: 0xff7a4c, maxSpeed: 330, turnRate: 1.1, bounty: 180, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
     // THE ASP MK II IS NOT HERE, and it is the one deliberate omission in the
     // roster. All three of its released builds — I:23, N:23 and T:23 — carry
     // the same packed byte, and under the clean rule that byte is worth four
@@ -237,47 +234,47 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
     // is simply not rostered as something whose job is to shoot you.
     // `test/ship-roles.test.ts` asserts that no combat role flies a build which
     // cannot hurt a Cobra Mk III, which is what keeps this decided.
-    { ...flying('pirate', SOURCE_DESIGN.python), color: 0xffa878, legacyHullPoints: 1.8, maxSpeed: 160, turnRate: 0.35, bounty: 200, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
+    { ...flying('pirate', SOURCE_DESIGN.python), color: 0xffa878, maxSpeed: 160, turnRate: 0.35, bounty: 200, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
     // --- brought into the roster by TODO 25 ---------------------------------
-    { ...flying('pirate', SOURCE_DESIGN.cobraMk1), color: 0xffb066, legacyHullPoints: 0.8, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 90, cargoDrop: 2 },
-    { ...flying('pirate', SOURCE_DESIGN.ophidian), color: 0xffc07a, legacyHullPoints: 0.55, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 55 },
-    { ...flying('pirate', SOURCE_DESIGN.bushmaster), color: 0xff8f5c, legacyHullPoints: 0.7, maxSpeed: cruise(SOURCE_DESIGN.bushmaster), turnRate: 1.1, bounty: 110, missiles: 1 },
-    { ...flying('pirate', SOURCE_DESIGN.rattler), color: 0xffa060, legacyHullPoints: 1.2, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 120, cargoDrop: 1 },
-    { ...flying('pirate', SOURCE_DESIGN.iguana), color: 0xffb078, legacyHullPoints: 0.9, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 110 },
-    { ...flying('pirate', SOURCE_DESIGN.chameleon), color: 0xff9a80, legacyHullPoints: 1.1, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 190, missiles: 1, ecmChance: 0.4, cargoDrop: 2 },
-    { ...flying('pirate', SOURCE_DESIGN.monitor), color: 0xff7a5c, legacyHullPoints: 1.6, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 220, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
+    { ...flying('pirate', SOURCE_DESIGN.cobraMk1), color: 0xffb066, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 90, cargoDrop: 2 },
+    { ...flying('pirate', SOURCE_DESIGN.ophidian), color: 0xffc07a, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 55 },
+    { ...flying('pirate', SOURCE_DESIGN.bushmaster), color: 0xff8f5c, maxSpeed: cruise(SOURCE_DESIGN.bushmaster), turnRate: 1.1, bounty: 110, missiles: 1 },
+    { ...flying('pirate', SOURCE_DESIGN.rattler), color: 0xffa060, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 120, cargoDrop: 1 },
+    { ...flying('pirate', SOURCE_DESIGN.iguana), color: 0xffb078, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 110 },
+    { ...flying('pirate', SOURCE_DESIGN.chameleon), color: 0xff9a80, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 190, missiles: 1, ecmChance: 0.4, cargoDrop: 2 },
+    { ...flying('pirate', SOURCE_DESIGN.monitor), color: 0xff7a5c, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 220, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
   ],
   police: [
-    { ...flying('police', SOURCE_DESIGN.viper), color: 0x9ad9ff, legacyHullPoints: 0.9, maxSpeed: 320, turnRate: 1.3, bounty: 0, ecmChance: 1 },
+    { ...flying('police', SOURCE_DESIGN.viper), color: 0x9ad9ff, maxSpeed: 320, turnRate: 1.3, bounty: 0, ecmChance: 1 },
   ],
   hunter: [
-    { ...flying('hunter', SOURCE_DESIGN.ferDeLance), color: 0xd8c8ff, legacyHullPoints: 1.3, maxSpeed: 330, turnRate: 1.1, bounty: 0, ecmChance: 0.6 },
+    { ...flying('hunter', SOURCE_DESIGN.ferDeLance), color: 0xd8c8ff, maxSpeed: 330, turnRate: 1.1, bounty: 0, ecmChance: 0.6 },
     // The Asp Mk II is not a bounty hunter here either — same reason, stated
     // once in the pirate list above.
     // --- brought into the roster by TODO 25 ---------------------------------
-    { ...flying('hunter', SOURCE_DESIGN.cobraMk1), color: 0xc8c8ff, legacyHullPoints: 0.8, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 0, ecmChance: 0.3 },
-    { ...flying('hunter', SOURCE_DESIGN.monitor), color: 0xc0c8e0, legacyHullPoints: 1.6, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 0, ecmChance: 0.6 },
-    { ...flying('hunter', SOURCE_DESIGN.ophidian), color: 0xd0c8ff, legacyHullPoints: 0.55, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 0, ecmChance: 0.3 },
-    { ...flying('hunter', SOURCE_DESIGN.ghavial), color: 0xc8d0e8, legacyHullPoints: 1.4, maxSpeed: cruise(SOURCE_DESIGN.ghavial), turnRate: 0.35, bounty: 0, ecmChance: 0.5 },
-    { ...flying('hunter', SOURCE_DESIGN.bushmaster), color: 0xd8c0ff, legacyHullPoints: 0.7, maxSpeed: cruise(SOURCE_DESIGN.bushmaster), turnRate: 1.1, bounty: 0, ecmChance: 0.4 },
-    { ...flying('hunter', SOURCE_DESIGN.rattler), color: 0xccc8f0, legacyHullPoints: 1.2, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 0, ecmChance: 0.4 },
-    { ...flying('hunter', SOURCE_DESIGN.iguana), color: 0xd0d8f0, legacyHullPoints: 0.9, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 0, ecmChance: 0.35 },
-    { ...flying('hunter', SOURCE_DESIGN.chameleon), color: 0xd4c8f8, legacyHullPoints: 1.1, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 0, ecmChance: 0.45 },
+    { ...flying('hunter', SOURCE_DESIGN.cobraMk1), color: 0xc8c8ff, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 0, ecmChance: 0.3 },
+    { ...flying('hunter', SOURCE_DESIGN.monitor), color: 0xc0c8e0, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 0, ecmChance: 0.6 },
+    { ...flying('hunter', SOURCE_DESIGN.ophidian), color: 0xd0c8ff, maxSpeed: cruise(SOURCE_DESIGN.ophidian), turnRate: 1.05, bounty: 0, ecmChance: 0.3 },
+    { ...flying('hunter', SOURCE_DESIGN.ghavial), color: 0xc8d0e8, maxSpeed: cruise(SOURCE_DESIGN.ghavial), turnRate: 0.35, bounty: 0, ecmChance: 0.5 },
+    { ...flying('hunter', SOURCE_DESIGN.bushmaster), color: 0xd8c0ff, maxSpeed: cruise(SOURCE_DESIGN.bushmaster), turnRate: 1.1, bounty: 0, ecmChance: 0.4 },
+    { ...flying('hunter', SOURCE_DESIGN.rattler), color: 0xccc8f0, maxSpeed: cruise(SOURCE_DESIGN.rattler), turnRate: 0.95, bounty: 0, ecmChance: 0.4 },
+    { ...flying('hunter', SOURCE_DESIGN.iguana), color: 0xd0d8f0, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 0, ecmChance: 0.35 },
+    { ...flying('hunter', SOURCE_DESIGN.chameleon), color: 0xd4c8f8, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 0, ecmChance: 0.45 },
   ],
   thargoid: [
-    { ...flying('thargoid', SOURCE_DESIGN.thargoid), color: 0x7cff9a, legacyHullPoints: 2.6, maxSpeed: 300, turnRate: 0.7, bounty: 500, ecmChance: 1 },
+    { ...flying('thargoid', SOURCE_DESIGN.thargoid), color: 0x7cff9a, maxSpeed: 300, turnRate: 0.7, bounty: 500, ecmChance: 1 },
   ],
   thargon: [
-    { ...flying('thargon', SOURCE_DESIGN.thargon), color: 0x9cffb0, legacyHullPoints: 0.2, maxSpeed: 350, turnRate: 1.8, bounty: 50 },
+    { ...flying('thargon', SOURCE_DESIGN.thargon), color: 0x9cffb0, maxSpeed: 350, turnRate: 1.8, bounty: 50 },
   ],
   // a hollowed asteroid trading post — inert, but you can dock with it. OURS,
   // not a source station, and its `harmless:` ids say so.
   hermit: [
-    { ...own(HARMLESS_OVERLAYS.rockHermit), color: 0x9a9a8a, legacyHullPoints: 4, maxSpeed: 0, turnRate: 0, bounty: 0 },
+    { ...own(HARMLESS_OVERLAYS.rockHermit), color: 0x9a9a8a, maxSpeed: 0, turnRate: 0, bounty: 0 },
   ],
   // derelict colony vessel: vast, slow, defenceless — also ours
   generation: [
-    { ...own(HARMLESS_OVERLAYS.generationShip), color: 0xbfc8d8, legacyHullPoints: 8, maxSpeed: 25, turnRate: 0.05, bounty: 0, cargoDrop: 8 },
+    { ...own(HARMLESS_OVERLAYS.generationShip), color: 0xbfc8d8, maxSpeed: 25, turnRate: 0.05, bounty: 0, cargoDrop: 8 },
   ],
 };
 
@@ -309,7 +306,7 @@ export const CONSTRICTOR_SPEC: NpcSpec = {
   // `pirate` is the role it flies with, and its released slot 31 is in no
   // pirate band — so `role-variants.ts` leaves it on the pack's recommended
   // build, `G:28`, which is the only one there is.
-  ...flying('pirate', SOURCE_DESIGN.constrictor), color: 0xffd24d, legacyHullPoints: 3.2, maxSpeed: 370, turnRate: 1.2,
+  ...flying('pirate', SOURCE_DESIGN.constrictor), color: 0xffd24d, maxSpeed: 370, turnRate: 1.2,
   bounty: 2500, missiles: 2, ecmChance: 1,
 };
 
@@ -347,11 +344,10 @@ const BY_ROLE_AND_DESIGN = new Map<string, NpcSpec>(
  * The roster row a ship of this role and seed flies — the rule the NpcShip
  * constructor applies, as a function.
  *
- * It is a function because a second caller needs the same answer: restoring a
- * pre-energy save has to know which row's `legacyHullPoints` the old `hp` was a
- * fraction OF, and the ship it is restoring picks its row exactly here. Written
- * out twice, the two would agree until a save arrived with no design to look up
- * — which is precisely the case the migration exists for.
+ * It has one caller now — `NpcShip`'s constructor. It was extracted because
+ * restoring a pre-energy save needed the same answer and had to ask the same
+ * question or it would divide by the wrong hull; that migration is gone, and
+ * the extraction is kept because the rule reads better named than inlined.
  *
  * `null` for a rock: its size is rolled from the seed, so it has no row.
  */

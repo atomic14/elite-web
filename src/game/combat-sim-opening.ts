@@ -50,10 +50,15 @@ import type { World } from './world.ts';
  *
  * Measured across galaxies 1, 2 and 8 — 768 systems — the worst case is
  * 67,500 units of altitude (mass-lock wants 4,000, the ground is at 80),
- * 392,000 from the sun (SUN_KILL_DIST is 21,000 and SUN_HEAT_START 110,000, so
- * the cabin never warms at all) and 77,704 from the station, whose mass-lock
- * radius is 5,000 and whose docking box is 205 across. It scales with the
- * planet, so there is no system where the margins are thinner in proportion.
+ * 392,000 from the sun and 77,704 from the station, whose mass-lock radius is
+ * 5,000 and whose docking box is 205 across. It scales with the planet, so
+ * there is no system where the margins are thinner in proportion.
+ *
+ * The sun figure is the one that used to be argued here by writing
+ * `SUN_KILL_DIST` and `SUN_HEAT_START` out as digits. It is not, now:
+ * `test/arena.test.ts` holds the worst case against both constants themselves
+ * (constants/sun.ts), so the claim "the cabin never warms" cannot outlive a
+ * change to either.
  *
  * The mistake to avoid is `test/gang-trial.js`'s hardcoded (90000, 40000,
  * 90000): a fixed offset is an absolute point in a system whose furniture

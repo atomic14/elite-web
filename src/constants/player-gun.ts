@@ -46,6 +46,24 @@ export const LASER_PACING = {
 export const LASER_CUTOUT = 0.98;
 
 /**
+ * ...and how fast it cools, in units of that same 0..1 scale per second.
+ *
+ * The other half of the heat model, and it lived in `game/systems.ts` because
+ * that is where the ship's per-frame numbers are advanced. Heat is a property
+ * of the GUN — `LASER_PACING` says how much each shot adds and `LASER_CUTOUT`
+ * says when it stops firing — so the third number of the three belongs beside
+ * them rather than beside the energy banks it shares a step with.
+ *
+ * It is what decides whether a mount can be held down. Against `LASER_PACING`:
+ * the pulse adds 0.055 every 0.24s, which is 0.229 a second against 0.22 of
+ * cooling — it nets +0.009 and takes about 107 seconds of continuous fire to
+ * reach the cut-out, so in practice it never does. The beam nets +0.169 and
+ * cuts out in 5.8 seconds; the military laser nets +0.113 and lasts 8.7. From
+ * the cut-out, a cold gun is 4.5 seconds away.
+ */
+export const LASER_COOL_RATE = 0.22;
+
+/**
  * How much of a target's silhouette counts as a hit, as a multiple of its
  * radius.
  *

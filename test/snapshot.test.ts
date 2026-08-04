@@ -13,8 +13,7 @@ import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { World } from '../src/game/world.ts';
-import { SPECS, specForDesign } from '../src/game/ship-specs.ts';
-import { migratedNpcState } from '../src/game/npc-energy.ts';
+import { specForDesign } from '../src/game/ship-specs.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
 import { SHIPPED_BRAINS, type BrainSelection } from '../src/game/brain-names.ts';
 import { showMessage, tickMessage } from '../src/game/session.ts';
@@ -256,13 +255,17 @@ console.log('\nsnapshot round trip');
       maxControlDrift > 10, `maximum drift ${maxControlDrift.toFixed(4)}`);
   }
 
-  // --- energy: exact round trip, and the pre-TODO-26 migration -------------
+  // --- energy: an exact round trip ------------------------------------------
   //
-  // Energy is an integer point count now, and a save written before it carried
-  // `hp` on a normalized per-hull scale. Both have to land: a new save must
-  // come back on exactly the point it left, and an old one must come back at
-  // the FRACTION of a hull it had, spent against the profile's real bank —
-  // never full (a free repair) and never zero (dead on load).
+  // Energy is an integer point count, and it comes back on exactly the point it
+  // left along with its sub-tick carry — a save that repaired a wounded ship,
+  // or restarted its carry, would hand the player a different fleet from the
+  // one they saved.
+  //
+  // The other half of this block was the pre-TODO-26 migration, which read `hp`
+  // on a normalized per-hull scale and spent the fraction against the profile's
+  // real bank. Deleted 2026-08-04 with the scale itself: no save on it exists
+  // (docs/TODO/90-constants-cleanup.md).
   {
     seedWorld(20_260_726);
     const wounded = new NpcShip('pirate', at(0, 0, 0), 5);
@@ -280,40 +283,20 @@ console.log('\nsnapshot round trip');
     check('...and the exact profile identity comes back with it',
       world.npcs[0].profileId === wounded.profileId
       && world.npcs[0].designId === wounded.designId);
-    // The migration itself must be a pure function of the save: a restore that
-    // DREW to decide how much energy a ship had would move every seeded outcome
-    // after it, and `Persistence.restore` puts the stream back last precisely so
-    // the rebuild's own draws cannot. This is the half that is this file's.
-    const beforeDraws = rngState();
-    const migrated = migratedNpcState({ hp: 0.5 }, 98, 1);
-    check('the pre-energy migration is pure — it draws nothing and rerolls nothing',
-      JSON.stringify(rngState()) === JSON.stringify(beforeDraws)
-      && migrated.energy === 49 && migrated.regenCarry === 0);
-    check('...and a save that already carries energy is handed back untouched',
-      migratedNpcState({ energy: 7, regenCarry: 5 }, 98, 1).energy === 7);
-
-    // A legacy save: `hp` on the old scale, no `energy`, no `regenCarry`.
-    const legacySpec = SPECS.pirate.find((s) => s.designId === world.npcs[0].designId)!;
-    const legacy = exact.map((s) => {
-      const { energy, regenCarry, ...rest } = s.state as Record<string, unknown>;
-      void energy; void regenCarry;
-      return { ...s, state: { ...rest, hp: legacySpec.legacyHullPoints * 0.25 } };
-    });
-    world.restoreNpcs(legacy, (n) => specForDesign(n.role as NpcRole, n.designId));
-    const max = world.npcs[0].maxEnergy;
-    check(`a pre-energy save keeps its quarter-hull (${world.npcs[0].state.energy}/${max})`,
-      world.npcs[0].state.energy === Math.max(1, Math.round(max * 0.25))
-      && world.npcs[0].state.regenCarry === 0);
-    check('...and carries no stray `hp` field into the live state',
-      !('hp' in (world.npcs[0].state as unknown as Record<string, unknown>)));
-
-    // A sliver of hull was not death, so it must not round to it.
-    const sliver = legacy.map((s) => ({
-      ...s, state: { ...s.state, hp: legacySpec.legacyHullPoints * 0.0001 },
-    }));
-    world.restoreNpcs(sliver, (n) => specForDesign(n.role as NpcRole, n.designId));
-    check('...and a nearly-dead ship reloads alive rather than destroyed',
-      world.npcs[0].state.energy === 1);
+    // NOTHING A RESTORE DRAWS MAY REACH THE FLEET. Rebuilding a ship runs the
+    // constructor, which rolls a tumble axis, a pack offset, an E.C.M. coin and
+    // an opening tactic — every one of them then overwritten by the save. So
+    // the check is not "it did not draw" (it did): it is that the fleet which
+    // comes back is the same fleet from anywhere in the stream. A field the
+    // snapshot forgot would be a spawn roll surviving into the restored world,
+    // and this is what sees it.
+    const mark = rngState();
+    const first = JSON.stringify(world.captureNpcs());
+    seedWorld(20_260_804);
+    world.restoreNpcs(exact, (n) => specForDesign(n.role as NpcRole, n.designId));
+    check('a restored fleet is the same fleet wherever the generator happens to be',
+      JSON.stringify(world.captureNpcs()) === first);
+    restoreRng(mark);
   }
 
   // --- SessionState --------------------------------------------------------
