@@ -29,6 +29,14 @@ files are the two halves of the same subject. Nothing detects it. They agree
 today, which by CLAUDE.md's own standard is still a defect: nobody can change
 either without remembering the other.
 
+**The count of live bugs is not the argument.** Chris, 2026-08-04: *"It doesn't
+matter if you can't find a problem now — it's a ticking time bomb."* This item
+is not a bug hunt and it should not be scoped, justified or declared finished on
+the basis of how many disagreements a survey turns up. 539 values with no rule
+about where they live and no gate on defining a second one is the hazard;
+`MAX_TRADERS` is one fuse that happens to be visible. A reviewer who moves the
+constants and reports "and none of them disagreed" has done the job correctly.
+
 **Derivation is currently done by copying the number.** Exactly ONE constant in
 `src/` is expressed in terms of another — `systems.ts:105`'s
 `SHIELD_REGEN = MAX_SHIELD * SHIELD_REGEN_FRACTION`. Every other relationship
@@ -61,42 +69,61 @@ between two values is a coincidence a reader has to spot:
   Elite-A generated catalogue are DATA, not constants. They are generated or
   transcribed from a source and they have their own provenance.
 
-## The tension this has to resolve, out loud
-
-CLAUDE.md currently says two things that pull against the ask:
-
-> **Leave the reasoning where the next person will look.** A constant is worth
-> the sentence that says how it was chosen, beside it.
-
-> **Keep files small**, and keep each one about a single thing.
+## Where the meaning goes — decided
 
 Some of this codebase's best documentation is a constant's neighbourhood.
 `separation.ts`'s header carries a swept table showing what 260 costs at eight
 ships; `break-off.ts` carries the arithmetic behind 220 and Chris's account of
-flying it; `brains.ts` carries the measured table behind g3. A "short
-descriptive comment" in a central file cannot hold those, and deleting them to
-fit would be exactly the trimming CLAUDE.md forbids.
+flying it; `brains.ts` carries the measured table behind g3. The obvious worry
+is that moving those values away from that writing loses it.
 
-**Proposed resolution, to be confirmed or overridden when the work starts:** the
-VALUE moves and the long-form reasoning stays where it was measured, with the
-central entry carrying the short comment plus a pointer to the module that
-holds the sweep. A constant then has one home for its value and one home for
-its evidence, and neither is duplicated. If that turns out to read badly in
-practice, say so and re-decide — but decide it before moving 500 constants, not
-after.
+**It does not, because the writing moves too.** Chris, 2026-08-04: *"For the
+ones where meaning is in the context — namespacing the constants in a meaningful
+way with sensible comments is the answer."*
+
+So there is no tension with CLAUDE.md to resolve, and an earlier draft of this
+item invented one. "A constant is worth the sentence that says how it was
+chosen, beside it" is satisfied by the sentence travelling with the constant.
+The namespace supplies the context the old surrounding module used to supply,
+and the comment supplies the reasoning. A constant, its comment and its measured
+evidence are one thing and they live in one place.
+
+What this rules out, explicitly:
+
+- **No pointers back to the old module.** "See `separation.ts` for the sweep" is
+  the reasoning living in a second place and being kept in step by hope.
+- **No abbreviating a sweep table to make it fit.** If the evidence is forty
+  lines, forty lines move. CLAUDE.md: trimming real content to fit under a
+  ceiling is not an answer.
+- **No constant whose comment is its own name restated.** `/** The maximum
+  number of traders. */ MAX_TRADERS` tells a reader nothing they could not see.
+  The comment says what the value MEANS and, where it is known, how it was
+  chosen.
+
+This is what forces the shape below: forty lines of evidence per swept constant
+does not go in one flat file, so the home is a directory whose files are each
+about one subject.
+
+## The shape
+
+`src/constants/`, one file per subject, each exporting one namespace. The
+subjects fall out of the survey — combat, flight, ordnance, spawning and
+population, economy and the market, the galaxy, docking, the HUD — and the test
+of a good split is the same one CLAUDE.md applies everywhere: if naming the file
+needs an "and", it is two files.
+
+This is a directory rather than one flat file because the evidence moves with
+the values. It is still one source of truth: there is exactly one place a given
+constant can be, and the gate below enforces it.
 
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give
   real namespacing and a discoverable shape, at the cost of touching every call
   site and of slightly worse tree-shaking than bare `export const`. Prefixed flat
-  names are cheaper and weaker. Pick one and say why.
-- **One file, or one directory with a barrel.** 539 constants with comments will
-  not fit under the 400-line ceiling. Either the file gets a deliberate
-  allowlist entry with a stated reason — which CLAUDE.md permits — or it becomes
-  `src/constants/` split by subject with an index, which is still one source of
-  truth and keeps each file about a single thing. The second looks right; argue
-  it.
+  names are cheaper and weaker. Pick one and say why. Whichever it is, the
+  namespace has to carry meaning — it is doing the job the surrounding module
+  used to do, so `MISC` or `GAME` is a failed split.
 - **What counts.** A rule for which of the 539 move. Suggested starting point:
   every value that any OTHER module could reasonably need, plus every value that
   encodes a game rule. Excluded: mutable scratch, loop bounds, and values whose
@@ -105,12 +132,30 @@ after.
   constants that are meant to track each other, the dependent one is written as
   an expression over the other rather than as a second literal. That is the half
   of the ask that buys the most and it cannot be done mechanically — it needs
-  the judgement about which relationships are real.
+  the judgement about which relationships are real. Where the answer is "these
+  two are the same number and NOT the same rule", that gets written down beside
+  both, because the next reader will wonder the same thing.
 - **`train/` and `tools/`.** 88 more constants. Decide whether they join or
-  whether the file is `src/`-only, and note that `train/` must not pull the game
+  whether the home is `src/`-only, and note that `train/` must not pull the game
   into its module graph in a way the portability gate objects to.
-- **The CLAUDE.md instruction Chris asked for**: agents read this file before
-  starting work and check whether a constant already exists before adding one.
+
+## The CLAUDE.md instruction
+
+Chris asked for this to be explicit, and the wording matters — the failure mode
+is an agent grepping for a name it has already decided on, not finding it, and
+adding a second home for a constant that exists under a different name. The
+instruction is to READ, not to search:
+
+> **Read `src/constants/` before you start.** Read the files, in full. Do not
+> grep it, do not search it for the name you have in mind, and do not skim it —
+> the whole point is to find the constant you did not know was already there,
+> under a name you would not have guessed. Before adding any constant, including
+> one derived from another, confirm it does not already exist. A value that
+> exists twice is a rule with two homes, and this is the file that stops that.
+
+Fit it to the file's voice when it lands, but keep "read it, do not grep it" and
+keep the reason attached to it — an instruction without its reason is one a
+future reader will optimise away.
 
 ## Watch out for
 
@@ -129,10 +174,11 @@ after.
 
 ## Acceptance
 
-- One source of truth exists — a file or a `src/constants/` directory with an
-  index — holding the constants the review decided should move, each with a
-  short comment saying what it is, and a pointer to the module holding its
-  evidence where that evidence is long.
+- `src/constants/` exists, split by subject, each file exporting a meaningfully
+  named namespace, holding every constant the review decided should move —
+  with its comment and, where it has one, its measured evidence. No module
+  outside it holds a game-rule constant, and no pointer back to an old home
+  remains.
 - **A gate.** A test that fails when a game-rule constant is defined outside the
   new home, in the spirit of `test/ai.test.ts`'s purity list and the sizes gate.
   Without it this is a one-off tidy that decays, and the next `MAX_TRADERS` will
@@ -141,8 +187,8 @@ after.
 - Every relationship the review judged real is an expression, not a second
   literal, and `gunnery.ts`'s three 3500s and the three 6000s are each resolved
   one way or the other with the answer written down.
-- CLAUDE.md instructs agents to read the constants home first and to check
-  before adding.
+- CLAUDE.md carries the instruction above, explicitly saying to READ the files
+  rather than grep them, with the reason attached.
 - `npm run build`, `npm run campaign`, `npm run elite-a` and
   `npm run portability` all byte-identical to before the work.
 
