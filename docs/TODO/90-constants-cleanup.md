@@ -172,6 +172,102 @@ neither names any of them. `test/playtest.js` and `train/jameson-autopilot.js`
 take `useHarnessSaves`, `clearHarnessSaves` and `saveNamespace` from
 `storage.ts` and nothing else, and all three are still exported.
 
+### AND THE FOUR THAT WERE LEFT AS SEPARATE DECISIONS. All gone, plus a fifth.
+
+The identity slice found four more legacy tolerances on its way through and
+left each one as its own decision rather than folding them into that commit.
+**Chris decided all four on 2026-08-04:** *"yes, clear them now."*
+
+| gone | where | what it was |
+| --- | --- | --- |
+| `CanisterSnapshot.energy?` | `snapshot.ts`, `cargo.ts` | optional, and absence meant "whole" — a world written before canisters had a bank. Required now, like every other field of that snapshot, and `Cargo.restore` takes the number instead of defaulting it |
+| the missing-`dockPlan` case | `test/snapshot.test.ts` | **there was no code**: `restoreState` walks the keys the snapshot HAS, so a save written before the docking latch was persisted kept the fresh `gate` default for free. The tolerance existed only as an assertion pinning the shape of that loop as though it were a rule about old worlds. docs/TODO/17's *"Old snapshots must still load"* is the acceptance it came from, and that line is superseded |
+| the `career` note | `snapshot.ts` | *"Saves written before TODO 43 still carry the key; nothing reads it."* There is no such FIELD — 43 deleted it — and no such save. The rule above it (a world has no opinion about whose autosave group it is in) stays, and `test/career-identity.test.ts` section 4 still enforces it from the source |
+| the bare-commander import | `screens/save-transfer.ts` | `readSaveFile` accepted a raw `CommanderData` — credits and a system index, no name, no version, no world — as an export from before saves were records |
+| **`AutopilotState.control.ecm?`** | `combat-computer.ts` | **the fifth, found by the sweep.** Same shape as the canister's bank: optional so a save written before the E.C.M. head existed could restore a control without one. `act()` returns `Control.ecm` unconditionally (always false for a brain with no logit for it), so nothing this build can write omits it |
+
+**The import needed no fourth refusal line.** That was the open question, because
+this one is different in kind: the other four are about what our own format
+tolerates, and this is about what an import accepts from a file a human pastes
+in — so the failure mode is a person seeing an error rather than a save quietly
+not loading. It reuses `NOT_A_SAVE`, which is what such a file IS: bytes with no
+name, no version and no world are not a save file, and `WRONG_VERSION` would be
+a lie about a shape that carries no `v` to be wrong. `NOT_A_SAVE`,
+`WRONG_VERSION` and `STORE_FULL` are still the whole vocabulary.
+
+### THREE THINGS LOOKED LEGACY AND WERE LIVE. Keep them; only the prose moved.
+
+This keeps happening — it happened to the tier fallback last time — so it is
+worth naming the tell. **A save migration and an IMPORT REPAIR are the same code
+wearing different reasons**, and only one of them is dead.
+
+- **`repairCommander` (`storage.ts`) is the import boundary's validator, not a
+  migration.** Nothing this build writes needs repairing: `capture()` clones a
+  whole `CommanderData`. What arrives incomplete is an imported FILE —
+  `adoptSaveFile` takes the commander straight out of a stranger's JSON and
+  writes it unexamined, so the next `readSave` is the first look anything gives
+  it. A hand-edited ten-entry `cargo`, an `equipment` of `{}` or a `day` of
+  `"soon"` reaches that function. Every guard stays; the docstring says what
+  they are really for.
+- **`LivingGalaxy.load` (`galaxy/living.ts`) defaults all five fields for the
+  same reason** — `WorldSnapshot.galaxyState` is `unknown` and comes off the
+  same file. Only `heat` carried a comment blaming saves written before
+  notoriety existed; it was the odd one out and the reason was false. The
+  comment went, the uniform defaulting stayed, and the function now says why.
+- **`SaveRecord.commander` is still reachable** and was checked before the
+  import branch went, because that branch looked like its only producer. It is
+  not: a record naming a commander with a world that does not own one still
+  lands commander-only, which is a shape a text editor can produce and no save
+  of ours can.
+
+**And a migration was found that never ran.** `repairCommander`'s
+*"saves from before weighted ratings: every past kill counts as one"* cannot
+fire: `newCommander()` gained `combatScore: 0` in the same commit that added the
+guard (`04561f0`), above a `{ ...newCommander(), ...stored }` that had already
+answered — so every career saved before weighted ratings came back UNRATED
+rather than re-scored, from the day the feature shipped. Kept for what it can
+still do (repair a spoiled score from the body count beside it) with the
+comment corrected. **A second home does not have to disagree loudly to be a
+defect; this one lost silently for a week.**
+
+Three more stale claims from the identity slice were corrected in passing:
+`CommanderData.shipId` still said a save without one *"migrates to the Cobra
+Mk III"*, and `combatScore` and `furthestWave` still advertised what a save
+written before them loads as. And `summariseSave`'s `c.combatScore ?? c.kills`
+went: it is a SECOND HOME for a rule `repairCommander` owns, on a commander that
+has already been through it — `saveRows` over `listSaves()` is its only caller.
+
+Two `?? 0` reads of required `CommanderData` fields are still out there and were
+deliberately not touched, because they are a different subject from saves:
+`cargoTonnes`'s `c.survivors ?? 0` and `recordFurthestWave`'s
+`c.furthestWave ?? 0` (`commander.ts`). Both are dead by the type. Whoever does
+a general defensive-`??` pass owns them.
+
+**Three assertions went and six replaced them, and all three were legacy.**
+`an old NPC snapshot without a dock plan starts at the fresh gate default`
+(the whole of the dockPlan tolerance), and `a pre-record export still imports`
+with `...keeping its commander` (the bare-commander import). The import's three
+replacements assert the refusal, the line the player is told, and that nothing
+of the file reaches the shelf. The other three are new coverage: **a canister's
+bank had none.** The fallback was indistinguishable from the truth until
+something was wounded, and nothing ever wounded one — so a save that dropped the
+bank would have looked right for ever. It round-trips a canister at 3 points
+now, with a full capsule beside it as the control.
+
+Both harnesses were grepped again, for `energy`, `dockPlan`, `restoreState`,
+`serialiseState`, `career`, `readSaveFile`, `adoptSaveFile`, `commanderOf`,
+`DEFAULT_NAME`, `canisterMaxEnergy`, `CanisterSnapshot`, `repairCommander`,
+`combatScore`, `furthestWave` and `survivors`. Neither harness names any of them
+in a load-bearing way: their `energy` hits are the defence encoder's own field
+and `poolsLeft`/`energyLeft` from the kit, and their `career` hits are prose.
+
+3073 passed, 0 failed. elite-a 483. portability 0 contaminated. Campaign
+byte-identical on all 33 balance rows. Constants gate unmoved at 98/347 across
+89 files. Every new gate was broken and confirmed red — the two required fields
+fail `tsc` when made optional again, the canister round trip fails when
+`Cargo.restore` defaults the bank, and all three import checks fail when the
+bare-commander branch is put back.
+
 ---
 
 ## Open — a decision or a separate change

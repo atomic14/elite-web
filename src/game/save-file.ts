@@ -66,9 +66,12 @@ export type SaveKind = 'file' | 'dock' | 'fly';
  * lands or does not.
  *
  * The commander lives INSIDE the world snapshot; `commander` at the top level
- * is only for a record that has no world — which today means a file imported
- * from the old bare-commander export (`save-transfer.ts`). `commanderOf` is the
- * one place that knows which is which.
+ * is only for a record that has no world. Nothing this build writes for itself
+ * is in that state — every automatic and named save carries a world — so the
+ * one producer left is an IMPORTED FILE whose record named a commander but no
+ * world that owns one (`save-transfer.ts`), which is a shape a human with a
+ * text editor can hand us and no save of ours can be. `commanderOf` is the one
+ * place that knows which is which.
  */
 export interface SaveRecord {
   v: number;
@@ -268,8 +271,13 @@ export function summariseSave(
     where: `${place} · ${inFlight ? 'IN FLIGHT' : 'DOCKED'}`,
     commanderName: c.name,
     credits: c.credits,
-    rating: rating(c.combatScore ?? c.kills ?? 0).toUpperCase(),
-    day: c.day ?? 0,
+    // Read straight, not defaulted. These two were `c.combatScore ?? c.kills ?? 0`
+    // and `c.day ?? 0` — and the score fallback was a SECOND HOME for a rule
+    // `repairCommander` already owns, on a commander that has been through it:
+    // the only caller is `saveRows`, over `listSaves()`, and every record on that
+    // path was repaired by `readSave`. Deleted 2026-08-04.
+    rating: rating(c.combatScore).toUpperCase(),
+    day: c.day,
   };
 }
 

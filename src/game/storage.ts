@@ -492,8 +492,26 @@ export function commanderNameTaken(name: string): boolean {
 /**
  * Every commander that comes off the shelf, repaired the same way.
  *
- * Fields added since a save was written get their defaults. This is a repair of
- * a RECORD's contents and has nothing to do with the key it was found under.
+ * IT IS NOT A SAVE MIGRATION, whatever its history says, and the distinction
+ * decided whether it survived the 2026-08-04 legacy cull. Nothing this build
+ * writes needs repairing: `capture()` clones a whole `CommanderData`, so every
+ * field is there and every field has its type. What arrives incomplete is an
+ * IMPORTED FILE — `adoptSaveFile` takes the commander straight out of a
+ * stranger's JSON and writes it to the shelf unexamined, so the next `readSave`
+ * is the first and only look anything gives it. A hand-edited file with a
+ * ten-entry `cargo`, an `equipment` of `{}` or a `day` of `"soon"` reaches this
+ * function, and everything below is what stops it reaching the trade screen.
+ * A repair of a RECORD's contents; nothing to do with the key it was found
+ * under.
+ *
+ * The top-level spread is what supplies an ABSENT field, so each guard below is
+ * only ever reached by a field that is present and the wrong type. The
+ * `combatScore` line was written as a migration — *"every past kill counts as
+ * one"* — and never was one: `newCommander()` gained `combatScore: 0` in the
+ * same commit (04561f0), so the spread had already answered and a career saved
+ * before weighted ratings came back UNRATED rather than re-scored. It is kept
+ * for what it can still do, which is repair a spoiled score from the body count
+ * beside it.
  *
  * THE HULL IS NOT REPAIRED, IT IS REQUIRED. A missing or unresolvable `shipId`
  * used to become the Cobra Mk III (`migratedPlayerHullId`, deleted 2026-08-04):
@@ -512,14 +530,14 @@ function repairCommander(stored: Partial<CommanderData>): CommanderData {
   if (!Array.isArray(parsed.contracts)) parsed.contracts = [];
   if (typeof parsed.day !== 'number') parsed.day = 0;
   if (typeof parsed.trumbles !== 'number') parsed.trumbles = 0;
-  // saves written before survivors stopped being logged as slaves
   if (typeof parsed.survivors !== 'number') parsed.survivors = 0;
-  // ...and before the combat trainer's waves mode kept a best
   if (typeof parsed.furthestWave !== 'number') parsed.furthestWave = 0;
+  // The LENGTH matters as much as the type: every screen that touches the hold
+  // indexes it by commodity, so a short array is a hold with missing shelves.
   if (!Array.isArray(parsed.cargo) || parsed.cargo.length !== COMMODITIES.length) {
     parsed.cargo = COMMODITIES.map(() => 0);
   }
-  // saves from before weighted ratings: every past kill counts as one
+  // ...and the score falls back to the body count beside it — see above.
   if (typeof parsed.combatScore !== 'number') parsed.combatScore = parsed.kills ?? 0;
   // `stored`, not `parsed`: the spread above has already filled in a fresh
   // commander's Cobra, so asking `parsed` would accept a record that never said

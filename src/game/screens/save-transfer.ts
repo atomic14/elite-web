@@ -26,7 +26,7 @@
 // every line of it sat behind a file picker, and docs/TODO/43 is what shipped
 // through the hole.
 
-import { DEFAULT_NAME, type CommanderData } from '../commander.ts';
+import type { CommanderData } from '../commander.ts';
 import {
   freshCareerName, listSaves, makeRecord, setBootId, writeSave,
 } from '../storage.ts';
@@ -41,8 +41,8 @@ import type { SavesContext } from './saves.ts';
  *
  * A whole SAVE RECORD, name included, rather than a bare commander: an export
  * that lost its name would come back as an untitled blob, and one that lost its
- * world would put you somewhere you had never been. The old shape still
- * imports — see `adoptSaveFile`.
+ * world would put you somewhere you had never been. This build wrote the bare
+ * shape once and no longer reads it back — see `readSaveFile`.
  */
 export function exportedSaveFile(ctx: SavesContext): { fileName: string; json: string } {
   const record = makeRecord(ctx.career, ctx.career, 'file', ctx.capture());
@@ -93,9 +93,18 @@ interface SaveFileContents {
  * this build cannot READ is a file it must not WRITE: writing it puts bytes on
  * the shelf that `listSaves` cannot see, the file list cannot show and no
  * delete can reach, under a boot pointer aimed at nothing.
+ *
+ * A RECORD IS THE ONLY SHAPE. An earlier export was a bare `CommanderData` —
+ * credits and a system index, no name, no version, no world — and this used to
+ * accept one. Deleted 2026-08-04 with the rest of the legacy handling (Chris:
+ * *"yes, clear them now"*): nobody has such a file, and reading a shape whose
+ * only witness is our own history is the second home this cleanup is about. It
+ * needs no refusal of its own, and gets `NOT_A_SAVE`: a bare commander is not a
+ * save FILE, and `WRONG_VERSION` would be a lie about bytes that carry no `v`
+ * to be wrong.
  */
 function readSaveFile(parsed: unknown): SaveFileContents | { why: string } {
-  const rec = parsed as Partial<SaveRecord> & Partial<CommanderData>;
+  const rec = parsed as Partial<SaveRecord>;
   if (!rec || typeof rec !== 'object') return { why: NOT_A_SAVE };
   // The record shape: a name, and a commander somewhere inside it.
   if (typeof rec.name === 'string' && (rec.world || rec.commander)) {
@@ -108,11 +117,6 @@ function readSaveFile(parsed: unknown): SaveFileContents | { why: string } {
     if (commander) {
       return { name: whole.name, world: whole.world?.commander ? whole.world : null, commander };
     }
-  }
-  // ...or the old export, which was a bare commander and nothing else.
-  if (typeof rec.credits === 'number' && typeof rec.systemIndex === 'number') {
-    const c = parsed as CommanderData;
-    return { name: c.name || DEFAULT_NAME, world: null, commander: c };
   }
   return { why: NOT_A_SAVE };
 }

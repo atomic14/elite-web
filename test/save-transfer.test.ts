@@ -122,11 +122,20 @@ console.log('\na file from outside takes a name and a career this shelf gives it
     check('...nor is a JSON object that carries no commander',
       adoptSaveFile(JSON.stringify({ name: 'X', hello: true })).ok === false);
 
-    // the old export shape: a bare commander, no record around it
-    const bare = took(adoptSaveFile(
-      JSON.stringify({ ...newCommander(), name: 'ZAPHOD', credits: 7 })));
-    eq('a pre-record export still imports', bare.name, 'ZAPHOD');
-    eq('...keeping its commander', commanderOf(readSave(bare.id)!)?.credits, 7);
+    // THE OLD EXPORT SHAPE IS NOT A SAVE ANY MORE. A bare commander with no
+    // record around it used to import, under the name it was carrying; that
+    // tolerance went on 2026-08-04 with the rest of the legacy handling, and
+    // this is what a player sees instead. It reuses `NOT_A_SAVE` rather than
+    // adding a fourth line, because that is what such a file IS — bytes with no
+    // name, no version and no world are not a save file, and the version
+    // refusal would be a lie about a shape that carries no `v`.
+    const bare = adoptSaveFile(
+      JSON.stringify({ ...newCommander(), name: 'ZAPHOD', credits: 7 }));
+    check('a pre-record export is no longer a save', bare.ok === false);
+    eq('...refused as one of the three lines that already exist',
+      bare.ok === false ? bare.why : '', 'IMPORT FAILED — NOT A SAVE FILE');
+    check('...and nothing of it reaches the shelf',
+      listSaves().every((s) => commanderOf(s.record)?.credits !== 7));
 
     // ...and a whole record, onto an empty-ish shelf
     const first = took(adoptSaveFile(JSON.stringify(stranger)));

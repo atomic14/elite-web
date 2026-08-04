@@ -149,13 +149,16 @@ export interface CanisterSnapshot {
   kind: 'cargo' | 'capsule';
   commodity: number;
   /**
-   * What is left of its released bank (TODO 28). Optional because a world
-   * written before canisters had one carries no such field, and a canister that
-   * has been shot at but not destroyed is not a state those saves could reach —
-   * so its absence means "whole", not "unknown". An ADDITION, which is why
-   * SNAPSHOT_VERSION does not move: a reader that ignores unknown keys survives.
+   * What is left of its released bank (TODO 28), so a canister that has been
+   * shot at but not destroyed comes back wounded.
+   *
+   * REQUIRED, like every other field here. It was optional, and absence meant
+   * "whole" — tolerance for a world written before canisters had a bank. That
+   * tolerance is gone (2026-08-04) for the same reason as the rest: no save
+   * without one exists, and a second reading of what a missing field means is a
+   * second home for the rule.
    */
-  energy?: number;
+  energy: number;
 }
 
 export interface WorldSnapshot {
@@ -166,7 +169,6 @@ export interface WorldSnapshot {
   commander: CommanderData;
   // NO `career` HERE, and that is the rule rather than an omission — see the
   // header. A world knows where it is, not whose autosave group it is in.
-  // Saves written before TODO 43 still carry the key; nothing reads it.
   /** the level-1 galaxy sim, so prices and danger resume too */
   galaxyState: unknown;
   player: ShipSnapshot;

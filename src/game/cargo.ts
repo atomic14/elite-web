@@ -111,16 +111,15 @@ export class CargoField {
   /** Rebuild one from a snapshot, exactly as it was. */
   restore(
     pos: THREE.Vector3, velocity: THREE.Vector3, spinAxis: THREE.Vector3,
-    kind: 'cargo' | 'capsule', commodity: number, energy?: number,
+    kind: 'cargo' | 'capsule', commodity: number, energy: number,
   ): void {
     const object = buildShip(CANISTER_HULL, kind === 'capsule' ? 0xffd24d : 0x8ad0ff);
     if (kind === 'capsule') object.scale.setScalar(0.8);
     object.position.copy(pos);
-    // A save written before canisters had a bank comes back whole: a partly
-    // shot canister is not a thing those worlds could hold.
-    this.add(object, {
-      commodity, velocity, spinAxis, kind, energy: energy ?? canisterMaxEnergy(kind),
-    });
+    // The bank is taken from the snapshot like everything else here. It used to
+    // default to full for a save written before canisters had one; that
+    // tolerance went with the rest of the legacy handling (2026-08-04).
+    this.add(object, { commodity, velocity, spinAxis, kind, energy });
   }
 
   private add(object: THREE.Object3D, rest: Omit<Canister, 'object'>): void {

@@ -343,6 +343,19 @@ export class LivingGalaxy {
     return { day: this.day, convoys: this.convoys, systems };
   }
 
+  /**
+   * Put a saved galaxy back.
+   *
+   * EVERY FIELD DEFAULTS, and none of it is a migration. `save()` above writes
+   * all five for every system it keeps, so nothing this build wrote arrives
+   * short — what arrives short is an IMPORTED FILE, whose `galaxyState` is
+   * `unknown` in the snapshot and is JSON a human can hand us. The defaults are
+   * that boundary's, and they are uniform on purpose: a system this loader
+   * cannot read a number for is a system at rest, never a `NaN` compounding
+   * through every subsequent day. `heat` used to carry a comment blaming saves
+   * written before notoriety existed; that reason went on 2026-08-04 and the
+   * line stayed, because the real one applies to all five.
+   */
   load(data: GalaxyStateSave | undefined): void {
     if (!data) return;
     this.day = data.day ?? 0;
@@ -354,7 +367,7 @@ export class LivingGalaxy {
       st.danger = s.danger ?? 0;
       st.recentArrivals = s.arrivals ?? 0;
       st.recentLosses = s.losses ?? 0;
-      st.heat = s.heat ?? 0; // absent in saves written before notoriety existed
+      st.heat = s.heat ?? 0;
     }
   }
 }

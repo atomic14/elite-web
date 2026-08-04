@@ -94,7 +94,10 @@ console.log('\nimporting a file cannot reach a career that already exists');
 
     // A stranger's export, as hostile as one can be: their commander is called
     // JAMESON too, so their record's career IS mine, and the world inside it
-    // carries the pre-TODO-43 `career` key as well.
+    // carries a `career` key of its own. `WorldSnapshot` has no such field and
+    // no save of ours has ever written one — but a file is JSON a human hands
+    // us, so the key is here to prove that a world claiming a career is still
+    // not asked (section 4 proves the same thing from the source side).
     const theirs = mine.captureSnapshot();
     theirs.commander = { ...newCommander(), credits: 1_000, day: 0 };
     (theirs as unknown as Record<string, unknown>).career = career;

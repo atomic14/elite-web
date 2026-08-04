@@ -10,7 +10,10 @@ import * as THREE from 'three';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
-import { serialiseState, restoreState } from '../src/game/snapshot.ts';
+import {
+  serialiseState, restoreState, type CanisterSnapshot,
+} from '../src/game/snapshot.ts';
+import { CargoField, canisterMaxEnergy } from '../src/game/cargo.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { World } from '../src/game/world.ts';
 import { specForDesign } from '../src/game/ship-specs.ts';
@@ -207,16 +210,13 @@ console.log('\nsnapshot round trip');
       && restoredTrader.state.dockPlan.heading === restoredHeading
       && restoredTrader.state.dockPlan.up === restoredUp);
 
-    // Old snapshots have no dockPlan key. Restoring one must leave the fresh
-    // constructor default intact instead of manufacturing a partial plan.
-    const legacySaved = { ...dockingSaved };
-    delete legacySaved.dockPlan;
-    const legacyTrader = new NpcShip('trader', at(0, 0, 0), 2);
-    const legacyPlan = legacyTrader.state.dockPlan;
-    restoreState(legacyTrader.state as unknown as Record<string, unknown>, legacySaved);
-    check('an old NPC snapshot without a dock plan starts at the fresh gate default',
-      legacyTrader.state.dockPlan === legacyPlan
-      && legacyTrader.state.dockPlan.phase === 'gate');
+    // A check stood here on a snapshot with the `dockPlan` key DELETED — a save
+    // written before the latch was persisted, which had to come back on the
+    // fresh constructor default rather than a half-built plan. Deleted
+    // 2026-08-04 with the rest of the legacy handling (docs/TODO/90-constants-
+    // cleanup.md): no such save exists, and `restoreState` has no branch for it
+    // — it walks the keys the snapshot HAS, so the assertion was pinning the
+    // shape of the loop as though it were a rule about old worlds.
 
     const resetControl = new NpcShip('trader', at(0, 0, 0), 2);
     restoreState(resetControl.state as unknown as Record<string, unknown>, dockingSaved);
@@ -297,6 +297,36 @@ console.log('\nsnapshot round trip');
     check('a restored fleet is the same fleet wherever the generator happens to be',
       JSON.stringify(world.captureNpcs()) === first);
     restoreRng(mark);
+  }
+
+  // --- a canister's bank: the same claim, on the other codec ----------------
+  //
+  // `CanisterSnapshot.energy` is REQUIRED as of 2026-08-04. It was optional, and
+  // absence meant "whole" — a second reading of a missing field, kept for worlds
+  // written before canisters had a bank, which do not exist
+  // (docs/TODO/90-constants-cleanup.md). The field it was standing in front of is
+  // real state and NOTHING TESTED IT, which is how a tolerance survives: the
+  // fallback is indistinguishable from the truth until something is wounded.
+  {
+    seedWorld(20_260_804);
+    const field = new CargoField(new THREE.Object3D());
+    field.spawn(at(0, 0, 0), 1, [0]);
+    field.spawnCapsule(at(50, 0, 0));
+    // Wounded by hand, deliberately: every laser a flyable hull can carry breaks
+    // a canister in ONE hit today (test/damage-paths.test.ts), so the live game
+    // cannot reach this state and a save that dropped the bank would have looked
+    // right for ever. It stops being unreachable the moment a weaker shot exists.
+    field.items[0].energy = 3;
+    const wireCargo = JSON.stringify(field.capture());
+    check('a canister snapshot is plain JSON and states its bank',
+      wireCargo.includes('"energy":3') && !wireCargo.includes('undefined'));
+    const back = new CargoField(new THREE.Object3D());
+    back.restoreAll(JSON.parse(wireCargo) as CanisterSnapshot[]);
+    check('a wounded canister comes back on the exact point it was left',
+      back.items.length === 2 && back.items[0].energy === 3);
+    check('...and the capsule beside it comes back full, as a capsule (the control)',
+      back.items[1].energy === canisterMaxEnergy('capsule')
+      && back.items[1].kind === 'capsule');
   }
 
   // --- SessionState --------------------------------------------------------

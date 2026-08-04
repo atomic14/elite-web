@@ -70,13 +70,17 @@ export interface AutopilotState {
    *
    * `ecm` rides along with the other four for the reason the whole object
    * exists: it is held between decisions, so it is state, and state is saved.
-   * `snapshot.ts` walks this generically, so the field costs nothing to
-   * persist — but a save written before it will restore a `control` without
-   * one, which reads as `undefined` and therefore as "not pressing", which is
-   * the right answer for a career that has never had a policy that could.
+   * `snapshot.ts` walks this generically, so the field costs nothing to persist.
+   *
+   * It is REQUIRED, like the other four. It was optional so that a save written
+   * before the fourth head existed could restore a `control` without one and
+   * read as "not pressing" — but `act()` returns `Control.ecm` unconditionally
+   * (`ai-training/policy.ts`: always false for a brain with no logit for it), so
+   * nothing this build can write omits it, and the optionality was tolerance for
+   * a save that does not exist. Deleted 2026-08-04 with the other four.
    */
   control: {
-    pitch: number; roll: number; throttle: number; fire: boolean; ecm?: boolean;
+    pitch: number; roll: number; throttle: number; fire: boolean; ecm: boolean;
   } | null;
 }
 
@@ -187,7 +191,7 @@ export class CombatComputer {
     this.state.roll = ccRamp(this.state.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
     return {
       kind: 'fly',
-      ecm: autopilotEcm(!!c.ecm, missileInbound),
+      ecm: autopilotEcm(c.ecm, missileInbound),
       demand: {
         pitchRate: this.state.pitch,
         rollRate: this.state.roll,

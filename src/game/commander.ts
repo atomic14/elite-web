@@ -99,8 +99,9 @@ export interface CommanderData {
    * The ONE piece of player identity a later shipyard changes, which is why it
    * is saved as an id rather than as a copied stat block. It does not drive
    * flight yet: this phase records what you are in, and the TODOs that resolve
-   * lasers and armour through it come after. Absent in every save written
-   * before it existed, and those all migrate to the Cobra Mk III.
+   * lasers and armour through it come after. A save that does not name one is
+   * refused rather than given the Cobra — `requirePlayerHullId`, and the
+   * migration that used to stand there went on 2026-08-04.
    */
   shipId: PlayerHullId;
   galaxy: number;
@@ -113,7 +114,7 @@ export interface CommanderData {
    * Combat reputation. Ships destroyed weighted by how hard they were:
    * a gang's Fer-de-Lance is worth five Sidewinders, because it is.
    * `kills` stays the literal body count for the status screen; this is what
-   * the rating ladder reads. Absent in saves written before it existed.
+   * the rating ladder reads.
    */
   combatScore: number;
   cargo: number[]; // quantity per commodity index
@@ -148,8 +149,6 @@ export interface CommanderData {
    * happens in it leaves it, and a number the galaxy cannot see does not break
    * that promise. `test/combat-sim-career.test.ts` holds it to exactly that:
    * after a run of waves it is the ONLY field of the career that has moved.
-   *
-   * Absent in every save written before it existed, and those load as 0.
    */
   furthestWave: number;
   contracts: Contract[];
