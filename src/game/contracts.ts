@@ -22,6 +22,13 @@ import {
   type CommanderData, type Contract,
 } from './commander.ts';
 import type { SoundName } from './sounds.ts';
+import { CONTRACT_RANGE, MAX_CONTRACTS } from '../constants/contracts.ts';
+import { ORDINARY_GOODS } from '../constants/commodities.ts';
+import { FLUCTUATIONS } from '../constants/market.ts';
+import {
+  HERMIT_ORE, HERMIT_ORE_GLUT, HERMIT_ORE_PRICE, HERMIT_SUPPLIES,
+  HERMIT_SUPPLY_PRICE,
+} from '../constants/hermit-market.ts';
 
 /** Chart distance in tenths of a light-year (the original's metric). */
 // Was a second copy of the chart metric. It now comes from the one owner, and
@@ -41,7 +48,7 @@ export function generateContractOffers(
 ): Contract[] {
   const reachable = systems.filter((s) => {
     const d = distanceTenths(sys, s);
-    return s.index !== sys.index && d > 0 && d <= 68;
+    return s.index !== sys.index && d > 0 && d <= CONTRACT_RANGE;
   });
   if (!reachable.length) return [];
 
@@ -53,7 +60,7 @@ export function generateContractOffers(
     const roll = rng();
     if (roll < 0.55) {
       // cargo run: they supply the goods, you supply the nerve
-      const commodity = [0, 1, 4, 8, 9, 12][Math.floor(rng() * 6)];
+      const commodity = ORDINARY_GOODS[Math.floor(rng() * ORDINARY_GOODS.length)];
       const qty = 3 + Math.floor(rng() * 8);
       offers.push({
         kind: 'cargo',
@@ -128,7 +135,7 @@ export function makeLocalMarket(
   return applyMarketPressure(
     // seeded: an unseeded market seed means a reload rerolls prices, which is
     // exactly the save-scum this game now has to be robust to
-    generateMarket(system, randomInt(256)),
+    generateMarket(system, randomInt(FLUCTUATIONS)),
     priceMultiplier);
 }
 
@@ -141,9 +148,6 @@ export interface MarketEstimate extends MarketEntry {
   low: number;
   high: number;
 }
-
-/** Every value the fluctuation byte can take, so the mean below is exact. */
-export const FLUCTUATIONS = 256;
 
 /**
  * What a system is expected to quote, for a chart read before you go and for
@@ -200,26 +204,6 @@ export function marketEstimate(
 }
 
 /**
- * What a hermit is sitting on: whatever they dug up.
- *
- * Named rather than indexed because `i === 12 || i === 13 || i === 14 ||
- * i === 15` is only readable to someone who has the 1984 commodity table
- * memorised. Matched on the market row's own name, which `generateMarket`
- * copies straight off `COMMODITIES`.
- */
-const HERMIT_ORE = new Set(['Minerals', 'Gold', 'Platinum', 'Gem-Stones']);
-
-/** What a hermit has run out of: anything that has to be flown in. */
-const HERMIT_SUPPLIES = new Set(['Food', 'Liquor/Wines', 'Machinery']);
-
-/** Ore is a quarter off here, and there is plenty of it. */
-const HERMIT_ORE_PRICE = 0.75;
-/** Bulk stock a rock miner is never short of, on top of the rolled quantity. */
-const HERMIT_ORE_GLUT = 20;
-/** Supplies cost a third more: nobody else is delivering out here. */
-const HERMIT_SUPPLY_PRICE = 1.3;
-
-/**
  * Prices at a rock hermit's tunnel, rolled fresh.
  *
  * The hermit economy should read as the opposite of a station's: a miner is
@@ -235,7 +219,7 @@ const HERMIT_SUPPLY_PRICE = 1.3;
  */
 export function hermitMarket(
   system: StarSystem,
-  fluctuation: number = randomInt(256),
+  fluctuation: number = randomInt(FLUCTUATIONS),
 ): MarketEntry[] {
   return generateMarket(system, fluctuation).map((m) => {
     if (HERMIT_ORE.has(m.name)) {
@@ -387,12 +371,3 @@ export function contractMessage(e: ContractEvent, systems: StarSystem[]): Contra
   }
 }
 
-/**
- * The most work you may hold at once.
- *
- * Lived as a bare `>= 3` in game.ts and a bare `>= 2` in test/campaign.ts —
- * so the balance harness was playing a game with a smaller bulletin board than
- * the one that ships. (This justification sat orphaned in threat.ts, a file
- * that cannot see the constant, until the threat slice put it back beside it.)
- */
-export const MAX_CONTRACTS = 3;

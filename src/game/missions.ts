@@ -25,15 +25,10 @@ import { npcEnergyPolicy, playerLaserDamage } from './npc-energy.ts';
 import { random } from './rng.ts';
 import { CONSTRICTOR_SPEC } from './ship-specs.ts';
 import type { LaserType } from './commander.ts';
-
-/** Kills before the Navy considers you worth talking to. */
-export const MISSION_KILL_THRESHOLD = 16;
-/** The Constrictor hides this far from where you are briefed, in tenths of a LY. */
-export const HUNT_RANGE = { min: 30, max: 80 };
-/** The courier run is longer. */
-export const COURIER_RANGE = { min: 50, max: 90 };
-export const CONSTRICTOR_BOUNTY = 25_000;
-export const COURIER_PAYMENT = 15_000;
+import {
+  CONSTRICTOR_BOUNTY, COURIER_PAYMENT, MISSION_COURIER_RANGE,
+  MISSION_HUNT_RANGE, MISSION_KILL_THRESHOLD,
+} from '../constants/missions.ts';
 
 export type MissionEvent =
   | { kind: 'briefed'; target: number }
@@ -68,14 +63,14 @@ export function stepMissionAtDock(
   const events: MissionEvent[] = [];
 
   if (m.stage === 0 && commander.kills >= MISSION_KILL_THRESHOLD && commander.galaxy === 1) {
-    const target = pickTarget(systems, here, commander.systemIndex, HUNT_RANGE, rng);
+    const target = pickTarget(systems, here, commander.systemIndex, MISSION_HUNT_RANGE, rng);
     if (target !== null) {
       m.targetIndex = target;
       m.stage = 1;
       events.push({ kind: 'briefed', target });
     }
   } else if (m.stage === 2) {
-    const target = pickTarget(systems, here, commander.systemIndex, COURIER_RANGE, rng);
+    const target = pickTarget(systems, here, commander.systemIndex, MISSION_COURIER_RANGE, rng);
     if (target !== null) {
       m.targetIndex = target;
       m.stage = 3;

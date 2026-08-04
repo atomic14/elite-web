@@ -8,15 +8,21 @@
 import * as THREE from 'three';
 import { World } from '../src/game/world.ts';
 import { newCommander, cargoTonnes } from '../src/game/commander.ts';
+import { dumpCargo, offerBribe, appetiteOf } from '../src/game/jettison.ts';
 import {
-  dumpCargo, offerBribe, appetiteOf, OPPORTUNIST_FLOOR, GANG_FLOOR,
-} from '../src/game/jettison.ts';
+  OPPORTUNIST_FLOOR, GANG_FLOOR, VALUE_PER_TONNE,
+} from '../src/constants/jettison.ts';
+import { markOf } from '../src/game/threat.ts';
+import { ORDINARY_GOODS, ORE, WRECK_CARGO } from '../src/constants/commodities.ts';
+import { CargoField, canisterMaxEnergy } from '../src/game/cargo.ts';
+import { SCOOP_RANGE } from '../src/constants/scoop.ts';
 import { breachLoss, freshSystems } from '../src/game/systems.ts';
 import { CARGO_LOSS_CHANCE } from '../src/constants/hull-breach.ts';
 import { Combat } from '../src/game/combat.ts';
 import {
-  isContraband, contrabandTonnes, carryingContraband, CLEAN, FUGITIVE,
+  isContraband, contrabandTonnes, carryingContraband,
 } from '../src/game/law.ts';
+import { CLEAN, FUGITIVE } from '../src/constants/law.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
@@ -195,7 +201,67 @@ console.log('\ncombat');
     check('...and the band\'s floor and ceiling are both real',
       yields.has(MINING_YIELD_MIN)
       && yields.has(MINING_YIELD_MIN + MINING_YIELD_SPAN - 1));
+    check('...and every canister it spills is on the ore list',
+      world.cargo.items.length > 100
+      && world.cargo.items.every((k) => ORE.includes(k.commodity)));
   }
+  {
+    // What a wreck spills is the WRECK_CARGO class, flown through the real
+    // wreck path — a re-inlined list in combat.ts goes red here.
+    seedWorld(90_011);
+    const { world, combat } = setup();
+    for (let i = 0; i < 60; i += 1) combat.wreck(world.spawn('trader', at(-500), 0));
+    const spilled = world.cargo.items.filter((k) => k.kind === 'cargo');
+    check(`a wreck spills only WRECK_CARGO (${spilled.length} canisters)`,
+      spilled.length > 40 && spilled.every((k) => WRECK_CARGO.includes(k.commodity)));
+  }
+
+  // --- the ordinary-goods decision, pinned -----------------------------------
+  //
+  // constants/commodities.ts records it: the consignment list and the
+  // generation ship's shed are ONE rule (`ORDINARY_GOODS`), and a wreck's
+  // spill is that class plus furs — a divergence recorded, not resolved
+  // (docs/TODO/90-constants-cleanup.md, Open). This holds the relationship at
+  // exactly that: drop the Furs row, add another, or let the lists drift and
+  // it goes red. Furs is found by NAME so the check cannot itself hold a
+  // stale index.
+  {
+    const furs = COMMODITIES.findIndex((k) => k.name === 'Furs');
+    check('Furs is a commodity the relationship can name', furs >= 0);
+    const wreckSet = new Set(WRECK_CARGO);
+    check('a wreck spills exactly the ordinary goods, plus furs',
+      WRECK_CARGO.length === ORDINARY_GOODS.length + 1
+      && ORDINARY_GOODS.every((i) => wreckSet.has(i))
+      && wreckSet.has(furs));
+    check('...and none of it is contraband',
+      WRECK_CARGO.every((i) => !isContraband(i)) && ORE.every((i) => !isContraband(i)));
+    // the ore list, by name: minerals in the majority, then the two metals
+    const named = (name: string) => COMMODITIES.findIndex((k) => k.name === name);
+    check('the ore list is minerals and metals, minerals in the majority',
+      ORE.every((i) => [named('Minerals'), named('Gold'), named('Platinum')].includes(i))
+      && ORE.filter((i) => i === named('Minerals')).length * 2 > ORE.length);
+  }
+}
+
+// --- scooping ----------------------------------------------------------------
+//
+// The reach moved to constants/scoop.ts; the boundary is scanned out of the
+// real CargoField.update rather than probed at the constant, so a re-inlined
+// literal in cargo.ts moves the measurement and goes red.
+
+console.log('\nscooping');
+{
+  const reached = (dist: number): boolean => {
+    const field = new CargoField(new THREE.Object3D());
+    field.restore(new THREE.Vector3(dist, 0, 0), new THREE.Vector3(),
+      new THREE.Vector3(1, 0, 0), 'cargo', 0, canisterMaxEnergy('cargo'));
+    return field.update(0, new THREE.Vector3()).length > 0;
+  };
+  let furthest = 0;
+  for (let d = 1; d <= 90; d += 1) if (reached(d)) furthest = d;
+  eq('the furthest whole unit a canister can be scooped from is SCOOP_RANGE',
+    furthest, SCOOP_RANGE);
+  check('...and the boundary is the boundary', reached(SCOOP_RANGE) && !reached(SCOOP_RANGE + 1));
 }
 // --- collision rates --------------------------------------------------------
 // The collision round concluded the shipped brains "already fly clear of the
@@ -329,7 +395,15 @@ console.log('\njettison');
       .reduce((a, b) => (COMMODITIES[a.i].basePrice > COMMODITIES[b.i].basePrice ? a : b)).i;
     check('the most valuable tonne goes first', d.tonnes[0] === dearest);
     check('...and it leaves the hold', c[10] === 1);
-    check('...valued as markOf values it', d.value === COMMODITIES[10].basePrice * 4);
+    check('...valued at VALUE_PER_TONNE times its base price',
+      d.value === COMMODITIES[10].basePrice * VALUE_PER_TONNE);
+    // the toll and the assessment are one rule now: what dumping a tonne buys
+    // is exactly what a pirate's scanner read it as
+    const scanned = markOf(
+      { cargo: (() => { const h = new Array(COMMODITIES.length).fill(0); h[10] = 1; return h; })(),
+        kills: 0, equipment: { laser: 'pulse', largeBay: false } });
+    check('...which is what the scanner said the tonne was worth',
+      scanned.cargoValue === d.value);
   }
   {
     const c = hold();

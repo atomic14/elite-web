@@ -179,28 +179,12 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'MOVED, apart from three: what a kill leaves behind is constants/wreck.ts.'
-      + ' `WRECK_CARGO` and `ORE` are commodity indices into the 1984 market table, and'
-      + ' the ordinary-goods list has three homes the career slice will unify — moving'
-      + ' this one now would leave the other two behind (see'
-      + ' docs/TODO/90-constants-cleanup.md). `BEAM_FLASH` is how long the cockpit beams'
-      + ' stay LIT — a drawing duration read by two orchestrators and no rule, so it'
-      + ' stays under the item\'s own is-it-the-game-or-how-it-looks test',
+    why: 'MOVED, apart from one: what a kill leaves behind is constants/wreck.ts and'
+      + ' the spill lists are constants/commodities.ts. `BEAM_FLASH` is how long the'
+      + ' cockpit beams stay LIT — a drawing duration read by two orchestrators and no'
+      + ' rule, so it stays under the item\'s own is-it-the-game-or-how-it-looks test',
     files: {
-      'game/combat.ts': ['WRECK_CARGO', 'ORE', 'BEAM_FLASH'],
-    },
-  },
-
-  {
-    why: 'MOVED, apart from one BLOCKED restatement: the threat model\'s tuning is'
-      + ' constants/threat.ts. `FAME_FULL` is the rating ladder\'s own Dangerous rung'
-      + ' written out again, and it stays beside the model until the career slice gives'
-      + ' the ladder a home it can be an expression over — a literal in the home now'
-      + ' would be one home for the copy and none for the rule.'
-      + ' `test/economy.test.ts` bisects both out of the real functions and fails if'
-      + ' they part. See docs/TODO/90-constants-cleanup.md',
-    files: {
-      'game/threat.ts': ['FAME_FULL'],
+      'game/combat.ts': ['BEAM_FLASH'],
     },
   },
 
@@ -236,18 +220,27 @@ const OUTSIDE: readonly Group[] = [
   // --- pending slices --------------------------------------------------------
 
   {
-    why: 'the career: the market, the law, contracts, missions and what a hold holds',
+    why: 'MOVED, apart from one BLOCKED derivation: the career\'s tuning went to eleven'
+      + ' subject files (commander, law, contracts, market, hermit-market, jettison,'
+      + ' missions, rating, shop, trumbles, living-galaxy, commodities, scoop), and'
+      + ' commander.ts, contracts.ts, law.ts, jettison.ts, missions.ts, rating.ts,'
+      + ' shop.ts and trumbles.ts declare nothing at all now. `COMMODITY_COUNT` is'
+      + ' `COMMODITIES.length` — a derivation off the 1984 table, which is DATA the'
+      + ' home may not import: the `ANCHOR_RECHARGE_RATING` shape exactly. See'
+      + ' docs/TODO/90-constants-cleanup.md, Blocked',
     files: {
-      'galaxy/living.ts': ALL,
-      'game/commander.ts': ALL,
-      'game/contracts.ts': ALL,
-      'game/law.ts': ALL,
-      'game/jettison.ts': ALL,
-      'game/missions.ts': ALL,
-      'game/rating.ts': ALL,
-      'game/shop.ts': ALL,
-      'game/cargo.ts': ALL,
-      'game/trumbles.ts': ALL,
+      'galaxy/living.ts': ['COMMODITY_COUNT'],
+    },
+  },
+
+  {
+    why: 'STAYS: the drifting-cargo field\'s own furniture, none of it a tunable rule.'
+      + ' `CANISTER_HULL` is a memoised `requireShipDef` lookup and `POLICY` a pair of'
+      + ' catalogue reads keyed on the canister kinds — both the `MISSILE_HULL` shape —'
+      + ' and `SPIN_RATE` is how fast a canister LOOKS to tumble: nothing reads an'
+      + ' object\'s orientation back, so it is drawing, like `BEAM_FLASH` below',
+    files: {
+      'game/cargo.ts': ['CANISTER_HULL', 'POLICY', 'SPIN_RATE'],
     },
   },
 

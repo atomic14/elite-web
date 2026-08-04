@@ -14,7 +14,7 @@
 // screen over the shelf sees, and a second copy of it would be a second answer
 // to what these screens may touch.
 
-import { DEFAULT_NAME } from '../commander.ts';
+import { DEFAULT_NAME } from '../../constants/commander.ts';
 import { namedSaveExists } from '../storage.ts';
 import { normaliseSaveName } from '../save-file.ts';
 import { typedName } from './typed-name.ts';

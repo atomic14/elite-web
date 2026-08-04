@@ -6,12 +6,8 @@
 
 import { newCommander, cargoCapacity, type Contract } from '../src/game/commander.ts';
 import type { CommanderData } from '../src/game/commander.ts';
-import {
-  stepTrumbles,
-  trumbleMessage,
-  BREED_INTERVAL,
-  MAX_TRUMBLES,
-} from '../src/game/trumbles.ts';
+import { stepTrumbles, trumbleMessage } from '../src/game/trumbles.ts';
+import { BREED_INTERVAL, MAX_TRUMBLES } from '../src/constants/trumbles.ts';
 import {
   stepMissionAtDock,
   constrictorDestroyed,
@@ -19,12 +15,16 @@ import {
   missionHeadline, constrictorGunCheck, constrictorWarning,
 } from '../src/game/missions.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
+import { distanceTenths } from '../src/galaxy/navigation.ts';
 import {
-  MAX_CONTRACTS,
+  generateContractOffers,
   settleContracts,
   acceptContract,
   contractMessage,
 } from '../src/game/contracts.ts';
+import { CONTRACT_RANGE, MAX_CONTRACTS } from '../src/constants/contracts.ts';
+import { ORDINARY_GOODS } from '../src/constants/commodities.ts';
+import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 
 // --- taking work, and being paid for it -------------------------------------
@@ -153,6 +153,66 @@ console.log('\ncontracts');
     check('a void consignment has no sound',
       contractMessage({ kind: 'incomplete', contract: cargoRun() }, systems).sound === null);
   }
+}
+
+// --- what the board may offer -------------------------------------------------
+//
+// The two constants of the offer generator, measured out of the REAL
+// generateContractOffers over the whole galaxy rather than probed at
+// themselves — a re-inlined literal in the filter or the commodity draw goes
+// red here and nowhere else.
+//
+// CONTRACT_RANGE is the recorded divergence (68 against the tank's 70, see
+// constants/contracts.ts): the check pins the shipped bound exactly, from
+// both sides — the furthest offer equals the furthest system the bound
+// admits, and the galaxy holds destinations just beyond it that are never
+// offered, so widening OR narrowing the filter moves the measurement.
+
+console.log('\nthe bulletin board\'s reach');
+{
+  const systems = generateGalaxy(1);
+
+  // pure data: the furthest pair the bound admits, and how many sit just past
+  let maxPossible = 0;
+  let justBeyond = 0;
+  for (const a of systems) {
+    for (const b of systems) {
+      const d = distanceTenths(a, b);
+      if (a.index !== b.index && d > 0 && d <= CONTRACT_RANGE && d > maxPossible) maxPossible = d;
+      if (d > CONTRACT_RANGE && d <= 70) justBeyond += 1;
+    }
+  }
+  check(`the bound excludes real destinations (${justBeyond} pairs sit in `
+    + `(${CONTRACT_RANGE}, 70])`, justBeyond > 0);
+
+  // the sweep, read at two sizes (CLAUDE.md: read the set, not the sample) —
+  // the answer must be the same one at both
+  const sweep = (passes: number) => {
+    const rng = makeRng(90);
+    let maxD = 0;
+    let offers = 0;
+    let strayCommodity = 0;
+    for (let p = 0; p < passes; p += 1) {
+      for (const sys of systems) {
+        for (const k of generateContractOffers(sys, systems, 0, rng)) {
+          offers += 1;
+          const d = distanceTenths(sys, systems[k.destination]);
+          if (d > maxD) maxD = d;
+          if (k.kind === 'cargo' && !ORDINARY_GOODS.includes(k.commodity)) strayCommodity += 1;
+        }
+      }
+    }
+    return { maxD, offers, strayCommodity };
+  };
+  const small = sweep(3);
+  const large = sweep(15);
+  check(`every offer stays inside CONTRACT_RANGE and the bound is reached `
+    + `(furthest ${large.maxD} of a possible ${maxPossible}, over ${large.offers} offers)`,
+  small.maxD === maxPossible && large.maxD === maxPossible);
+  check(`a cargo consignment is always ordinary goods `
+    + `(${small.offers} and ${large.offers} offers, `
+    + `${small.strayCommodity + large.strayCommodity} strays)`,
+  small.strayCommodity === 0 && large.strayCommodity === 0);
 }
 
 // --- the Navy mission -------------------------------------------------------

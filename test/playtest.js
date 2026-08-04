@@ -31,7 +31,7 @@
   //   galaxy.ts     the 1984 market model, byte wrap and all
   //   navigation.ts the chart distance metric
   //   contracts.ts  the living galaxy's price pressure on top of it
-  //   law.ts        CONTRABAND — the ONE definition
+  //   law.ts        isContraband — reads the one definition (constants/law.ts)
   //   commander.ts  what counts against the hold, and how big it is
   //   storage.ts    the one-way switch into the harness save namespace
   //   player.ts     the ramp the commander's controls integrate with

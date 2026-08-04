@@ -54,9 +54,10 @@
 
 import { COMMODITIES } from '../galaxy/galaxy.ts';
 import {
-  newCommander, defaultEquipment, DEFAULT_NAME,
+  newCommander, defaultEquipment,
   type CommanderData,
 } from './commander.ts';
+import { DEFAULT_NAME } from '../constants/commander.ts';
 import { requirePlayerHullId } from './ship-identity.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import {

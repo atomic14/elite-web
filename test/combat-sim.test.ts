@@ -22,7 +22,8 @@ import { check, eq, cmds, eqc } from './harness.ts';
 import {
   BINDINGS, NOT_IN_THE_SIMULATOR, type Command, type ControlMode,
 } from '../src/game/controls.ts';
-import { newCommander, MAX_MISSILES } from '../src/game/commander.ts';
+import { newCommander } from '../src/game/commander.ts';
+import { MAX_MISSILES } from '../src/constants/commander.ts';
 import {
   SCENARIOS, SIM_BRAINS, clampTier, liveBrainFor, simHulls, type BrainId,
 } from '../src/game/combat-sim-scenarios.ts';

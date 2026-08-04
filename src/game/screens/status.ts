@@ -8,7 +8,7 @@ import { renderStatus } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';
 import type { StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
-import { LEGAL_NAMES } from '../law.ts';
+import { LEGAL_NAMES } from '../../constants/law.ts';
 
 export interface StatusContext {
   readonly commander: CommanderData;

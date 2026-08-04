@@ -8,12 +8,13 @@ import { distanceTenths, distanceSqToPoint } from '../galaxy/navigation.ts';
 import {
   type CommanderData, type Contract,
   cargoTonnes, formatCredits, cargoCapacity,
-  MAX_FUEL,
 } from '../game/commander.ts';
+import { MAX_FUEL, STARTING_CREDITS } from '../constants/commander.ts';
 import { rating } from '../game/rating.ts';
 import {
-  EQUIPMENT_CATALOGUE, equipmentOwned, fuelQuote, type FuelQuote,
+  equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';
+import { EQUIPMENT_CATALOGUE } from '../constants/shop.ts';
 import {
   saveLabel, type LiveRun, type LoadCost, type SaveSummary,
 } from '../game/save-file.ts';
@@ -97,7 +98,7 @@ const BRIEFING: { title: string; body: string }[] = [
   {
     title: 'WHERE YOU ARE',
     body: `You are docked at a space station in your own Cobra Mk III, with
-      100 credits and no reputation at all.<br/><br/>
+      ${STARTING_CREDITS / 10} credits and no reputation at all.<br/><br/>
       Nobody will give you a mission or tell you where to go. You make money by
       hauling cargo between worlds that want different things, and you spend it
       on a better ship, and that is the whole game. The only score that matters
@@ -119,7 +120,7 @@ const BRIEFING: { title: string; body: string }[] = [
   {
     title: 'CHOOSE A DESTINATION',
     body: `Press <b>N</b> for the short range chart.<br/><br/>
-      The dashed circle is how far your fuel will take you — 7 light years on a
+      The dashed circle is how far your fuel will take you — ${MAX_FUEL / 10} light years on a
       full tank. Anything inside it you can reach.<br/><br/>
       Move the cursor with the <b>arrow keys</b>, press <b>ENTER</b> to set your
       target, <b>D</b> for a full report on a world, and <b>F</b> to search by

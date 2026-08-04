@@ -158,9 +158,8 @@ export const GENERATION_SHIP_RANGE_SPAN = 8000;
  * How far from a generation ship the cargo it is still shedding drifts.
  *
  * Close enough to read as coming off the hull rather than as an unrelated
- * find. What the canisters CONTAIN is an ordinary-goods list written out in
- * game/spawning.ts, which has two other homes and belongs to the career slice
- * — see docs/TODO/90-constants-cleanup.md.
+ * find. What the canisters CONTAIN is `ORDINARY_GOODS` (commodities.ts);
+ * how many is a draw that stays inline in game/spawning.ts.
  */
 export const GENERATION_CARGO_SCATTER = 700;
 
@@ -193,7 +192,7 @@ export const THARGON_DEPLOY_RANGE = 150;
  * The count and the two numbers below are ONE rule — a short stack along the
  * slot normal, jittered — and they are here rather than with the station's own
  * constants because `launchStationDefence` is the thing that spends all four
- * and it is a spawn. WHETHER they launch is `law.ts`'s `DEFENCE_RANGE`.
+ * and it is a spawn. WHETHER they launch is `DEFENCE_RANGE` (constants/law.ts).
  */
 export const STATION_DEFENCE_MIN = 1;
 

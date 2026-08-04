@@ -892,9 +892,166 @@ the mining yield (1), a diverged `FAME_FULL` at 2561 (1), the curated
 Sidewinder un-curated (3), the target-speed floor at 151 (1), and
 `IMPACT.ram.ship` at 45 (1).
 
-**Still to do**, in the groups the gate's list already names: the career, the
-galaxy, the station, the console, the combat trainer, saves, and the policy
-seam. Plus one thing no slice has touched: CLAUDE.md does not yet carry the
+**Slice 8 — the career — landed.** Thirteen new files in the home plus
+`FAME_FULL` landing in `constants/threat.ts` (and three headers that pointed
+at the career updated in place), and the count went from 187 home / 307 out
+across 82 files to **239 home / 261 out across 73**. The whole career group left the
+pending list: `game/commander.ts`, `game/contracts.ts`, `game/law.ts`,
+`game/jettison.ts`, `game/missions.ts`, `game/rating.ts`, `game/shop.ts` and
+`game/trumbles.ts` declare no constants at all and came off entirely,
+`galaxy/living.ts` and `game/cargo.ts` are named entries with their reasons,
+and `game/threat.ts`'s `FAME_FULL` entry is gone — the debt slice 7 left.
+
+| moved | file |
+| --- | --- |
+| the commander's ship — the name, the grubstake, the tank, the rails, both holds | `constants/commander.ts` |
+| the law — contraband, the two fines, the defence range, the scan range | `constants/law.ts` |
+| the bulletin board — how much work you may hold, how far it may send you | `constants/contracts.ts` |
+| the market's fluctuation byte | `constants/market.ts` |
+| the rock hermit's counter-market | `constants/hermit-market.ts` |
+| buying your way out — the shares, the floors, and what a tonne is worth | `constants/jettison.ts` |
+| the Navy mission — the kill gate, both legs, both payments | `constants/missions.ts` |
+| the combat ladder | `constants/rating.ts` |
+| what things cost — fuel, the catalogue, and the two laser prices the trade-in reads | `constants/shop.ts` |
+| the trumbles — the broods, the appetite, the cure | `constants/trumbles.ts` |
+| how fast the living galaxy forgets — the three decays | `constants/living-galaxy.ts` |
+| the commodity classes — ordinary goods, what a wreck spills, what a rock yields | `constants/commodities.ts` |
+| the cargo scoop's reach | `constants/scoop.ts` |
+| `FAME_FULL`, now an expression | `constants/threat.ts` |
+
+**`FAME_FULL` IS AN EXPRESSION AND THE BLOCKED ENTRY IS CLOSED.** The ladder
+is `constants/rating.ts` now, so the fame saturation is
+`RATINGS.find(Dangerous)[0]` in `constants/threat.ts` — the restatement slice
+7 could not express because neither file had a home the other could read.
+`test/economy.test.ts`'s bisect stays, because it is what goes red if either
+CONSUMER re-inlines a literal, and both directions were broken to prove it:
+a diverged `FAME_FULL = 2561` (1 failure) and a drifted `rating()` boundary
+(2 failures).
+
+**The ordinary-goods decision, by meaning, written down.** The survey's three
+homes are TWO rules: a contract's consignment and a generation ship's shed
+cargo are the same six rows and both read `ORDINARY_GOODS` now; a wreck's
+spill is that class PLUS FURS, and whether the seventh row is a flourish or a
+drift is recorded in `constants/commodities.ts` rather than resolved —
+collapsing them moves what every wreck drops, so it is on the cleanup list's
+Open section. `test/combat.test.ts` pins the relationship exactly (Furs found
+by NAME, so the check cannot hold a stale index), flies 60 seeded wrecks and
+200 mined rocks through the real `wreck`/`destroy` for membership, and
+`test/contracts.test.ts` sweeps the real offer generator at two sizes: 2,301
+and 11,595 offers, zero strays both times.
+
+**The four-home cargo capacity is one rule.** `cargoCapacity()` owned it;
+`markOf` restated both figures, `pirateThreat` wrote the 20 out again as its
+big-bay threshold, and the shop's shelf label typed the 35 into a string. All
+four read `HOLD_TONNES`/`LARGE_BAY_TONNES` now — the label interpolates, the
+threshold is scanned out of the real `pirateThreat` (the step is at exactly
+`HOLD_TONNES + 1`, found by scan rather than probed at the constant), and the
+scanner's figure is compared to the real `cargoCapacity` in both bay states.
+
+**The survey's `VALUE_PER_TONNE` pair is expressed, which resolves the
+`jettison.ts` transcribed-number comment.** `markOf` wrote `* 4` as a bare
+literal while jettison.ts's constant said in prose they had to agree; markOf
+imports it now, and the checks are the cross-rule kind: the multiplier solved
+back out of the real `markOf`, and a dumped tonne's toll value compared to
+what the scanner said that tonne was worth. Two of the six transcribed
+comments remain (`save-file.ts`, `docking.ts`), both other slices' files.
+
+**`CONTRACT_RANGE` is the diverged 68, named and recorded rather than
+resolved.** Every other reading of "reachable on a full tank" is `MAX_FUEL` =
+70 — the living galaxy's convoy range said "ships have a 7 LY jump range" over
+a bare 70 and reads MAX_FUEL now — while the bulletin board filters at 68 and
+nothing says whether that is a margin or a transcription. The value stays,
+both readings are beside it, choosing is on the cleanup Open list, and the
+new sweep pins the bound from BOTH sides: the furthest offer must equal the
+furthest system the bound admits (68 exactly, in galaxy 1) and the galaxy
+holds 86 pairs in (68, 70] that must never be offered. Re-inlines at 70 and
+at 66 were both confirmed red.
+
+**Three decays measured out of one quiet day.** The living galaxy's
+`PRESSURE_DECAY`, `HEAT_DECAY` and `DANGER_DECAY` moved with their reasoning;
+`test/galaxy.test.ts` runs one pure-decay day of the real `advance` (an rng
+pinned high launches no convoys) and solves each rate back out, government
+scaling included. `COMMODITY_COUNT` stopped being a transcribed 17 and is
+`COMMODITIES.length` — a derivation the home cannot hold (the table is DATA),
+so it is the fourth entry of the `ANCHOR_RECHARGE_RATING` shape on the
+cleanup's Blocked list and a named entry on the gate.
+
+**One file held one rule in two homes, and the survey had not seen it.**
+`commander.ts` exported `DEFAULT_NAME = 'JAMESON'` and `newCommander` wrote
+`name: 'JAMESON'` as its own literal ten lines down. The literal reads the
+constant now, and `STARTING_CREDITS` was named on the way past so the
+briefing's "100 credits" and "7 light years on a full tank" — two prose
+figures the item's scope section rules IN — are interpolations that render
+the same bytes.
+
+**The trade-in refunds are catalogue prices now, with one judged fusion.**
+`trade.ts` refunded 4000 and 10000, copies of prices the catalogue owns. The
+beam's is `BEAM_LASER_PRICE`; the pulse's 4000 is `PULSE_LASER_PRICE`, which
+the three side-mount rows also charge — judged ONE rule (the pulse laser's
+price, wherever mounted) against test/trade.test.ts's older reading that the
+refund was its own only home, and the argument is written beside the
+constant. The Large Cargo Bay's 4000 is the same number and NOT that rule; it
+stays a literal in its row with the coincidence noted.
+
+**Two renames, both to keep subjects apart in a flat namespace**: missions'
+`HUNT_RANGE`/`COURIER_RANGE` are `MISSION_HUNT_RANGE`/`MISSION_COURIER_RANGE`
+— "hunt range" already means how far a predator looks (`hunt-ranges.ts`), in
+different units. And one deletion: law.ts's derived `CONTRABAND_SET` is gone,
+`isContraband` runs `includes` over the three-row list instead of keeping a
+second structure a gate entry would have had to explain.
+
+**What stayed, per name.** `game/cargo.ts` keeps `CANISTER_HULL` and `POLICY`
+(catalogue reads, the `MISSILE_HULL` shape) and `SPIN_RATE` — a canister's
+tumble is how it LOOKS, nothing reads orientation back, the `BEAM_FLASH`
+reading. `game/combat.ts` keeps only `BEAM_FLASH`. `freshSession`'s trumble
+clock and `stepTrumbles`' reset are one `BREED_INTERVAL` now (the survey's
+pair; the neighbouring `autoSaveTimer` was already the pattern), pinned in
+`test/state.test.ts`.
+
+Byte-identical, verified against a worktree at HEAD: **31,440 compared, 0
+changed** — every name in `src/constants/` then against now, all 32 moved
+exported names old-module-against-home, 28 private or renamed values read out
+of HEAD's source, 400 seeded days of the living galaxy (full state, every
+headline, price multipliers, and the notoriety spread from all 256 systems,
+which is the neighbour lists as behaviour), 1,280 seeded offer batches, the
+settlement and acceptance grids, the whole law over grids, 60 seeded dumps
+plus the appetite and bribe grids, the mission machine at every stage times
+kills times rng, `rating()` over all 26,001 scores, the fuel sweep and
+ownership grid, `markOf`/`pirateThreat` over 8 holds x 2 bays x 3 scores x 10
+phases, `tierForScore` over 0..300, the trumble grid (288 cells), fresh
+careers and sessions, `marketEstimate` for 7 systems both pressured and flat,
+`hermitMarket` over all 256 fluctuations at 3 systems, the scoop boundary
+scanned in both trees, and a seeded 140-kill wreck-and-mine trace through the
+real World. The harness was broken (`PRESSURE_DECAY` 0.12 → 0.121) and
+reported 532 changes before being restored.
+
+The four gates: `npm run build` passes (`test/galaxy.test.ts` crossed 400 and
+carries its stated reason and the split it is waiting for in
+`tools/sizes.mjs`); `npm run campaign` byte-identical on all 33 balance rows
+(only the runtime stamp differs, diffed against the worktree's own run);
+`npm run elite-a` 490 passed, 0 failed; `npm run portability` 0 contaminated.
+The full suite reads 3155 from 3131, all twenty-four new. Both console
+harnesses were grepped for every one of the fifty-odd names this slice moved,
+created, renamed or left behind: clean — their only hits are two comments,
+and playtest.js's stale "law.ts CONTRABAND" line now names where the
+definition lives.
+
+Twenty-five breaks, all confirmed red and restored with targeted edits: the
+gate's stray `SOME_RULE` (1 failure) and a side-effect import into the home
+(1); a diverged markOf multiplier (3 + 1 across two files), the big-bay
+threshold at 26 (1), a re-inlined hold of 21 (2), `FAME_FULL` at 2561 (1), a
+drifted `rating()` boundary (2), the contract range at 70 (1) and at 66 (1),
+a drifted consignment list (1), `WRECK_CARGO` without Furs (1), a re-inlined
+spill list with narcotics (1), the scoop reach at 46 (2), the trumble clock
+at 21 (1), a re-inlined pressure decay (1), the convoy range at 60 (1), a
+hand-typed bay label (1), a drifted pulse refund (1), `marketEstimate` at 255
+fluctuations (2), a drifted `newCommander` name (1), a re-inlined hermit ore
+price (4), the kill threshold at 15 (1), a re-inlined offender fine (1), a
+re-inlined opportunist floor (1), and a re-inlined breed clock (2).
+
+**Still to do**, in the groups the gate's list already names: the galaxy, the
+station, the console, the combat trainer, saves, and the policy seam. Plus
+one thing no slice has touched: CLAUDE.md does not yet carry the
 read-it-do-not-grep-it instruction below — the gate catches a second home
 mechanically, but the instruction is what stops one being written.
 

@@ -32,16 +32,14 @@ import { laserForView, canFire, chargeShot } from './gunnery.ts';
 import { traceShot } from './shot.ts';
 import { applyDamage } from './systems.ts';
 import { hitFromAhead } from './shield-face.ts';
-import { offenceFor, OFFENDER, FUGITIVE } from './law.ts';
+import { offenceFor } from './law.ts';
+import { OFFENDER, FUGITIVE } from '../constants/law.ts';
 import { constrictorDestroyed } from './missions.ts';
 import { random, randomInt } from './rng.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { ESCAPE_CHANCE, MINING_YIELD_MIN, MINING_YIELD_SPAN } from '../constants/wreck.ts';
+import { ORE, WRECK_CARGO } from '../constants/commodities.ts';
 
-/** Cargo an ordinary wreck spills: food, textiles, liquor, machinery, alloys, furs, minerals. */
-const WRECK_CARGO = [0, 1, 4, 8, 9, 11, 12];
-/** A mined asteroid yields minerals and metals. */
-const ORE = [12, 12, 12, 13, 14];
 /** Seconds the cockpit beams stay lit after a shot. */
 export const BEAM_FLASH = 0.12;
 

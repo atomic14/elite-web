@@ -10,9 +10,11 @@ import { isContraband } from './law.ts';
 import { random } from './rng.ts';
 import { npcCombatProfileById, type NpcCombatProfileId } from './ship-identity.ts';
 import {
-  CHALLENGE_RATE, CURATED_TIER, DEFENCE_WEIGHT, GANG_SCORE, LASER_WEIGHT,
-  PRIZE_SATURATION, PROFESSIONAL_SCORE,
+  CHALLENGE_RATE, CURATED_TIER, DEFENCE_WEIGHT, FAME_FULL, GANG_SCORE,
+  LASER_WEIGHT, PRIZE_SATURATION, PROFESSIONAL_SCORE,
 } from '../constants/threat.ts';
+import { HOLD_TONNES, LARGE_BAY_TONNES } from '../constants/commander.ts';
+import { VALUE_PER_TONNE } from '../constants/jettison.ts';
 
 // --- who's worth robbing ----------------------------------------------------
 //
@@ -27,21 +29,6 @@ import {
 //   2. Threat grows SUB-LINEARLY with the prize. Across a career the player's
 //      combat power grows maybe tenfold; this should grow two- or threefold,
 //      so upgrades are felt rather than cancelled out.
-
-/**
- * Combat score at which fame is fully "worth coming for" — Dangerous.
- *
- * NOT in constants/threat.ts with the rest of the tuning, because it is not a
- * free number: 2560 is the rating ladder's own Dangerous rung (`RATINGS` in
- * game/rating.ts), restated here as a literal because neither file has a home
- * the other can read it from yet. When the career slice brings the ladder into
- * src/constants/, this becomes an expression over it rather than a second
- * copy. Until then `test/economy.test.ts` holds the two together: it bisects
- * the fame saturation point out of the real `pirateThreat` and the Dangerous
- * rung out of the real `rating()`, and fails if they part. See
- * docs/TODO/90-constants-cleanup.md, Blocked.
- */
-const FAME_FULL = 2560;
 
 /** Everything a pirate can observe about you. */
 export interface Mark {
@@ -73,14 +60,15 @@ export function markOf(
   for (let i = 0; i < c.cargo.length && i < COMMODITIES.length; i++) {
     const q = c.cargo[i];
     if (!q) continue;
-    // basePrice is the 1984 byte encoding; ×0.4 gives credits, ×4 gives tenths
-    cargoValue += q * COMMODITIES[i].basePrice * 4;
+    // VALUE_PER_TONNE is the same rule the jettison toll prices cargo by —
+    // the scanner and the ransom must agree about what a hold is worth
+    cargoValue += q * COMMODITIES[i].basePrice * VALUE_PER_TONNE;
     if (isContraband(i)) contraband += q;
   }
   return {
     cargoValue,
     contraband,
-    capacity: c.equipment.largeBay ? 35 : 20,
+    capacity: c.equipment.largeBay ? LARGE_BAY_TONNES : HOLD_TONNES,
     combatScore: c.combatScore ?? c.kills,
     laser: (c.equipment.laser as Mark['laser']) ?? 'pulse',
     notoriety,
@@ -187,7 +175,7 @@ export function pirateThreat(
   // gap between 20,000 and 40,000 does not.
   const prize = Math.min(1, mark.cargoValue / PRIZE_SATURATION)
     + Math.min(0.25, mark.contraband * 0.05)
-    + (mark.capacity > 20 ? 0.1 : 0);
+    + (mark.capacity > HOLD_TONNES ? 0.1 : 0);
 
   // What you look like you'd cost them.
   const deter = Math.min(0.5, mark.combatScore / 150)

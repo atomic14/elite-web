@@ -11,26 +11,10 @@
 import type { CommanderData } from './commander.ts';
 import { COMMODITIES } from '../galaxy/galaxy.ts';
 import { random } from './rng.ts';
-
-/**
- * Cabin heat that drives them out.
- *
- * Lived in commander.ts, which is about what persists between sessions — a
- * temperature threshold read once a frame by this file is neither persistent
- * nor the commander's. It is the only number in the rule that is not here.
- */
-export const TRUMBLE_PURGE_TEMP = 0.55;
-
-/** Seconds between broods. */
-export const BREED_INTERVAL = 20;
-/** They multiply by this, plus one, every brood. */
-export const BREED_RATE = 1.6;
-/** No more than this many, or the hold report becomes a novel. */
-export const MAX_TRUMBLES = 999;
-/** One tonne eaten per this many trumbles, per brood. */
-export const APPETITE_DIVISOR = 8;
-/** Below this many, they are not worth mentioning. */
-const NOTICEABLE = 4;
+import {
+  APPETITE_DIVISOR, BREED_INTERVAL, BREED_RATE, MAX_TRUMBLES, NOTICEABLE,
+  TRUMBLE_PURGE_TEMP,
+} from '../constants/trumbles.ts';
 
 export type TrumbleEvent =
   | { kind: 'purged' }

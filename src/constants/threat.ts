@@ -4,9 +4,23 @@
 // The rules that spend these are `pirateThreat`, `sourceThreatScore` and
 // `hullThreatTier` in game/threat.ts, and `npm run campaign` is tuned against
 // all of them — a change here is a balance change and the 33 balance rows are
-// the measurement it has to answer to. The one threat number NOT here is
-// `FAME_FULL`, which is the rating ladder's own Dangerous rung and waits in
-// game/threat.ts for the ladder to have a home it can derive from.
+// the measurement it has to answer to.
+
+import { RATINGS } from './rating.ts';
+
+/**
+ * Combat score at which fame is fully "worth coming for" — Dangerous.
+ *
+ * NOT A FREE NUMBER, which is why it is an expression: "your name fully
+ * precedes you" was defined as the rating ladder's own Dangerous rung, and
+ * for as long as both were literals (2560 here, 2560 in game/rating.ts) the
+ * pair was held together only by `test/economy.test.ts` bisecting each out
+ * of its real function. The ladder is `constants/rating.ts` now, so the
+ * restatement is a derivation and moving the rung moves the fame curve with
+ * it — which is the stated meaning. The bisecting check stays, because it is
+ * the only thing that fails if either consumer re-inlines a literal.
+ */
+export const FAME_FULL = RATINGS.find(([, name]) => name === 'Dangerous')![0];
 
 /**
  * Share of receptions that are challengers, at full fame.

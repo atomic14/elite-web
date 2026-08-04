@@ -31,6 +31,7 @@ import {
 import { recommendedProfileIdFor } from './ship-identity.ts';
 import { random, randomDirection, randomInt } from './rng.ts';
 import type { CanisterSnapshot } from './snapshot.ts';
+import { SCOOP_RANGE } from '../constants/scoop.ts';
 
 export interface Canister {
   object: THREE.Object3D;
@@ -57,9 +58,8 @@ export function canisterMaxEnergy(kind: Canister['kind']): number {
   return POLICY[kind].maxEnergy;
 }
 
-/** How close the player must get to scoop. */
-export const SCOOP_RANGE = 45;
-/** Tumble rate, radians per second. */
+/** Tumble rate, radians per second — how a drifting canister LOOKS, not a rule:
+ *  nothing reads an object's orientation back. */
 const SPIN_RATE = 0.8;
 
 /** The player reached this one — the Game decides what that costs or gains. */
@@ -76,7 +76,7 @@ export class CargoField {
   }
 
   /** Scatter `count` canisters of the given commodities from a wreck. */
-  spawn(at: THREE.Vector3, count: number, commodities: number[]): void {
+  spawn(at: THREE.Vector3, count: number, commodities: readonly number[]): void {
     for (let i = 0; i < count; i++) {
       const object = buildShip(CANISTER_HULL, 0x8ad0ff);
       object.position.copy(at)

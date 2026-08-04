@@ -22,6 +22,10 @@ import {
   JUMP_DAYS_BASE, TENTHS_PER_JUMP_DAY,
 } from '../src/constants/jump.ts';
 import { TENTHS_PER_CHART_UNIT, CHART_Y_SQUASH } from '../src/constants/chart-metric.ts';
+import {
+  DANGER_DECAY, HEAT_DECAY, PRESSURE_DECAY,
+} from '../src/constants/living-galaxy.ts';
+import { MAX_FUEL } from '../src/constants/commander.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import {
   generateGalaxy,
@@ -156,6 +160,57 @@ console.log('\nliving galaxy');
   st.pressure[0] = 0.9;
   quiet.advance(40, gradients, () => 1); // rng()=1 → no new convoys
   check('pressure decays back toward the baseline', Math.abs(st.pressure[0]) < 0.01);
+
+  // --- the three decays, measured out of the real advance --------------------
+  //
+  // They moved to constants/living-galaxy.ts, so the rates and the step are
+  // in different files: each is solved back out of one pure-decay day (an rng
+  // pinned high launches no convoys) and compared to its constant, which a
+  // re-inlined literal in living.ts fails.
+  {
+    const still = new LivingGalaxy(g1);
+    const s7 = still.state(7);              // Lave, government 3
+    s7.pressure[0] = 0.5;
+    s7.danger = 0.5;
+    s7.heat = 0.5;
+    still.advance(1, gradients, () => 0.999999);
+    const measuredPressure = 1 - s7.pressure[0] / 0.5;
+    const order = (g1[7].government + 1) / 8;
+    const measuredDanger = (0.5 - s7.danger) / (0.5 + order * 1.5);
+    const measuredHeat = 0.5 - s7.heat;
+    check(`one quiet day decays pressure by PRESSURE_DECAY (measured ${
+      measuredPressure.toFixed(4)})`, Math.abs(measuredPressure - PRESSURE_DECAY) < 1e-6);
+    check(`...danger by DANGER_DECAY scaled by government (measured ${
+      measuredDanger.toFixed(4)})`, Math.abs(measuredDanger - DANGER_DECAY) < 1e-9);
+    check(`...and heat by HEAT_DECAY (measured ${measuredHeat.toFixed(4)})`,
+      Math.abs(measuredHeat - HEAT_DECAY) < 1e-9);
+  }
+
+  // --- the convoy range is the 7 LY everything flies --------------------------
+  //
+  // living.ts's trade-partner lists used to cap at a bare 70 under a comment
+  // stating the 7 LY jump range; they read MAX_FUEL now. Asserted from the
+  // OUTSIDE — notoriety spreads along exactly those lists — so this holds the
+  // range without reaching into a private field: heat lands only within
+  // MAX_FUEL of the source, and it does reach systems at the far end of that
+  // range (read over every system, not a sample).
+  {
+    let furthestHeard = 0;
+    let beyondRange = 0;
+    for (const src of g1) {
+      const l = new LivingGalaxy(g1);
+      l.addNotoriety(src.index, 1);
+      for (const [i] of l.states) {
+        if (i === src.index || l.notoriety(i) <= 0) continue;
+        const d = distanceTenths(src, g1[i]);
+        if (d > MAX_FUEL) beyondRange += 1;
+        if (d > furthestHeard) furthestHeard = d;
+      }
+    }
+    check(`word of a sale never travels beyond one full tank (furthest ${
+      furthestHeard} of ${MAX_FUEL} tenths, over all 256 systems)`,
+    beyondRange === 0 && furthestHeard > MAX_FUEL - 8);
+  }
 }
 
 // --- one owner for the chart metric -----------------------------------------

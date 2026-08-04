@@ -9,7 +9,8 @@
 // `window.__` flag is a field that is not in the snapshot (invariant 12).
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { freshState } from '../src/game/state.ts';
+import { freshState, AUTOSAVE_INTERVAL } from '../src/game/state.ts';
+import { BREED_INTERVAL } from '../src/constants/trumbles.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { seedWorld, random } from '../src/game/rng.ts';
 import { check } from './harness.ts';
@@ -63,6 +64,12 @@ console.log('\nbehaviour-driving values are state');
     // the snapshot walks these generically, so they must be plain data
     check('...and the session is flat, so serialiseState can walk it',
       Object.values(st.session).every((v) => typeof v !== 'object'));
+    // one rule, one home: a fresh infestation's clock is one brood interval,
+    // the same constant the trumbles breed on — the survey's duplicated pair,
+    // now an import (the neighbouring autoSaveTimer was already the pattern)
+    check('a fresh session\'s trumble clock is one breed interval',
+      st.session.trumbleTimer === BREED_INTERVAL
+      && st.session.autoSaveTimer === AUTOSAVE_INTERVAL);
 
     // THE check this file was missing. The capture is a hand-written list, not
     // a generic walk — a comment in game.ts claimed otherwise and was wrong.

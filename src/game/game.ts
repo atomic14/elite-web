@@ -141,7 +141,7 @@ import {
 } from './commander.ts';
 import {
   LEGAL_NAMES, CLEAN, DEFENCE_RANGE,
-} from './law.ts';
+} from '../constants/law.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver,

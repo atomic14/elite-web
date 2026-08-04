@@ -9,8 +9,8 @@
 // while the light stays yellow. `test/npc.test.ts` fails if the literal
 // reappears in a consumer.
 //
-// Not `law.ts`'s `DEFENCE_RANGE`, which is also 9,000 and is measured from the
-// STATION to decide whether Vipers launch.
+// Not `DEFENCE_RANGE` (constants/law.ts), which is also 9,000 and is measured
+// from the STATION to decide whether Vipers launch.
 
 /**
  * A hostile closer than this is engaged with you; further away it is scenery.

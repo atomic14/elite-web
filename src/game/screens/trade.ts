@@ -13,10 +13,11 @@
 
 import {
   formatCredits, cargoCapacity, cargoTonnes,
-  MAX_FUEL, MAX_MISSILES,
   type CommanderData,
 } from '../commander.ts';
+import { MAX_FUEL, MAX_MISSILES } from '../../constants/commander.ts';
 import { fuelQuote } from '../shop.ts';
+import { BEAM_LASER_PRICE, PULSE_LASER_PRICE } from '../../constants/shop.ts';
 import { renderMarket, renderEquip, equipRows } from '../../ui/screens.ts';
 import { COMMODITIES, type MarketEntry, type StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
@@ -248,11 +249,13 @@ export function buyEquipment(id: string, ctx: TradeContext): void {
     case 'leftLaser': c.equipment.leftLaser = true; break;
     case 'rightLaser': c.equipment.rightLaser = true; break;
     case 'beam':
-      c.credits += 4000; // pulse laser refunded, as per the manual
+      // the old gun is refunded at what it cost, as per the manual — the
+      // pulse's price is the catalogue's own (constants/shop.ts)
+      c.credits += PULSE_LASER_PRICE;
       c.equipment.laser = 'beam';
       break;
     case 'military':
-      c.credits += c.equipment.laser === 'beam' ? 10000 : 4000; // old laser refunded
+      c.credits += c.equipment.laser === 'beam' ? BEAM_LASER_PRICE : PULSE_LASER_PRICE;
       c.equipment.laser = 'military';
       break;
     case 'scoops': c.equipment.scoops = true; break;

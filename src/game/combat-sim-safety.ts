@@ -25,8 +25,9 @@ import type { StepHost } from './world-step.ts';
 import type { NpcShip } from './npc.ts';
 import type { DamageSource } from './combat.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
-import { type CommanderData, MAX_FUEL, MAX_MISSILES } from './commander.ts';
-import { CLEAN } from './law.ts';
+import type { CommanderData } from './commander.ts';
+import { MAX_FUEL, MAX_MISSILES } from '../constants/commander.ts';
+import { CLEAN } from '../constants/law.ts';
 import type { ExerciseFit } from './combat-sim.ts';
 import * as THREE from 'three';
 

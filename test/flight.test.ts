@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { defenceBrain } from '../src/game/brains.ts';
-import { CLEAN } from '../src/game/law.ts';
+import { CLEAN } from '../src/constants/law.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import {

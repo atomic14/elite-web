@@ -13,23 +13,9 @@
 // Both pure. The Game spawns the canisters and says the lines.
 
 import { COMMODITIES } from '../galaxy/galaxy.ts';
-
-/**
- * A pirate wants this share of your arrival cargo value — an organised gang
- * considerably more than an opportunist who happened to be passing.
- */
-export const OPPORTUNIST_SHARE = 0.12;
-export const GANG_SHARE = 0.3;
-/** ...but never less than this, so a near-empty hold is not a free pass. */
-export const OPPORTUNIST_FLOOR = 400;
-export const GANG_FLOOR = 1500;
-
-/**
- * The market values a tonne at 4x its base price in tenths of a credit — the
- * same multiplier markOf() uses to size you up, so the toll and the assessment
- * agree about what your hold is worth.
- */
-export const VALUE_PER_TONNE = 4;
+import {
+  GANG_FLOOR, GANG_SHARE, OPPORTUNIST_FLOOR, OPPORTUNIST_SHARE, VALUE_PER_TONNE,
+} from '../constants/jettison.ts';
 
 export interface Dumped {
   /** commodity indices, one entry per tonne, most valuable first */

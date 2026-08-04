@@ -16,10 +16,15 @@
 import { buyEquipment, type TradeContext } from '../src/game/screens/trade.ts';
 import { equipRows, type EquipRow } from '../src/ui/screens.ts';
 import {
-  newCommander, MAX_FUEL, MAX_MISSILES, type CommanderData,
+  newCommander, type CommanderData,
 } from '../src/game/commander.ts';
 import { generateMarket } from '../src/galaxy/galaxy.ts';
-import { EQUIPMENT_CATALOGUE } from '../src/game/shop.ts';
+import {
+  BEAM_LASER_PRICE, EQUIPMENT_CATALOGUE, PULSE_LASER_PRICE,
+} from '../src/constants/shop.ts';
+import {
+  LARGE_BAY_TONNES, MAX_FUEL, MAX_MISSILES,
+} from '../src/constants/commander.ts';
 import { withoutSaving, writeDockSave } from '../src/game/storage.ts';
 import type { WorldSnapshot } from '../src/game/snapshot.ts';
 import { check, eq } from './harness.ts';
@@ -111,15 +116,18 @@ console.log('\noutfitting');
   // here as `10000`, a copy of that price with nothing holding the two
   // together: raise the beam to 12,000 and the game would refund 10,000 for a
   // gun the player had just paid 12,000 for, with this test still green. The
-  // pulse's 4,000 has no catalogue row of its own — it is the starting gun, so
-  // nobody buys one — and `trade.ts` is its only home; it is named here rather
-  // than typed twice.
+  // pulse's price is `PULSE_LASER_PRICE` now (constants/shop.ts) — the same
+  // number the three side-mount rows charge, which is what "refunded at what
+  // it cost" has to mean for a gun the shop never sells forward.
   {
     const { ctx, commander } = ctxFor();
     commander.credits = 100_000;
     const priceOf = (id: string): number =>
       EQUIPMENT_CATALOGUE.find((e) => e.id === id)?.price ?? 0;
-    const PULSE_TRADE_IN = 4000;
+    const PULSE_TRADE_IN = PULSE_LASER_PRICE;
+    check('the side pulse mounts sell the trade-in gun at its one price',
+      ['rearLaser', 'leftLaser', 'rightLaser'].every((id) => priceOf(id) === PULSE_LASER_PRICE)
+      && priceOf('beam') === BEAM_LASER_PRICE);
     const beamRow = equipRows(ctx.system, commander, false).find((r: EquipRow) => r.id === 'beam');
     if (beamRow && beamRow.status === '') {
       buy('beam', ctx);
@@ -139,6 +147,17 @@ console.log('\noutfitting');
       check('the beam is worth more as a trade-in than the pulse it replaced',
         priceOf('beam') > PULSE_TRADE_IN && priceOf('beam') > 0);
     }
+  }
+
+  // --- the shelf cannot advertise a bay the game does not fit ---------------
+  //
+  // The survey's four-home cargo capacity: the label used to type the 35 into
+  // a string. It interpolates LARGE_BAY_TONNES now, and this is what goes red
+  // if someone types it back.
+  {
+    const bay = EQUIPMENT_CATALOGUE.find((e) => e.id === 'largeBay');
+    check('the large bay\'s label states the bay the game fits',
+      !!bay && bay.name.includes(`(${LARGE_BAY_TONNES}t)`));
   }
 
   // --- the two that are not equipment --------------------------------------

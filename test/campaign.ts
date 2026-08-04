@@ -17,18 +17,21 @@
 
 import { generateGalaxy, generateMarket, COMMODITIES, type StarSystem } from '../src/galaxy/galaxy.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
-import { generateContractOffers, applyMarketPressure, chartDistanceTenths, MAX_CONTRACTS, settleContracts, marketEstimate } from '../src/game/contracts.ts';
+import { generateContractOffers, applyMarketPressure, chartDistanceTenths, settleContracts, marketEstimate } from '../src/game/contracts.ts';
+import { MAX_CONTRACTS } from '../src/constants/contracts.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import {
-  newCommander, cargoCapacity, cargoTonnes, killValue, MAX_FUEL,
+  newCommander, cargoCapacity, cargoTonnes, killValue,
   type CommanderData, type Contract,
 } from '../src/game/commander.ts';
+import { MAX_FUEL } from '../src/constants/commander.ts';
 import { rating, ratingLadder } from '../src/game/rating.ts';
 import {
-  EQUIPMENT_CATALOGUE, equipmentOwned, fuelNeeded, refuelCost,
+  equipmentOwned, fuelNeeded, refuelCost,
 } from '../src/game/shop.ts';
+import { EQUIPMENT_CATALOGUE } from '../src/constants/shop.ts';
 import { pirateSpecForTier } from '../src/game/ship-specs.ts';
-import { MISSION_KILL_THRESHOLD } from '../src/game/missions.ts';
+import { MISSION_KILL_THRESHOLD } from '../src/constants/missions.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { daysForJump } from '../src/galaxy/navigation.ts';
 import { isContraband } from '../src/game/law.ts';

@@ -20,7 +20,7 @@ Three kinds, and they want different treatment:
 | `WORLD_SPEED_PER_SOURCE_SPEED` = `PLAYER_FLIGHT.maxSpeed / playerHull(COBRA_MK_3_HULL_ID).maxSpeed` | `game/ship-specs.ts:107` | nothing scheduled — see below |
 | `ANCHOR_RECHARGE_RATING` = `playerHull(COBRA_MK_3_HULL_ID).energyRechargeRating` | `game/systems.ts` | nothing scheduled — the same case, see below |
 | `ANCHOR_NPC_MAX_ENERGY` = `recommendedNpcProfile(COBRA_MK_3_DESIGN).maxEnergy` | `game/npc-energy.ts` | nothing scheduled — the same case again, found by slice 7 |
-| `FAME_FULL = 2560` — the rating ladder's Dangerous rung, restated | `game/threat.ts` | the career slice, which owns `rating.ts`'s `RATINGS` |
+| `COMMODITY_COUNT` = `COMMODITIES.length` | `galaxy/living.ts` | nothing scheduled — the same case, made a derivation by slice 8: the table it is the length of is DATA the home may not import |
 
 All of these are correctly-derived constants that an import-nothing leaf cannot
 reach. **This will keep happening**: the constants that most want to be
@@ -48,15 +48,14 @@ beside the roster, where both halves are already in scope, and the reasoning is
 written out beside it. Anyone who wants it in the home has to answer the leaf
 question first, for the whole directory.
 
-**`FAME_FULL` is a different kind of blocked: not a catalogue reach, a
-restatement.** 2560 is `rating.ts`'s own Dangerous rung, and threat.ts says so
-— but the ladder has no home in `src/constants/` yet, so an expression cannot
-be written, and moving the literal INTO the home would enshrine the copy while
-the rule stayed outside. It waits in `game/threat.ts` beside the model, and
-until the career slice moves the ladder, `test/economy.test.ts` holds the two
-together: it bisects the fame saturation score out of the real `pirateThreat`
-and asserts `rating()` starts saying Dangerous at exactly that score. Slice 7
-confirmed the pair by breaking it — 2561 goes red.
+**`FAME_FULL` — CLOSED by slice 8, exactly as scheduled.** It was the fourth
+row of the table above: the rating ladder's Dangerous rung restated in
+`game/threat.ts` because neither file had a home the other could read. The
+ladder is `constants/rating.ts` now, so the restatement is an expression —
+`constants/threat.ts` reads the rung out of `RATINGS` by name — and the
+`test/economy.test.ts` bisect stays, because it is what goes red if either
+CONSUMER re-inlines a literal. Slice 8 broke both directions to prove it: a
+diverged `FAME_FULL = 2561` (1 failure) and a drifted `rating()` boundary (2).
 
 **`ANCHOR_RECHARGE_RATING` is the second of exactly that shape, found by slice
 4, and it is now the only constant left in `game/systems.ts`.** It is the Cobra
@@ -348,13 +347,17 @@ For each: is the value right and the prose wrong, or the other way round? A
 one-unit move on the first, ten on the second, 1.2 on the third — small, but
 each is a real change to how a ship flies.
 
-### Three of the six transcribed-number comments are still out there
+### Two of the six transcribed-number comments are still out there
 
 The survey listed six places where reasoning cites another file's value by
 writing the number out: `save-file.ts:36`, `input.ts:53`, `player.ts:52-56`,
 `docking.ts:11`, `jettison.ts:29`, `starfield.ts:48`. **Slice 3 did
-`player.ts`'s and slice 5 did `input.ts`'s and `starfield.ts`'s**, leaving
-`save-file.ts`, `docking.ts` and `jettison.ts`.
+`player.ts`'s, slice 5 did `input.ts`'s and `starfield.ts`'s, and slice 8 did
+`jettison.ts`'s** — the strong way: the comment claimed `markOf` "uses the
+same multiplier" while threat.ts wrote `* 4` as a bare literal, and both now
+import `VALUE_PER_TONNE` from `constants/jettison.ts`, with
+`test/economy.test.ts` solving the multiplier back out of the real `markOf`.
+That leaves `save-file.ts` (the saves slice) and `docking.ts` (the station's).
 
 `starfield.ts` is the one worth copying: its two fade thresholds were justified
 by "max ship speed is 400" and "8 x 400 = 3200", two numbers the file could not
@@ -417,6 +420,30 @@ below 150 — or it is a patch for the brain being out of distribution at low
 speed, and brains.ts already names the honest fix ("deleting the input
 entirely... costs a retrain of every brain"). **Either way it is a behaviour
 change with a training run attached — a decision, not a lookup.**
+
+### The bulletin board reaches 68 tenths and everything else says 70
+
+The survey's "reachable on a full tank is 68, 70 and 70", named by slice 8:
+`CONTRACT_RANGE = 68` (constants/contracts.ts) against `MAX_FUEL = 70`, which
+the tank enforces and which the living galaxy's convoy range now reads
+directly. Nothing records whether the board's two-tenths margin is deliberate
+(a job you can only just reach is a job one mis-jump fails) or a
+transcription that predates the tank. Correcting it to `MAX_FUEL` widens the
+bulletin board in every system — measured, galaxy 1 alone holds 86 ordered
+pairs in (68, 70] that would become offerable — so **it is a decision with a
+campaign run attached, not a refactor.** `test/contracts.test.ts` pins the
+shipped 68 from both sides until it is taken.
+
+### A wreck spills the ordinary goods plus Furs, and nobody knows if the Furs are deliberate
+
+The ordinary-goods unification (slice 8, `constants/commodities.ts`) found
+the three lists are TWO rules: the contract consignment and the generation
+ship's shed cargo are one six-row class, and `WRECK_CARGO` is that class plus
+Furs. Whether the seventh row is a flavour choice (furs read well as loot) or
+a drift nobody noticed is recorded beside the constants;
+`test/combat.test.ts` holds the relationship at exactly plus-Furs. Collapsing
+the two lists — either way — moves what every wreck in the game drops, so it
+is a decision, not a refactor.
 
 ### The thargon timer is 5 in one file and 4 in another
 
@@ -493,14 +520,30 @@ numbers impossible to separate, and the argument is written beside the constant.
 
 ### What slice 7 left behind, and for whom
 
+**Slice 8 took the career's four rows of this table**: `WRECK_CARGO` and
+`ORE` are `constants/commodities.ts` (with the ordinary-goods decision
+written down and the plus-Furs divergence in Open above), and `markOf`'s
+capacity restatement and `* 4` multiplier are expressions over
+`constants/commander.ts` and `constants/jettison.ts`, each pinned in the
+measured shape by `test/economy.test.ts`.
+
 | left | where | whose |
 | --- | --- | --- |
-| `WRECK_CARGO` and `ORE` — commodity indices for what a wreck spills and a rock yields | `combat.ts` | the career: `WRECK_CARGO` is the third home of the ordinary-goods list (see slice 6's entry above), `ORE` is its sibling, and both are indices into a table the galaxy slice owns |
 | `BEAM_FLASH = 0.12` — how long the cockpit beams stay lit | `combat.ts` | the console: it is a drawing duration under the item's own test, read by two orchestrators; the console slice can overrule that reading |
-| `capacity: largeBay ? 35 : 20` in `markOf` | `threat.ts` | the career. The survey's four-home cargo-capacity pair: `commander.ts:89` owns `cargoCapacity()`, and threat.ts restates both figures because the two files have no shared home yet |
-| the `* 4` tenths-per-basePrice multiplier in `markOf` | `threat.ts` | the career: `jettison.ts`'s `VALUE_PER_TONNE = 4` says in prose it must equal this, and nothing enforces it — the survey's pair, still unexpressed |
 | the government scale top, `7 - sys.government` | `threat.ts` | the galaxy: the survey counts six homes for the 7, which is `GOVERNMENT_NAMES.length - 1` |
 | `pirateThreat`'s ~18 formula weights (0.05, 0.25, 0.7, 0.6, 1.5, 1.2, 0.28, 0.5, 0.4...) | `threat.ts` | nobody: the shape of one function, out of scope by the item's own local-to-one-function rule, and `npm run campaign` pins them in aggregate |
+
+### What slice 8 left inline, and for whom
+
+| left inline | where | whose |
+| --- | --- | --- |
+| `3 + randomInt(4)` — how many canisters a generation ship sheds | `spawning.ts` | encounters/spawning: a spawn's own draw; the LIST it draws from moved to `constants/commodities.ts` |
+| `generateContractOffers`' reward formula (~15 numbers: counts 2+3, rolls 0.55/0.8, rates 22/1.6/90, 240/6.0, 170/4, deadlines 4/12, 3/16, 6/10) | `contracts.ts` | nobody: the shape of one function, and `npm run campaign` pins the whole board in aggregate |
+| `advance`'s per-event deltas (arrival/loss pressure 0.05/0.03/0.08, danger hits 0.22/0.08, departure rate /60000, tonnes 5+25, risk 0.035/0.2 cap 0.5, the 400-convoy cap, the ±0.25 price clamp, headline thresholds) | `galaxy/living.ts` | nobody: the shape of the step, pinned in aggregate by the campaign and statistically by `test/galaxy.test.ts`; the three DECAYS moved because they are the rates the whole memory runs on |
+| `killValue`'s 5/2/1 weighting | `commander.ts` | nobody: a two-branch ladder inside one function, asserted by `test/economy.test.ts` |
+| `newCommander`'s starting loadout (missiles 3, Lave 7, galaxy 1, mission stage 0) | `commander.ts` | nobody: the function IS the definition of a fresh commander; the two figures with prose homes (the grubstake, the tank) are constants the briefing now interpolates |
+| the mission's stage numbers 0-4 | `missions.ts` | nobody: the machine's own states, documented on `MissionState`; `constants/jump.ts`'s plans-leg mis-jump chance names stage 3 in prose only |
+| `20 - this.cargoTonnes()` — the harness's copy of the small hold | `train/jameson-autopilot.js` | the harnesses are not on any gate (see below); it could read `cargoCapacity` off the module it already imports, and should the day anything makes it buy a bay |
 
 One survey doubt was settled by measurement rather than moved:
 `HARMLESS_POLICY`'s rock-hermit bank says "240 is what a Coriolis carries" and
@@ -583,6 +626,19 @@ named entries, plus the threat and brain functions whose files changed
 `playerImpactDamage`) and the string `impact-damage` itself: neither harness
 names any of them. Their `threat` hits are local variables of their own combat
 loops.
+
+Slice 8 did it for every name it moved, created, renamed or left behind —
+the commander's six, the law's nine, the board's two, the market and hermit
+six, jettison's five, the mission's five (old and new names), `RATINGS`, the
+shop's four plus `EquipItem`, the trumbles' six, the living galaxy's four,
+the commodity three, `SCOOP_RANGE` and `FAME_FULL` — plus `CONTRABAND_SET`
+(deleted) and the career functions whose files changed. Neither harness
+names any of them in a load-bearing way: their two hits are comments
+(jameson-autopilot.js explaining why it must NOT recompute `FUEL_PRICE`, and
+playtest.js's module list, whose stale "law.ts CONTRABAND" line now names
+constants/law.ts). Both harnesses destructure only functions that are still
+exported — `applyMarketPressure`, `isContraband`, `cargoTonnes`,
+`cargoCapacity` — and all four still resolve.
 
 Slice 5 did it for all twenty-two names it moved, renamed or created, and both
 files were clean of every one of them. The only things either harness takes from

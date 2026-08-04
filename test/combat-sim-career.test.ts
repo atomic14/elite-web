@@ -15,7 +15,7 @@ import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { freshState } from '../src/game/state.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
 import {
-  newCommander, recordFurthestWave, MAX_FUEL, defaultEquipment,
+  newCommander, recordFurthestWave, defaultEquipment,
 } from '../src/game/commander.ts';
 import {
   clearFlightSaves, makeRecord, saveNamespace, withoutSaving,
@@ -25,7 +25,8 @@ import { commanderOf, dockId, flightIds, type SaveRecord } from '../src/game/sav
 import { Combat, firePlayerLaser, damagePlayer } from '../src/game/combat.ts';
 import { MAX_ENERGY } from '../src/constants/pools.ts';
 import { durability } from '../src/game/systems.ts';
-import { CONTRABAND, CLEAN, FUGITIVE } from '../src/game/law.ts';
+import { CONTRABAND, CLEAN, FUGITIVE } from '../src/constants/law.ts';
+import { MAX_FUEL } from '../src/constants/commander.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';

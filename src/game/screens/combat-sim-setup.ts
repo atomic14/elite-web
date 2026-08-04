@@ -17,7 +17,7 @@
 // browser.
 
 import type { CommanderData, LaserType } from '../commander.ts';
-import { MAX_MISSILES } from '../commander.ts';
+import { MAX_MISSILES } from '../../constants/commander.ts';
 import type { ExerciseFit } from '../combat-sim.ts';
 import {
   SCENARIOS, SIM_BRAINS, clampTier, liveBrainFor, simHulls,

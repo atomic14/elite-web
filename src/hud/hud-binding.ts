@@ -26,7 +26,7 @@ import { energyLow, type ShipSystems } from '../game/systems.ts';
 import type { World } from '../game/world.ts';
 import type { Missile } from '../game/ordnance.ts';
 import type { Canister } from '../game/cargo.ts';
-import { MAX_FUEL } from '../game/commander.ts';
+import { MAX_FUEL } from '../constants/commander.ts';
 
 /** Closer than this to the sun, the compass switches to it for a sun-skim. */
 export const SUNSKIM_COMPASS_RANGE = 130_000;

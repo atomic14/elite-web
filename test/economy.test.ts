@@ -5,29 +5,38 @@
 // so the headless campaign runs the same code the game does.
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { newCommander, MAX_FUEL, killValue } from '../src/game/commander.ts';
-import { FUEL_PRICE, fuelNeeded, refuelCost, fuelQuote } from '../src/game/shop.ts';
+import { newCommander, killValue } from '../src/game/commander.ts';
+import { MAX_FUEL } from '../src/constants/commander.ts';
+import { fuelNeeded, refuelCost, fuelQuote } from '../src/game/shop.ts';
+import { FUEL_PRICE } from '../src/constants/shop.ts';
 import { equipRows, renderMarket } from '../src/ui/screens.ts';
 import {
-  CONTRABAND,
   isContraband,
   contrabandTonnes,
   carryingContraband,
   fineFor,
   offenceFor,
+} from '../src/game/law.ts';
+import {
+  CONTRABAND,
   LEGAL_NAMES,
   CLEAN,
   OFFENDER,
   FUGITIVE,
   OFFENDER_FINE,
   FUGITIVE_FINE,
-} from '../src/game/law.ts';
+} from '../src/constants/law.ts';
 import { generateGalaxy, generateMarket, COMMODITIES } from '../src/galaxy/galaxy.ts';
-import { hermitMarket, marketEstimate, FLUCTUATIONS } from '../src/game/contracts.ts';
+import { hermitMarket, marketEstimate } from '../src/game/contracts.ts';
+import { FLUCTUATIONS } from '../src/constants/market.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
 import { pirateThreat, markOf, memberTier, type Mark } from '../src/game/threat.ts';
 import { CHALLENGE_RATE, PRIZE_SATURATION } from '../src/constants/threat.ts';
-import { rating } from '../src/game/rating.ts';
+import { VALUE_PER_TONNE } from '../src/constants/jettison.ts';
+import { HOLD_TONNES, LARGE_BAY_TONNES } from '../src/constants/commander.ts';
+import { cargoCapacity } from '../src/game/commander.ts';
+import { rating, ratingLadder } from '../src/game/rating.ts';
+import { RATINGS } from '../src/constants/rating.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 import { g1 } from './fixtures.ts';
@@ -269,12 +278,12 @@ console.log('\npirate economics');
     check(`the challenge roll at full fame is CHALLENGE_RATE (measured ${fHi})`,
       Math.abs(fHi - CHALLENGE_RATE) < 1e-12);
 
-    // FAME_FULL stays module-private in threat.ts because it is not a free
-    // number: it restates the rating ladder's Dangerous rung, and cannot be an
-    // expression over it until the career slice gives the ladder a home. This
-    // is the check that holds the two copies together until then — the fame
-    // saturation score, bisected out of pirateThreat, must be exactly the
-    // score at which the real rating() starts saying Dangerous.
+    // FAME_FULL is an expression over the rating ladder's Dangerous rung now
+    // (constants/threat.ts over constants/rating.ts), so the two cannot drift
+    // by edit — but either CONSUMER can still re-inline a literal, and this
+    // is what goes red if one does: the fame saturation score, bisected out
+    // of the real pirateThreat, must be exactly the score at which the real
+    // rating() starts saying Dangerous.
     const challengedAt = (score: number) => pirateThreat(
       lave, 0, bare({ combatScore: score }), () => CHALLENGE_RATE * (1 - 1e-9)).challenged;
     let sLo = 0;
@@ -285,6 +294,62 @@ console.log('\npirate economics');
     }
     check(`fame saturates at the rating ladder's Dangerous rung (score ${sHi})`,
       rating(sHi) === 'Dangerous' && rating(sHi - 1) !== 'Dangerous');
+
+    // The big-bay bonus fires above the STANDARD hold, and the threshold is
+    // measured out of the real function rather than probed at the constant:
+    // scan every capacity a hold could plausibly be and find the one step.
+    const appealAt = (capacity: number) =>
+      pirateThreat(lave, 0, bare({ capacity }), fixed).appeal;
+    const steps: number[] = [];
+    for (let cap = 1; cap <= 60; cap += 1) {
+      if (appealAt(cap) !== appealAt(cap - 1)) steps.push(cap);
+    }
+    check(`the big-bay bonus steps exactly once, above the standard hold `
+      + `(at ${steps.join(',')})`,
+    steps.length === 1 && steps[0] === HOLD_TONNES + 1);
+  }
+
+  // --- the scanner, the toll and the shop agree about a hold ----------------
+  //
+  // The survey's four-home cargo capacity and its unexpressed VALUE_PER_TONNE
+  // pair, unified: these solve each rule's number back OUT of the function
+  // and compare it to the one home, which a re-inlined literal fails.
+  {
+    // What a scanner reads one tonne as, solved out of the real markOf: for
+    // any single tonne, cargoValue / basePrice IS the multiplier.
+    const oneTonneOf = (i: number) => {
+      const cargo = new Array(17).fill(0);
+      cargo[i] = 1;
+      return markOf({ cargo, kills: 0, equipment: { laser: 'pulse', largeBay: false } });
+    };
+    check('markOf prices a tonne at VALUE_PER_TONNE times its base price',
+      [0, 5, 7].every((i) =>
+        oneTonneOf(i).cargoValue === COMMODITIES[i].basePrice * VALUE_PER_TONNE));
+
+    // A pirate reads the same hold size the game fits: both bay states, the
+    // scanner's figure against the real cargoCapacity.
+    const cWith = newCommander();
+    cWith.equipment.largeBay = true;
+    const cWithout = newCommander();
+    check('a pirate reads exactly the hold the game fits, both bay states',
+      markOf(cWith).capacity === cargoCapacity(cWith)
+      && markOf(cWithout).capacity === cargoCapacity(cWithout)
+      && cargoCapacity(cWith) === LARGE_BAY_TONNES
+      && cargoCapacity(cWithout) === HOLD_TONNES);
+  }
+
+  // --- the ladder and the function that climbs it ---------------------------
+  //
+  // rating() reads RATINGS from the home; if either re-inlines a copy that
+  // drifts, probing the FUNCTION at the TABLE's own rungs goes red. Also the
+  // manual's chart: ratingLadder() must list every rung, in order.
+  {
+    check('rating() turns at exactly the ladder\'s own rungs',
+      RATINGS.every(([threshold, name], i) =>
+        rating(threshold) === name
+        && (i === 0 || rating(threshold - 1) === RATINGS[i - 1][1])));
+    check('the ladder as a list is the ladder',
+      ratingLadder().join('|') === RATINGS.map(([, name]) => name).join('|'));
   }
 
   // ratings count difficulty, not bodies

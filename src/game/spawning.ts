@@ -30,6 +30,7 @@ import { memberTier } from './threat.ts';
 import { slotNormal } from '../world/slot.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
+import { ORDINARY_GOODS } from '../constants/commodities.ts';
 import {
   ASTEROID_SCATTER, CORRIDOR_SPAN, CORRIDOR_START, GENERATION_CARGO_SCATTER,
   GENERATION_SHIP_RANGE, GENERATION_SHIP_RANGE_SPAN, HERMIT_SCATTER, HUNTER_SCATTER,
@@ -119,9 +120,9 @@ export function spawnPopulation(
     world.cargo.spawn(
       pos.clone().add(randomDirection(new THREE.Vector3())
         .multiplyScalar(GENERATION_CARGO_SCATTER)),
-      // the count and the ordinary-goods list stay here: the list is one of
-      // three copies of "ordinary goods" and belongs to the career slice
-      3 + randomInt(4), [0, 1, 4, 8, 9, 12]);
+      // the count stays here — a spawn's own draw; what the canisters contain
+      // is the career's ordinary-goods class (constants/commodities.ts)
+      3 + randomInt(4), ORDINARY_GOODS);
   }
 
   let missionTarget: NpcShip | null = null;

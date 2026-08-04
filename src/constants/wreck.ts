@@ -2,11 +2,11 @@
 // rock pays.
 //
 // The rule that spends these is `Combat.wreck`/`Combat.destroy` in
-// game/combat.ts. WHAT spills — the ordinary-goods list a wreck sheds, the
-// ore list a rock yields — deliberately does not live here: both are commodity
-// indices into the 1984 market table, the ordinary-goods list has three homes
-// the career slice will unify, and moving one of the three now would leave the
-// other two behind. See docs/TODO/90-constants-cleanup.md.
+// game/combat.ts. WHAT spills — the cargo list a wreck sheds, the ore list a
+// rock yields — is `commodities.ts`: those are the career's groupings of the
+// 1984 market table and one of them is shared with the bulletin board, so
+// they live with their class and this file stays about the chances and the
+// counts.
 
 /**
  * How often the pilot punches out before the hull goes.

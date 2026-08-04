@@ -1,7 +1,8 @@
 // The combat ladder: what a commander's kills add up to being CALLED.
 //
-// A leaf, and deliberately: it imports nothing, so a page that wants to print
-// the ladder does not drag a commander, a galaxy and the whole Elite-A
+// A leaf but for the ladder itself, and deliberately: it imports only
+// `constants/rating.ts` — which imports nothing — so a page that wants to
+// print the ladder does not drag a commander, a galaxy and the whole Elite-A
 // catalogue in behind it. That is not hypothetical — the manual page listed the
 // nine ranks it could remember, missing BELOW AVERAGE, so a commander could
 // read their own rating off the status screen and fail to find it on the chart.
@@ -13,24 +14,7 @@
 // are called is a pure function of one number and has nothing to do with that
 // shape.
 
-/**
- * Score thresholds and the name each one earns, lowest first.
- *
- * The 1984 ladder, with `Below Average` in the place the original had it —
- * ten rungs, not nine.
- */
-const RATINGS: readonly (readonly [number, string])[] = [
-  [0, 'Harmless'],
-  [8, 'Mostly Harmless'],
-  [16, 'Poor'],
-  [32, 'Below Average'],
-  [64, 'Average'],
-  [128, 'Above Average'],
-  [512, 'Competent'],
-  [2560, 'Dangerous'],
-  [6400, 'Deadly'],
-  [25600, 'E L I T E'],
-];
+import { RATINGS } from '../constants/rating.ts';
 
 /** What `combatScore` is called. */
 export function rating(combatScore: number): string {

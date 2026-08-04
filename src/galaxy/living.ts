@@ -18,9 +18,11 @@
 //    deadlines (a jump costs days), so it never needs a real-time tick
 //  - everything here is pure data + maths: no three.js, no DOM
 
-import type { StarSystem } from './galaxy.ts';
+import { COMMODITIES, type StarSystem } from './galaxy.ts';
 import { distanceTenths, daysForJump } from './navigation.ts';
 import { random } from '../game/rng.ts';
+import { DANGER_DECAY, HEAT_DECAY, PRESSURE_DECAY } from '../constants/living-galaxy.ts';
+import { MAX_FUEL } from '../constants/commander.ts';
 
 /** A trade run in flight between two systems. */
 export interface Convoy {
@@ -60,18 +62,16 @@ export interface GalaxyStateSave {
   systems: Record<number, { pressure: number[]; danger: number; arrivals: number; losses: number; heat?: number }>;
 }
 
-const COMMODITY_COUNT = 17;
-/** How fast pressure decays back toward the 1984 baseline, per day. */
-const PRESSURE_DECAY = 0.12;
 /**
- * How fast talk about the player dies down, per day. Faster than DANGER_DECAY:
- * a system's reputation for piracy should outlast one convoy, but nobody
- * remembers one trader's cargo for a month.
+ * One pressure slot per commodity — the length of every saved pressure array.
+ *
+ * DERIVED, not transcribed: it was a bare 17 restating `COMMODITIES.length`,
+ * a table this file could always see. It cannot move to src/constants/ (the
+ * home may not import the table it is the length of), so it stays here as a
+ * named entry on the constants gate — the `ANCHOR_RECHARGE_RATING` shape; see
+ * docs/TODO/90-constants-cleanup.md, Blocked.
  */
-const HEAT_DECAY = 0.06;
-// Danger decays slowly: a system's reputation for piracy should outlast a
-// single convoy loss, so hotspots can build up along lawless trade routes.
-const DANGER_DECAY = 0.015;
+const COMMODITY_COUNT = COMMODITIES.length;
 
 /**
  * The galaxy ticks on the world's seeded stream by default. Passing an rng
@@ -87,10 +87,11 @@ export class LivingGalaxy {
 
   private readonly systems: StarSystem[];
   /**
-   * Each system's plausible trading partners, precomputed. Ships have a
-   * 7 LY jump range, so trade is inherently local — sampling uniformly
-   * across 256 systems would scatter convoys instead of forming the lanes
-   * that make some routes rich and others dangerous.
+   * Each system's plausible trading partners, precomputed. Ships have the
+   * same 7 LY jump range the commander's tank enforces (`MAX_FUEL`, in tenths
+   * — the file used to write the 70 out), so trade is inherently local —
+   * sampling uniformly across 256 systems would scatter convoys instead of
+   * forming the lanes that make some routes rich and others dangerous.
    */
   private readonly neighbours: number[][];
 
@@ -99,7 +100,7 @@ export class LivingGalaxy {
     this.neighbours = systems.map((sys) =>
       systems
         .map((other) => ({ index: other.index, d: distanceTenths(sys, other) }))
-        .filter((x) => x.index !== sys.index && x.d > 0 && x.d <= 70)
+        .filter((x) => x.index !== sys.index && x.d > 0 && x.d <= MAX_FUEL)
         .sort((a, b) => a.d - b.d)
         .slice(0, 10)
         .map((x) => x.index));

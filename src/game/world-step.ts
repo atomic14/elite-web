@@ -35,8 +35,10 @@ import * as THREE from 'three';
 
 import { COMMODITIES, type StarSystem } from '../galaxy/galaxy.ts';
 import type { FlightDemand } from '../player.ts';
-import { cargoCapacity, cargoTonnes, MAX_FUEL } from './commander.ts';
-import { carryingContraband, SCAN_RANGE } from './law.ts';
+import { cargoCapacity, cargoTonnes } from './commander.ts';
+import { MAX_FUEL } from '../constants/commander.ts';
+import { carryingContraband } from './law.ts';
+import { SCAN_RANGE } from '../constants/law.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import { stepEncounters } from './encounters.ts';

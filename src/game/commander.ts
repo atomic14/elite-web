@@ -1,6 +1,9 @@
 import { COMMODITIES } from '../galaxy/galaxy.ts';
 import type { GalaxyStateSave } from '../galaxy/living.ts';
 import { COBRA_MK_3_HULL_ID, type PlayerHullId } from './ship-identity.ts';
+import {
+  DEFAULT_NAME, HOLD_TONNES, LARGE_BAY_TONNES, MAX_FUEL, STARTING_CREDITS,
+} from '../constants/commander.ts';
 
 // Commander Jameson: who you are, what you are carrying, and how you rank.
 //
@@ -16,12 +19,9 @@ import { COBRA_MK_3_HULL_ID, type PlayerHullId } from './ship-identity.ts';
 //
 // Imports carry explicit .ts extensions because Node loads this module
 // directly for the headless campaign simulator (test/campaign.ts).
-
-export const MAX_FUEL = 70; // tenths of a light year
-
-/** The original's own commander, and still the default here. */
-export const DEFAULT_NAME = 'JAMESON';
-export const MAX_MISSILES = 4;
+//
+// The commander's own numbers — the name, the grubstake, the tank, the rails
+// and the two hold sizes — are constants/commander.ts.
 
 export type LaserType = 'pulse' | 'beam' | 'military';
 
@@ -87,7 +87,7 @@ export interface MissionState {
 }
 
 export function cargoCapacity(c: CommanderData): number {
-  return c.equipment.largeBay ? 35 : 20;
+  return c.equipment.largeBay ? LARGE_BAY_TONNES : HOLD_TONNES;
 }
 
 export interface CommanderData {
@@ -158,14 +158,14 @@ export interface CommanderData {
 
 export function newCommander(): CommanderData {
   return {
-    name: 'JAMESON',
+    name: DEFAULT_NAME,
     // Elite-A started you in an Adder; this phase deliberately does not, because
     // switching the starting hull is a balance change and not an identity one
     // (docs/TODO/ELITE-A-COMBAT-PLAN.md defers it).
     shipId: COBRA_MK_3_HULL_ID,
     galaxy: 1,
     systemIndex: 7, // Lave
-    credits: 1000, // 100.0 Cr
+    credits: STARTING_CREDITS,
     fuel: MAX_FUEL,
     missiles: 3,
     kills: 0,

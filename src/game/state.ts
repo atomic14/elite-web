@@ -33,6 +33,7 @@ import { freshTimers } from './encounters.ts';
 import { generateGalaxy } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
 import { SHIPPED_BRAINS, type BrainSelection } from './brain-names.ts';
+import { BREED_INTERVAL } from '../constants/trumbles.ts';
 
 export interface GameState {
   // --- where and who ------------------------------------------------------
@@ -137,7 +138,8 @@ export function freshSession(): SessionState {
     jettisonedValue: 0,
     arrivalCargoValue: 0,
     genShipSeen: false,
-    trumbleTimer: 20,
+    // a fresh infestation is one full brood away, the same clock it breeds on
+    trumbleTimer: BREED_INTERVAL,
     beaconTimer: -1,
     strandedHintTimer: 2,
     paused: false,

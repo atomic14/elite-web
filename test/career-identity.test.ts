@@ -38,7 +38,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { Game } from '../src/game/game.ts';
 import { headlessShell } from '../src/engine/shell.ts';
 import { seedWorld } from '../src/game/rng.ts';
-import { DEFAULT_NAME, newCommander } from '../src/game/commander.ts';
+import { newCommander } from '../src/game/commander.ts';
+import { DEFAULT_NAME } from '../src/constants/commander.ts';
 import { MAX_NAMED_SAVES, commanderOf, dockId, fileId } from '../src/game/save-file.ts';
 import {
   bootSave, listSaves, makeRecord, readSave, writeNamedSave,
