@@ -64,23 +64,41 @@ console.log('\nNPC flight');
     // knife-range dead zone that runs through docs/TRAINING-LOG.md — pirates
     // are hardest to be shot by exactly where the fight happens. The window
     // here is sized to that reality rather than to what I assumed.
+    //
+    // ...and the OTHER half of the same claim, in the same flight: the ship
+    // returns the event and does nothing else about it — invariant 15, because
+    // firing has consequences (legal status, bounties, Vipers) and those are
+    // the Game's. That half used to be a separate block asserting
+    // `player.speed === 100` after 300 frames, which could not observe
+    // anything: `PlayerRef` is `{ position, quaternion, speed }`, so an NPC
+    // that shot the commander in the face had nothing to write to and the
+    // check passed regardless (docs/TODO/87). The commander here is FROZEN
+    // instead — a module is strict mode, so a write to it throws — and the
+    // trap is proved rather than trusted. It is also one object for the whole
+    // engagement rather than a fresh one per frame, so a stored reference is
+    // as exposed as a same-frame write.
+    const frozen = Object.freeze({
+      position: Object.freeze(at(0, 0, 0)),
+      quaternion: Object.freeze(new THREE.Quaternion()),
+      speed: 100,
+    }) as never;
     let fired = 0;
+    let threw = '';
     for (let seed = 0; seed < 4; seed++) {
       const npc = new NpcShip('pirate', at(0, 0, 900), seed);
       for (let i = 0; i < 1800; i++) {
-        const ev = npc.update(1 / 60, makePlayer(at(0, 0, 0)), worldView([npc]));
-        if (ev && ev.at === 'player') fired += 1;
+        try {
+          const ev = npc.update(1 / 60, frozen, worldView([npc]));
+          if (ev && ev.at === 'player') fired += 1;
+        } catch (e) { threw ||= `${e}`; break; }
       }
     }
     check(`pirates shoot at the player (${fired} times over 30s x4)`, fired > 0);
-  }
-  {
-    // and an NPC NEVER damages anything itself — the Game resolves consequences
-    const npc = new NpcShip('pirate', at(0, 0, 400), 7);
-    const player = makePlayer(at(0, 0, 0));
-    for (let i = 0; i < 300; i++) npc.update(1 / 60, player, worldView([npc]));
-    check('an NPC only ever RETURNS a fire event, never applies it',
-      (player as unknown as { speed: number }).speed === 100);
+    check('...and only ever RETURN the fire event — nothing reaches the commander',
+      threw === '', threw);
+    let trapped = false;
+    try { (frozen as { speed: number }).speed = 0; } catch { trapped = true; }
+    check('...where writing to that commander really does throw', trapped);
   }
   {
     // A trader does not shoot at an unprovoking commander — over a whole

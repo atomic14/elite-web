@@ -472,7 +472,7 @@ combat computer bleeds off a turn — can be moved with no test failing at all.*
 - [ ] 84 — [The probe's "on-six" column cannot move](84-the-on-six-column-cannot-move.md) — training methodology · low · small
 - [ ] 85 — [The combat computer flies a ramp the policy was not fitted at](85-the-combat-computer-flies-a-ramp-the-policy-was-not-fitted-at.md) — training fidelity · medium · small
 - [ ] 86 — [The co-pilot you buy parks your ship](86-the-co-pilot-you-buy-parks-your-ship.md) — combat feel/design · medium · medium
-- [ ] 87 — [Three parity checks assert `f(x) === f(x)`](87-three-checks-that-restate-their-own-implementation.md) — test gap · low · small
+- [x] 87 — [Three parity checks assert `f(x) === f(x)`](87-three-checks-that-restate-their-own-implementation.md) — test gap · low · small
 - [ ] 88 — [The flight readout still quotes two stale words](88-the-readout-still-quotes-two-stale-words.md) — UI/UX · low · small
 - [ ] 89 — [Nothing flies an NPC at another NPC in the live world](89-nothing-flies-npc-against-npc.md) — test gap · high · medium
 
@@ -524,8 +524,7 @@ same kind of gap. 76 is a whole rule module — `separation.ts`, with its own sw
 constants and three call sites in the attack run — that no test imports at all.
 83 is one guard on a stated fairness rule with a recorded failure behind it. 87
 is three assertions that expand to `f(x) === f(x)` in the file whose own comment
-says "assert the rule rather than the copies". Two of the three are closed
-below; 87 is the one still open.
+says "assert the rule rather than the copies". All three are closed below.
 
 **76 is done, and the module was right — the comment beside it was not.**
 `test/separation.test.ts` is 29 assertions, and the pure half of it asserts the
@@ -689,6 +688,67 @@ One thing in the item is wrong: it expects `describeFlight` to have been reading
 `evading` for the armed trader, and it never was, because `fleeing` outranks
 `evading` in that function. The trader's damage was to the two rules that read
 the flag on a handover, not to its readout.
+
+**87 is done, and no line of `src/` moved.** Both rate-ramp checks compared a
+wrapper with the `rampToward` call it expands to, so each was the same expression
+on both sides of its `===`. They measure against the rule the exponential form
+replaced now — `cur + (target - cur) * rate * dt` at 1/60, which is exactly what
+4.1396, 13.3886 and 5.2207 were solved for, from 4, 12 and 5 per second — because
+an expectation that comes from outside the implementation is the whole of the
+difference. Moving `BRAIN_RATE_DECAY` to 5.3, which is the finding's headline and
+the item's own verify, goes from **0 assertions failing to 1**; `BRAIN_RATE_RAMP`
++1% from **0 to 1**, and the commander's `RATE_DECAY` +1% from **0 to 1**. The
+item's own worst case — a `rampToward` that returns its input unchanged — fails
+**16**, five of them these. `npm test` goes **3,054 to 3,060 passed, 0 failed**.
+
+**Half of that rule was already tested, in another file, and the first draft of
+this work made it two homes.** `test/flight.test.ts` — whose header says the ramp
+lives there because it is the piece that was wrong four times — already pinned
+the hold at 60Hz against the same old linear rule, and already held the
+frame-rate independence and the snap to zero. Adding those three to
+`combat-model.test.ts` would have been one rule with two homes, introduced by the
+item about assertions that do not work. The re-fit is ONE rule, so all four
+constants sit together in the section about the ramp's four homes, and
+flight.test.ts keeps the ramp's SHAPE, which is what its section is titled: the
+same handling at 15, 30, 60 and 144Hz, and the tail that snaps to zero. The
+commander's `RATE_RAMP` is the one constant the project could already see move,
+and it still fails exactly one assertion — the same cover, in one place instead
+of two.
+
+**The third check could half-see, which the item did not notice.** `CC_MAX_PITCH
+=== 0.5 * TURN.pitch` writes the `0.5` out a second time, so it does catch that
+literal moving in `combat-computer.ts` — 1 assertion, now 2. What it cannot see
+is the thing it says it tracks: moving the trader Cobra's roster row 1% went from
+**0 failures to 1**. The row is found by design id now, so a reordered roster
+fails as well, and 0.7 and 1.2 are written down because a cap that moves
+invalidates every brain fitted at it. The second ramp check's real claim — that a
+brain-flown ship and the combat computer ramp the same way — is a measurement
+now: 120 steps of `brainFly` with the control pinned, held for a second and
+released for a second, predicted step by step by `ccRamp`, worst error **0**.
+Drifting `brainFly`'s decay to the commander's 13.3886 while `ccRamp` keeps
+5.2207 fails it at a worst error of 0.368, and nothing else in the suite notices.
+
+**The two smaller ones in the same family are done too.** `test/npc.test.ts`'s
+invariant-15 check asserted `player.speed === 100` after 300 frames, which sees a
+write to `speed` and nothing else — an NPC that nudged the commander's POSITION
+every frame failed **0** assertions in the whole suite. The commander is frozen
+now, the ref and the position and the quaternion, and a module is strict mode so
+a write throws: the position nudge fails **2** and the speed one **2**. The trap
+is asserted rather than trusted, and it runs inside the flight that was already
+counting fire events, so one engagement says both halves of the claim. In
+`test/brain-names.test.ts` the round-trip hatch exempted two ids where one needs
+it — `pirate-attack-g3` round-trips perfectly well, so of five ids three were
+tested. The exact SET of failures is named now: a colliding selection that stops
+g3 reading back as itself goes from **5 failures to 6**, the sixth being the
+round trip, which is the check that was supposed to notice. It fails the other
+way as well — giving `jameson-defend-g2` a selection of its own, which is what
+81 would do, fails 2 and asks for its exemption to be deleted.
+
+**Nothing the player meets moved**: `npm run campaign` is identical to the last
+decimal, `npm run elite-a` is 480 passed and `npm run portability` 0
+contaminated. `test/combat-model.test.ts` is 412 lines and is listed in
+`tools/sizes.mjs` with the reason — nine sections asking one question, and split
+by subsystem each half stops being an answer to it.
 
 **81, 82 and 84 are the same root**: `d563e3d` made the scripted attack run what
 ships, and the surfaces that describe or measure the AI did not all follow.

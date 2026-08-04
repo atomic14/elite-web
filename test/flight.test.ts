@@ -366,17 +366,11 @@ console.log('\nturn ramp');
   check('...and at 144Hz', Math.abs(at60 - after(1 / 144, 1)) < 1e-9);
   check('...and at 30Hz', Math.abs(at60 - after(1 / 30, 1)) < 1e-9);
 
-  // and it must still reproduce the shipped 60Hz feel, which is why the
-  // constants were recalibrated rather than left at 4.0/12.0
-  const oldForm = (cur: number, tgt: number, dt: number, r: number) =>
-    cur + (tgt - cur) * Math.min(1, r * dt);
-  let a = 0, b = 0;
-  for (let i = 0; i < 120; i++) {
-    a = rampFlightRate(a, 2.5, true, 1 / 60);
-    b = oldForm(b, 2.5, 1 / 60, 4.0);
-  }
-  check(`60Hz behaviour is unchanged (${a.toFixed(6)} vs ${b.toFixed(6)})`,
-    Math.abs(a - b) < 1e-6);
+  // The four CONSTANTS this shape is flown at — the commander's 4.1396/13.3886
+  // and the brains' 4.1396/5.2207 — are pinned together in
+  // test/combat-model.test.ts, in the section about the ramp's four homes. A
+  // 120-step version of the hold used to be here on its own; it was one of the
+  // four, and one of two homes for the same rule (docs/TODO/87).
 
   check('a released rate still snaps to exactly zero',
     rampFlightRate(0.0005, 0, false, 1 / 60) === 0);

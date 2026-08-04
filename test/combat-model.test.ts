@@ -29,7 +29,7 @@ import {
   shipAccel,
 } from '../src/game/ship-specs.ts';
 import {
-  PlayerShip, PLAYER_FLIGHT, rampFlightRate, rampToward, type FlightDemand,
+  PlayerShip, PLAYER_FLIGHT, rampFlightRate, type FlightDemand,
 } from '../src/player.ts';
 import {
   LOW_ENERGY, MAX_ENERGY, MAX_SHIELD, applyDamage, energyLow, freshSystems, regenerate,
@@ -152,17 +152,25 @@ console.log('\none combat model (the trainer flies the game)');
   // becomes a turret — and it used to be checked by comparing a `minSpeed`
   // field in the simulator against MIN_CRUISE_FRACTION here. Now it is checked
   // by asking a ship to stop and watching it refuse.
-  const brakeToStop = (role: 'pirate' | 'trader', spec: NpcSpec): number => {
-    const ship = new NpcShip(role, new THREE.Vector3(), 5, spec);
-    const state = (ship as unknown as {
+  // Three blocks below fly a brain-flown ship at a control of their own
+  // choosing, and `brainControl`/`brainTimer` are private — so ONE home for the
+  // cast, and one place that re-imposes the control every step so the 10 Hz
+  // decision cache cannot re-decide it mid-run.
+  const pin = (ship: NpcShip, control: {
+    pitch: number; roll: number; throttle: number; fire: boolean;
+  }): void => {
+    const s = (ship as unknown as {
       state: { brainControl: unknown; brainTimer: number };
     }).state;
+    s.brainControl = control;
+    s.brainTimer = 1;
+  };
+  const brakeToStop = (role: 'pirate' | 'trader', spec: NpcSpec): number => {
+    const ship = new NpcShip(role, new THREE.Vector3(), 5, spec);
     const ahead = new THREE.Vector3(0, 0, -5000);
     const level = new THREE.Quaternion();
     for (let i = 0; i < 900; i++) {
-      // full brake, re-imposed each step so the 10 Hz cache cannot re-decide
-      state.brainControl = { pitch: 0, roll: 0, throttle: -1, fire: false };
-      state.brainTimer = 1;
+      pin(ship, { pitch: 0, roll: 0, throttle: -1, fire: false }); // full brake
       ship.brainFly(shippedPirate, 1 / 60, ahead, level, 300, 5000, null);
     }
     return ship.state.speed;
@@ -187,14 +195,10 @@ console.log('\none combat model (the trainer flies the game)');
     const ship = new NpcShip('pirate', new THREE.Vector3(), 5, cobraSpec);
     const target = new THREE.Vector3(
       Math.sin(bearing) * range, 0, -Math.cos(bearing) * range);
-    const state = (ship as unknown as {
-      state: { brainControl: unknown; brainTimer: number };
-    }).state;
     ship.faceToward(new THREE.Vector3(0, 0, -1000)); // nose along -Z, target off it
     let shots = 0;
     for (let i = 0; i < seconds * 60; i++) {
-      state.brainControl = { pitch: 0, roll: 0, throttle: 0, fire: true };
-      state.brainTimer = 1;
+      pin(ship, { pitch: 0, roll: 0, throttle: 0, fire: true });
       ship.object.position.set(0, 0, 0); // hold station, so only the gun varies
       if (ship.brainFly(shippedPirate, 1 / 60, target, new THREE.Quaternion(),
         300, range, 'player', null)) shots += 1;
@@ -225,18 +229,86 @@ console.log('\none combat model (the trainer flies the game)');
   // That is how the simulator sat at decay 5.0 while the player moved to 12.0,
   // and how "correcting" it silently broke the NPC half. One rule now, with
   // the constants passed in, so assert the rule rather than the copies.
-  check('the shared ramp is what the player\'s controls use',
-    rampFlightRate(0.4, 1.2, true, 1 / 60)
-      === rampToward(0.4, 1.2, true, 1 / 60, PLAYER_FLIGHT.rateRamp, PLAYER_FLIGHT.rateDecay));
-  check('...and what the combat computer uses, at the NPC constants',
-    ccRamp(0.4, 1.2, false, 1 / 60)
-      === rampToward(0.4, 1.2, false, 1 / 60, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY));
+  //
+  // Which is what the two checks that stood here did NOT do: each compared a
+  // wrapper against the `rampToward` call it expands to, so both sides were the
+  // same expression and the pair passed for any constants and any curve —
+  // including one that returned its input untouched (docs/TODO/87).
+  //
+  // The expectation has to come from OUTSIDE the implementation, and there is
+  // one to hand: the exponential form was introduced as an exact re-fit, at
+  // 1/60, of the linear rule it replaced (`cur + (target - cur) * rate * dt`).
+  // 4.1396, 13.3886 and 5.2207 are what 4, 12 and 5 per second were solved for,
+  // so a step is measured against the OLD rule at the OLD numbers. 1e-6 admits
+  // the re-fit residual (1.0e-7 at worst) and rejects a 1% move in any of them
+  // (3.2e-4 at worst).
+  //
+  // All FOUR constants here, including the commander's, though this is a file
+  // about NPCs: they are one rule — the re-fit — and half of it lived in
+  // test/flight.test.ts, which is one rule with two homes again. That file
+  // keeps the ramp's SHAPE, which is what its section is titled: the same
+  // handling at 15, 30, 60 and 144Hz, and the snap to zero.
+  const oldRule = (cur: number, target: number, rate: number) =>
+    cur + (target - cur) * rate * (1 / 60);
+  const near = (name: string, got: number, want: number, tol = 1e-6) =>
+    check(name, Math.abs(got - want) < tol, `got ${got}, want ${want} +/- ${tol}`);
+  near(`the commander holds a turn at 4/s (rateRamp ${PLAYER_FLIGHT.rateRamp})`,
+    rampFlightRate(0.4, 1.2, true, 1 / 60), oldRule(0.4, 1.2, 4));
+  near(`...and lets it go at 12/s (rateDecay ${PLAYER_FLIGHT.rateDecay})`,
+    rampFlightRate(0.4, 0, false, 1 / 60), oldRule(0.4, 0, 12));
+  near(`a brain-flown ship holds at the same 4/s (BRAIN_RATE_RAMP ${BRAIN_RATE_RAMP})`,
+    ccRamp(0.4, 1.2, true, 1 / 60), oldRule(0.4, 1.2, 4));
+  near('...and lets go at 5/s, less than half the commander\'s 12'
+    + ` (BRAIN_RATE_DECAY ${BRAIN_RATE_DECAY})`,
+  ccRamp(0.4, 0, false, 1 / 60), oldRule(0.4, 0, 5));
+
+  // ...and the ramp a brain-flown NPC integrates its controls with IS the one
+  // the combat computer flies, which is the claim the second check was making
+  // and could not test. `brainFly` and `ccRamp` are two call sites of the
+  // shared rule: the two numbers above pin what each must be, this drives one
+  // and predicts it with the other. One second held, one second released, so
+  // both branches are compared over 120 steps rather than at a point.
+  {
+    const ship = new NpcShip('pirate', new THREE.Vector3(), 5, cobraSpec);
+    const far = new THREE.Vector3(0, 0, -5000);
+    const level = new THREE.Quaternion();
+    const cap = cobraSpec.turnRate * TURN.pitch;
+    let predicted = 0, worst = 0, peak = 0;
+    for (let i = 0; i < 120; i++) {
+      const pitch = i < 60 ? 1 : 0;
+      pin(ship, { pitch, roll: 0, throttle: 0, fire: false });
+      ship.brainFly(shippedPirate, 1 / 60, far, level, 300, 5000, null);
+      predicted = ccRamp(predicted, pitch * cap, pitch !== 0, 1 / 60);
+      worst = Math.max(worst, Math.abs(ship.state.brainPitchRate - predicted));
+      peak = Math.max(peak, ship.state.brainPitchRate);
+    }
+    check('a brain-flown ship ramps and bleeds off exactly as ccRamp says'
+      + ` (peak ${peak.toFixed(3)} of ${cap.toFixed(3)}, worst error ${worst})`,
+    worst === 0 && peak > cap * 0.9);
+  }
 
   // 7. TURN belongs to the roster now (npc.ts used to import it from the
-  // simulator), and the combat computer's caps derive from it rather than from
-  // two multiplied literals.
-  check(`combat computer caps track TURN (${CC_MAX_PITCH} / ${CC_MAX_ROLL})`,
-    CC_MAX_PITCH === 0.5 * TURN.pitch && CC_MAX_ROLL === 0.5 * TURN.roll);
+  // simulator), and the combat computer's caps are the trader Cobra's roster
+  // row times TURN — the hull the defence policy was fitted in.
+  //
+  // Against the ROW, and against the numbers, rather than against
+  // `0.5 * TURN.pitch` — the right-hand side of the definition with the `0.5`
+  // written out a second time. That version could see the literal move in
+  // combat-computer.ts and NOT the thing it says it tracks: the roster row's
+  // `turnRate` was moved 1% and no assertion in the project failed
+  // (docs/TODO/87). By design id, because "the row is the Cobra Mk III" is the
+  // other half of the claim and a reordered roster would otherwise move the cap
+  // with nothing noticing. Both numbers are written out as well, because a cap
+  // that moves invalidates every brain fitted at it — that is a retrain, and it
+  // should cost a red line to decide on.
+  const traderCobra = SPECS.trader.find((s) => s.designId === shipDesignIdOf(10))!;
+  check('the combat computer flies the trader Cobra\'s row x TURN'
+    + ` (${CC_MAX_PITCH} / ${CC_MAX_ROLL} from turnRate ${traderCobra.turnRate})`,
+  CC_MAX_PITCH === traderCobra.turnRate * TURN.pitch
+    && CC_MAX_ROLL === traderCobra.turnRate * TURN.roll);
+  near('...and that hull still pitches at the 0.7 the brain was trained against',
+    CC_MAX_PITCH, 0.7, 1e-9);
+  near('...and rolls at 1.2', CC_MAX_ROLL, 1.2, 1e-9);
 
   // 8. Ramming: one constant, one speed rule, billed by the episode the way
   // world-step.ts bills it.

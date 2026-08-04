@@ -95,9 +95,23 @@ console.log('\nwhich brain flies, by name');
   check('the live picker offers "as shipped" first, and it means no override',
     LIVE_BRAIN_IDS[0] === AS_SHIPPED
     && Object.keys(liveBrainSelection(AS_SHIPPED)).length === 0);
-  check('...a picked name reads back as itself',
-    LIVE_BRAIN_IDS.every((id) => liveBrainId(liveBrainSelection(id)) === id
-      || (id === 'pirate-attack-g3' || id === 'jameson-defend-g2')));
+  // ...a picked name reads back as itself, and the one id that cannot is named
+  // rather than waved through. The escape hatch here used to exempt
+  // `pirate-attack-g3` as well, which round-trips perfectly well — so of five
+  // ids only three were being tested and a regression in g3 had a place to hide
+  // (docs/TODO/87). Asserted as the exact SET of failures, because `every(...)
+  // || exempt` widens silently and a list of exact failures does not.
+  //
+  // The real exception is `jameson-defend-g2`: its selection is `{}`, the same
+  // empty object AS_SHIPPED means, so the picker reads it back as "as shipped".
+  // The collision is the defect and it is docs/TODO/81's; the round trip is
+  // only where it shows.
+  const noTrip = LIVE_BRAIN_IDS.filter((id) => liveBrainId(liveBrainSelection(id)) !== id);
+  check(`a picked name reads back as itself, for every id but one (${noTrip.join(', ') || 'none'})`,
+    noTrip.length === 1 && noTrip[0] === 'jameson-defend-g2');
+  check('...and that one only because its selection IS the empty as-shipped one',
+    Object.keys(liveBrainSelection('jameson-defend-g2')).length === 0
+    && liveBrainId(liveBrainSelection('jameson-defend-g2')) === AS_SHIPPED);
   // ...and a selection the picker cannot name says so rather than guessing. A
   // save made before TODO 57 deleted the six A/B flags is exactly this case: it
   // is not migrated, it must not throw, and the row offers to take it back.
