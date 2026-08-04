@@ -116,3 +116,18 @@ defence policy for 60 seeded episodes, sum `npc.state.passesMade` and
 `missilesFired` across them, and do it again with `{ kind: 'scripted' }`
 attackers. The brain row reading 0.00 passes against the scripted row's 3.88 is
 the whole finding.
+
+## What TODO 75 changed about the stakes (2026-08-04)
+
+75 deleted the third launch reason, `matesLost > 0`, from both worlds — it could
+never fire in the live game and fired only in the trainer. That leaves
+`npcMissileEmergency` with two reasons, and for a POLICY-flown pirate in a
+training episode only one of them is reachable: its own hull under 0.4. The
+other is `passesMade >= MISSILE_COMMIT_PASSES`, which is exactly what this item
+says a brain-flown pirate can never reach.
+
+So this item is now load-bearing for the trainer's warhead volume rather than
+merely for its fidelity. Measured after 75, over 800 episodes against policy
+pirates, a defend phase launches 225 warheads where it launched 352; the whole
+of what is left is desperation. Until the handover exists, "a missile is
+something a ship EARNS by engaging" is a rule the trainer cannot express at all.
