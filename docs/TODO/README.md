@@ -497,6 +497,7 @@ real change to what the game does, and each lands on its own.
 - [ ] 91 — [Delete the target-speed input, and retrain](91-delete-the-target-speed-input.md) — training fidelity/AI · high · large
 - [ ] 92 — [The lead marker assumes every target is a freighter](92-the-lead-marker-assumes-a-freighter.md) — combat bug/UI · medium · small
 - [ ] 93 — [One home for the phosphor](93-one-home-for-the-phosphor.md) — architecture/UI · medium · medium
+- [ ] 94 — [A refused restore leaves half a world behind](94-a-refused-restore-leaves-half-a-world.md) — correctness/saves · medium · medium
 
 The three findings worth knowing without opening the survey. **The HUD leads
 every locked target at 220**, a freighter's cruise, so it under-leads a
