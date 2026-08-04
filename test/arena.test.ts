@@ -28,6 +28,7 @@ import { SUN_HEAT_START, SUN_KILL_DIST } from '../src/constants/sun.ts';
 import { MASS_LOCK_PLANET_ALTITUDE, MASS_LOCK_STATION } from '../src/constants/torus.ts';
 import { PLANET_CRASH_ALTITUDE } from '../src/constants/planet.ts';
 import { PLAYER_INTEREST_RANGE } from '../src/constants/player-interest.ts';
+import { OPPOSITION_CONE, OPPOSITION_CONE_FAR } from '../src/constants/opposition-ring.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import { check, eq } from './harness.ts';
 
@@ -195,10 +196,15 @@ console.log('\ncombat arena');
     const facing = new THREE.Vector3(0, 0, -1);
     const ships = spawnOpposition(world, [{ role: 'hunter', count: 3 }], origin, { facing });
     const rel = new THREE.Vector3();
-    check('a known facing puts every opponent in front of the commander',
+    // Held against the cone the spawner promises rather than a round 1.0 rad:
+    // a caller that gives a facing and no angle gets OPPOSITION_CONE, which the
+    // scatter widens by OPPOSITION_CONE_FAR. That product is what a trainer has
+    // to fit inside the canopy, so it is the bound worth pinning.
+    const widest = OPPOSITION_CONE * OPPOSITION_CONE_FAR;
+    check(`a known facing puts every opponent inside the default cone (${widest.toFixed(3)} rad)`,
       ships.every((n) => {
         rel.copy(n.object.position).sub(origin).normalize();
-        return rel.dot(facing) > Math.cos(1.0);
+        return rel.dot(facing) > Math.cos(widest);
       }));
     check('...out of the role\'s own roster',
       ships.every((n) => SPECS.hunter.some(

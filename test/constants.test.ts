@@ -125,6 +125,30 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
+    why: 'STAYS: the source\'s own blueprint-slot numbering and the two maps over it. The'
+      + ' slot bands are DATA transcribed from the released sets, and `BAND_SLOTS` is'
+      + ' deliberately PRIVATE — the file\'s header argues that nothing outside it should'
+      + ' hold a copy of "17 to 24 means pirate", and moving it to a public home would'
+      + ' undo that. The other three are keyed on `NpcRole`, a type this directory may'
+      + ' not import, and two of them are catalogue lookups computed once at load rather'
+      + ' than rules — the same shape as `MISSILE_HULL` above',
+    files: {
+      'game/ship-roles.ts': ['BAND_SLOTS', 'ROLE_BANDS', 'CANDIDATES', 'MISSION_TARGET_DESIGNS'],
+    },
+  },
+
+  {
+    why: 'STAYS: a `ReadonlySet<NpcRole>` — which roles are trying to hurt somebody, stated'
+      + ' as a set rather than inferred from "has a laser". It is keyed on a type declared'
+      + ' in `ship-roles.ts`, so bringing it here would need an import out of the'
+      + ' directory, and spelling it as bare strings to avoid that would lose the check'
+      + ' that every member is a real role',
+    files: {
+      'game/role-variants.ts': ['COMBAT_ROLES'],
+    },
+  },
+
+  {
     why: 'MOVED, apart from one BLOCKED derivation: the pools are constants/pools.ts, how'
       + ' they come back is constants/recharge.ts, the sun and the cabin are'
       + ' constants/sun.ts and what a breach costs is constants/hull-breach.ts. The'
@@ -148,18 +172,6 @@ const OUTSIDE: readonly Group[] = [
       'game/threat.ts': ALL,
       'game/brains.ts': ALL,
       'game/brain-names.ts': ALL,
-    },
-  },
-
-  {
-    why: 'who is out there: spawning, population and the roster a role draws from',
-    files: {
-      'game/spawning.ts': ALL,
-      'game/population.ts': ALL,
-      'game/encounters.ts': ALL,
-      'game/ship-roles.ts': ALL,
-      'game/role-variants.ts': ALL,
-      'game/world.ts': ALL,
     },
   },
 
@@ -402,11 +414,22 @@ check('no file is claimed by two groups of the plan', claimedTwice.length === 0,
 // reached from the trainer. `import type` is not exempted: the point of the rule
 // is that a reader can see the directory has no dependencies, and an erased
 // import still puts one in the file.
+//
+// TWO PATTERNS, because one missed a whole shape. The `from` form covers every
+// import and re-export that binds a name; a SIDE-EFFECT import — `import 'x';`
+// — has no `from` at all and went straight through, which was found by breaking
+// this check in the spawning slice and watching it stay green. It is the most
+// dangerous shape of the two: it brings a module's top-level work into the leaf
+// while leaving nothing in the file for a reader to notice. The bare pattern
+// cannot be widened into the first one without also matching
+// `export const X = 'a string'`.
 {
   const edges: string[] = [];
   for (const { rel, url } of FILES) {
     if (!inHome(rel)) continue;
-    for (const m of code(url).matchAll(/^\s*(?:import|export)\b[^;]*?from\s+'([^']+)'/gm)) {
+    const source = code(url);
+    for (const m of [...source.matchAll(/^\s*(?:import|export)\b[^;]*?from\s+'([^']+)'/gm),
+      ...source.matchAll(/^\s*import\s+'([^']+)'/gm)]) {
       // relative, and not escaping the directory. A bare specifier ('three')
       // fails the first half; '../game/rng.ts' fails the second.
       if (!m[1].startsWith('./') || m[1].includes('..')) edges.push(`${rel} -> ${m[1]}`);

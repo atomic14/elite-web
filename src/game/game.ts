@@ -108,6 +108,11 @@ import {
 import { AIM_ASSIST, LASER_RANGE } from '../constants/player-gun.ts';
 import { hitCone } from './gunnery.ts';
 import { freshTimers } from './encounters.ts';
+import { THARGON_AMBUSH_DELAY } from '../constants/encounters.ts';
+import {
+  THARGOID_AMBUSH_EXTRA_CHANCE, THARGOID_AMBUSH_MIN, THARGOID_AMBUSH_RANGE,
+  THARGOID_AMBUSH_RANGE_SPAN, WITCHSPACE_ENTRY_SPEED,
+} from '../constants/witchspace.ts';
 import { breachLoss } from './systems.ts';
 import {
   SavesScreen, checkpointSummary,
@@ -646,13 +651,14 @@ export class Game {
     this.buildWorld();
     this.state.world.banishScenery();
     this.state.player.position.set(0, 0, 0);
-    this.state.player.speed = 200;
-    const n = 2 + (random() < 0.3 ? 1 : 0);
+    this.state.player.speed = WITCHSPACE_ENTRY_SPEED;
+    const n = THARGOID_AMBUSH_MIN + (random() < THARGOID_AMBUSH_EXTRA_CHANCE ? 1 : 0);
     for (let i = 0; i < n; i++) {
       this.state.world.spawn('thargoid',
-        randomDirection(new THREE.Vector3()).multiplyScalar(3500 + random() * 2500), i);
+        randomDirection(new THREE.Vector3())
+          .multiplyScalar(THARGOID_AMBUSH_RANGE + random() * THARGOID_AMBUSH_RANGE_SPAN), i);
     }
-    this.state.encounterTimers.thargon = 4;
+    this.state.encounterTimers.thargon = THARGON_AMBUSH_DELAY;
     sfx.hyperspace();
     this.tunnel.start(1.1);
     this.showMessage('WITCH-SPACE — THARGOID AMBUSH', 6);

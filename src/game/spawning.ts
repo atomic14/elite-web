@@ -13,6 +13,10 @@
 //
 // Nothing here decides anything. Give it the same plan twice and you get the
 // same sky twice.
+//
+// The distances are constants/spawn-placement.ts for a system's own traffic and
+// constants/opposition-ring.ts for an arena's — two files because they answer
+// different questions and have to be free to move apart.
 
 import * as THREE from 'three';
 import type { World } from './world.ts';
@@ -26,17 +30,17 @@ import { memberTier } from './threat.ts';
 import { slotNormal } from '../world/slot.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
-
-/** Traders loiter this far from the station; police a little closer. */
-const TRADER_SCATTER = 1800;
-const POLICE_SCATTER = 1200;
-const ASTEROID_SCATTER = 5000;
-const HUNTER_SCATTER = 6000;
-const HERMIT_SCATTER = 14_000;
-/** A reception spreads across this much of the witchpoint→station corridor. */
-const CORRIDOR_START = 0.1;
-const CORRIDOR_SPAN = 0.75;
-const PIRATE_SCATTER = 2500;
+import {
+  ASTEROID_SCATTER, CORRIDOR_SPAN, CORRIDOR_START, GENERATION_CARGO_SCATTER,
+  GENERATION_SHIP_RANGE, GENERATION_SHIP_RANGE_SPAN, HERMIT_SCATTER, HUNTER_SCATTER,
+  MISSION_TARGET_RANGE, MISSION_TARGET_RANGE_SPAN, PIRATE_SCATTER, POLICE_SCATTER,
+  STATION_DEFENCE_JITTER, STATION_DEFENCE_MIN, STATION_DEFENCE_SPAN,
+  STATION_DEFENCE_STACK, STATION_DEFENCE_STANDOFF, TRADER_SCATTER,
+} from '../constants/spawn-placement.ts';
+import {
+  OPPOSITION_CONE, OPPOSITION_CONE_NEAR, OPPOSITION_CONE_SPAN, OPPOSITION_RANGE,
+  OPPOSITION_RANGE_MAX, OPPOSITION_RING_NEAR, OPPOSITION_RING_SPAN,
+} from '../constants/opposition-ring.ts';
 
 /** A random offset of up to `range`, biased outward. */
 function scatter(range: number): THREE.Vector3 {
@@ -102,7 +106,8 @@ export function spawnPopulation(
   let generationShip: NpcShip | null = null;
   if (plan.generationShip) {
     const pos = playerPos.clone()
-      .add(randomDirection(new THREE.Vector3()).multiplyScalar(14_000 + random() * 8000));
+      .add(randomDirection(new THREE.Vector3())
+        .multiplyScalar(GENERATION_SHIP_RANGE + random() * GENERATION_SHIP_RANGE_SPAN));
     generationShip = world.spawn('generation', pos, 0);
     // steerQuatToward, not lookAt: Object3D.lookAt aims +Z at its target and a
     // hull's nose is -Z (invariant 7), so `lookAt(home)` pointed the derelict
@@ -112,14 +117,18 @@ export function spawnPopulation(
       _face.copy(home).sub(generationShip.object.position), Math.PI);
     // still shedding cargo after centuries
     world.cargo.spawn(
-      pos.clone().add(randomDirection(new THREE.Vector3()).multiplyScalar(700)),
+      pos.clone().add(randomDirection(new THREE.Vector3())
+        .multiplyScalar(GENERATION_CARGO_SCATTER)),
+      // the count and the ordinary-goods list stay here: the list is one of
+      // three copies of "ordinary goods" and belongs to the career slice
       3 + randomInt(4), [0, 1, 4, 8, 9, 12]);
   }
 
   let missionTarget: NpcShip | null = null;
   if (missionTargetHere) {
     const pos = playerPos.clone()
-      .add(randomDirection(new THREE.Vector3()).multiplyScalar(4000 + random() * 4000));
+      .add(randomDirection(new THREE.Vector3())
+        .multiplyScalar(MISSION_TARGET_RANGE + random() * MISSION_TARGET_RANGE_SPAN));
     missionTarget = world.spawn('pirate', pos, 0, CONSTRICTOR_SPEC);
     missionTarget.state.isMissionTarget = true;
   }
@@ -206,31 +215,15 @@ export interface OppositionPlacement {
   /**
    * Half-angle of that cone, in radians — ignored without a `facing`.
    *
-   * The scatter spreads WITHIN it rather than on it: a ship lands between 0.55
-   * and 1.45 of this off the axis, so the widest one is 1.45 times what was
-   * asked for. A caller that needs every ship inside an arc — a trainer, whose
-   * whole point is that the pilot can see them — sizes it against that product.
+   * The scatter spreads WITHIN it rather than on it: a ship lands between
+   * `OPPOSITION_CONE_NEAR` and `OPPOSITION_CONE_FAR` of this off the axis, so
+   * the widest one is `OPPOSITION_CONE_FAR` times what was asked for. A caller
+   * that needs every ship inside an arc — a trainer, whose whole point is that
+   * the pilot can see them — sizes it against that product.
    * combat-sim-opening.ts owns that argument.
    */
   cone?: number;
 }
-
-/**
- * The ring radius. Far enough to see them coming and close enough to be
- * fighting inside ten seconds: a pirate at 300 and a Cobra at 400 close this
- * in about five, and 9,000 is where an NPC starts caring about you at all
- * (`update()` in npc.ts).
- */
-const OPPOSITION_RANGE = 3200;
-/**
- * A ceiling on it, because the arena's safety margins are what a caller is
- * really trusting: the nearest hazard in any system is 67,500 units away, so
- * a ring inside this cannot put a ship in the planet or the station's box
- * however the numbers are passed in.
- */
-const OPPOSITION_RANGE_MAX = 20_000;
-/** Half-angle of the cone when a facing is known and the caller says no more. */
-const OPPOSITION_CONE = 0.5;
 
 const _axis = new THREE.Vector3();
 const _u = new THREE.Vector3();
@@ -299,11 +292,12 @@ export function spawnOpposition(
     for (let k = 0; k < counts[u]; k++, i++) {
       const seed = roster + i;
       const angle = phase + (i / total) * Math.PI * 2;
-      const off = spread * (0.55 + random() * 0.9);
+      const off = spread * (OPPOSITION_CONE_NEAR + random() * OPPOSITION_CONE_SPAN);
       const dir = _dir.copy(axis).multiplyScalar(Math.cos(off))
         .addScaledVector(_u, Math.cos(angle) * Math.sin(off))
         .addScaledVector(_v, Math.sin(angle) * Math.sin(off));
-      const pos = origin.clone().addScaledVector(dir, range * (0.85 + random() * 0.3));
+      const pos = origin.clone().addScaledVector(dir,
+        range * (OPPOSITION_RING_NEAR + random() * OPPOSITION_RING_SPAN));
 
       const npc = world.spawn(unit.role, pos, seed, oppositionSpec(unit, seed));
       // Pointed at you, not at a random corner of space: the constructor gives
@@ -348,22 +342,26 @@ export function spawnArrivingTrader(world: World, range: number): void {
  * Vipers off the slot, launched because you shot at something you shouldn't.
  *
  * The rule the station enforces, and it was written inline in `game.ts` where
- * it could not be tested: one or two of them, stacked along the slot normal so
- * they do not arrive on top of each other, jittered so a second call does not
- * look like the first, and PROVOKED — launched specifically for you, so unlike
- * ordinary police they are already your business.
+ * it could not be tested: one or two of them, stacked along the slot normal,
+ * jittered so a second call does not look like the first, and PROVOKED —
+ * launched specifically for you, so unlike ordinary police they are already
+ * your business.
+ *
+ * The stack does NOT guarantee they miss each other: the jitter is larger than
+ * the spacing can absorb, and about one pair in a hundred launches with hulls
+ * intersecting. See `STATION_DEFENCE_JITTER`.
  *
  * Returns the ships so the caller can say the line and make the noise.
  */
 export function launchStationDefence(world: World, tmp: THREE.Vector3): NpcShip[] {
   const station = world.station;
   const slotN = slotNormal(station, tmp);
-  const count = 1 + randomInt(2);
+  const count = STATION_DEFENCE_MIN + randomInt(STATION_DEFENCE_SPAN);
   const out: NpcShip[] = [];
   for (let i = 0; i < count; i++) {
     const pos = station.position.clone()
-      .addScaledVector(slotN, 500 + i * 120)
-      .add(randomDirection(new THREE.Vector3()).multiplyScalar(80));
+      .addScaledVector(slotN, STATION_DEFENCE_STANDOFF + i * STATION_DEFENCE_STACK)
+      .add(randomDirection(new THREE.Vector3()).multiplyScalar(STATION_DEFENCE_JITTER));
     const viper = world.spawn('police', pos, i);
     viper.state.provoked = true;
     viper.state.provokedByPlayer = true;

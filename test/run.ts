@@ -32,6 +32,7 @@ import './economy.test.ts';
 import './contracts.test.ts';
 import './trade.test.ts';
 import './world.test.ts';
+import './spawning.test.ts';
 import './world-step.test.ts';
 import './station.test.ts';
 import './game.test.ts';

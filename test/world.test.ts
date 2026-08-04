@@ -1,18 +1,23 @@
 // Populating a system: who is here, who arrives, and docking.
 //
 // Pure rule modules with an injectable rng (population.ts, encounters.ts), so
-// these drive them directly rather than through a Game.
+// these drive them directly rather than through a Game. WHERE any of it ends up
+// is test/spawning.test.ts, which flies the real spawner.
 
 import * as THREE from 'three';
 import { dockingOutcome, ROLL_TOLERANCE } from '../src/game/docking.ts';
-import { stepEncounters } from '../src/game/encounters.ts';
+import { freshTimers, stepEncounters } from '../src/game/encounters.ts';
 import { planPopulation, policeFor } from '../src/game/population.ts';
 import { World } from '../src/game/world.ts';
 import { seedWorld } from '../src/game/rng.ts';
-import { launchStationDefence } from '../src/game/spawning.ts';
-import { isHostileToPlayer, type NpcShip } from '../src/game/npc.ts';
+import { generateGalaxy } from '../src/galaxy/galaxy.ts';
+import { MAX_TRADERS, MIN_TRADERS } from '../src/constants/population.ts';
+import {
+  ANARCHY_GOVERNMENT, LAWLESS_GOVERNMENT, MAX_THARGONS, PRODUCTIVITY_PER_SECOND,
+  THARGON_REDEPLOY, TRADER_GAP_BUSY_MAX, TRADER_GAP_FIRST, TRADER_GAP_FIRST_JITTER,
+} from '../src/constants/encounters.ts';
 import { g1 } from './fixtures.ts';
-import { check } from './harness.ts';
+import { check, eq } from './harness.ts';
 
 // --- how busy a system is ---------------------------------------------------
 
@@ -32,10 +37,17 @@ console.log('\nsystem population');
     const busy = planPopulation(sys(4), 'arrival', 3, null, half);
     check('convoys the living galaxy is sending become visible traders',
       busy.traders === 3);
-    const swamped = planPopulation(sys(4), 'arrival', 99, null, half);
-    check('...capped so a system never drowns in them', swamped.traders === 4);
-    const quiet = planPopulation(sys(4), 'arrival', 0, null, half);
-    check('...and there is always at least one', quiet.traders >= 1);
+    // The cap is BISECTED out of the real function rather than written down: a
+    // probe at the constant moves with the constant and would pass on a
+    // re-inlined literal. This is the pair docs/TODO/90 is named after —
+    // population.ts and encounters.ts each held their own `MAX_TRADERS = 4`.
+    const planned = (due: number) => planPopulation(sys(4), 'arrival', due, null, half).traders;
+    let cap = 0;
+    for (let due = 1; due <= 64; due++) cap = Math.max(cap, planned(due));
+    eq('...capped so a system never drowns in them, at MAX_TRADERS itself',
+      cap, MAX_TRADERS);
+    eq('...and floored at MIN_TRADERS when the galaxy is sending nobody',
+      planned(0), MIN_TRADERS);
   }
   {
     const threat = { count: 3 } as unknown as Parameters<typeof planPopulation>[3];
@@ -71,22 +83,36 @@ console.log('\nencounters');
 
   check('traders arrive to keep the lanes alive',
     until({ trader: 1, pirateWave: 1e9, thargon: 1e9 }, conds(), 'trader') !== null);
-  check('...but not once the system is already busy',
-    until({ trader: 1, pirateWave: 1e9, thargon: 1e9 }, conds({ traderCount: 4 }), 'trader', 400) === null);
   check('nothing arrives in witch-space',
     until({ trader: 1, pirateWave: 1, thargon: 1e9 }, conds({ witchspace: true }), 'trader', 400) === null);
 
   {
-    const anarchy = until({ trader: 1e9, pirateWave: 1, thargon: 1e9 },
-      conds({ government: 0 }), 'pirateWave');
-    check('anarchies send pirates two at a time',
-      anarchy !== null && (anarchy as { count: number }).count === 2);
-    const rough = until({ trader: 1e9, pirateWave: 1, thargon: 1e9 },
-      conds({ government: 3 }), 'pirateWave');
-    check('a merely lawless system sends one',
-      rough !== null && (rough as { count: number }).count === 1);
-    check('a corporate state sends none',
-      until({ trader: 1e9, pirateWave: 1, thargon: 1e9 }, conds({ government: 7 }), 'pirateWave', 600) === null);
+    // ...and the number it stops at is the SAME MAX_TRADERS the arrival plan
+    // caps on. Bisected, so re-inlining a literal in either half goes red —
+    // which is the whole of docs/TODO/90's founding bug.
+    let busiest = 0;
+    while (busiest < 64 && until({ trader: 1, pirateWave: 1e9, thargon: 1e9 },
+      conds({ traderCount: busiest }), 'trader', 400) !== null) busiest++;
+    eq('...but not once the system already holds MAX_TRADERS of them',
+      busiest, MAX_TRADERS);
+  }
+
+  {
+    const waveAt = (government: number) => until({ trader: 1e9, pirateWave: 1, thargon: 1e9 },
+      conds({ government }), 'pirateWave', 600) as { count: number } | null;
+    check('anarchies send pirates two at a time', waveAt(0)?.count === 2);
+    check('a merely lawless system sends one', waveAt(LAWLESS_GOVERNMENT)?.count === 1);
+    // Both government lines bisected out of the real rule. Probing at the
+    // constant would move with it; walking up the ladder finds where the
+    // behaviour actually changes and compares THAT to the constant.
+    let quiet = 0;
+    while (quiet <= 7 && waveAt(quiet) !== null) quiet++;
+    eq('a corporate state sends none — waves stop above LAWLESS_GOVERNMENT',
+      quiet - 1, LAWLESS_GOVERNMENT);
+    let pairs = 0;
+    while (pairs <= 7 && waveAt(pairs)?.count === 2) pairs++;
+    eq('...and stop coming in pairs above ANARCHY_GOVERNMENT',
+      pairs - 1, ANARCHY_GOVERNMENT);
     check('and nobody ambushes you on the station doorstep',
       until({ trader: 1e9, pirateWave: 1, thargon: 1e9 },
         conds({ government: 0, playerFarFromStation: false }), 'pirateWave', 600) === null);
@@ -94,11 +120,29 @@ console.log('\nencounters');
   {
     check('a mothership deploys drones',
       until({ trader: 1e9, pirateWave: 1e9, thargon: 1 }, conds({ hasThargoidMother: true }), 'thargon') !== null);
-    check('...up to a limit',
-      until({ trader: 1e9, pirateWave: 1e9, thargon: 1 },
-        conds({ hasThargoidMother: true, activeThargons: 4 }), 'thargon', 200) === null);
+    let flying = 0;
+    while (flying < 32 && until({ trader: 1e9, pirateWave: 1e9, thargon: 1 },
+      conds({ hasThargoidMother: true, activeThargons: flying }), 'thargon', 200) !== null) flying++;
+    eq('...up to MAX_THARGONS of them at once', flying, MAX_THARGONS);
     check('...and not at all without one',
       until({ trader: 1e9, pirateWave: 1e9, thargon: 1 }, conds(), 'thargon', 200) === null);
+
+    // How long between one drone and the next, timed through the real rule
+    // rather than read off the timer it sets. The tolerance is the tick and
+    // nothing else.
+    const t = { trader: 1e9, pirateWave: 1e9, thargon: 0.05 };
+    const c = conds({ hasThargoidMother: true });
+    let seen = 0, elapsed = 0, gap = -1;
+    for (let i = 0; i < 10_000 && gap < 0; i++) {
+      elapsed += 0.1;
+      if (stepEncounters(t, 0.1, c, () => 0.5).some((o) => o.kind === 'thargon')) {
+        if (seen === 0) { seen = 1; elapsed = 0; } else gap = elapsed;
+      }
+    }
+    check(`...replacing one every THARGON_REDEPLOY seconds (measured ${gap.toFixed(1)})`,
+      Math.abs(gap - THARGON_REDEPLOY) <= 0.1);
+    eq('...and the wait for the FIRST one is the same number, not a second copy of it',
+      freshTimers(() => 0.5).thargon, THARGON_REDEPLOY);
   }
   {
     // a productive system discounts the gap between arrivals
@@ -107,6 +151,27 @@ console.log('\nencounters');
     const quiet = { trader: 0, pirateWave: 1e9, thargon: 1e9 };
     stepEncounters(quiet, 0.1, conds({ productivity: 0 }), () => 0);
     check('busy economies run busier lanes', busy.trader < quiet.trader);
+
+    // TRADER_GAP_BUSY_MAX's doc says no system in the game reaches the cap —
+    // it is a guard against a re-scaled productivity rather than a live rung.
+    // That is a claim about the whole galaxy, so it is asked of the whole galaxy.
+    let richest = 0;
+    for (let g = 1; g <= 8; g++) {
+      for (const s of generateGalaxy(g)) richest = Math.max(richest, s.productivity);
+    }
+    const bought = richest / PRODUCTIVITY_PER_SECOND;
+    check(`...and none of the 2048 systems reaches the discount cap `
+      + `(richest buys ${bought.toFixed(1)}s of a possible ${TRADER_GAP_BUSY_MAX})`,
+    bought < TRADER_GAP_BUSY_MAX);
+  }
+  {
+    // The first trader is the one wait a player actually experiences on
+    // arrival, and it is a base plus a flat jitter — both ends, so neither can
+    // drift into the other.
+    eq('the first trader can arrive as early as TRADER_GAP_FIRST',
+      freshTimers(() => 0).trader, TRADER_GAP_FIRST);
+    eq('...and as late as that plus the whole jitter',
+      freshTimers(() => 1).trader, TRADER_GAP_FIRST + TRADER_GAP_FIRST_JITTER);
   }
 }
 
@@ -155,31 +220,6 @@ console.log('\ndocking');
     check('...and the tolerance is unchanged either side of the quarter turn',
       at(0, 0, -(DOCK_Z - 20), rolledFrom(-(ROLL_TOLERANCE - 0.05))) === 'docked'
       && at(0, 0, -(DOCK_Z - 20), rolledFrom(-(ROLL_TOLERANCE + 0.05))) === 'slotMiss');
-  }
-}
-
-console.log('\nstation defence');
-{
-// The station's own Vipers are launched AT you, so they must read hostile.
-  //
-  // This used to be a regex over game.ts looking for `provokedByPlayer = true`,
-  // because the rule was written inline in a file that needs a canvas to build.
-  // It is `launchStationDefence` in spawning.ts now, so the check can fly it:
-  // the regex would have passed on a line that never ran.
-  {
-    seedWorld(5_150_515);
-    const world = new World();
-    world.build(g1[7]);
-    const before = world.npcs.length;
-    const vipers = launchStationDefence(world, new THREE.Vector3());
-    check(`the station launches one or two Vipers (${vipers.length})`,
-      vipers.length >= 1 && vipers.length <= 2);
-    check('...which are actually in the sky', world.npcs.length === before + vipers.length);
-    check('...all of them police', vipers.every((v: NpcShip) => v.role === 'police'));
-    check('station defence vipers still come for you',
-      vipers.every((v: NpcShip) => isHostileToPlayer(v, 0)));
-    check('...and they are stacked down the slot, not spawned on each other',
-      new Set(vipers.map((v: NpcShip) => v.object.position.toArray().join())).size === vipers.length);
   }
 }
 

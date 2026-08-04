@@ -678,12 +678,110 @@ One deliberate change that is NOT byte-identical, and it is prose: the briefing'
 the page now reads "8 times speed". The manual's caption interpolates to the
 same bytes it had.
 
-**Still to do**, in the groups the gate's list already names: spawning and
-population, the career, the galaxy, the station, the
-console, the combat trainer, saves, and the policy seam. Plus two things no slice
-has touched: `MAX_TRADERS` still has two homes, and CLAUDE.md does not yet carry
-the read-it-do-not-grep-it instruction below — the gate catches a second home
-mechanically, but the instruction is what stops one being written.
+**Slice 6 — who is out there, and where the sky puts them — landed.** Five new
+files, and the count went from 115 home / 341 out across 87 files to **175 home /
+317 out across 83**. A WHOLE GROUP CLOSED: `game/spawning.ts`,
+`game/population.ts`, `game/encounters.ts` and `game/world.ts` declare no
+constants at all now and came off the gate's list; the two files left in that
+group are named STAYS entries with their reasons.
+
+| moved | file |
+| --- | --- |
+| how busy a system is when you arrive — the counts and the chances | `constants/population.ts` |
+| what turns up while you fly, and how long you wait for it | `constants/encounters.ts` |
+| where the sky puts a ship when it appears | `constants/spawn-placement.ts` |
+| where an authored exercise starts its opposition | `constants/opposition-ring.ts` |
+| mis-jump limbo: where the scenery goes, and what is waiting | `constants/witchspace.ts` |
+
+**`MAX_TRADERS` HAS ONE HOME.** The constant this item is named after was `= 4`
+in `game/population.ts` and `= 4` in `game/encounters.ts`, one capping the
+arrival plan and the other the drip of later arrivals, agreeing by luck. It is
+`constants/population.ts`'s — a property of what a system HOLDS rather than of
+the clock that adds to it, which is the survey's answer — and both halves import
+it. The gate's `MAX_TRADERS` check would now fail a third home; the new test in
+`test/world.test.ts` fails a re-inlined literal in either of the two, bisected
+out of `planPopulation` and `stepEncounters` separately and both confirmed red.
+
+**Thirty-six inline literals got names**, which is why the home grew by 60 while
+the outstanding count only fell by 24: the gate reads column-zero declarations
+and every one of these was a number in the middle of a function. The three
+clocks in `encounters.ts` (the trader lane, the pirate wave, the Thargon
+redeploy), the whole of the witch-space ambush in `game.ts`, the pirate wave's
+warp-in and the drone's deploy offset in `world-step.ts`, and the station's
+Viper stack in `spawning.ts`.
+
+**Two of those were one rule written twice inside one file.** `freshTimers` set
+the first pirate wave to 60 and the reset computed `60 + government * 40`; it
+set the first Thargon wait to 5 and the redeploy set 5. Both pairs are one
+constant now, and the tests break if either half is re-inlined.
+
+**The thargon timer is 5 in `encounters.ts` and 4 in `game.ts`, and that is
+recorded rather than resolved.** The survey found it; this slice named both
+(`THARGON_REDEPLOY`, `THARGON_AMBUSH_DELAY`), put them next to each other with
+the two readings written out, and left the value alone. Choosing costs a second
+of the opening of every mis-jump, so it is Chris's decision and it is on the
+cleanup list's Open section.
+
+**A gate this whole item depends on had a hole, found by breaking it.** The
+leaf check scanned for `from '...'`, so a SIDE-EFFECT import — `import 'x';` —
+went straight through: adding one to `constants/jump.ts` left the check green.
+That is the most dangerous shape of the two, because it pulls a module's
+top-level work into the leaf while leaving no binding in the file for a reader
+to notice. It matches both patterns now, and an internal `import './planet.ts'`
+still passes.
+
+**`spawnPopulation` had no test at all** — every distance was a literal in one
+file, so a transposed pair would have moved traders into the slot with nothing
+going red. `test/spawning.test.ts` is new: it flies the real spawner over 40
+seeded worlds and holds each role's measured band against the constant it was
+spawned from, the reception against the corridor as a FRACTION of the route, and
+the station's Viper stack against all five of its numbers. Swapping
+`TRADER_SCATTER` for `POLICE_SCATTER` fails two checks. (That transposition
+happened for real mid-slice, when a restore replaced the wrong occurrence — the
+recipe's trap 1 in a new costume — and the new test is what caught it.)
+
+**Two measured findings that were nobody's intent.** `TRADER_GAP_BUSY_MAX = 50`
+is unreachable: over all 2,048 systems of the eight galaxies, productivity runs
+768 to 56,320, so the richest system buys 46.9 seconds of a possible 50. It is a
+guard against a re-scaled productivity rather than a live rung, it says so
+beside itself, and a test asks the whole galaxy. And the station's Viper stack
+does not do what its comment claimed: the jitter is 80 in an independent
+direction against a spacing of 120, so a pair can land anywhere from 0 to 280
+apart — 1.16% of pairs intersect in a million-pair simulation, and the closest of
+400 real seeded launches was 27 units against a hull radius of 18.75. Naming it
+was free; changing it moves every station-launched Viper in the game, so it is
+on the cleanup list.
+
+**`ship-roles.ts` and `role-variants.ts` keep everything, and the gate now says
+why per name.** `BAND_SLOTS` is the released sets' own slot numbering and is
+deliberately PRIVATE — the file argues that nothing outside it should hold a
+copy of "17 to 24 means pirate" — while `ROLE_BANDS`, `CANDIDATES`,
+`MISSION_TARGET_DESIGNS` and `COMBAT_ROLES` are all keyed on `NpcRole`, a type
+this directory may not import, and two of them are catalogue lookups computed
+once at load rather than rules.
+
+Byte-identical, verified against a worktree at HEAD: **1,697 compared, 0
+changed** — every name in `src/constants/` then against now, the twelve declared
+constants that moved, all thirty-six newly-named inline literals read out of
+HEAD's SOURCE, `planPopulation` and `policeFor` over every government at nine
+convoy counts and eight rng phases, an hour of `stepEncounters` at ten seconds a
+tick in every government at three productivities with and without a mothership,
+and the real spawner over 24 seeded worlds — the whole sky as text, plus the
+arena ring with and without a facing, the station's Vipers, an arriving trader
+and the banished scenery. Nine constants were broken in turn and reported 25,
+122, 50, 25, 514, 15, 65, 1 and 577 changes before being restored.
+
+**The witch-space ambush's four constants are the one weak spot in that proof.**
+They are only reachable through `Game`, which needs a browser, so the harness
+compares them against HEAD's source text and nothing else — which is why
+breaking `THARGOID_AMBUSH_RANGE` moved 1 comparison rather than hundreds. No
+unit test covers them either.
+
+**Still to do**, in the groups the gate's list already names: what is left of
+the fight, the career, the galaxy, the station, the console, the combat trainer,
+saves, and the policy seam. Plus one thing no slice has touched: CLAUDE.md does
+not yet carry the read-it-do-not-grep-it instruction below — the gate catches a
+second home mechanically, but the instruction is what stops one being written.
 
 ## What to work out
 

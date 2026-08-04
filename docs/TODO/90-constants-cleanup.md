@@ -101,6 +101,23 @@ steers the autopilot at `1.2 * dt` and closes the throttle gap at
 clock's, and the rest of that subject is `docking.ts`, `station.ts` and
 `autopilot.ts`.
 
+**The station's Viper stack went to the SPAWNING slice, not the station's.**
+`STATION_DEFENCE_MIN`, `_SPAN`, `_STANDOFF`, `_STACK` and `_JITTER` are in
+`constants/spawn-placement.ts`, because `launchStationDefence` in `spawning.ts`
+is the one function that spends all five and they are one rule — a short stack
+along the slot normal. WHETHER the Vipers launch is `law.ts`'s `DEFENCE_RANGE`
+and stays with the career slice. Splitting one small rule across two slices to
+satisfy a file's title would have been the worse trade.
+
+**`ship-roles.ts` and `role-variants.ts` keep everything, and it is decided.**
+`BAND_SLOTS` is the released sets' own blueprint-slot numbering — DATA, and
+deliberately PRIVATE, because the file's header argues that nothing outside it
+should hold a copy of "17 to 24 means pirate". `ROLE_BANDS`, `CANDIDATES`,
+`MISSION_TARGET_DESIGNS` and `COMBAT_ROLES` are all keyed on `NpcRole`, a type
+declared in `ship-roles.ts` that the home may not import, and two of them are
+catalogue lookups computed once at load — the same shape as `MISSILE_HULL`. Each
+is a named entry on the gate's list with the reason.
+
 ### LEGACY AND MIGRATION WERE DELETED. Do not reinstate them.
 
 Chris, 2026-08-04: *"We don't have any data to migrate yet — anything legacy can
@@ -340,15 +357,48 @@ That is the shape to copy for the other five: bringing both anchors into
 re-derives the product is what stops the next one rotting. **Expect at least one
 of the remaining five to be wrong already.**
 
-### `MAX_TRADERS` still has two homes
+**A seventh that was not on the survey's list, found and fixed by slice 6.**
+`test/combat-sim-opening.test.ts` held `NEAR`, `FAR`, `CONE_MIN` and `CONE_MAX`
+— the spawner's own scatter bands, transcribed out of the function the file
+exists to check — so a change to the scatter would have left every bound in that
+file asserting the old band and passing. They are
+`constants/opposition-ring.ts`'s now, and `OPPOSITION_RING_FAR` and
+`OPPOSITION_CONE_FAR` are DERIVED from their near-and-span pairs rather than
+written out, because `0.55 + 0.9` is 1.4500000000000002 in binary floating point
+and the rounded figure would have been off by the wrong sign. `test/arena.test.ts`
+had a round `Math.cos(1.0)` where it meant the cone the spawner promises, and
+reads `OPPOSITION_CONE * OPPOSITION_CONE_FAR` now.
 
-`game/encounters.ts:43` and `game/population.ts:41`, both `= 4`. This is the
-fuse the whole item was named after and it is still lit. The survey settled the
-answer: **population owns it** — it is a property of what a system holds, not of
-the clock that adds to it. Waiting on the spawning-and-population slice.
+### The thargon timer is 5 in one file and 4 in another
 
-The gate would now catch a *third* home mechanically, but not these two: they
-are both on the allowlist as pending work.
+`constants/encounters.ts`'s `THARGON_REDEPLOY` is 5 and `THARGON_AMBUSH_DELAY`
+is 4, and the second exists only because `game.ts`'s `enterWitchspace` sets the
+same field to 4 while `encounters.ts` sets it to 5 everywhere else. The survey
+found the pair; slice 6 named both and put them adjacent with the argument
+written out, and deliberately did not choose.
+
+Two readings survive. Either a mis-jump ambush is meant to open harder than an
+ordinary Thargoid encounter — in which case the two constants stay and the
+difference gets a sentence saying so — or somebody wrote 4 where they meant 5,
+in which case `THARGON_AMBUSH_DELAY` is deleted and `game.ts` reads the
+redeploy. **It costs a second of the opening of every mis-jump either way**, so
+it is a decision rather than a refactor.
+
+### The station's Vipers can launch inside each other
+
+`spawnPlacement`'s stack is 120 units along the slot normal with an 80-unit
+jitter in an INDEPENDENT direction per ship, so a pair separated by 120 can end
+up anywhere from 0 to 280 apart. Measured: 1.16% of pairs intersect in a
+million-pair simulation, and the closest of 400 real seeded launches through
+`launchStationDefence` was 27 units against a Viper's 18.75 contact radius.
+`spawning.ts`'s docstring claimed they were "stacked so they do not arrive on
+top of each other"; the prose is corrected and `test/spawning.test.ts` says what
+is actually true.
+
+Fixing it — a smaller jitter, a bigger stack, or a jitter taken perpendicular to
+the normal — moves where every station-launched Viper in the game appears. It has
+presumably never been noticed because both ships are moving within a frame of
+launching, so this is a "is it worth changing" question rather than a bug report.
 
 ### CLAUDE.md does not yet carry the instruction
 
@@ -371,11 +421,26 @@ and every one of these is a literal in the middle of a function.
 | --- | --- | --- |
 | `npcTargetTimer = 2` — how often the sky re-decides who is hunting whom | `world-step.ts` | the rest of the fight; `npc-targeting.ts` owns the rule and has no constants file yet |
 | `stationDockZ + 40` — the NPC bounding cube | `world-step.ts` | the station. **This is the survey's live divergence**: `docking.ts`'s `HULL_BOX_MARGIN` is 50 for the player, measured, and 40 lets an NPC through a Dodo's hull. Naming it is free; fixing it is a behaviour change |
-| `9000 + random() * 4000` — where an arrival pirate wave warps in | `world-step.ts` | spawning. The survey thinks the 9,000 is `PLAYER_INTEREST_RANGE`, which is already home, but "almost certainly" is not an argument for asserting it |
-| `multiplyScalar(150)` — how far a thargon appears from its mother | `world-step.ts` | spawning |
 | the hermit's 900 / 320 / speed 40, and the generation ship's 6,000 | `world-step.ts` | encounters. **And the hermit's message says "SLOW TO 20" while the gate is `speed < 40`** — either the line is stale or the tolerance is deliberate, and nothing says which |
 | `strandedHintTimer = 8` | `world-step.ts` | the survey's "2 the first time and 8 thereafter" pair with `state.ts:142`, which is the saves slice's file |
 | `energyLowTimer = 1.2` and every message duration | `world-step.ts` | nobody: these are how long a line stays on the console, and the console's own slice can decide whether they are rules |
+
+**Slice 6 took two of these.** The pirate wave's `9000 + random() * 4000` is
+`PIRATE_WAVE_RANGE`/`_SPAN` and the drone's `multiplyScalar(150)` is
+`THARGON_DEPLOY_RANGE`, both in `constants/spawn-placement.ts`. The 9,000 stayed
+a LITERAL rather than becoming `PLAYER_INTEREST_RANGE`, for the reason recorded
+above: "almost certainly the same rule" is not an argument for making two
+numbers impossible to separate, and the argument is written beside the constant.
+
+### What slice 6 left inline, and for whom
+
+| left inline | where | whose |
+| --- | --- | --- |
+| `[0, 1, 4, 8, 9, 12]` — what a generation ship sheds, and `3 + randomInt(4)` of it | `spawning.ts` | the career. The survey's "ordinary goods" list has three homes — this one, `contracts.ts:56`, and `combat.ts:41` with Furs added — and the slice that owns the commodity table should unify them |
+| `rng() < 0.5 ? 2 : 1` — traders when the living galaxy has no convoy due | `population.ts` | nobody: the tie-break inside one expression whose real rule is `MIN_TRADERS`/`MAX_TRADERS` |
+| `policeFor`'s `>= 2` and `>= 1` | `population.ts` | nobody: the two branches of a two-line ladder. Note that its line between government 0 and 1 is a STEP APART from `ANARCHY_GOVERNMENT`'s, deliberately — a feudal system has exactly one patrol and pairs of pirates, which is what makes it the most dangerous place that still has a police force |
+| `scatter(1)` in the hermit's placement | `spawning.ts` | nobody, and it is **a no-op that costs an rng draw**: `scatter(HERMIT_SCATTER).addScaledVector(scatter(1), 2)` adds a vector of magnitude 1 to 3 units to one of 7,000 to 21,000. Deleting it would change every seeded sky after it, so it is not a tidy-up |
+| `d < 7000` — how far an NPC chases another NPC before losing interest | `npc.ts:680` | the rest of the fight. It is one rung above every constant in `hunt-ranges.ts` (6,000/6,500/6,000) and the same number as `AMBUSH_STANDOFF`, which is a different rule. Nothing names it and nothing tests it |
 
 ### The README is a prose home for the torus multiplier
 
@@ -393,9 +458,15 @@ but the constant itself waits for the console slice — and when it lands, the
 relationship wants a check rather than a sentence, in the shape
 `test/combat-model.test.ts` uses for the rate ramps.
 
-### The scan cannot see four things
+### The scan cannot see four things — and had a fifth hole, now closed
 
-Recorded so nobody assumes the gate is total:
+Recorded so nobody assumes the gate is total. **The leaf check missed
+side-effect imports.** It scanned for `from '...'`, so `import '../game/rng.ts';`
+— no binding, no `from` — went straight through, and slice 6 found it by adding
+one to `constants/jump.ts` and watching the check stay green. That is the more
+dangerous of the two shapes, because it pulls a module's top-level work into the
+leaf while leaving nothing in the file for a reader to notice. It matches both
+patterns now, and both were confirmed red. The remaining four:
 
 - **Function-local constants.** The scan is column-zero only, by the item's own
   rule that a value whose meaning is local to one function is not in scope.
@@ -433,6 +504,12 @@ clean: neither harness names a pool constant, a sun distance, a recharge rate or
 any of the deleted legacy names. They reach `poolsLeft` and `energyLeft` through
 the kit, and both of those are still exported from `game/systems.ts`.
 
+Slice 6 did it for all thirty-eight names it moved or created plus the eight
+functions whose exports changed shape, and both files were clean of every one.
+Neither harness names a scatter, a population chance, an encounter clock or any
+spawner function; `spawning.ts`, `population.ts`, `encounters.ts` and `world.ts`
+are not reached from either of them at all.
+
 Slice 5 did it for all twenty-two names it moved, renamed or created, and both
 files were clean of every one of them. The only things either harness takes from
 a file this slice touched are `distanceTenths` (still exported from
@@ -444,7 +521,7 @@ still resolve. **`test/playtest.js` did hold a sixth home for the escape cost**
 
 ### `src/constants/` is not in docs/ARCHITECTURE.md
 
-Four slices in, the directory holds 98 names in 20 files and the architecture
+Six slices in, the directory holds 175 names in 30 files and the architecture
 doc's tree does not mention it. Nobody has added it because it is half-built and
 its shape still moves each slice. **The last slice should add it**, and the entry
 that goes there is one line per file, which is the same sentence each file's

@@ -7,10 +7,20 @@
 //
 // So this returns a PLAN and the Game builds it, which is the same split used
 // by encounters.ts for the arrivals that happen while you fly.
+//
+// The counts and chances themselves are constants/population.ts. What stayed
+// here is `policeFor`, whose two thresholds are the branches of the ladder
+// rather than values anything outside this file can act on, and the coin
+// between one trader and two when the living galaxy has no convoy due — the
+// tie-break inside an expression whose real rule is MIN_TRADERS/MAX_TRADERS.
 
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { random } from './rng.ts';
 import type { PirateThreat } from './threat.ts';
+import {
+  ASTEROIDS_MIN, ASTEROIDS_VARIATION, GENERATION_SHIP_CHANCE, HERMIT_CHANCE,
+  HUNTER_CHANCE_ARRIVAL, HUNTER_CHANCE_LAUNCH, MAX_TRADERS, MIN_TRADERS,
+} from '../constants/population.ts';
 
 export interface PopulationPlan {
   traders: number;
@@ -27,18 +37,6 @@ export interface PopulationPlan {
   /** null when launching, since nobody organised for you */
   threat: PirateThreat | null;
 }
-
-/** A bounty hunter is likelier to be about when you arrive than when you leave. */
-export const HUNTER_CHANCE_ARRIVAL = 0.35;
-export const HUNTER_CHANCE_LAUNCH = 0.2;
-/** A rock hermit hides out among the asteroids (homage to Oolite). */
-export const HERMIT_CHANCE = 0.3;
-/** Very rarely, a generation ship crosses the system. */
-export const GENERATION_SHIP_CHANCE = 0.08;
-
-/** Never fewer than one trader, never more than four. */
-export const MIN_TRADERS = 1;
-export const MAX_TRADERS = 4;
 
 /**
  * Police presence by government. Anarchies (0) have none at all, which is what
@@ -68,7 +66,7 @@ export function planPopulation(
     traders: Math.max(MIN_TRADERS,
       Math.min(MAX_TRADERS, arrivalCount || (rng() < 0.5 ? 2 : 1))),
     police: policeFor(sys.government),
-    asteroids: 2 + Math.floor(rng() * 3),
+    asteroids: ASTEROIDS_MIN + Math.floor(rng() * ASTEROIDS_VARIATION),
     pirates: situation === 'arrival' && threat ? threat.count : 0,
     threat: situation === 'arrival' ? threat : null,
     // These three were rolled inline in game.ts, outside the plan — so the

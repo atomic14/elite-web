@@ -23,11 +23,7 @@ import { CargoField } from './cargo.ts';
 import { Effects } from './effects.ts';
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { serialiseState, restoreState, type NpcSnapshot } from './snapshot.ts';
-
-/** How far out a fresh trader warps in. */
-export const TRADER_ARRIVAL_RANGE = 22_000;
-/** Witch-space banishes the scenery to here, out of reach of every check. */
-const BANISHED = 1e8;
+import { BANISHED } from '../constants/witchspace.ts';
 
 export class World {
   /** the three.js root everything is added to */

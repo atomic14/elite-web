@@ -34,6 +34,9 @@ import { SCENARIOS, type ExerciseSpec, type ScenarioId } from '../src/game/comba
 import { LASER_RANGE } from '../src/constants/player-gun.ts';
 import { NPC_LASER_RANGE } from '../src/constants/npc-gun.ts';
 import { PLAYER_INTEREST_RANGE } from '../src/constants/player-interest.ts';
+import {
+  OPPOSITION_CONE_FAR, OPPOSITION_CONE_NEAR, OPPOSITION_RING_FAR, OPPOSITION_RING_NEAR,
+} from '../src/constants/opposition-ring.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { readFileSync } from 'node:fs';
 import { check, eq } from './harness.ts';
@@ -41,12 +44,13 @@ import { check, eq } from './harness.ts';
 const read = (path: string): string =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-/** The spawner scatters a ring by this much: `range * (0.85 + random() * 0.3)`. */
-const NEAR = 0.85;
-const FAR = 1.15;
-/** …and a ship lands between these fractions of the cone off the axis. */
-const CONE_MIN = 0.55;
-const CONE_MAX = 1.45;
+// The spawner's own scatter bands, read from the home rather than transcribed.
+// These were four literals copied out of `spawnOpposition` — so a change to the
+// scatter would have left every bound below checking the old band, and passing.
+const NEAR = OPPOSITION_RING_NEAR;
+const FAR = OPPOSITION_RING_FAR;
+const CONE_MIN = OPPOSITION_CONE_NEAR;
+const CONE_MAX = OPPOSITION_CONE_FAR;
 
 const deg = (rad: number): number => (rad * 180) / Math.PI;
 

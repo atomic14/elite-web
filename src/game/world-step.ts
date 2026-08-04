@@ -39,9 +39,13 @@ import { cargoCapacity, cargoTonnes, MAX_FUEL } from './commander.ts';
 import { carryingContraband, SCAN_RANGE } from './law.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
-import { stepEncounters, AMBUSH_STANDOFF } from './encounters.ts';
+import { stepEncounters } from './encounters.ts';
 import { spawnArrivingTrader } from './spawning.ts';
-import { TRADER_ARRIVAL_RANGE } from './world.ts';
+import { AMBUSH_STANDOFF } from '../constants/encounters.ts';
+import {
+  PIRATE_WAVE_RANGE, PIRATE_WAVE_RANGE_SPAN, THARGON_DEPLOY_RANGE,
+  TRADER_ARRIVAL_RANGE,
+} from '../constants/spawn-placement.ts';
 import { planDocking, dockingOutcome } from './docking.ts';
 import { regenerate, updateCabinTemp, scoopFuel, energyLow } from './systems.ts';
 import { SUN_KILL_DIST } from '../constants/sun.ts';
@@ -418,7 +422,7 @@ export class WorldStep {
         for (let i = 0; i < order.count; i++) {
           world.spawn('pirate',
             player.position.clone().add(randomDirection(new THREE.Vector3())
-              .multiplyScalar(9000 + random() * 4000)),
+              .multiplyScalar(PIRATE_WAVE_RANGE + random() * PIRATE_WAVE_RANGE_SPAN)),
             i + randomInt(4));
         }
         out.push(say('PIRATE SIGNATURES DETECTED', 4));
@@ -426,7 +430,7 @@ export class WorldStep {
         const mother = world.npcs.find((n) => n.state.alive && n.role === 'thargoid')!;
         world.spawn('thargon',
           mother.object.position.clone().add(
-            randomDirection(new THREE.Vector3()).multiplyScalar(150)),
+            randomDirection(new THREE.Vector3()).multiplyScalar(THARGON_DEPLOY_RANGE)),
           randomInt(8));
       }
     }

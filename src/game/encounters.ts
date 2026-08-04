@@ -9,8 +9,19 @@
 // appear and what it should be, the Game makes it exist. Nothing here can
 // reach the scene, so the rules are testable — and these particular rules had
 // none, despite deciding how dangerous every system in the galaxy feels.
+//
+// The clocks and the thresholds are constants/encounters.ts; the cap on traders
+// is constants/population.ts, because it is a property of what a system holds
+// rather than of the clock that adds to it.
 
 import { random } from './rng.ts';
+import { MAX_TRADERS } from '../constants/population.ts';
+import {
+  ANARCHY_GOVERNMENT, LAWLESS_GOVERNMENT, MAX_THARGONS, PIRATE_WAVE_GAP,
+  PIRATE_WAVE_GAP_JITTER, PIRATE_WAVE_GAP_PER_GOVERNMENT, PRODUCTIVITY_PER_SECOND,
+  THARGON_REDEPLOY, TRADER_GAP, TRADER_GAP_BUSY_MAX, TRADER_GAP_FIRST,
+  TRADER_GAP_FIRST_JITTER, TRADER_GAP_JITTER,
+} from '../constants/encounters.ts';
 
 /** Countdowns, owned by the caller so they survive across frames. */
 export interface EncounterTimers {
@@ -39,17 +50,12 @@ export type SpawnOrder =
   | { kind: 'pirateWave'; count: number }
   | { kind: 'thargon' };
 
-/** Traders already in the system, above which no more arrive. */
-export const MAX_TRADERS = 4;
-export const MAX_THARGONS = 4;
-/** Governments at or below this breed pirate waves; anarchies (0-1) send two. */
-export const LAWLESS_GOVERNMENT = 3;
-export const ANARCHY_GOVERNMENT = 1;
-/** A commander closer than this to the station is not worth ambushing. */
-export const AMBUSH_STANDOFF = 7000;
-
 export function freshTimers(rng: () => number = random): EncounterTimers {
-  return { trader: 20 + rng() * 40, pirateWave: 60, thargon: 5 };
+  return {
+    trader: TRADER_GAP_FIRST + rng() * TRADER_GAP_FIRST_JITTER,
+    pirateWave: PIRATE_WAVE_GAP,
+    thargon: THARGON_REDEPLOY,
+  };
 }
 
 /**
@@ -68,17 +74,18 @@ export function stepEncounters(
   if (!c.witchspace) {
     timers.trader -= dt;
     if (timers.trader <= 0) {
-      // a productive system discounts up to 50s off the gap between arrivals
-      const busyness = Math.min(50, c.productivity / 1200);
-      timers.trader = 100 - busyness + rng() * 60;
+      // a productive system discounts off the gap between arrivals
+      const busyness = Math.min(TRADER_GAP_BUSY_MAX, c.productivity / PRODUCTIVITY_PER_SECOND);
+      timers.trader = TRADER_GAP - busyness + rng() * TRADER_GAP_JITTER;
       if (c.traderCount < MAX_TRADERS) orders.push({ kind: 'trader' });
     }
 
     // piracy pressure scales with lawlessness: anarchies breed pirate waves,
-    // and the gap between them grows by 40s for every step up the ladder
+    // and the gap between them grows for every step up the ladder
     timers.pirateWave -= dt;
     if (timers.pirateWave <= 0) {
-      timers.pirateWave = 60 + c.government * 40 + rng() * 90;
+      timers.pirateWave = PIRATE_WAVE_GAP + c.government * PIRATE_WAVE_GAP_PER_GOVERNMENT
+        + rng() * PIRATE_WAVE_GAP_JITTER;
       if (c.government <= LAWLESS_GOVERNMENT && c.playerFarFromStation) {
         orders.push({ kind: 'pirateWave', count: c.government <= ANARCHY_GOVERNMENT ? 2 : 1 });
       }
@@ -89,7 +96,7 @@ export function stepEncounters(
   if (c.hasThargoidMother) {
     timers.thargon -= dt;
     if (timers.thargon <= 0 && c.activeThargons < MAX_THARGONS) {
-      timers.thargon = 5;
+      timers.thargon = THARGON_REDEPLOY;
       orders.push({ kind: 'thargon' });
     }
   }
