@@ -2396,3 +2396,111 @@ statement and not an assumption: 63 and 62 both said the opposite about their ow
 changes, in their own entries, because both changed what the pools could do.
 
 `npm run campaign` prints byte-identical output either side of the change.
+
+## 2026-08-04 — the selection rule changed (TODO 65), and the brain it found was not promoted
+
+The first entry here that changes **how a champion is chosen** rather than what
+it is fought against. Nothing about the world moved: `EPISODE_SCHEMA` is still 3
+and every figure in the missiles entry above is still comparable.
+
+### What changed
+
+`train/selection.ts` — a new file, because the rule had to be assertable and it
+was two expressions inside a script that trains on import.
+
+```
+score = 0.75 x outcome(0..1) + 0.25 x shaped/full-scale(0..1)
+
+attack, pack   targetDamageShare()                    unchanged
+evade          1 - targetDamageShare(), 0 if she died
+defend         0.6 x (1 - targetDamageShare())
+             + 0.4 x attackerDamageShare(),           0 if she died
+```
+
+It was `outcome * 1000 + clamp(shaped, ±499)` with `outcome = trader.hp`, and
+three things were wrong with that at once: shaped fitness ranges 8 to 19 against
+a bound of 499 so the shaping contributed **1.9%** of the score and the tie-break
+never fired; terminal `hp` under regeneration pays a defender for DAWDLING,
+because clearing a fight ends the episode early and she heals for less of the
+clock; and killing paid 3 points where 1% of her pools paid 10, so shooting was
+strictly irrational. `jameson-defend-t62`, in the entry above, fired zero shots
+across 240 fights and still outranked the shipped brain under it.
+
+`Episode.attackerDamageShare()` is the new quantity: what her gun took off the
+WHOLE attacking force, as a share of their banks. It is the same argument
+`targetDamageShare` already made on the pirate side — a kill count is a rare
+binary and cannot rank anything — and it separates what the kill count cannot:
+`jameson-defend-g1` reads 22.7% there against a 3.5% kill share.
+
+### The three runs
+
+```sh
+npm run train -- defend --gens 300 --pop 48 --eps 3 --validate-select --select-kills \
+  --out jameson-defend-t65a
+npm run train -- defend --gens 300 --pop 48 --eps 3 --validate-select \
+  --out jameson-defend-t65b
+npm run train -- defend --gens 300 --pop 48 --eps 3 --validate-select --select-kills \
+  --seed-brain jameson-defend-g1 --out jameson-defend-t65c
+```
+
+~8 minutes each. Opponent: the scripted attack run (what ships). Logs:
+`train/logs/jameson-defend-t65{a,b,c}-*.jsonl`.
+
+`npm run defence-probe -- 120 jameson-defend-g1 jameson-defend-t65a
+jameson-defend-t65b jameson-defend-t65c` — 240 held-out episodes each, `died` and
+`kept` over 800:
+
+| brain | pools left | broke | killed | died | kept (cumulative) |
+| --- | --- | --- | --- | --- | --- |
+| **`jameson-defend-g1` (shipped)** | 90.1% | 16.5% | 5.7% | **19/800** | 63.3% |
+| `jameson-defend-t65a` | **94.3%** | 5.8% | 1.4% | **4/800** | **70.7%** |
+| `jameson-defend-t65b` | 91.2% | 5.1% | 2.3% | 3/800 | 63.3% |
+| `jameson-defend-t65c` | 89.7% | **57.8%** | **41.0%** | 42/800 | 66.5% |
+
+**The rule does what it was changed to do.** On the validation base and on both
+held-out bases, the old rule ranks the 42%-kill fighter LAST and the new rule
+ranks it FIRST:
+
+```
+held-out (8,675,309), 240 episodes
+brain                  terminal hp   shaped    OLD score   NEW score   kill%
+jameson-defend-g1        91.2%     8.55      920.9     0.4410    6.3%
+jameson-defend-t65a      95.3%    11.62      964.2     0.4873    1.8%   <- old rule
+jameson-defend-t65b      91.4%    12.19      926.2     0.4511    3.4%
+jameson-defend-t65c      89.9%    14.49      913.3     0.6480   42.5%   <- new rule
+```
+
+`t65a` is the shape the old rule always produced, arriving on schedule: it keeps
+70.7% of her pools, dies four times in 800, and kills 1.4%. It is a better
+runner than the runner.
+
+### Nothing was promoted, and why
+
+`t65c` kills **6.8x** what the incumbent kills and takes LESS cumulative damage
+doing it — and it is destroyed in **42 of 800 held-out fights against 19**
+(z ~ 3.0). The bar was "better kills AT equal survivability"; this is a trade,
+in the one currency the outcome itself refuses to trade.
+
+**Every death of every defence policy has a warhead in it** — 19 of 19, 4 of 4,
+42 of 42. No defence policy has ever been destroyed in these 800 episodes
+without a missile landing. So the column the promotion turns on belongs to
+docs/TODO/72: she has no E.C.M. and no output that could press one, so a warhead
+in training cannot be answered. And `t65c` attracts more of them (0.64 launched
+at her an episode against g1's 0.59 and `t65a`'s 0.27) precisely because it kills
+packmates, which is one of the things `NpcShip.chooseWeapon` launches on.
+
+`src/ai-training/brains/` holds the same three files it held this morning.
+Rerun any of the three commands above to get the weights back.
+
+### What this does NOT fix
+
+**docs/TODO/71.** `observe()` is fourteen numbers and own health is not one of
+them, so `t65c` is the aggressive end of a health-BLIND family — "fight, take the
+damage, break off while the shields come back" is still not a policy the search
+can express, whatever it is selected on. The kill rate above is that family's
+ceiling, not the phase's.
+
+**docs/TODO/74** sits under every `broke` and `killed` figure here: the episode's
+armed FREIGHTER lands about 51% more of its shots than the game's would. It does
+not touch the `playerCobra` rows (the commander's own deterministic laser); the
+`traderCobra` row is the one to distrust.

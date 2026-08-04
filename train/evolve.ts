@@ -32,6 +32,14 @@ import {
 import { makeRng } from '../src/game/rng.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 import { defenceFight } from './defence-fight.ts';
+// WHAT A CHAMPION IS CHOSEN BY is `train/selection.ts` — the outcome per phase,
+// the shaping term and the stated ratio between them. It is a separate file
+// because the rule has to be assertable and this one trains on import;
+// `test/selection.test.ts` is what asks it questions (docs/TODO/65).
+import {
+  championScore, outcomeOf, defenceTerms, shapedContribution,
+  SHAPED_SHARE, type Phase,
+} from './selection.ts';
 
 const args = process.argv.slice(2);
 const PHASES = ['attack', 'evade', 'pack', 'defend'];
@@ -39,7 +47,7 @@ if (!PHASES.includes(args[0])) {
   console.error(`usage: npm run train -- <${PHASES.join('|')}> [--gens N --pop N --eps N --elites N --opponent name --seed-brain name --out name]`);
   process.exit(1);
 }
-const phase = args[0] as 'attack' | 'evade' | 'pack' | 'defend';
+const phase = args[0] as Phase;
 const getArg = (name: string, def: number): number => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? Number(args[i + 1]) : def;
@@ -138,8 +146,12 @@ const opponentController = (): Controller =>
 //               engagement and flank bearing) instead of the 18-input one.
 //   --pool      score each genome against a *rotation* of traders rather than
 //               only the scripted one, so it can't specialise into uselessness.
-//   --select-kills   rank genomes *within* a generation by kill rate, breaking
-//               ties on shaped fitness, instead of ranking by shaped fitness.
+//   --select-kills   rank genomes *within* a generation by the phase's OUTCOME
+//               (`selection.ts`), with shaped fitness breaking ties inside it,
+//               instead of ranking by shaped fitness alone. It was "by kill
+//               rate"; the outcome has been a share rather than a kill since
+//               TODO 29 and is a stated composite since docs/TODO/65, and this
+//               flag has always been whatever `championScore` is.
 //   --validate-select  choose the brain we keep by re-judging every generation
 //               champion on one fixed validation seed set, instead of trusting
 //               a training score that isn't comparable across generations.
@@ -324,57 +336,25 @@ function fitnessOf(ep: Episode): number {
   return ep.fitnessPack();
 }
 
-/**
- * HOW WELL DID THIS GENOME DO ITS JOB, 0..1 — the selection metric.
- *
- * It was "did the trader die", and TODO 29 retired that. The episode's target
- * is the commander now: three 255-point pools, hit for the source rule's 9 to
- * 21 points a time, and a pirate lands about seven hits in forty-five seconds.
- * So a kill is RARE — the shipped brain takes 12% of her pools against an
- * untrained policy's 1.7%, and neither ever kills. A binary that is always zero
- * cannot rank anything, and `--select-kills` and `--validate-select` were both
- * built on it.
- *
- * The share of the pools removed is the same quantity with the granularity put
- * back: continuous, hill-climbable, and still ordered exactly the way a kill
- * rate was, because destroying the target IS removing all of it. For the two
- * phases where the genome IS the trader, it is the share she still has.
- *
- * The polarity trap is unchanged and worth restating: in `evade` and `defend`
- * the trader dying is a FAILURE. Scoring every phase by damage done to the
- * trader selected the evader that died most often, and cost four retrains.
- *
- * TWO HALVES OF THIS ARE NO LONGER THE SAME QUANTITY, since docs/TODO/63 gave
- * the target its recharge. `targetDamageShare()` is cumulative — the points a
- * pirate took off her, whatever came back — and the attack and pack phases are
- * measured exactly as they were. `ep.trader.hp` is TERMINAL, and under recovery
- * it answers "how healthy did she end" rather than "how much did she avoid".
- * Measured on the validation seeds, the scripted `holding` pilot takes the LEAST
- * damage of any defender (150 points against a runner's 172) and kills 42% of
- * its attackers, and ends with the LOWEST hp of the five, because winning ends
- * the episode early and it heals for less of the clock. That is a defect in the
- * outcome, not in the world, and it is docs/TODO/65's to fix — which is why the
- * fix is not smuggled in here.
- */
-function outcomeOf(ep: Episode): number {
-  const defending = phase === 'evade' || phase === 'defend';
-  return defending ? ep.trader.hp : ep.targetDamageShare();
-}
-
 function evaluate(genome: Brain, gen: number): number {
   let total = 0;
-  let wins = 0;
+  let outcome = 0;
   for (let e = 0; e < EPISODES; e++) {
     const ep = makeEpisodeFor(genome, gen * 977 + e * 131 + 7);
     while (!ep.done) ep.step(DT);
     total += fitnessOf(ep);
-    wins += outcomeOf(ep);
+    outcome += outcomeOf(phase, ep);
   }
   const shaped = total / EPISODES;
   if (!SELECT_KILLS) return shaped;
   // Rank on the behaviour we actually want, with shaped fitness breaking ties
-  // *within* an outcome band rather than ever outranking a better outcome.
-  return (wins / EPISODES) * 1000 + Math.max(-499, Math.min(499, shaped));
+  // *within* an outcome band rather than ever outranking a better outcome —
+  // the same `championScore` the final selection uses, because "the rule that
+  // ranks a generation" and "the rule that picks the champion" being two
+  // expressions of the same intent is how one of them came to be broken while
+  // the other looked fine (docs/TODO/65). The flag still decides WHETHER the
+  // outcome ranks a generation at all; it no longer decides how.
+  return championScore(phase, outcome / EPISODES, shaped);
 }
 
 /** Reference: the scripted AI (or scripted trader for evade) on the same seeds. */
@@ -488,17 +468,6 @@ const VALIDATION_BASE = 5_000_011;
 const VALIDATION_EPISODES = 24;
 
 /**
- * The behaviour we actually want, per phase.
- *
- * CRITICAL: in `evade` and `defend` the genome IS the trader, so "the trader
- * died" is a FAILURE, not a success. Scoring every phase by trader deaths —
- * as this did originally — selects the evader and the defender that die most
- * often, and it silently wrecked both: trader-evade fell from 14.44 to 2.09
- * and jameson-defend from 22.43 to 1.34 across four retrains before the
- * inversion was spotted. The physics changes were blamed first; they were
- * innocent.
- */
-/**
  * Does this genome actually fly?
  *
  * Run 11 reached an 83% validation kill rate while choosing forward throttle on
@@ -546,16 +515,34 @@ function flies(genome: Brain): { forward: number; degenerate: boolean } {
   return { forward: share, degenerate: share < 0.05 };
 }
 
-function validate(genome: Brain): { win: number; shaped: number } {
-  let win = 0;
-  let shaped = 0;
+interface Validation {
+  /** the phase's outcome, 0..1 — `selection.ts` */
+  outcome: number;
+  shaped: number;
+  /** the defender's two halves, so a run says WHICH half it won on */
+  kept: number;
+  broken: number;
+  /** episodes the genome did not come out of alive (evade and defend) */
+  died: number;
+}
+
+function validate(genome: Brain): Validation {
+  const v: Validation = { outcome: 0, shaped: 0, kept: 0, broken: 0, died: 0 };
   for (let e = 0; e < VALIDATION_EPISODES; e++) {
     const ep = makeEpisodeFor(genome, VALIDATION_BASE + e * 7919);
     while (!ep.done) ep.step(DT);
-    win += outcomeOf(ep);
-    shaped += fitnessOf(ep);
+    v.outcome += outcomeOf(phase, ep);
+    v.shaped += fitnessOf(ep);
+    const t = defenceTerms(ep);
+    v.kept += t.kept;
+    v.broken += t.broken;
+    if (!ep.trader.alive) v.died += 1;
   }
-  return { win: win / VALIDATION_EPISODES, shaped: shaped / VALIDATION_EPISODES };
+  const n = VALIDATION_EPISODES;
+  return {
+    outcome: v.outcome / n, shaped: v.shaped / n,
+    kept: v.kept / n, broken: v.broken / n, died: v.died,
+  };
 }
 
 if (VALIDATE_SELECT && champions.length) {
@@ -564,7 +551,7 @@ if (VALIDATE_SELECT && champions.length) {
   console.log(`\nfinal selection: re-judging ${unique.length} generation champions ` +
     `on ${VALIDATION_EPISODES} fixed validation seeds (base ${VALIDATION_BASE})`);
   let bestScore = -Infinity;
-  let bestWin = 0;
+  let bestValidation: Validation | null = null;
   let bestForward = 0;
   let rejected = 0;
   for (const c of unique) {
@@ -574,10 +561,10 @@ if (VALIDATE_SELECT && champions.length) {
     const f = flies(c);
     if (f.degenerate) { rejected += 1; continue; }
     const v = validate(c);
-    const score = v.win * 1000 + Math.max(-499, Math.min(499, v.shaped));
+    const score = championScore(phase, v.outcome, v.shaped);
     if (score > bestScore) {
       bestScore = score;
-      bestWin = v.win;
+      bestValidation = v;
       best = c;
       bestFitness = v.shaped;
       bestForward = f.forward;
@@ -590,10 +577,25 @@ if (VALIDATE_SELECT && champions.length) {
   if (bestScore === -Infinity) {
     console.log('EVERY champion was degenerate — nothing worth saving from this run');
   }
-  const metric = (phase === 'evade' || phase === 'defend')
-    ? 'of her pools left' : 'of her pools taken';
-  console.log(`selected champion: ${(bestWin * 100).toFixed(1)}% validation ${metric} ` +
-    `(shaped ${bestFitness.toFixed(2)}, throttles forward ${(bestForward * 100).toFixed(0)}% of the time)`);
+  if (bestValidation) {
+    const v = bestValidation;
+    const metric = (phase === 'evade' || phase === 'defend')
+      ? 'of her pools kept' : 'of her pools taken';
+    // WHAT THE SCORE IS MADE OF, because the whole of docs/TODO/65 was a term
+    // nobody could see contributing 1.9% of a number everybody could.
+    console.log(`selected champion: score ${bestScore.toFixed(4)} = outcome `
+      + `${v.outcome.toFixed(4)} x ${(1 - SHAPED_SHARE).toFixed(2)} + shaped `
+      + `${v.shaped.toFixed(2)} (${(shapedContribution(phase, v.outcome, v.shaped) * 100)
+        .toFixed(0)}% of the score)`);
+    if (phase === 'defend') {
+      console.log(`  she kept ${(v.kept * 100).toFixed(1)}% ${metric}, broke `
+        + `${(v.broken * 100).toFixed(1)}% of the attacking force, died ${v.died}/`
+        + `${VALIDATION_EPISODES}`);
+    } else {
+      console.log(`  ${(v.outcome * 100).toFixed(1)}% ${metric}`);
+    }
+    console.log(`  throttles forward ${(bestForward * 100).toFixed(0)}% of the time`);
+  }
 }
 
 const out: BrainFile = {

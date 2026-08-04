@@ -38,13 +38,27 @@
 // ## What the columns mean
 //
 //   pools left     the commander's three 255-point pools at the end, as a
-//                  fraction of what they started at. `Episode.trader.hp`, and
-//                  the number `evolve.ts` selects champions on.
-//   died           episodes the defender did not survive. It saturates — every
-//                  shipped policy survives nearly everything — which is exactly
-//                  why it is not the interesting column.
-//   killed         the share of attacking pirates destroyed. NOT part of the
-//                  selection metric today, which is the finding.
+//                  fraction of what they started at — `Episode.trader.hp`.
+//   died           episodes the defender did not survive. It saturated at 0/240
+//                  for every policy until docs/TODO/62 put missiles in the sky;
+//                  it is 4 to 6 now, and it is the one thing the outcome will
+//                  not trade for anything.
+//   broke          the share of the attacking force's energy banks she took off
+//                  them — `Episode.attackerDamageShare()`, and 40% of the
+//                  outcome `evolve.ts` selects on since docs/TODO/65.
+//   killed         the share of attacking pirates destroyed: the same quantity
+//                  as `broke` with the granularity thrown away, kept because it
+//                  is the number a human judges a fight by.
+//
+// TWO OF THESE ARE NOW THE SELECTION METRIC, and until docs/TODO/65 only the
+// first was: a champion was chosen by terminal `hp` alone, at 1000x, with the
+// shaped fitness clamped so hard it contributed 1.9% of the score. Killing was
+// rational only if it cost less than 0.30% of her pools, so the selector
+// preferred a policy that never fired — `jameson-defend-t62` fired ZERO shots
+// across 240 of these episodes and still outranked the shipped brain. The
+// outcome is `0.6 x pools kept + 0.4 x broke` now, cumulative rather than
+// terminal, and zero if she dies; `train/selection.ts` is the rule and
+// `test/selection.test.ts` asserts the ordering it exists to produce.
 //
 // ## The numbers above are on the OLD baseline
 //
@@ -83,9 +97,11 @@ const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
  */
 export const HELD_OUT_BASES = [8_675_309, 1_234_577];
 
-export interface Cell { n: number; pools: number; died: number; killed: number }
+export interface Cell {
+  n: number; pools: number; died: number; broke: number; killed: number;
+}
 
-const blank = (): Cell => ({ n: 0, pools: 0, died: 0, killed: 0 });
+const blank = (): Cell => ({ n: 0, pools: 0, died: 0, broke: 0, killed: 0 });
 
 /** One defence policy, flown over `episodes` fights from each held-out base. */
 export function probeDefence(brain: Brain, episodes: number): {
@@ -102,7 +118,8 @@ export function probeDefence(brain: Brain, episodes: number): {
   const byEnergyUnit = new Map<string, Cell>();
   const put = <K>(m: Map<K, Cell>, k: K, c: Cell): void => {
     const cell = m.get(k) ?? blank();
-    cell.n += 1; cell.pools += c.pools; cell.died += c.died; cell.killed += c.killed;
+    cell.n += 1; cell.pools += c.pools; cell.died += c.died;
+    cell.broke += c.broke; cell.killed += c.killed;
     m.set(k, cell);
   };
 
@@ -126,11 +143,13 @@ export function probeDefence(brain: Brain, episodes: number): {
         n: 1,
         pools: Math.max(0, ep.trader.hp) * 100,
         died: ep.trader.alive ? 0 : 1,
+        // what her gun took off the whole force — what the selector reads
+        broke: ep.attackerDamageShare() * 100,
         // as a SHARE of the ships sent, so four pirates and one are comparable
         killed: (ep.pirates.filter((p) => !p.alive).length / count) * 100,
       };
-      overall.n += 1; overall.pools += one.pools;
-      overall.died += one.died; overall.killed += one.killed;
+      overall.n += 1; overall.pools += one.pools; overall.died += one.died;
+      overall.broke += one.broke; overall.killed += one.killed;
       put(byCount, count, one);
       put(byHull, hull, one);
       put(byLaser, laser, one);
@@ -143,6 +162,7 @@ export function probeDefence(brain: Brain, episodes: number): {
 function row(label: string, c: Cell): string {
   return `  ${label.padEnd(18)}pools ${(c.pools / c.n).toFixed(1).padStart(5)}%`
     + `   died ${String(c.died).padStart(3)}/${String(c.n).padEnd(4)}`
+    + `   broke ${(c.broke / c.n).toFixed(1).padStart(5)}%`
     + `   killed ${(c.killed / c.n).toFixed(1).padStart(5)}%`;
 }
 
@@ -165,7 +185,7 @@ export function printDefenceShape(names: string[], episodes: number): void {
     console.log(row('OVERALL', r.overall));
     console.log('  --- by pirate count (the axis the selection metric CAN see)');
     for (const k of [...r.byCount.keys()].sort()) row2(String(k), r.byCount.get(k)!);
-    console.log('  --- by hull flown (moves kills, not pools — see docs/TODO/65)');
+    console.log('  --- by hull flown (moves kills far more than pools — docs/TODO/65)');
     for (const k of [...r.byHull.keys()].sort()) row2(k, r.byHull.get(k)!);
     console.log('  --- by laser');
     for (const k of [...r.byLaser.keys()].sort()) row2(k, r.byLaser.get(k)!);
@@ -174,9 +194,11 @@ export function printDefenceShape(names: string[], episodes: number): void {
     console.log('  --- by energy unit (recovery rate — see docs/TODO/63)');
     for (const k of [...r.byEnergyUnit.keys()].sort()) row2(k, r.byEnergyUnit.get(k)!);
   }
-  console.log('\npools left is what `evolve.ts` selects champions on; killed is not.');
-  console.log('a policy that survives by never engaging tops the first column and');
-  console.log('bottoms the third — which is the whole of docs/TODO/65.');
+  console.log('\nthe outcome `evolve.ts` selects on is 0.6 x pools kept (cumulative,');
+  console.log('not the terminal figure above) + 0.4 x broke, and zero if she died.');
+  console.log('it was terminal pools alone, at 1000x — a policy that survived by');
+  console.log('never engaging topped the first column and bottomed the last, which');
+  console.log('is what docs/TODO/65 was and what train/selection.ts changed.');
 }
 
 function row2(label: string, c: Cell): void {

@@ -70,6 +70,7 @@ import './role-variants.test.ts';
 import './ai.test.ts';
 import './brain-names.test.ts';
 import './combat-model.test.ts';
+import './selection.test.ts';
 import './arena.test.ts';
 
 // --- the shell --------------------------------------------------------------

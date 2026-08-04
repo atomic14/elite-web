@@ -1361,6 +1361,32 @@ export class Episode {
     return Math.max(0, Math.min(1, this.trader.damageTaken / this.trader.maxPool));
   }
 
+  /**
+   * Share of the WHOLE attacking force's banks that the target took off them,
+   * 0..1 — the same question `targetDamageShare` asks, asked from the other
+   * side of the fight.
+   *
+   * It is `trader.damageDealt`, which is HER gun's work and only that: a ram
+   * bills `hurtSelf`, a pirate flying into a packmate bills both of them, and
+   * neither reaches this. Over the banks SUMMED rather than averaged, so 1.0
+   * means the force is gone and half means half of it is — a quantity ordered
+   * exactly the way a kill count is, with the granularity a kill count throws
+   * away. Measured over `train/evolve.ts`'s 24 validation seeds, the scripted
+   * `holding` pilot reads 59.9% here against a 42.4% kill share, and
+   * `jameson-defend-g1` reads 22.7% against 3.5% — the same argument
+   * `targetDamageShare` makes for replacing the pirates' kill rate, made on the
+   * defender's side (docs/TODO/65).
+   *
+   * `fitnessDefend` divides the same points by ONE attacker's mean bank, which
+   * is a different normalisation on purpose: a shaping weight there means "how
+   * much of an attacker did you break", and can exceed 1. This is a share of
+   * the force, so it cannot.
+   */
+  attackerDamageShare(): number {
+    const banks = this.pirates.reduce((sum, p) => sum + p.npc.maxEnergy, 0);
+    return Math.max(0, Math.min(1, this.trader.damageDealt / Math.max(1, banks)));
+  }
+
   /** Share of pirate i's own released bank that has been taken off it, 0..1. */
   pirateDamageShare(i: number): number {
     const p = this.pirates[i];

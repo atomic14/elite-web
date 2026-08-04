@@ -480,6 +480,12 @@ test/playtest.js            autonomous in-browser play agent (console)
 test/fixtures/elite-a/      the 15,600 / 3,900 / 570 combat-oracle rows —
                             generated, and never imported by src/
 train/evolve.ts             neuroevolution trainer
+train/selection.ts          WHAT A CHAMPION IS CHOSEN BY: the outcome per
+                            phase, the shaping term and the stated ratio
+                            between them — its own file because the rule has
+                            to be assertable (test/selection.test.ts), and it
+                            was two expressions inside a script that trains on
+                            import (docs/TODO/65)
 train/evaluate.ts           held-out tournament — the validation gate
 train/flight-probe.ts       is it flying, or is it a turret? the SHAPE of a
                             brain's fight, not its score — measured by the
@@ -499,8 +505,9 @@ train/defence-fight.ts      what a defender MEETS, from one seed: count, hull,
                             the probe below, so they cannot measure different
                             distributions
 train/defence-probe.ts      is the defender fighting or just surviving? pools
-                            left AND kills, broken down by what made it hard,
-                            on held-out seeds
+                            left, the share of the attacking force she broke
+                            AND kills, broken down by what made it hard, on
+                            held-out seeds
 train/survivability.ts      how a fight against a real gang ends, in the
                             commander's own pool points
 tools/import-elite-a.mjs    npm run generate:elite-a — reads the vendored pack,

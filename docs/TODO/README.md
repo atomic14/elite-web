@@ -295,14 +295,15 @@ it** — the entry there says so rather than re-baselining quietly. The defence
 phase was retrained twice at run 19's budget and **neither shipped**: both
 champions validate at 99.8-99.9% of her pools left and both are worse than the
 incumbent on held-out seeds, which is 65's arithmetic doing exactly what 65 says
-it does. Do 65 next, then retrain defence again. 63 left two things open and
-neither is 63's to close — they are **70** and **71** below.
+it does. 65 is done now and the retrain after it found a policy that kills seven
+times as much; the two things 63 left open are still open and neither is 63's to
+close — they are **70** and **71** below.
 
 - [x] 61 — [Promote or delete the attack-run candidate](61-decide-the-attack-run-candidate.md) — decision · medium · small
 - [x] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
 - [x] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
 - [x] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
-- [ ] 65 — [The defender is selected for not fighting](65-the-defender-is-selected-for-not-fighting.md) — training methodology · high · medium
+- [x] 65 — [The defender is selected for not fighting](65-the-defender-is-selected-for-not-fighting.md) — training methodology · high · medium
 - [ ] 70 — [The pack's kill bonus can no longer be earned](70-the-packs-kill-bonus-is-dead-signal.md) — training methodology · high · medium
 - [ ] 71 — [A defender cannot see its own pools](71-a-defender-cannot-see-its-own-pools.md) — training fidelity · high · medium
 - [ ] 72 — [The target cannot answer a missile](72-the-target-cannot-answer-a-missile.md) — training fidelity · high · large
@@ -380,11 +381,30 @@ the panel's shape and the panel's file was full of the second one.
 
 65 came out of trying to act on 62-64 and failing. Two retrains across a wider
 training distribution both came out worse than the shipped brain, and tripling
-the search budget was not the answer: the defend phase picks its champion on
-pools-left alone, where killing a whole pirate is worth 3 points and losing 1%
-of your pools costs 10. Under that rule shooting is strictly irrational, which
+the search budget was not the answer: the defend phase picked its champion on
+pools-left alone, where killing a whole pirate was worth 3 points and losing 1%
+of your pools cost 10. Under that rule shooting is strictly irrational, which
 is CLAUDE.md's long-standing "evades superbly and shoots badly" — not a property
 of the brain, a property of the selection.
+
+**65 is done.** `train/selection.ts` is the rule now — `0.75 x outcome +
+0.25 x shaped`, a STATED ratio where the old ±499 clamp let shaping contribute
+1.9%, and a defender's outcome is `0.6 x the pools she kept + 0.4 x the share of
+the attacking force she broke`, cumulative rather than terminal (which also
+closes 63's second inversion, where clearing a fight early scored WORSE because
+she healed for less of the clock) and zero if she died. `evade` deliberately
+keeps no fighting term and says why. `test/selection.test.ts` asserts the
+ordering on two hand-built genomes that differ in exactly one weight — the bias
+on the fire head — and asserts that the rule this replaced ranked them the other
+way round.
+
+The retrain found the brain the old rule could not: `jameson-defend-t65c` kills
+**41.0%** of its attackers against the shipped brain's 5.7%, on held-out seeds,
+and takes less cumulative damage doing it. It is **not promoted**: it is
+destroyed in 42 of 800 held-out fights against 19, which is not equal
+survivability. Every death of every defence policy has a warhead in it, so that
+column is **72**'s — until she can answer a missile it measures how many
+warheads a policy attracts — and the ceiling on the fighting itself is **71**'s.
 
 ## Follow-ups
 

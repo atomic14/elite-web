@@ -183,3 +183,149 @@ Neither was promoted. The one new thing 62 contributes is a `died` column that i
 no longer saturated — 0/240 for every defender before today, and 6 / 5 / 4 for
 these three — so a fix to this item now has at least one outcome signal that
 discriminates without having to be invented.
+
+## DONE, 2026-08-04 — the rule, the ratio, the test, and a brain that was not promoted
+
+### The rule
+
+`train/selection.ts` is a file now, because the rule had to be assertable and it
+was two expressions inside a script that parses argv and starts training on
+import. It holds the outcome per phase, the shaping term and the ratio between
+them; `evolve.ts` imports it in three places and defines none of it.
+
+```
+score = 0.75 x outcome(0..1) + 0.25 x shaped/full-scale(0..1)
+
+attack, pack   the share of the target's pools taken off her — unchanged
+evade          the share she kept, cumulative, zero if she died
+defend         0.6 x the share she kept + 0.4 x the share of the attacking
+               force she broke, zero if she died
+```
+
+**Why that shape.** Three defects had to close at once and each names a term:
+
+- *Shooting was worth almost nothing.* The fighting half is 40% of the outcome,
+  so against two attackers destroying one is worth about a third of her pools —
+  where it used to be worth 0.3% of them. That is a deliberate statement in the
+  other direction and it is defensible in fight terms: a dead attacker stops
+  shooting for the rest of the engagement and her pools come back while it does
+  not.
+- *Finishing was worth less than dawdling* (63's inversion, above). Both halves
+  are CUMULATIVE — `1 - targetDamageShare()` and
+  `Episode.attackerDamageShare()` — so a pilot who clears the fight at 26s is
+  not scored on how long she then had to heal.
+- *Surviving was the only thing that counted.* It still gates everything: an
+  episode she does not come out of is worth zero. Since 62 that column
+  discriminates (4-6 in 240) instead of saturating.
+
+The fighting half is a SHARE OF THEIR BANKS, not a kill count — the same
+argument `targetDamageShare` already makes on the pirate side, that a rare
+binary cannot rank anything. Measured over the validation seeds it separates
+what the kill count cannot: `jameson-defend-g1` reads 22.7% there against a 3.5%
+kill share.
+
+### The ratio, stated
+
+`SHAPED_SHARE = 0.25`: the shaping term may MOVE a genome's score by at most a
+quarter of the score's range, over a per-phase `SHAPED_FULL_SCALE` measured from
+the reference pilots and written down beside the constant. It was `±499` on a
+quantity that ranges 8 to 19, which contributed **1.9%** and could never break a
+tie. `test/selection.test.ts` asserts the swing is exactly 0.25 for all four
+phases, and that an outcome gap wider than it cannot be bought back with shaped
+fitness — which is what "break ties WITHIN an outcome band" always meant.
+
+### The test, on two hand-built genomes
+
+`test/selection.test.ts` builds two policies by hand — no training, no weights
+file — that differ in **exactly one number**, the bias on the fire head. Same
+flying, same seeds, same dice; one pulls the trigger. Over 24 held-out fights:
+
+| | shots | broke | killed | cleared | damage taken | terminal hp | OLD score | NEW score |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| turret | 142 | 82.0% | 71.9% | 15/24 | **263** | **89.2%** | **910.6** ← last | **0.7744** ← first |
+| pacifist | 0 | 0.0% | 3.5% | 0/24 | 305 | 92.4% | 936.5 ← first | 0.4266 |
+
+Both defects in one pair: turning the trigger OFF on the same genome bought 26
+points of the old score, and the pilot that is hit LESS ends with LOWER terminal
+`hp` because clearing the fight ends the episode early. The test asserts the new
+ordering AND the old inversion, so putting the old rule back fails here.
+
+### `evade` got a different fix, and says so
+
+It shares `outcomeOf` and it does not share a definition of winning. An evader's
+job is to be somewhere else, so its outcome is the share she kept and has **no
+fighting term at all** — but it takes the two fixes that do apply to it:
+cumulative rather than terminal (escaping ends the episode early too), and zero
+if she died. Whether GETTING CLEAR belongs in the outcome is left open in the
+file, with the reason: nothing in the game flies an evade policy, so there is no
+run to judge the answer against.
+
+### The retrain: three runs, one fighter, and a hold
+
+300 generations, population 48, 3 episodes, `--validate-select`, against the
+scripted attack run:
+
+| run | flags | validation outcome | kept | broke | throttle |
+| --- | --- | --- | --- | --- | --- |
+| `t65a` | `--select-kills` | 0.475 | 68.1% | 16.5% | 87% |
+| `t65b` | (shaped ranking) | 0.410 | 63.6% | 7.0% | 5% |
+| `t65c` | `--select-kills --seed-brain jameson-defend-g1` | **0.642** | 68.7% | **65.0%** | 49% |
+
+`npm run defence-probe -- 120 ...`, 240 held-out episodes each, and 800 for the
+outcome columns:
+
+| brain | pools left | **broke** | **killed** | died | kept (cumulative) |
+| --- | --- | --- | --- | --- | --- |
+| `jameson-defend-g1` (shipped) | 90.1% | 16.5% | 5.7% | **19/800** | 63.3% |
+| `jameson-defend-t65a` | **94.3%** | 5.8% | 1.4% | **4/800** | **70.7%** |
+| `jameson-defend-t65b` | 91.2% | 5.1% | 2.3% | 3/800 | 63.3% |
+| `jameson-defend-t65c` | 89.7% | **57.8%** | **41.0%** | 42/800 | 66.5% |
+
+**The rule does what it was changed to do.** On all three seed sets — the
+validation base and both held-out bases — the OLD rule ranks the 42%-kill
+fighter LAST and the new rule ranks it FIRST:
+
+```
+held-out (8,675,309), 240 episodes
+brain                  terminal hp   shaped    OLD score   NEW score   kill%
+jameson-defend-g1        91.2%     8.55      920.9     0.4410    6.3%
+jameson-defend-t65a      95.3%    11.62      964.2     0.4873    1.8%   <- old rule's pick
+jameson-defend-t65b      91.4%    12.19      926.2     0.4511    3.4%
+jameson-defend-t65c      89.9%    14.49      913.3     0.6480   42.5%   <- new rule's pick
+```
+
+**`t65c` was NOT promoted.** It kills 6.8x what the incumbent kills and takes
+LESS cumulative damage doing it (66.5% of her pools kept against 63.3%) — and it
+is destroyed in **42 of 800 held-out fights against 19**, which is a real
+difference (z ~ 3.0) and not equal survivability. The acceptance criterion is
+"better kills AT equal survivability" and this is a trade, in the one currency
+the outcome itself refuses to trade.
+
+**What the deaths are, which is the part worth carrying forward.** Every death,
+for every brain, has a warhead in it — 19 of 19, 4 of 4, 42 of 42. Without a
+missile landing, no defence policy has ever died in these 800 episodes. So the
+column the promotion turns on is **entirely docs/TODO/72's**: she has no E.C.M.
+and no output that could press one, so a warhead in training is undodgeable. And
+`t65c` draws MORE of them (0.64 launched at her an episode against g1's 0.59,
+`t65a`'s 0.27) precisely because it kills packmates, which is what
+`NpcShip.chooseWeapon` launches on. Deciding this trade needs a world where a
+missile can be answered, and a fight a human flew — neither of which this session
+had.
+
+The weights are reproducible in eight minutes from the command in
+docs/TRAINING-LOG.md, and `train/logs/jameson-defend-t65*.jsonl` are the record.
+
+### What is still in the way, and it is not this item
+
+- **docs/TODO/71** bounds the fighting half. `observe()` is fourteen numbers and
+  own health is not one of them, so nothing in the 14-input family can break off
+  when hurt: `t65c` is the aggressive end of a health-BLIND family, and "fight,
+  take the damage, break off while the shields come back" is still not a policy
+  the search can express. The kill rate this item unlocked is the ceiling of
+  that family, not of the phase.
+- **docs/TODO/72** owns the column above. Until she can answer a missile,
+  `died` measures how many warheads a policy attracts.
+- **docs/TODO/74** sits under every `broke` and `killed` figure here: the
+  episode's armed FREIGHTER lands about 51% more of its shots than the game's
+  would. It does not touch the `playerCobra` rows, which fire the commander's
+  own deterministic laser, and the `traderCobra` row is the one to distrust.

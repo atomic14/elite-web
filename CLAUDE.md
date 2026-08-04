@@ -75,10 +75,11 @@ npm run ram-probe  # the other half: does the attack run still MISS a target
                    # that moves? Five ships, contact counted where the ram is
                    # billed, against a target that holds / evades / weaves.
                    # `-- <episodes>`. TODO 66 is what it was built for
-npm run defence-probe # is the defender fighting or just surviving? — pools left
-                   # AND kills, broken down by pirate count, hull and laser, on
-                   # held-out seeds. `-- <episodes> [brain...]`. The breakdown is
-                   # the point: docs/TODO/65 is a finding the average hid
+npm run defence-probe # is the defender fighting or just surviving? — pools left,
+                   # the share of the attacking force she BROKE and kills, broken
+                   # down by pirate count, hull and laser, on held-out seeds.
+                   # `-- <episodes> [brain...]`. The breakdown is the point:
+                   # docs/TODO/65 is a finding the average hid
 ```
 
 Node >= 22.6 (train and evaluate run TS directly via
@@ -257,6 +258,17 @@ are Vite entries in `vite.config.ts`; add new pages there or they won't build.
 - Always use **`--validate-select`**. Without it the final brain is chosen by
   comparing scores across generations that used different episode seeds, which
   picks the luckiest generation rather than the best genome.
+- **What a champion is chosen BY is `train/selection.ts`**, and it is one file
+  because the rule has to be assertable: `score = 0.75 x outcome + 0.25 x
+  shaped/full-scale`, both terms 0..1, so the ratio is stated rather than
+  inherited from a clamp. A defender's outcome is `0.6 x the pools she kept +
+  0.4 x the share of the attacking force she broke`, cumulative rather than
+  terminal, and **zero if she died**; an evader's has no fighting term and says
+  why; attack and pack are unchanged. It was terminal `hp` at 1000x with shaping
+  clamped to 1.9% of the score, under which a policy that never fired outranked
+  every policy that fought (docs/TODO/65). `test/selection.test.ts` asserts the
+  ordering on two hand-built genomes that differ in one weight — the bias on the
+  fire head — so putting the old rule back fails a test.
 - `--pool` rotates the TRADER, so it is refused for phases where the genome IS
   the trader.
 - **`src/ai-training/brains/` holds exactly three files, and `npm test` fails if
@@ -372,7 +384,9 @@ To keep it that way:
   commander was actually lost.
 - **Prefer a fight a human flew to a bot-flown measurement.** Bots mislead in
   both directions: flying straight flatters freighter-trained brains, and the
-  defence policy evades superbly while shooting badly. That is what the docked
+  shipped defence policy evades superbly while shooting badly — which was a
+  property of the SELECTION and not of the brain (docs/TODO/65), and the brain
+  still in the tree is the one the old rule chose. That is what the docked
   combat trainer is for — `T` at any station. It reports accuracy both ways,
   damage by source, engagement ranges, time on each other's six, and your own
   flight envelope, and exports the lot as JSON (clipboard, file, and
