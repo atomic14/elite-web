@@ -460,7 +460,7 @@ Fifteen of the eighteen were caught. **Three were not, and one more constant —
 `BRAIN_RATE_DECAY`, which governs how every brain-flown ship and the purchasable
 combat computer bleeds off a turn — can be moved with no test failing at all.**
 
-- [ ] 75 — [A gang never knows it is losing](75-a-gang-never-knows-it-is-losing.md) — combat bug/training fidelity · high · small
+- [x] 75 — [A gang never knows it is losing](75-a-gang-never-knows-it-is-losing.md) — combat bug/training fidelity · high · small
 - [ ] 76 — [Wingman avoidance can be deleted and nothing notices](76-wingman-avoidance-has-no-test.md) — test gap · medium · small
 - [ ] 77 — [A brain-flown ship is "evading" forever](77-a-brain-flown-ship-is-evading-forever.md) — combat bug · medium · small
 - [ ] 78 — [Every ram in training lands on the fore shield](78-every-ram-in-training-hits-the-fore-shield.md) — training fidelity · medium · small
@@ -474,16 +474,48 @@ combat computer bleeds off a turn — can be moved with no test failing at all.*
 - [ ] 86 — [The co-pilot you buy parks your ship](86-the-co-pilot-you-buy-parks-your-ship.md) — combat feel/design · medium · medium
 - [ ] 87 — [Three parity checks assert `f(x) === f(x)`](87-three-checks-that-restate-their-own-implementation.md) — test gap · low · small
 
-**75 is the one to do first**, and it is the third instance of the shape 70 and
-73 already name: a reward reason that cannot be earned. `matesLost` counts dead
-ships in `world.npcs`, and every kill path splices the ship out of that array
-inside the same statement — so "the gang is losing" is a launch reason the game
-can never reach, while a training episode (which never prunes its fleet) reaches
-it fine. 70 is `passesMade` dead in the trainer, 73 is the handover that would
-fix it, and this is `matesLost` dead in the sky. Between them, each of
-`npcMissileEmergency`'s three reasons is unreachable in one of the two worlds.
-Do **83** with it or before it: the one-in-the-air cap is what keeps a gang that
-CAN escalate survivable, and it has no test either.
+**75 is done, and the answer was to delete the reason.** "The gang is losing —
+one of us is already gone" was the third way into `npcMissileEmergency`, and it
+was unreachable in the sky: `matesLost` counted dead ships in `world.npcs` and
+every kill path splices the ship out of that array inside the same statement, so
+no NPC has ever run a decision in a frame where a dead mate was still there. A
+training episode never prunes its fleet, so it was the one world in which the
+reason fired at all. Of the three answers the item offered — a counter on the
+world, a latch on each ship, or deletion — Chris chose deletion, because the
+other two turn the rule ON for the first time, in the direction of more warheads,
+in exactly the fights already going badly for the player, and nobody had decided
+the gang should be more dangerous. `matesLost()` is gone from `npc.ts`, the
+argument is gone from `chooseWeapon` and from `Episode.step`, and nothing in
+`src/` or `train/` calls it any more; what is left is a paragraph in
+`missile-launch.ts` beside the two surviving reasons saying that a third one
+existed, why it could never fire, and what a real version of it would have to
+start from.
+
+**The sky did not move and the trainer did.** `npm run campaign` is identical
+either side — 40 commanders × 60 legs, every row to the last decimal, with only
+the wall-clock line differing — which is the empirical half of the claim that
+the reason was already dead in the live game. In training it is worth 87 fewer
+warheads across the defence probe's 1,200 held-out fights (967 before against
+880), and 352 against 225 over 800 defend episodes flown against policy pirates
+rather than the scripted default. The attack phase is byte-identical over 200
+episodes, because a one-ship fleet never had a mate to lose. Terminal pools kept
+move 98.4% to 98.0%, the cumulative figure the champion is actually selected on
+does not move at all (86.1 against 86.2 points per episode), and the `died`
+column is 0 of 1,200 either side. `EPISODE_SCHEMA` goes **4 → 5** anyway,
+because the field says which world a row was measured in; docs/TRAINING-LOG.md
+carries the columns.
+
+**Two reasons are left, and one of them is still dead in the trainer.** Both are
+pinned now: deleting `hull <= MISSILE_LAST_STAND_HULL` fails 23 assertions and
+deleting `passes >= MISSILE_COMMIT_PASSES` fails 5, each checked by breaking it
+and restoring it. But `passesMade` is **73**'s item — a BRAIN-flown pirate in
+training hands over to the scripted break-off inside `BRAIN_HANDOVER_RANGE` and
+completes no passes at all — so for a policy genome the desperation hull line is
+now the only way a warhead leaves a rail, which is what the 352 → 225 drop is
+made of. A scripted pirate still earns its second reason by flying passes, which
+is why the same deletion costs the probe only 9%. 70 is the same shape a third
+time. Deleting `matesLost` closed the divergence between the two worlds; it did
+not make either of them richer.
 
 **76, 83 and 87 are the mutation sweep's three misses**, and they are not the
 same kind of gap. 76 is a whole rule module — `separation.ts`, with its own swept
@@ -508,8 +540,10 @@ Only the loop mutation reaches any older test, and only as a symptom —
 `missiles.test.ts`'s "it kills her" goes red because a quarter as many warheads
 get away, which is a lethality figure and not the rule.
 
-The gang case is four hurt Pythons and one dead wingman flown through the real
-`WorldStep` for 900 frames. With the sky to themselves they spend all **8**
+The gang case is four hurt Pythons flown through the real `WorldStep` for 900
+frames. (It was four and a dead wingman, so that `matesLost > 0` outlasted them
+healing back past the hull line; 75 deleted both the reason and the corpse, and
+the figures below are unchanged by that.) With the sky to themselves they spend all **8**
 rounds; **898** of those 900 frames have a warhead up and **0** launches happen
 in them, the longest unbroken silence being **8.1s**, or 4.0x the 2s reload — so
 it is the sky holding them and not their own rails. The same seed with a decoy

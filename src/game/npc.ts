@@ -269,24 +269,6 @@ export interface PlayerRef {
  * 160 while a Dodo uses 135. Keeping it in this per-step view means a ship
  * cannot accidentally remember a value supplied by an earlier caller.
  */
-/**
- * How many of this ship's gang are already dead.
- *
- * "The opponent turned out to be tougher than you thought" has an outside
- * signal as well as an inside one: a wingman not coming home says it before
- * your own hull does. Counted off the fleet at the moment it is asked rather
- * than latched, so a ship that arrives late to a fight already in progress
- * reads the same situation as one that has been there throughout.
- *
- * It takes the FLEET rather than a `WorldView` because a training episode has
- * one and not the other, and it only ever read `view.fleet` (docs/TODO/62).
- */
-export function matesLost(fleet: readonly NpcShip[]): number {
-  let lost = 0;
-  for (const s of fleet) if (!s.state.alive) lost += 1;
-  return lost;
-}
-
 export interface WorldView {
   station: THREE.Object3D;
   dockZ: number;
@@ -697,7 +679,7 @@ export class NpcShip {
         : this.attack(dt, player.position, distPlayer, true, undefined, view.fleet,
           this.velocityOf(player.quaternion, player.speed));
       return this.chooseWeapon(shot, dt, distPlayer, player.position,
-        view.missileInbound, matesLost(view.fleet));
+        view.missileInbound);
     }
 
     if (this.npcTarget && this.npcTarget.state.alive) {
@@ -1257,23 +1239,25 @@ export class NpcShip {
    * rail. That is what `npcMissileLastStand` fixes, and it is why it does not
    * consult the gun's cooldown or its firing gate.
    *
-   * PUBLIC, and taking two scalars rather than a `WorldView`, for the same
-   * reason `brainFly`, `attack` and `regenerate` are public: `update()` runs it
-   * for the live sky, and a training episode drives the flight directly, so the
+   * PUBLIC, and taking a scalar rather than a `WorldView`, for the same reason
+   * `brainFly`, `attack` and `regenerate` are public: `update()` runs it for
+   * the live sky, and a training episode drives the flight directly, so the
    * episode owes the ship this call too. It was private and view-shaped, and the
    * consequence was that **no pirate in a training episode had ever decided to
    * launch** — 1,374 laser requests and 0 missile requests across 200 armed,
-   * hurt pirates (docs/TODO/62). The two arguments are exactly the facts that
-   * are not on the ship: whether the air is already occupied, and how the gang
-   * is doing. This is the seam docs/TODO/64 widened; what it REPORTS is resolved
-   * by `fire-resolution.ts`, the one home both worlds call.
+   * hurt pirates (docs/TODO/62). `missileInbound` is the one fact left that is
+   * not on the ship: whether the air is already occupied. It was two, and the
+   * other was how many of the gang were gone — see `npcMissileEmergency` for
+   * why that reason is deleted rather than repaired (docs/TODO/75). This is the
+   * seam docs/TODO/64 widened; what it REPORTS is resolved by
+   * `fire-resolution.ts`, the one home both worlds call.
    *
    * CALL IT ONCE PER FRAME, not once per decision. It ticks `missileReload`
    * itself, so a caller at the brains' 10 Hz would reload six times too slowly.
    */
   chooseWeapon(
     shot: FireEvent | null, dt: number, dist: number, targetPos: THREE.Vector3,
-    missileInbound: boolean, matesLost: number,
+    missileInbound: boolean,
   ): FireEvent | null {
     if (this.state.missiles <= 0) return shot;
     this.state.missileReload = Math.max(0, this.state.missileReload - dt);
@@ -1289,8 +1273,7 @@ export class NpcShip {
     // gets one press.
     if (missileInbound) return shot;
     if (npcMissileEmergency(
-      this.healthFraction, this.state.passesMade, matesLost,
-      dist, this.facing(targetPos),
+      this.healthFraction, this.state.passesMade, dist, this.facing(targetPos),
     )) {
       this.state.missileReload = MISSILE_RELOAD;
       return { at: 'player', weapon: 'missile' };

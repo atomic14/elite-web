@@ -122,42 +122,48 @@ console.log('\ngunnery');
     const OK_RANGE = 800;
 
     check('a healthy ship on its first run keeps its missile',
-      !npcMissileEmergency(healthy, 0, 0, OK_RANGE, 0));
+      !npcMissileEmergency(healthy, 0, OK_RANGE, 0));
     check('...and still keeps it on the second run',
-      !npcMissileEmergency(healthy, MISSILE_COMMIT_PASSES - 1, 0, OK_RANGE, 0));
+      !npcMissileEmergency(healthy, MISSILE_COMMIT_PASSES - 1, OK_RANGE, 0));
 
-    // Reason 1: about to die. The old `npcMissileLastStand`, folded in.
+    // Reason 1: about to die. The old `npcMissileLastStand`, folded in. It is
+    // the ONLY reason a ship that has not completed a pass has, so deleting it
+    // fails this and the two threshold checks under it.
     check('a ship about to die spends it rather than take it down',
-      npcMissileEmergency(dying, 0, 0, OK_RANGE, 0));
+      npcMissileEmergency(dying, 0, OK_RANGE, 0));
     check('...exactly at the threshold, not just below it',
-      npcMissileEmergency(MISSILE_LAST_STAND_HULL, 0, 0, OK_RANGE, 0)
-      && !npcMissileEmergency(MISSILE_LAST_STAND_HULL + 0.01, 0, 0, OK_RANGE, 0));
+      npcMissileEmergency(MISSILE_LAST_STAND_HULL, 0, OK_RANGE, 0)
+      && !npcMissileEmergency(MISSILE_LAST_STAND_HULL + 0.01, 0, OK_RANGE, 0));
 
     // Reason 2: this is not working. It has flown at the target and the target
-    // is still there — the discovery that it is tougher than expected.
+    // is still there — the discovery that it is tougher than expected. The ship
+    // is at FULL hull, so nothing but this reason can let it launch.
     check('a ship that has committed twice and got nowhere spends one',
-      npcMissileEmergency(healthy, MISSILE_COMMIT_PASSES, 0, OK_RANGE, 0));
+      npcMissileEmergency(healthy, MISSILE_COMMIT_PASSES, OK_RANGE, 0));
 
-    // Reason 3: the gang is losing.
-    check('a ship whose wingman is already dead spends one',
-      npcMissileEmergency(healthy, 0, 1, OK_RANGE, 0));
+    // There were three. `matesLost > 0` — "the gang is losing" — is deleted
+    // rather than repaired, because it could never be true in the live game and
+    // was true only in a training episode: docs/TODO/75 and the note in
+    // `missile-launch.ts`. There is nothing left to assert about it, and a test
+    // that a dead-but-present mate does NOT unlock a rack would be asserting the
+    // absence of deleted code.
 
-    // The geometry gates apply to EVERY reason, not only the desperate one.
+    // The geometry gates apply to BOTH reasons, not only the desperate one.
     // That is the point of there being one function: the reasons cannot drift
     // apart from the envelope.
     check('never point blank, whatever the reason — the player could not answer',
-      !npcMissileEmergency(dying, 9, 9, MISSILE_LAST_STAND_MIN_RANGE - 1, 0));
+      !npcMissileEmergency(dying, 9, MISSILE_LAST_STAND_MIN_RANGE - 1, 0));
     check('never from further out than the seeker is worth',
-      !npcMissileEmergency(dying, 9, 9, MISSILE_MAX_RANGE + 1, 0));
+      !npcMissileEmergency(dying, 9, MISSILE_MAX_RANGE + 1, 0));
     check('on a bearing rather than a firing line, because the seeker aims',
-      npcMissileEmergency(dying, 0, 0, OK_RANGE, MISSILE_LAST_STAND_GATE - 0.01));
+      npcMissileEmergency(dying, 0, OK_RANGE, MISSILE_LAST_STAND_GATE - 0.01));
     check('...but never at something behind it',
-      !npcMissileEmergency(dying, 9, 9, OK_RANGE, MISSILE_LAST_STAND_GATE + 0.01));
+      !npcMissileEmergency(dying, 9, OK_RANGE, MISSILE_LAST_STAND_GATE + 0.01));
 
     // THE REGRESSION. This is the wave-13 fight, as a number: a healthy ship
     // that has not engaged, sitting where the old rule paid it to sit.
     check('a healthy ship standing off at 2,705 cannot launch at all',
-      !npcMissileEmergency(healthy, 0, 0, 2705, 0));
+      !npcMissileEmergency(healthy, 0, 2705, 0));
   }
 }
 

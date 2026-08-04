@@ -73,34 +73,44 @@ export const MISSILE_COMMIT_PASSES = 2;
  * missiles and the fight never happened, because the rule paid ships to stand
  * off and the attack run they were flying paid them to come in.
  *
- * Three ways in now, and each is a REASON rather than a roll:
+ * Two ways in, and each is a REASON rather than a roll:
  *
  *   - `hull <= MISSILE_LAST_STAND_HULL` — about to die, spend it or lose it.
  *     This is the original desperation launch and it is unchanged.
  *   - `passes >= MISSILE_COMMIT_PASSES` — it has flown at the target twice and
  *     the target is still flying. This is Chris's "tougher than you thought",
  *     and it is what makes a missile something a ship EARNS by engaging.
- *   - `matesLost > 0` — the gang is losing. One of us is already gone.
  *
- * A ship that has done none of those has no business launching, however good
- * the geometry is. The range and bearing gates still apply on top: `dist`
- * inside the seeker's envelope, and a bearing the ship could plausibly
- * launch on.
+ * A ship that has done neither has no business launching, however good the
+ * geometry is. The range and bearing gates still apply on top: `dist` inside
+ * the seeker's envelope, and a bearing the ship could plausibly launch on.
+ *
+ * THERE WAS A THIRD — `matesLost > 0`, "the gang is losing, one of us is
+ * already gone" — and it is deleted rather than repaired (docs/TODO/75). It
+ * could never fire in the live game: it counted `!alive` ships in `world.npcs`,
+ * and every path that kills an NPC despawns it inside the same statement
+ * (`Combat.destroy` opens with `wreck`, which splices the array), so no NPC has
+ * ever run a decision in a frame where a dead mate was still in the list. It
+ * DID fire in a training episode, whose fleet is never pruned — one rule, two
+ * worlds, opposite answers. Rebuilding it as a counter on the world or a latch
+ * on the ship was the alternative and was rejected: nobody had decided the gang
+ * should be more dangerous, and turning it on would have added warheads to
+ * exactly the fights already going badly for the player. If a gang's losses
+ * should escalate it, that is a balance decision to make deliberately, and it
+ * starts from a world counter rather than from this.
  */
 export function npcMissileEmergency(
-  hull: number, passes: number, matesLost: number,
-  dist: number, bearing: number,
+  hull: number, passes: number, dist: number, bearing: number,
 ): boolean {
   if (dist <= MISSILE_LAST_STAND_MIN_RANGE || dist >= MISSILE_MAX_RANGE) return false;
   if (bearing >= MISSILE_LAST_STAND_GATE) return false;
   return hull <= MISSILE_LAST_STAND_HULL
-    || passes >= MISSILE_COMMIT_PASSES
-    || matesLost > 0;
+    || passes >= MISSILE_COMMIT_PASSES;
 }
 
 /*
  * `npcMissileLastStand` used to live here — the desperation launch, hull <= 0.4.
- * It is not gone as a RULE, it is the first of the three reasons inside
+ * It is not gone as a RULE, it is the first of the two reasons inside
  * `npcMissileEmergency`. Keeping it as a second entry point would have been one
  * rule with two homes, which is the failure this codebase is organised against:
  * both would have had to keep the same range and bearing gates in step by hope.

@@ -2686,3 +2686,94 @@ target's `cls`.
 
 The 300 fed to the PIRATE brains in `npc.ts` is untouched — those brains were
 not retrained and it is still load-bearing for them.
+
+## 2026-08-04 — a launch reason the game never had is deleted (TODO 75), and every defence figure above it is re-baselined
+
+No brain was retrained and none needed to be: `matesLost` was never an
+observation, only an argument to `NpcShip.chooseWeapon`. But it changed what a
+training episode DOES, so `EPISODE_SCHEMA` moves **4 → 5** and every defence
+figure in this file measured against a schema-4 world is a measurement of a
+different world from the one the trainer now runs.
+
+### What changed
+
+`npcMissileEmergency` had three reasons, and the third — `matesLost > 0`, "the
+gang is losing, one of us is already gone" — **could never be true in the live
+game**. It counted `!alive` ships in the fleet it was handed, and the fleet was
+`world.npcs`; every path that kills an NPC despawns it inside the same statement
+(`Combat.destroy` opens with `wreck`, and `wreck` splices the array), so no NPC
+has ever run a decision in a frame where a dead mate was still in the list. An
+`Episode` never prunes `this.fleet`, so in the trainer it fired exactly as
+written. One rule, two orchestrators, opposite answers — invariant 15's second
+half.
+
+It was deleted rather than rebuilt, from both worlds, and `matesLost()` went with
+it. The alternative — a counter on the world, or a latch on each ship — would
+have turned the rule ON for the first time, in the direction of more warheads,
+in exactly the fights already going badly for the player. Nobody had decided the
+gang should be more dangerous. `src/game/missile-launch.ts` carries the reasoning
+beside the two reasons that are left.
+
+### What it did to the numbers
+
+Only a phase whose fleet has more than one ship in it can move, so the three
+separate cleanly. 200 episodes each, shipped brains, seeds `e * 131 + 7`, and
+these are POLICY pirates in every phase:
+
+| phase | warheads before | after | episodes whose report differs |
+| --- | --- | --- | --- |
+| attack (1 pirate) | 0 | 0 | **0 of 200** |
+| pack (2-4 pirates) | 2 | **0** | 1 of 200 |
+| defend (1-4 pirates) | 73 | **44** | 19 of 200 |
+
+Attack is byte-identical because a one-ship fleet never had a mate to lose. The
+single pack episode that differs is the one in which the target used to die. At
+800 episodes, same construction, defend is 352 warheads before against **225**
+after and pack 5 against 2 — the same answer at four times the sample.
+
+**The defend phase's default opponent is the scripted attack run, not a policy**
+(`train/evolve.ts`, `--opponent scripted`), so the figure that re-baselines this
+file is `npm run defence-probe`, whose pirates are scripted. `jameson-defend-g2`,
+the two held-out bases, at both sizes:
+
+| | 240 episodes, before | after | 1200 episodes, before | after |
+| --- | --- | --- | --- | --- |
+| pools left (terminal) | 98.4% | **98.0%** | 98.4% | **98.0%** |
+| died | 0/240 | 0/240 | 0/1200 | 0/1200 |
+| broke | 59.7% | 59.6% | 58.8% | 59.0% |
+| killed | 43.2% | 43.2% | 40.9% | 41.2% |
+
+Warheads in that same population: 196 of 221 carried before, **171** after (240
+episodes); 967 of 1,085 before, **880** after (1,200 episodes) — a 9% drop
+against the scripted opponent where the policy opponent gives 36%, because a
+scripted pirate makes passes and reaches `passesMade` on its own. The pirate
+death count is unchanged (220 deaths in 140 of the 240; 1,000 before and 1,005
+after in the same 680 of the 1,200), which is the check that the population is
+the same population: she is not killing fewer of them, they are launching fewer
+warheads at her.
+
+**The cumulative column — the one the champion is actually chosen on — does not
+move.** Pool points taken per episode over the 1,200: 86.1 before, 86.2 after.
+Pirate laser damage 96,401 before, 96,164 after. What moves is the TERMINAL
+snapshot the table above prints, by 0.39 points, and episodes end 0.25s sooner
+on average. Eighty-seven fewer warheads costing her no net pool points says most
+of them were being answered — she carries an E.C.M. in every defence fight since
+docs/TODO/72 — but the mechanism behind the terminal drop specifically was not
+chased down, and this entry does not claim one. The `died` column is 0 either
+side at both sizes, so nothing about the promotion of g2 turns on any of it.
+
+### What did NOT move
+
+`npm run campaign` prints identical output either side of the change — 40
+commanders × 60 legs, every row to the last decimal, with only the wall-clock
+line at the bottom differing (0.6s against 0.7s). That is the empirical half of
+the claim that the reason was already dead in the live game: if it had ever
+fired in the sky, this is where it would have shown.
+
+`npm run build` (lint, 3,005 tests, sizes and both generator checks), `npm run
+elite-a` (480 passed) and `npm run portability` (0 contaminated lines) are green.
+The suite goes from 3,006 assertions to 3,005: the one that leaves is
+`gunnery.test.ts`'s "a ship whose wingman is already dead spends one", which was
+the only test of the deleted reason. The two that remain were each broken to
+check they are gates — deleting the hull line fails **23** assertions, deleting
+the two-passes line fails **5**.

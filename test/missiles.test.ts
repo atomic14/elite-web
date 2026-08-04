@@ -142,14 +142,14 @@ console.log('\nmissiles: what a warhead costs her');
 // the rail runs dry.
 //
 // THE TARGET IS THE KNIFE-FIGHTER, and that is what makes this a test rather
-// than a hope. Two of `npcMissileEmergency`'s three reasons need a fight to have
-// gone badly — a hull under 0.4, or a wingman already lost — and the third,
-// Chris's "tougher than you thought", is `passesMade`, which only ticks when a
-// ship gets inside `BREAK_OFF_RANGE` and comes out the other side. Against a
-// target that RUNS (`scripted`, `runner`) a pirate never closes to 220 units,
-// makes no passes, takes no fire, and launches nothing: measured, 0 warheads
-// over the same 60 seeds. `holding` is how Chris actually flies — turn hard,
-// stop dead, shoot — so the pirates make passes and get hurt doing it.
+// than a hope. Both of `npcMissileEmergency`'s reasons need a fight to have
+// happened — a hull under 0.4, or Chris's "tougher than you thought", which is
+// `passesMade` and only ticks when a ship gets inside `BREAK_OFF_RANGE` and
+// comes out the other side. Against a target that RUNS (`scripted`, `runner`) a
+// pirate never closes to 220 units, makes no passes, takes no fire, and
+// launches nothing: measured, 0 warheads over the same 60 seeds. `holding` is
+// how Chris actually flies — turn hard, stop dead, shoot — so the pirates make
+// passes and get hurt doing it.
 //
 // It also has to be armed and shooting a real laser. An unarmed target is never
 // the thing that gets tough, and 60 of these fights end with 26 rounds still on
@@ -208,8 +208,8 @@ console.log('\nmissiles: inside a training episode');
 // This flies the real `Game` on `headlessShell()`, as test/game.test.ts does. The
 // gang is placed by hand rather than rolled, because the fixture is about the
 // missile path and not about who turned up: a Python has two on the rail, and
-// hurting them below `MISSILE_LAST_STAND_HULL` plus one wingman already dead
-// makes two of `npcMissileEmergency`'s three reasons true from the first frame.
+// hurting them below `MISSILE_LAST_STAND_HULL` makes `npcMissileEmergency`'s
+// first reason true from the first frame.
 //
 // It is also the shape that proved this change byte-identical against 38914c7 —
 // a 5 MB per-frame trace, same sha256 on both checkouts. That comparison needs
@@ -239,10 +239,11 @@ console.log('\nmissiles: in the real game, headless');
       npc.state.energy = Math.round(npc.maxEnergy * 0.3);
       gang.push(npc);
     }
-    // One that never made it home, so `matesLost > 0` outlasts the survivors
-    // healing back past 0.4 and the rails keep emptying.
-    world.spawn('pirate', g.state.player.position.clone()
-      .add(new THREE.Vector3(0, 0, -2600)), 97, python).state.alive = false;
+    // A fifth ship used to be spawned here already dead, so that `matesLost > 0`
+    // outlasted the survivors healing back past 0.4. Both the reason and the
+    // corpse are gone (docs/TODO/75): the live game never has a dead ship in
+    // `world.npcs` when anything decides, so a fixture that put one there was
+    // exercising a state the game cannot reach.
     // THE SETTLING STEP, CLAUDE.md's own caveat: a freshly spawned NPC's world
     // matrix is stale until something updates it and `shot.ts` raycasts against
     // it, so a fixture that lets the first frame discover that diverges for

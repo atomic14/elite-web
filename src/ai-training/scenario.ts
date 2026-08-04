@@ -48,7 +48,7 @@ import * as THREE from 'three';
 
 import { PlayerShip, PLAYER_FLIGHT, rampToward, type FlightDemand } from '../player.ts';
 import {
-  NpcShip, matesLost, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
+  NpcShip, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
   type FireEvent,
 } from '../game/npc.ts';
 import {
@@ -332,6 +332,19 @@ function pirateSpecFor(seed: number, index: number, count: number): NpcSpec {
  * of every defence policy ever measured, 19 of 19 and 4 of 4 and 42 of 42, had a
  * warhead in it. A `died` column across the two schemas is not one measurement.
  *
+ * **5** since docs/TODO/75: fewer of them are launched. An episode's fleet is
+ * never pruned, so `matesLost > 0` — a launch reason the live game could never
+ * satisfy — was unlocking racks here and nowhere else; deleting it took the
+ * volume with it. Measured against the shipped brains: the defence probe's own
+ * 1,200 held-out fights launch 967 warheads before and **880** after, and a
+ * defend phase run against policy pirates instead of the scripted default drops
+ * further, 352 → 225 over 800 episodes. A pack episode of 200 differs; the
+ * attack phase is byte-identical over 200, because a one-ship fleet never had a
+ * mate to lose. So a schema-4 defence figure and a schema-5 one are not the
+ * same measurement. No RECORD FIELD changed, and that is deliberately not the
+ * test: the field says which WORLD a row was measured in, which is what every
+ * bump above it says too. docs/TRAINING-LOG.md has the columns.
+ *
  * ## Two decisions this file owes docs/TODO/72, stated here
  *
  * **E.C.M. is an ACTION, not a reflex.** The cheap version — press it whenever
@@ -353,7 +366,7 @@ function pirateSpecFor(seed: number, index: number, count: number): NpcSpec {
  * change the threat and the answer in the same measurement and neither number
  * would mean anything.
  */
-export const EPISODE_SCHEMA = 4;
+export const EPISODE_SCHEMA = 5;
 
 // --- the target's scale, which is now the commander's ------------------------
 //
@@ -948,8 +961,13 @@ export class Episode {
       // flight's, and until docs/TODO/62 this call was missing here — so a
       // training pirate had a full rack, every reason to use it, and no way to
       // ask. Every frame, not every decision: it ticks its own reload.
-      const fired = p.npc.chooseWeapon(
-        shot, dt, range, this.trader.pos, missileInbound, matesLost(this.fleet));
+      //
+      // It used to pass `matesLost(this.fleet)` as well, and that argument was
+      // the one thing an episode answered differently from the game: an episode
+      // never prunes its fleet, so a training pirate unlocked its rack the
+      // moment a wingman died and the same pirate in the same fight in the game
+      // did not. The reason is gone from both (docs/TODO/75).
+      const fired = p.npc.chooseWeapon(shot, dt, range, this.trader.pos, missileInbound);
       if (fired && this.trader.alive) {
         const e = this.resolveNpcShot(p, fired);
         if (e) events.push(e);

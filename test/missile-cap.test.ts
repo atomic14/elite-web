@@ -43,10 +43,10 @@ const PYTHON = SPECS.pirate.find((s) => s.missiles === 2)!;
 
 // --- the ship's half: asked twice, with the same everything else -------------
 //
-// `chooseWeapon` is public and takes the two facts it cannot see — is the air
-// occupied, how is the gang doing — as scalars, which is the whole reason
-// docs/TODO/62 made it so. That makes the guard directly askable: the same ship
-// in the same state, asked with `false` and with `true`.
+// `chooseWeapon` is public and takes the fact it cannot see — is the air
+// occupied — as a scalar, which is the whole reason docs/TODO/62 made it so.
+// That makes the guard directly askable: the same ship in the same state, asked
+// with `false` and with `true`.
 //
 // The second half of the claim is the one a `return null` would quietly break.
 // The design is "the gang loses nothing except the ability to saturate a
@@ -74,14 +74,14 @@ console.log('\nmissile cap: the ship, asked twice');
     dist > MISSILE_LAST_STAND_MIN_RANGE && dist < MISSILE_MAX_RANGE);
 
   const clear = desperate();
-  const withClearSky = clear.chooseWeapon(laser, FIXED_DT, dist, at, false, 0);
+  const withClearSky = clear.chooseWeapon(laser, FIXED_DT, dist, at, false);
   eq('with the sky clear, a hurt pirate reaches for the rack',
     withClearSky?.weapon, 'missile');
   eq('...and starts the reload that gates the next one',
     clear.state.missileReload, MISSILE_RELOAD);
 
   const capped = desperate();
-  const withOneUp = capped.chooseWeapon(laser, FIXED_DT, dist, at, true, 0);
+  const withOneUp = capped.chooseWeapon(laser, FIXED_DT, dist, at, true);
   check('with one already in the air, the same ship shoots instead',
     withOneUp === laser);
   eq('...and it is the LASER the flight asked for, not silence', withOneUp?.weapon, 'laser');
@@ -89,7 +89,7 @@ console.log('\nmissile cap: the ship, asked twice');
 
   // ...so the cap DELAYS a launch rather than cancelling it. The frame the sky
   // clears, the same ship — never rearmed, never reset — launches.
-  const freed = capped.chooseWeapon(laser, FIXED_DT, dist, at, false, 0);
+  const freed = capped.chooseWeapon(laser, FIXED_DT, dist, at, false);
   eq('...so the moment the sky clears it launches after all', freed?.weapon, 'missile');
   eq('...and only then does the reload start', capped.state.missileReload, MISSILE_RELOAD);
 
@@ -100,8 +100,8 @@ console.log('\nmissile cap: the ship, asked twice');
   const healthy = new NpcShip('pirate', new THREE.Vector3(0, 0, -1200), 83_002, PYTHON);
   healthy.state.missiles = 2;
   healthy.faceToward(new THREE.Vector3());
-  check('an unhurt pirate with no mates lost holds its fire with the sky CLEAR too',
-    healthy.chooseWeapon(laser, FIXED_DT, dist, at, false, 0) === laser
+  check('an unhurt pirate that has made no passes holds its fire with the sky CLEAR too',
+    healthy.chooseWeapon(laser, FIXED_DT, dist, at, false) === laser
     && healthy.state.missileReload === 0);
 }
 
@@ -180,10 +180,13 @@ console.log('\nmissile cap: the gang, through the step');
       npc.faceToward(state.player.position);
       gang.push(npc);
     }
-    // One that never made it home: `matesLost > 0` is the reason that outlasts
-    // the survivors healing back past the hull line.
-    state.world.spawn('pirate', state.player.position.clone()
-      .add(new THREE.Vector3(0, 0, -2600)), 97, PYTHON).state.alive = false;
+    // There used to be a fifth ship here, spawned dead, so that `matesLost > 0`
+    // kept a reason alive after the survivors healed back past the hull line.
+    // That reason is deleted (docs/TODO/75) and so is the corpse: it was a state
+    // the live game cannot produce, since every kill despawns in the same
+    // statement. What holds the rails open now is the hull line alone — a ship
+    // at 0.3 regenerates slowly enough to still be under 0.4 when its rail
+    // cycles, which is what `open.launched === open.carried` below measures.
     // A freshly spawned NPC's world matrix is stale until something updates it,
     // and shot.ts raycasts against it — CLAUDE.md's own settling caveat.
     state.world.scene.updateMatrixWorld(true);
@@ -306,22 +309,22 @@ console.log('\nmissile cap: where the guard sits');
   const at = new THREE.Vector3();
   const laser: FireEvent = { at: 'player', weapon: 'laser' };
 
-  npc.chooseWeapon(laser, FIXED_DT, 1200, at, false, 0);
+  npc.chooseWeapon(laser, FIXED_DT, 1200, at, false);
   eq('a launch arms the reload', npc.state.missileReload, MISSILE_RELOAD);
 
   // Held under the cap for the whole reload: the clock must still run down, or
   // a ship silenced by the sky would come out of it still reloading.
   let ticks = 0;
   while (npc.state.missileReload > 0 && ticks < 60 * 10) {
-    npc.chooseWeapon(laser, FIXED_DT, 1200, at, true, 0);
+    npc.chooseWeapon(laser, FIXED_DT, 1200, at, true);
     ticks += 1;
   }
   check('...and the clock runs down UNDER the cap, not despite it'
     + ` (${(ticks * FIXED_DT).toFixed(2)}s of ${MISSILE_RELOAD}s)`,
   Math.abs(ticks * FIXED_DT - MISSILE_RELOAD) < 2 * FIXED_DT);
   eq('...and the cap outlasts the reload: reloaded, and still shooting',
-    npc.chooseWeapon(laser, FIXED_DT, 1200, at, true, 0), laser);
+    npc.chooseWeapon(laser, FIXED_DT, 1200, at, true), laser);
   eq('...having spent none of the reload it just finished', npc.state.missileReload, 0);
   eq('...and then the sky clears and the next round goes',
-    npc.chooseWeapon(laser, FIXED_DT, 1200, at, false, 0)?.weapon, 'missile');
+    npc.chooseWeapon(laser, FIXED_DT, 1200, at, false)?.weapon, 'missile');
 }
