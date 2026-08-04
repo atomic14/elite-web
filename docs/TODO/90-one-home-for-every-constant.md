@@ -116,6 +116,60 @@ This is a directory rather than one flat file because the evidence moves with
 the values. It is still one source of truth: there is exactly one place a given
 constant can be, and the gate below enforces it.
 
+## Divergence is the thing to hunt
+
+Chris, 2026-08-04: *"We should also be very aware of constants that do similar
+things that should be the same but have somehow diverged."*
+
+`MAX_TRADERS` is the easy case — two homes that still agree. The dangerous case
+is two homes that have **stopped** agreeing, because that is not a latent hazard
+at all, it is a live bug that has already happened and that nobody has noticed.
+It looks like this: one module caps something at 3,500 and another at 3,400,
+both meaning "as far as a laser reaches"; one file's reload is 2.0s and
+another's is 2.2s, both meaning "the gap between warheads"; a UI readout assumes
+220 for a speed the flight model moved to 240 two commits ago.
+
+By construction nothing in the codebase can find these, which is why the review
+has to READ:
+
+- They do not share a name, or `MAX_TRADERS` would be the template and a name
+  scan would find them.
+- They do not share a value — **that is precisely what has gone wrong** — so a
+  value scan cannot see them either. A value scan finds the pairs that still
+  agree and is blind to the ones that matter.
+- They are usually in different subsystems, so no one file's author can see both.
+
+Every such pair the review turns up is a finding in its own right and needs a
+decision before anything moves: which value is right, whether the other is a
+deliberate difference nobody wrote down, and what the correction does to the
+game. **Fixing a divergence is a behaviour change** and must not be smuggled in
+under a refactor that claims to be byte-identical. Land those separately, each
+with its own measurement, before or after the move — never inside it.
+
+## How this gets done
+
+This is too large for one pass and the survey half is pure reading, so it splits
+in two.
+
+**Phase 1 — survey, read-only, fanned out across subagents.** `src/` is ~35,500
+lines over ~140 files, plus `train/` and `tools/`. Partition it by subject, one
+agent per partition, and require each to READ ITS FILES IN FULL. Grep is banned
+in this phase and the ban is the point: a constant whose name you would not
+guess is exactly what the search misses, and divergence has neither a shared
+name nor a shared value to search for. Each agent reports, for every constant it
+finds: the value, what it actually means, how it was chosen if the file says,
+the proposed namespace, and every other constant anywhere in its partition that
+looks like it might be the same rule.
+
+**Phase 2 — cross-partition synthesis.** The divergences that matter most are
+between subsystems, so no phase-1 agent can see them. One pass over all the
+inventories together, looking for pairs that mean the same thing, and producing
+the list of decisions Chris has to make before any code moves.
+
+**Then the work**, in reviewable slices — one subject per commit, each proved
+byte-identical, with any divergence corrections landed separately as the
+behaviour changes they are.
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give
