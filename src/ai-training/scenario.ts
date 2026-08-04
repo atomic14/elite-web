@@ -12,12 +12,21 @@
 // WHAT IT IS NOT is `world-step.ts`. Invariant 5 covers deciding and invariant
 // 15 splits deciding from resolving, so `Episode.step` is the trainer's
 // orchestrator standing where the game's step stands — two implementations of
-// one contract, which had quietly diverged three times (docs/TODO/64). Every
-// call below that looks redundant is a debt to that split being paid:
+// one contract, which had quietly diverged four times (docs/TODO/64). Every call
+// below that looks redundant is a debt to that split being paid:
 // `p.npc.regenerate(dt)`, the target's `regenerate` inside `fly()`, and
 // `p.npc.chooseWeapon(...)`, which is the one that decides whether a missile
 // leaves the rail. A pirate had carried a rack the whole time and had never once
 // been asked (docs/TODO/62).
+//
+// WHAT A SHOT COSTS IS NO LONGER HERE AT ALL. `resolveNpcShot` below is the
+// trainer's tally over `game/fire-resolution.ts` — the game's own resolver, over
+// this episode's `FireWorld` — so the rack, the hit roll, the damage and the
+// shield face have one home and there is nothing left in this file for them to
+// drift from. The remaining divergence is docs/TODO/73, and it is in the
+// DECIDING half: an episode never hands a brain-flown pirate over to the
+// scripted break-off the way `NpcShip.update` does inside the brain's guard
+// range, so a training pirate never completes a pass.
 //
 // It used to be a second physics. `ai-training/core.ts` carried its own vector
 // and quaternion maths, its own PRNG, a `CLASSES` table mirroring
@@ -42,9 +51,9 @@ import {
   NpcShip, matesLost, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
   type FireEvent,
 } from '../game/npc.ts';
-import {
-  Ordnance, launchNpcMissile, type Missile, type OrdnanceWorld,
-} from '../game/ordnance.ts';
+import { Ordnance, type Missile, type OrdnanceWorld } from '../game/ordnance.ts';
+import { resolveNpcFire, type FireWorld } from '../game/fire-resolution.ts';
+import { hitFromAhead } from '../game/shield-face.ts';
 import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
 import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
 import {
@@ -717,6 +726,18 @@ export class Episode {
    * Nothing reads the scene back, so dropping the writes changes no rule.
    */
   private readonly ordnance: Ordnance;
+  /**
+   * The sky a fired shot is resolved against — `game/fire-resolution.ts`, the
+   * game's own resolver, over this episode's target and this episode's
+   * warheads.
+   *
+   * Four members, and every one of them is a fact only an episode has: which
+   * hull the target is, where it is, what a hit does to it, and what to do with
+   * a ship shot out of the sky (nothing — there is no bounty here and nothing to
+   * despawn). Everything else about a resolved shot is the rule, and the rule is
+   * not in this file any more.
+   */
+  private readonly fire: FireWorld;
   private readonly obs = new Float32Array(PACK_WIDE_OBS_SIZE);
   private readonly scratch = makeScratch();
   private readonly meView = shipView();
@@ -724,6 +745,9 @@ export class Episode {
   private readonly scratchVecs = { a: new THREE.Vector3(), b: new THREE.Vector3() };
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
+  /** scratch for `hitFromAhead`, its own because the two above are live across it */
+  private readonly faceVec = new THREE.Vector3();
+  private readonly faceQuat = new THREE.Quaternion();
   private readonly traderVel = new THREE.Vector3();
   private readonly traderWaypoint = new THREE.Vector3();
   private traderWaypointTimer = 0;
@@ -754,6 +778,18 @@ export class Episode {
       TARGET_HULLS[opts.traderClass ?? 'traderCobra'](),
       opts.targetShipId ?? COBRA_MK_3_HULL_ID,
       !!opts.targetEnergyUnit);
+    const trader = this.trader;
+    this.fire = {
+      target: {
+        hullId: trader.shipId,
+        pos: trader.pos,
+        damage: (damage, from) => trader.takeDamage(damage, this.hitFromFront(from)),
+      },
+      ordnance: this.ordnance,
+      // An episode has nobody to pay and nothing to despawn: `takeDamage` has
+      // already taken the ship out of the sky, and the fitness reads `alive`.
+      wreck: () => {},
+    };
     // random initial trader orientation
     steerQuatToward(
       this.trader.quat, randomDirection(this.tmp).multiplyScalar(1000), Math.PI);
@@ -835,7 +871,7 @@ export class Episode {
       const fired = p.npc.chooseWeapon(
         shot, dt, range, this.trader.pos, missileInbound, matesLost(this.fleet));
       if (fired && this.trader.alive) {
-        const e = this.resolveNpcShot(p, fired, range);
+        const e = this.resolveNpcShot(p, fired);
         if (e) events.push(e);
       }
       // geometry AFTER the step, as the shaping terms always measured it
@@ -912,39 +948,40 @@ export class Episode {
   // --- guns ------------------------------------------------------------------
 
   /**
-   * A pirate pulled the trigger. Resolving it is world-step.ts's
-   * `resolveNpcFire`, minus the tracer and the sound: read the weapon the ship
-   * chose, roll against the range curve, roll the damage.
+   * A pirate pulled the trigger. Resolving it is `game/fire-resolution.ts` —
+   * the game's own resolver, and now literally the same call the world step
+   * makes, so the rack, the dice, the damage and the shield face cannot drift
+   * from it again (docs/TODO/64).
+   *
+   * What is left here is the trainer's own half: the tally the fitness functions
+   * read, and a tracer for the viewer.
    *
    * @returns the tracer to draw, or null when nothing was drawable — a missile
    * is a ship in the sky for the next twenty-five seconds, not a bolt that
    * arrives in the same frame it left. Reporting one as a `ShotEvent` would put
    * a laser line in the viewer and a hit in the accuracy denominator.
    */
-  private resolveNpcShot(p: PirateShip, shot: FireEvent, dist: number): ShotEvent | null {
-    if (shot.weapon === 'missile') {
-      // world-step.ts's missile branch, and now literally the same call: the
-      // round is spent and the warhead is in the sky (ordnance.ts). It used to
-      // be neither — every FireEvent was resolved here as a laser hit, so a
-      // missile would have arrived instantly, for laser damage, off an
-      // inexhaustible rack (docs/TODO/62).
+  private resolveNpcShot(p: PirateShip, shot: FireEvent): ShotEvent | null {
+    const fired = resolveNpcFire(p.npc, shot, this.fire);
+    if (fired.weapon === 'missile') {
+      // The round is spent and the warhead is in the sky. It used to be
+      // neither — every FireEvent was resolved here as a laser hit, so a missile
+      // would have arrived instantly, for laser damage, off an inexhaustible
+      // rack (docs/TODO/62). Counted separately from `shotsFired`, which is a
+      // LASER tally.
       p.missilesFired += 1;
-      launchNpcMissile(p.npc, this.ordnance);
       return null;
     }
     p.shotsFired += 1;
-    const hit = random() < npcHitChance(dist);
-    if (hit) {
-      // The live rule and nothing else: the firing build's own packed byte
-      // (`laserPower << 2`) less the target hull's own per-hit armour, in the
-      // commander's pool points. It used to be a 0.1-0.22 roll on a normalized
-      // scale that existed nowhere in the game.
-      const damage = npcLaserDamageToPlayer(p.npc.weaponByte, this.trader.shipId);
+    if (fired.hit) {
       p.shotsHit += 1;
-      p.damageDealt += damage;
-      this.trader.takeDamage(damage, this.hitFromFront(p.pos));
+      p.damageDealt += fired.damage;
     }
-    return { from: p, to: this.trader, hit };
+    // A pirate in an episode is only ever pointed at the target: `brainFly` and
+    // `attack` are both driven with `'player'` above, and there is nobody else
+    // in the sky to be given. The resolver owns the crossfire branch as well
+    // because the sky does; all the trainer has to say about one is nothing.
+    return fired.at === 'target' ? { from: p, to: this.trader, hit: fired.hit } : null;
   }
 
   /**
@@ -984,13 +1021,16 @@ export class Episode {
   }
 
   /**
-   * Which face takes it — the same question `world-step.ts` asks of a shot, and
-   * the reason it matters here is that the commander has two shields and an
-   * attacker on your six is spending a different pool from one head-on.
+   * Which face takes it — `game/shield-face.ts`, the same call `Combat.hitPlayer`
+   * makes, and it matters because the commander has two shields and an attacker
+   * on your six is spending a different pool from one head-on.
+   *
+   * It was a dot product here and a quaternion inverse there: the same rule
+   * written twice, agreeing, which is what docs/TODO/64 is about.
    */
   private hitFromFront(from: THREE.Vector3): boolean {
-    const toShooter = this.tmp2.copy(from).sub(this.trader.pos);
-    return this.trader.forward(this.tmp).dot(toShooter) > 0;
+    return hitFromAhead(
+      from, this.trader.pos, this.trader.quat, this.faceVec, this.faceQuat);
   }
 
   /**

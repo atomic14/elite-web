@@ -154,8 +154,9 @@ are Vite entries in `vite.config.ts`; add new pages there or they won't build.
    algorithm. `npm test` asserts it.
 5. **One combat model.** `src/ai-training/scenario.ts` builds episodes out of
    `NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts`, `systems.ts` — the
-   target takes its damage AND its recharge from the game's own rules — and
-   `rng.ts`. A change
+   target takes its damage AND its recharge from the game's own rules —
+   `fire-resolution.ts`, which is where a fired shot is resolved for BOTH worlds
+   (docs/TODO/64), and `rng.ts`. A change
    to a combat number therefore changes the game and the training world
    together — so nothing desyncs, but it **invalidates the brains**. Retrain
    deliberately.
@@ -234,6 +235,19 @@ are Vite entries in `vite.config.ts`; add new pages there or they won't build.
 15. **NPCs return `FireEvent`s; the Game resolves all consequences.** Don't give
     an NPC a side effect. `ui/screens.ts` renders and nothing else, and the HUD
     is a dumb painter.
+
+    **There are two Games and ONE resolver.** `world-step.ts` and
+    `ai-training/scenario.ts` both implement this contract, and for a long time
+    they implemented it separately: four divergences nobody chose, found one at a
+    time (docs/TODO/62, 63, 64, 73). `game/fire-resolution.ts` owns what a shot
+    COSTS — spend the round, roll the hit, mint the damage, push it into the
+    target — over a four-member `FireWorld` each side implements, and
+    `game/shield-face.ts` owns which of her two shields takes it. What stays with
+    a caller is presentation: **a tracer is presentation and the shield face is a
+    rule**, and that split is the design. `test/fire-resolution.test.ts` drives
+    the same `FireEvent` and the same seed through both callers; if you are
+    adding a consequence to a shot, it goes in the resolver or it goes in
+    neither.
 
 ## Training
 

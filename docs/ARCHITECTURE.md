@@ -207,6 +207,12 @@ src/
                             nothing written down about it does not compile
     world-step.ts           one slice of the world, with nothing on screen:
                             the five phases of flight, reporting StepEvents
+    fire-resolution.ts      A SHIP FIRED, WHAT HAPPENS — the rack, the dice,
+                            the damage and who takes it, over a four-member
+                            FireWorld. THE one home, called by world-step.ts
+                            and by ai-training/scenario.ts (docs/TODO/64)
+    shield-face.ts          and which of the commander's two shields it lands
+                            on. One line, and it had two homes
     station.ts              docking, launching, and the menu between them
     state.ts                GameState: everything the step may change, in one
                             object. freshState() builds it with no browser
@@ -662,16 +668,38 @@ opponent pool, the escape range, and the observation encoder. The policies'
 observation is ship-frame relative (`policy.ts` docstring), which is what makes
 them position/orientation invariant.
 
-The claim holds for the DECISION half of combat and did not hold for the
+The claim held for the DECISION half of combat and did not hold for the
 RESOLUTION half, which is invariant 15's other side: `world-step.ts` and
-`scenario.ts` are two implementations of "an NPC fired, now what". They had
+`scenario.ts` were two implementations of "an NPC fired, now what". They had
 diverged on the weapon, the missile rack and shield regeneration, and nothing
-would have said so — docs/TODO/64 is the mechanism that fixes that class, 63
-closed the regeneration and **62 closed the missiles**. An episode now calls
-`NpcShip.chooseWeapon`, reads `shot.weapon`, spends the round through
-`ordnance.ts`'s `launchNpcMissile`, and flies the warhead with `Ordnance` itself
-over an `OrdnanceWorld` whose `attach` has no scene behind it — the same bargain
-`headlessShell()` makes for the renderer. There is no second missile model.
+would have said so — 63 closed the regeneration, **62 closed the missiles**, and
+**docs/TODO/64 closed the class**.
+
+There is now ONE resolver, `game/fire-resolution.ts`, and both callers call it.
+It owns the four things that decide a fight — spend the round, roll the hit,
+choose the damage, push it into the target — over a `FireWorld` of four members:
+which hull the target is, where it is, what a hit does to it, and what to do with
+a ship shot out of the sky. That is the same seam this codebase uses for the
+platform (`engine/shell.ts`), for the orchestrator (`StepHost`) and for a sky to
+put a warhead in (`OrdnanceWorld`): a narrow interface each side implements, with
+the rules above it in one file. What stays with the caller is presentation — the
+tracer, the bang, the `npcFired` report on one side; the accuracy tally on the
+other — because *a tracer is presentation and the shield face is a rule*, and
+that split is the whole design. `game/shield-face.ts` is the smallest piece of
+it: which of her two shields takes a hit, asked by `Combat.hitPlayer` and by the
+episode's target, and written once.
+
+The gate is `test/fire-resolution.test.ts`: the same `FireEvent` and the same
+seed through BOTH callers, asserting identical damage, identical rack and
+identical pools, over ten fixtures that reach every branch and both sides of
+every roll. It is checked for vacuity the way `npm test`'s bans are — gut a
+branch of the resolver, or re-grow a copy of it in one caller, and the file
+fails.
+
+The one remaining divergence is docs/TODO/73, and it is in the DECIDING half: an
+episode never hands a brain-flown pirate over to the scripted break-off the way
+`NpcShip.update` does inside the brain's guard range, so a training pirate never
+completes a pass.
 
 ### 6. Pirates are businesses, not a difficulty slider
 

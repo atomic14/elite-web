@@ -2363,3 +2363,36 @@ for a kill. What they DID do is make the difference between defenders visible in
 a column that was previously saturated: `died` was 0/240 for everything before
 today, and it now separates 4, 5 and 6. Do docs/TODO/65 next, then retrain
 defence again — with 71's health input if it lands, and 72's E.C.M. after that.
+
+## 2026-08-04 — one resolver (TODO 64), and the smallest baseline shift so far
+
+A refactor rather than a training run, recorded here because it touched the world
+an episode is fought in and every entry above is measured in that world.
+
+`game/fire-resolution.ts` is now the one home for "a ship fired, what happens" —
+the rack, the hit roll, the damage and which shield face takes it — and both
+`world-step.ts` and `ai-training/scenario.ts` call it over a four-member
+`FireWorld` each implements. Nothing about the RULES changed; what changed is that
+there is one copy of them. The game is byte-identical over 7,000 traced frames
+(docs/TODO/64 has the hashes).
+
+**One number moved, and it is the row this closed that had a number in it.** The
+range the hit dice read is measured inside the resolver now, after the shooter's
+own step has moved it, where the episode used to pass in the range it had measured
+BEFORE the flight. Over 120 held-out episodes (40 seeds × `scripted`/`holding`/
+`weaving`, three scripted pirates apiece, armed target, military laser):
+
+| | before | after |
+| --- | --- | --- |
+| episodes whose report differs | — | **4 of 120** |
+| mean pool points taken | 372.4 | 372.7 |
+| pirate accuracy | 0.6201 | 0.6210 |
+| target killed | 5 | 5 |
+
+No `random()` call moved — the draws are the same draws in the same order, read
+against a threshold a few units of range different — so **every archived figure
+above is still comparable** and `EPISODE_SCHEMA` stays at 3. That is a deliberate
+statement and not an assumption: 63 and 62 both said the opposite about their own
+changes, in their own entries, because both changed what the pools could do.
+
+`npm run campaign` prints byte-identical output either side of the change.

@@ -45,16 +45,13 @@ import { TRADER_ARRIVAL_RANGE } from './world.ts';
 import { planDocking, dockingOutcome } from './docking.ts';
 import { regenerate, updateCabinTemp, scoopFuel, energyLow } from './systems.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
-import { npcHitChance, npcLaserDamageToPlayer, NPC_VS_NPC_HIT } from './gunnery.ts';
-import { npcCrossfireDamage } from './npc-energy.ts';
+import { resolveNpcFire, type FireWorld } from './fire-resolution.ts';
 import { IMPACT, npcImpactDamage, playerImpactDamage } from './impact-damage.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import type { DamageSource } from './combat.ts';
 import { dealToNpc, type DealtEvent } from './damage-dealt.ts';
 import { viewDirection } from './views.ts';
-import {
-  Ordnance, launchNpcMissile, ordnanceMessage, type OrdnanceOutcome,
-} from './ordnance.ts';
+import { Ordnance, ordnanceMessage, type OrdnanceOutcome } from './ordnance.ts';
 import type { NpcShip, FireEvent, WorldView } from './npc.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
@@ -120,8 +117,8 @@ export type StepEvent =
   /**
    * A ship pulled its trigger, and at what.
    *
-   * The step is the only place that knows: `resolveNpcFire` rolls the dice and
-   * the host only ever hears about the HITS, through `applyPlayerDamage`. Shots
+   * The step is the only place that knows: `fire-resolution.ts` rolls the dice
+   * and the host only ever hears about the HITS, through `applyPlayerDamage`. Shots
    * that missed are the denominator of every accuracy figure the combat
    * simulator reports (combat-sim-report.ts), and test/combat-recorder.js could
    * only get at them by monkey-patching a method that has since moved twice.
@@ -221,6 +218,16 @@ export class WorldStep {
   private readonly state: GameState;
   private readonly ordnance: Ordnance;
   private readonly host: StepHost;
+  /**
+   * The sky a fired shot is resolved against — see `fire-resolution.ts`.
+   *
+   * Built once from the constructor's own arguments, and reading the STATE
+   * rather than a captured commander or player: both are replaced on respawn and
+   * on a restore, and a held reference would quietly resolve shots against a
+   * commander who no longer exists (the same reason `Combat` takes hers per
+   * call).
+   */
+  private readonly fire: FireWorld;
 
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
@@ -233,6 +240,18 @@ export class WorldStep {
     this.state = state;
     this.ordnance = ordnance;
     this.host = host;
+    this.fire = {
+      target: {
+        get hullId() { return state.commander.shipId; },
+        get pos() { return state.player.position; },
+        // The seam's own forwarding, and the one thing the game adds that an
+        // episode has no use for: which of the five sources it was, for the
+        // damage flash and the record (`DamageSource`).
+        damage: (damage, from) => host.applyPlayerDamage(damage, from, 'laser'),
+      },
+      ordnance,
+      wreck: (npc) => host.wreckNpc(npc),   // no player credit — see npcVsNpcs
+    };
   }
 
   /**
@@ -653,62 +672,45 @@ export class WorldStep {
     }
   }
 
-  /** An NPC asked to fire. The ship chose the weapon; we roll the dice. */
+  /**
+   * An NPC asked to fire. `fire-resolution.ts` rolls the dice; this is what a
+   * shot LOOKS and SOUNDS like, which is the half an episode does not have.
+   *
+   * The rule used to be here, and the trainer's copy of it drifted four times
+   * (docs/TODO/64). What is left is presentation and one report: the bolt, the
+   * bang, and `npcFired` for whoever is counting.
+   */
   private resolveNpcFire(npc: NpcShip, event: FireEvent, out: StepEvent[]): void {
-    const { world, player, commander } = this.state;
+    const { world, player } = this.state;
     // Reported before anything is resolved, and before any draw — the report
     // wants the shot whether or not it lands, and moving a `random()` across a
     // branch would change every seeded outcome after it (game/rng.ts).
     out.push({
       kind: 'npcFired', npc, weapon: event.weapon, atPlayer: event.at === 'player',
     });
-    if (event.at === 'player') {
-      // The SHIP chose the weapon (npc.ts chooseWeapon); we only apply it — and
-      // "spend the round, put it in the sky" is one rule with one home, because
-      // the trainer's resolver has to make the same call (ordnance.ts).
-      if (event.weapon === 'missile') {
-        this.reply(launchNpcMissile(npc, this.ordnance), out);
-        return;
-      }
-      const dist = npc.object.position.distanceTo(player.position);
+    const shot = resolveNpcFire(npc, event, this.fire);
+    if (shot.weapon === 'missile') {
+      this.reply(shot.launch, out);
+      return;
+    }
+    if (shot.at === 'target') {
       out.push(heard('enemyLaser'));
-      const hit = random() < npcHitChance(dist);
-      // visible bolt: to us on a hit, wide of us on a miss
-      const to = hit
+      // The visible bolt: to us on a hit, wide of us on a miss. The scatter is
+      // drawn HERE and after the resolution, deliberately — it is two `random()`
+      // draws that decide nothing, and taking them before the hit roll (or on a
+      // hit, where the old code took none) would move every seeded outcome after
+      // it.
+      const to = shot.hit
         ? player.position.clone()
         : player.position.clone().add(
             randomDirection(new THREE.Vector3()).multiplyScalar(80 + random() * 140));
       world.effects.tracer(
         npc.nosePosition(this.tmp).clone(), to,
         npc.role === 'thargoid' || npc.role === 'thargon' ? 0xd05cff : 0xff5c40, 0.22);
-      if (hit) {
-        // WHETHER it lands is Harmless's dice, above; what it is WORTH is the
-        // released game's, and it is not rolled at all. The firing ship's exact
-        // build supplies the laser power and the commander's hull supplies the
-        // armour it comes off — see gunnery.ts. A build whose power cannot beat
-        // this hull's armour still connects, still flashes and still costs
-        // nothing, which is what the pack's zero rows say.
-        this.host.applyPlayerDamage(
-          npcLaserDamageToPlayer(npc.weaponByte, commander.shipId),
-          npc.object.position, 'laser');
-      }
       return;
     }
-    // NPC shooting NPC
-    const target = event.at;
     world.effects.tracer(
-      npc.nosePosition(this.tmp).clone(), target.object.position.clone(), 0xffaa55, 0.18);
-    if (random() < NPC_VS_NPC_HIT) {
-      // WHAT A CROSSFIRE HIT IS WORTH is the same oracle the two player-facing
-      // directions use: the FIRING ship's own laser strength against the
-      // TARGET's own defence (`npcCrossfireDamage`). It was a flat 0.11 on the
-      // normalized scale, which made a Thargoid's gun and a Worm's identical and
-      // ignored what either was shooting at.
-      if (target.takeDamage(
-        npcCrossfireDamage(npc.weaponByte, target.energyPolicy), npc.object.position)) {
-        this.host.wreckNpc(target); // no player credit
-      }
-    }
+      npc.nosePosition(this.tmp).clone(), shot.at.object.position.clone(), 0xffaa55, 0.18);
   }
 
   /** Ordnance reports what it did; saying it is ours. */

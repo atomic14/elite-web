@@ -245,11 +245,36 @@ combat model" covers the DECISION half of combat and not the RESOLUTION half:
 `world-step.ts` and `ai-training/scenario.ts` are two implementations of
 invariant 15's contract, and they have silently diverged on the weapon, the
 missile rack and shield regeneration. 62 and 63 were the two known divergences —
-**both are closed** — and 64 is the mechanism that would have caught them and
-stops the next one. Doing 62 turned up a fourth divergence nobody was looking
-for, which is 64's whole argument restated: **73**, a training pirate never hands
-over to the scripted break-off, so it never completes a pass and can never earn a
-missile the way the game intends.
+**both are closed**, and **64 is done**: there is ONE resolver now,
+`game/fire-resolution.ts`, called by both, over a four-member `FireWorld` each
+side implements — the seam this codebase already uses for the platform, the
+orchestrator and a sky to put a warhead in. The rules above it are the rack, the
+dice, the damage and the shield face (`game/shield-face.ts`, one line that had two
+homes and agreed); everything left with the callers is a tracer, a bang and a
+tally. `test/fire-resolution.test.ts` is the mechanism that would have caught 62
+and 63 and stops the next one — the same `FireEvent` and the same seed through
+BOTH callers — and it is checked for vacuity by gutting the resolver and by
+re-growing a copy in one caller. The game is byte-identical over 7,000 traced
+frames; the trainer moved in 4 episodes of 120, from the one row 64 closed that
+had a number in it (the range the hit dice read).
+
+Doing 62 turned up a fourth divergence nobody was looking for, which is 64's whole
+argument restated: **73**, a training pirate never hands over to the scripted
+break-off, so it never completes a pass and can never earn a missile the way the
+game intends. It is the one row of 64's table that does not read "same", it is
+left open deliberately — closing it changes what every genome is scored against —
+and it is where the seam goes next: `NpcShip.update()` is still the only place
+that composes "pick a flight, then pick a weapon".
+
+**74** is 64's own prediction coming true on the way out. 64 says of its table
+"there is no reason to believe the list is complete", and finishing it turned up a
+fifth divergence pointing the OTHER way: the episode's armed freighter shoots back
+with the range curve where the game's armed trader rolls the flat
+`NPC_VS_NPC_HIT`, so it lands 0.754 of its shots against the sky's 0.500 at the
+ranges a fight is actually fought at. It is outside 64's seam — the shooter there
+is the episode's target, not an `NpcShip` — and it feeds `fitnessDefend`,
+`fitnessPack` and every defence-probe table, so it is a decision about which rule
+is right rather than a refactor.
 
 61 is decided and done: **deleted**. Chris, 2026-08-03. `pirate-attack-e1` was
 restored to be compared against `pirate-attack-g3` as the solo pirate policy, and
@@ -276,12 +301,13 @@ neither is 63's to close — they are **70** and **71** below.
 - [x] 61 — [Promote or delete the attack-run candidate](61-decide-the-attack-run-candidate.md) — decision · medium · small
 - [x] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
 - [x] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
-- [ ] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
+- [x] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
 - [ ] 65 — [The defender is selected for not fighting](65-the-defender-is-selected-for-not-fighting.md) — training methodology · high · medium
 - [ ] 70 — [The pack's kill bonus can no longer be earned](70-the-packs-kill-bonus-is-dead-signal.md) — training methodology · high · medium
 - [ ] 71 — [A defender cannot see its own pools](71-a-defender-cannot-see-its-own-pools.md) — training fidelity · high · medium
 - [ ] 72 — [The target cannot answer a missile](72-the-target-cannot-answer-a-missile.md) — training fidelity · high · large
 - [ ] 73 — [A training pirate never hands over, so it never earns a missile](73-a-training-pirate-never-breaks-off.md) — training fidelity · medium · medium
+- [ ] 74 — [An armed freighter shoots 51% straighter in training than in the game](74-the-armed-freighter-shoots-straighter-in-training.md) — training fidelity · medium · small
 
 70 and 71 came out of 63 and are the two things it could not close. 70: a gang of
 three killed the armed scripted trader in 21 of 60 episodes and now kills her in

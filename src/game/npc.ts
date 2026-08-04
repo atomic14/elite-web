@@ -1118,7 +1118,8 @@ export class NpcShip {
    * launch** — 1,374 laser requests and 0 missile requests across 200 armed,
    * hurt pirates (docs/TODO/62). The two arguments are exactly the facts that
    * are not on the ship: whether the air is already occupied, and how the gang
-   * is doing. This is the seam docs/TODO/64 widens; it does not close it.
+   * is doing. This is the seam docs/TODO/64 widened; what it REPORTS is resolved
+   * by `fire-resolution.ts`, the one home both worlds call.
    *
    * CALL IT ONCE PER FRAME, not once per decision. It ticks `missileReload`
    * itself, so a caller at the brains' 10 Hz would reload six times too slowly.

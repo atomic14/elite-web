@@ -171,9 +171,17 @@ console.log('\nNPC versus NPC — the same oracle as the player-facing paths');
 
   // And it really is what the live sky spends: the call site passes the firing
   // ship's byte and the target's own policy, not a constant.
-  const step = src('game/world-step.ts');
-  check('the step spends the composed rule, with both sides\' own numbers',
-    /npcCrossfireDamage\(npc\.weaponByte, target\.energyPolicy\)/.test(step));
+  //
+  // The call site is `game/fire-resolution.ts` since docs/TODO/64 and was
+  // `game/world-step.ts` before it — ONE resolver now, so the trainer spends
+  // this too rather than the flat number it used to.
+  const resolver = src('game/fire-resolution.ts');
+  check('the resolver spends the composed rule, with both sides\' own numbers',
+    /npcCrossfireDamage\(npc\.weaponByte, victim\.energyPolicy\)/.test(resolver));
+  check('...and the player-facing bolt spends the firing build against the target hull',
+    /npcLaserDamageToPlayer\(npc\.weaponByte, world\.target\.hullId\)/.test(resolver));
+  check('...and neither is left behind in the two callers',
+    !/npcCrossfireDamage|npcLaserDamageToPlayer\(npc/.test(src('game/world-step.ts')));
 
   // A live pair, deterministically.
   seedWorld(31_337);
@@ -263,6 +271,8 @@ console.log('\nthe old scale is gone, and cannot come back');
     'game/impact-damage.ts', 'game/damage-units.ts', 'game/damage-dealt.ts',
     'game/collisions.ts',
     'game/ordnance.ts', 'game/cargo.ts', 'game/combat-sim.ts',
+    // the one resolver both of the two below call, since docs/TODO/64
+    'game/fire-resolution.ts',
     'ai-training/scenario.ts',
   ];
   const all = files.map((f) => [f, code(f)] as const);
@@ -350,7 +360,13 @@ console.log('\nthe old scale is gone, and cannot come back');
   }
   check(`every damage call names its rule (${npcCalls} + ${playerCalls} calls)`,
     bad.length === 0, bad.join(' · '));
-  check('...and the check is not vacuous', npcCalls >= 7 && playerCalls >= 5);
+  // FOUR player-facing calls, where it was five: docs/TODO/64 moved the NPC
+  // laser's out of the step and into `fire-resolution.ts`, where it reaches her
+  // through the `FireTarget` seam and arrives at `applyPlayerDamage` as the
+  // forwarded `damage` above. The rule it names is asserted by its own source
+  // scan in the crossfire block — an equally precise check at the new address,
+  // not a lowered bar.
+  check('...and the check is not vacuous', npcCalls >= 7 && playerCalls >= 4);
 
   // 4. NO DIRECT HEALTH MUTATION. A pool is written by the file that owns it and
   //    nowhere else — the failure mode that would route round every rule above.

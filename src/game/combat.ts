@@ -31,6 +31,7 @@ import { type CommanderData, formatCredits, killValue } from './commander.ts';
 import { laserForView, canFire, chargeShot } from './gunnery.ts';
 import { traceShot } from './shot.ts';
 import { applyDamage } from './systems.ts';
+import { hitFromAhead } from './shield-face.ts';
 import { offenceFor, OFFENDER, FUGITIVE } from './law.ts';
 import { constrictorDestroyed } from './missions.ts';
 import { random, randomInt } from './rng.ts';
@@ -301,9 +302,11 @@ export class Combat {
     playerQuat: THREE.Quaternion,
     scratch: CombatScratch,
   ): CombatEvent[] {
-    scratch.a.copy(from).sub(playerPos)
-      .applyQuaternion(scratch.q.copy(playerQuat).invert());
-    const result = applyDamage(sys, damage, scratch.a.z < 0);
+    // WHICH FACE is `shield-face.ts` and not this file: a training episode asks
+    // the same question of its own target, and asking it in two places is how
+    // one rule grew two homes (docs/TODO/64).
+    const result = applyDamage(
+      sys, damage, hitFromAhead(from, playerPos, playerQuat, scratch.a, scratch.q));
 
     const out: CombatEvent[] = [heard('damage')];
     if (result.wreckedSomething) out.push({ kind: 'breach' });

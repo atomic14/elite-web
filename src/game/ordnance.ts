@@ -175,8 +175,10 @@ export interface OrdnanceWorld {
  * resolvers — `world-step.ts` for the game and `ai-training/scenario.ts` for the
  * trainer — and the trainer's had neither half of this: it spent no round and
  * launched no missile (docs/TODO/62). The pair is a rule, not presentation, so
- * neither resolver may own it. It is the first slice of docs/TODO/64; the
- * laser's dice, its damage and the shield face it lands on still have two homes.
+ * neither resolver may own it. It was the first slice of docs/TODO/64, which has
+ * since closed the rest: the laser's dice, its damage and the shield face it
+ * lands on live in `fire-resolution.ts`, and this is the call its missile branch
+ * makes.
  */
 export function launchNpcMissile(npc: NpcShip, ordnance: Ordnance): OrdnanceOutcome {
   npc.state.missiles -= 1;

@@ -243,6 +243,10 @@ console.log('\npurity');
     // the whole world step, as of the extraction out of game.ts — this is the
     // line that says the simulation can advance without a browser
     'world-step.ts',
+    // "a ship fired, what happens", and which of her two shields takes it. Both
+    // are rule modules the TRAINER calls, so a browser reference in either would
+    // put the platform inside a training episode (docs/TODO/64)
+    'fire-resolution.ts', 'shield-face.ts',
     // the two computers that fly the ship for you. They reported straight to
     // the HUD and the AudioContext; they report events now, which is the only
     // reason this line can exist
