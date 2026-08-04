@@ -112,6 +112,42 @@ This is what forces the shape below: forty lines of evidence per swept constant
 does not go in one flat file, so the home is a directory whose files are each
 about one subject.
 
+## Scope: game constants. Not styling.
+
+Chris, 2026-08-04: *"Ignore the CSS, we care about game constants."*
+
+So **out of scope**, and not to be reopened by a tidy-minded reviewer:
+
+- The four phosphor colours, wherever they live — the CSS custom properties in
+  `style.css`/`manual.css`/`landing.css`, the hex copies in `hud.ts` and
+  `gallery.ts`, the `rgba()` decimal spellings, and the encyclopaedia's separate
+  green and amber. `#4dff5c` has fourteen homes and they stay.
+- Cockpit and panel layout in CSS — `top: 42%`, panel widths, z-indexes.
+- `tools/posterise.py`'s palette, which is a copy of the stylesheet's greens.
+- Pure drawing geometry in `hud.ts` — bracket radii, arrow polygons, scanner
+  ring fractions. Single-use numbers that describe a shape nobody else needs to
+  know.
+
+**In scope, including where it sits in a presentation file.** A game rule is a
+game rule wherever it is written down, so these stay in:
+
+- `SCANNER_RANGE`, `TARGET_BRACKET_RANGE`, `SUNSKIM_COMPASS_RANGE`,
+  `STATION_COMPASS_RADII` — ranges the simulation also has opinions about.
+- The two gauge thresholds that guess at a rule they could read: the laser bar
+  reddening at 0.8 against a real cut-out of 0.98, and the cabin bar at 0.72
+  against death at 0.99.
+- `ASSUMED_TARGET_SPEED` — a display constant standing next to the live value it
+  is guessing at, and the worst single bug the survey found.
+- `LOCAL_SCALE`, `LOCAL_CANVAS` and the chart projection's `256`/`128`/`/4`,
+  which are the galaxy's own geometry.
+- Prose that restates a live number: the briefing's fuel range and starting
+  credits, `audio.ts`'s countdown pitch encoding `COUNTDOWN`.
+- `SIGHT_Y` moves as a game constant. Its CSS twin stays duplicated, and that is
+  now a deliberate, recorded exception rather than an open problem.
+
+The test is **"is this a rule about the game, or about how it looks"** — and
+when a number is both, it is in scope and the stylesheet keeps its copy.
+
 ## The shape
 
 `src/constants/`, one file per subject, each exporting one namespace. The

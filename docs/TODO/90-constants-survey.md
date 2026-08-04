@@ -369,26 +369,20 @@ existing so a shot can be led. `npc.ts:1306` already has `velocityOf(quat,
 speed)` — the identical expression the HUD open-codes with a constant. This is a
 live aiming bug, it lands separately, and CLAUDE.md says fly it before tuning it.
 
-## The rule with a comment asking the next person to keep it in step
+## CSS — RULED OUT OF SCOPE, 2026-08-04
 
-`render-stack.ts:34` `SIGHT_Y = 0.42` and `style.css:33` `top: 42%`, each
-carrying a comment saying it MUST match the other — the precise anti-pattern
-CLAUDE.md names as not-a-fix. The file records what happened last time they
-disagreed: the sight sat 4.6° above where the shot went.
+Chris: *"Ignore the CSS, we care about game constants."* Recorded here because
+the survey found it and the next reader will otherwise re-find it:
 
-**And CSS is about 40% of this partition.** `#4dff5c` alone has at least 14
-homes in 3 spellings — hex in TypeScript, `rgba()` decimal, and a CSS variable
-defined separately in `style.css`, `manual.css` and `landing.css`. The
-encyclopaedia uses a *different* green and amber (`#33ff33`, `#ffcc33`) with no
-note saying whether that is deliberate, and two of its greens have leaked into
-`style.css`.
+`SIGHT_Y = 0.42` and `style.css`'s `top: 42%` each carry a comment saying it
+MUST match the other. `#4dff5c` has at least 14 homes in 3 spellings. The
+encyclopaedia uses a different green and amber. Two of its greens have leaked
+into `style.css`. **All of this stays.** `SIGHT_Y` moves as a game constant and
+its CSS twin remains a deliberate, recorded duplication.
 
-**One home for every constant is not achievable for CSS by the same mechanism as
-for TypeScript.** Two workable patterns already exist in the codebase and should
-be the template: `--sight-r`, computed at boot from `AIM_ASSIST` through the
-real projection, and `--chart-side`, passed in from `LOCAL_CANVAS`. Everything
-else needs a build step, a boot-time `setProperty` loop, or an accepted and
-*gated* duplication. **Decide this before moving any colour.**
+The two patterns that already bridge the boundary correctly — `--sight-r`
+computed at boot from `AIM_ASSIST`, and `--chart-side` passed in from
+`LOCAL_CANVAS` — are untouched and remain the template if this is ever reopened.
 
 ## TODO 50 left a home behind
 
@@ -580,17 +574,21 @@ time, never interleaved, or the dice braid and the proof means nothing.
    an input that should be deleted? `brains.ts` already says which it thinks.
 6. **`ASSUMED_TARGET_SPEED`** — confirm the HUD should lead on the target's real
    speed. The marker moves, so it wants flying before it is tuned.
-7. **CSS**: one home is not achievable across the TypeScript/CSS boundary by the
-   same mechanism. Pick one — boot-time `setProperty` for all of it (the
-   `--sight-r` pattern), a build step, or an accepted and gated duplication.
-8. **The two palettes**: is the encyclopaedia's different green deliberate?
+*(CSS and the two palettes were decisions 7 and 8. Ruled out of scope
+2026-08-04 — see above.)*
 
 ## Behaviour changes that must land on their own, never inside the move
 
 The Dodo collision box · contract range 68 → 70 · `EXTEND_RANGE` 850 → 675 ·
 `ASSUMED_TARGET_SPEED` → the real speed · the trainer's target-speed floor ·
 `jameson-autopilot`'s 280 pin · `slash.missDistance` 175 → 176 ·
-`CLEAR_RANGE` 340 → 330 · `CC_ACCEL` 100 → 101.2 · unifying the two greens.
+`CLEAR_RANGE` 340 → 330 · `CC_ACCEL` 100 → 101.2.
 
 Each is a real change to what the game or the trainer does. Several invalidate
 measurements: the trials, the defence figures, the campaign's tuning.
+
+Three of them have an answer already written in the code and need no decision —
+the Dodo box (50 is the only measured value), `EXTEND_RANGE` (`break-off.ts`
+argues the midpoint), and the `280` pin (`combat-computer.ts` already removed
+its twin and said why). Two are genuine questions for Chris: the trainer's
+target-speed floor, and whether the HUD should lead on the real speed.
