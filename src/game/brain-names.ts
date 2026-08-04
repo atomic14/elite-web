@@ -303,9 +303,16 @@ export function isPackBrain(name: BrainName): boolean {
 /**
  * Which policy a pirate of this tier flies, BY NAME.
  *
- * CLAUDE.md's Training split stated once: opportunists and professionals fly the
- * solo brain, an organised gang flies the pack policy. Everything `sel` does on
- * top of that is an A/B override for playtesting.
+ * The shipped answer is `scripted` for every pirate a player meets — solo and
+ * organised gang alike, since `d563e3d` made the three-phase attack run what
+ * ships. Everything `sel` does on top of that is an A/B override for
+ * playtesting, which is the ONLY way a trained pirate policy gets flown outside
+ * the combat trainer.
+ *
+ * The two branches below still split solo from organised even though both
+ * constants read `scripted` today. They are kept apart because they are two
+ * decisions that happen to agree, not one decision: giving a gang its own
+ * pilot again is a change to `SHIPPED_PACK` and nothing else.
  *
  * `tier` no longer changes the answer, and the parameter stays because the
  * QUESTION still has a tier in it: the six flags that split by tier were the

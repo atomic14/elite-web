@@ -6,9 +6,9 @@ E L I T E.*
 
 Authentic wireframe ships, the
 original byte-accurate procedural galaxy (Lave is system 7, as it should
-be), modern shader-driven suns and planets — and ship AI trained by
-neuroevolution self-play, flying both the pirates that hunt you and the
-traders that fight back.
+be), modern shader-driven suns and planets — and ship AI in two flavours: a
+scripted three-phase attack run for the pirates that hunt you, and a
+neuroevolution self-play policy for the traders that fight back.
 
 ![Approaching a Coriolis station with the docking aid live](docs/images/station-docking.jpg)
 
@@ -333,9 +333,11 @@ detected — as on the original's dashboard.
   ore and asking no questions; derelict generation ships drift between the
   stars; and someone will sell you a Trumble for 2 credits, which is one of
   the worst decisions available to you.
-- **Trained ship AI** — pirates and armed traders fly neural policies
-  trained by self-play (docs/TRAINING-LOG.md); watch them fight in the
-  combat viewer.
+- **Two kinds of ship AI** — pirates fly a scripted three-phase attack run,
+  because the policies self-play kept finding were turrets that hung in space
+  and sniped; armed traders and the combat computer you can buy fly a neural
+  policy trained by self-play (docs/TRAINING-LOG.md). Watch either fight in
+  the combat viewer.
 
 ## Architecture
 
@@ -369,8 +371,11 @@ detected — as on the original's dashboard.
 - `src/ai-training/` + `train/` — render-free combat simulator, tiny MLP policies
   (1.9k params, keyboard-style discrete actions) and a neuroevolution
   self-play trainer. `src/ai-training/brains/` holds exactly the three policies
-  the game flies — a solo pirate, an organised gang and an armed trader — and
-  the tests fail if a fourth appears; everything else this project trained is
+  the game can load — a solo pirate, an organised gang and an armed trader — and
+  the tests fail if a fourth appears. Only the armed trader's flies by default,
+  and it is also the combat computer you can buy; the two pirate policies fly
+  under a playtest override or in the combat trainer. Everything else this
+  project trained is
   written up in `docs/TRAINING-LOG.md` rather than shipped. The combat viewer
   (`/viewer`) replays matchups with the real wireframe ships, and every row in
   it flies one of those three or a stated control.

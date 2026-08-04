@@ -1,7 +1,8 @@
 # CLAUDE.md — working on HARMLESS
 
 **HARMLESS** — an unofficial browser tribute to Elite (1984). TypeScript, Vite,
-three.js, with ship AI trained by neuroevolution self-play. Public repo, MIT plus
+three.js, with a scripted attack run for the ships that hunt you and
+neuroevolution self-play for the ones that fly with you. Public repo, MIT plus
 a fan-project notice; keep the non-commercial homage framing intact.
 
 This is a guide to how we work, not a specification. Facts about the code belong
@@ -76,8 +77,26 @@ reaching the live site. Don't move them out of that path.
 
 ## The AI
 
-**Threat is not fun.** A well-optimised pirate is a turret that hangs in space
-and snipes, and evolution will find it. We want a dogfight the player can win.
+**Two kinds of pilot, and they are not interchangeable.** Know which one you are
+touching before you touch it — `brain-names.ts` is where the rule lives.
+
+- **Scripted flies the opposition.** Every pirate a player meets, solo or in an
+  organised gang, flies the hand-written three-phase attack run — close, pass,
+  extend. No neural net is involved. This is what ships, so a fix here is a fix
+  to the fight.
+- **Trained flies your side.** One policy, `jameson-defend-g2`, is both the armed
+  trader's pilot and the combat computer the player buys.
+- The two trained pirate policies in the bundle fly only under an A/B override or
+  in the combat trainer. Changing them does not change what a player meets, and
+  saying "the pirate brain" without saying which is how that gets confused.
+
+**Threat is not fun**, and the split above is the scar it left. A well-optimised
+pirate is a turret that hangs in space and snipes; evolution found it twice, won
+every measurement both times, and Chris asked for the old brain back both times.
+So the hostile is scripted, because a run we write can be made to feel like a
+dogfight the player can win and a run we fit was not. Reach for training when the
+job is to survive a fight; reach for script when the job is to give the player
+one.
 
 Lethality is a proxy for threat, and a brain that wins every measurement can
 still be the wrong brain — **a measurement can be excellent and be measuring the
