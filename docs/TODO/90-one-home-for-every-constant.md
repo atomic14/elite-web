@@ -37,10 +37,18 @@ about where they live and no gate on defining a second one is the hazard;
 `MAX_TRADERS` is one fuse that happens to be visible. A reviewer who moves the
 constants and reports "and none of them disagreed" has done the job correctly.
 
-**Derivation is currently done by copying the number.** Exactly ONE constant in
-`src/` is expressed in terms of another — `systems.ts:105`'s
-`SHIELD_REGEN = MAX_SHIELD * SHIELD_REGEN_FRACTION`. Every other relationship
-between two values is a coincidence a reader has to spot:
+**Derivation is done inconsistently — some constants derive, most copy.** An
+earlier draft of this item claimed exactly one constant in `src/` was expressed
+in terms of another; three survey partitions independently proved that wrong.
+The census grep below only matched a right-hand side beginning with an
+UPPER_CASE identifier, so it missed every derivation wrapped in `Math.round`, a
+parenthesis, a digit or a function call. There are at least twenty, listed in
+docs/TODO/90-constants-survey.md.
+
+So the pattern is established and good. What is missing is its consistent
+application, and the survey's R-findings are the list of places where a stated
+relationship is written as a second literal instead. Several relationships are
+asserted in prose and enforced by nothing:
 
 - `gunnery.ts` has `LASER_RANGE = 3500`, `NPC_LASER_RANGE = 3500` and
   `NPC_HIT_FALLOFF = 3500`, in one file. Whether the hit falloff is MEANT to be
