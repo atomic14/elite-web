@@ -287,7 +287,10 @@ src/
                             rolls, missile choice, and what its exact released
                             build's laser costs the commander's hull
     shot.ts                 what a shot passed through: ray first, then graze cone
-    ordnance.ts             missiles in flight, the E.C.M., the energy bomb
+    ordnance.ts             missiles in flight, the E.C.M., the energy bomb —
+                            plus launchNpcMissile, the one home for "an NPC
+                            spent a round", over an OrdnanceWorld a training
+                            episode can supply as easily as the World can
     systems.ts              the commander's three 255-point banks, what a hit
                             costs them, how they recharge (Harmless policy on
                             the oracle's tick clock), laser heat, cabin temp,
@@ -658,6 +661,17 @@ What is genuinely about training stays here: the fitness functions, the
 opponent pool, the escape range, and the observation encoder. The policies'
 observation is ship-frame relative (`policy.ts` docstring), which is what makes
 them position/orientation invariant.
+
+The claim holds for the DECISION half of combat and did not hold for the
+RESOLUTION half, which is invariant 15's other side: `world-step.ts` and
+`scenario.ts` are two implementations of "an NPC fired, now what". They had
+diverged on the weapon, the missile rack and shield regeneration, and nothing
+would have said so — docs/TODO/64 is the mechanism that fixes that class, 63
+closed the regeneration and **62 closed the missiles**. An episode now calls
+`NpcShip.chooseWeapon`, reads `shot.weapon`, spends the round through
+`ordnance.ts`'s `launchNpcMissile`, and flies the warhead with `Ordnance` itself
+over an `OrdnanceWorld` whose `attach` has no scene behind it — the same bargain
+`headlessShell()` makes for the renderer. There is no second missile model.
 
 ### 6. Pirates are businesses, not a difficulty slider
 

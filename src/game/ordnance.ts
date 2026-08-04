@@ -4,8 +4,8 @@
 // does NOT decide who launches one — whether an NPC reaches for a missile
 // rather than its laser is `npcMissileEmergency` in `missile-launch.ts`, not
 // gunnery.ts, applied by `NpcShip.chooseWeapon`, which reports the launch in
-// its FireEvent; `Game.enemyLaunchMissile` spends the round and calls
-// `launchHostile` below. "Ordnance" and "gunnery" are both
+// its FireEvent; `launchNpcMissile` below spends the round and puts the warhead
+// in the sky. "Ordnance" and "gunnery" are both
 // period-correct words for the same thing, so this pointer is here because
 // anyone hunting a missile rule starts in this file.
 //
@@ -24,7 +24,6 @@ import { buildShip } from '../ships/geometry.ts';
 import { OBJECT_DESIGNS, requireShipDef } from '../ships/registry.ts';
 import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
-import type { World } from './world.ts';
 import { random } from './rng.ts';
 import { MAX_ENERGY } from './systems.ts';
 import type { MissileSnapshot } from './snapshot.ts';
@@ -152,19 +151,51 @@ export function ordnanceMessage(r: OrdnanceReply): { text: string; seconds: numb
   }
 }
 
+/**
+ * A sky, as much of one as ordnance needs: somewhere to put a warhead, and the
+ * ships there are to lock onto or catch.
+ *
+ * `World` satisfies it and is the only thing in the game that does. It exists
+ * because a TRAINING EPISODE is a sky too — a fleet and a target, with nothing
+ * to draw into — and the missile model must not be written a second time for it
+ * (docs/TODO/62). Same bargain as `engine/shell.ts`, `game/storage.ts` and
+ * `sun.ts`: attaching a mesh to nothing is inert, not broken, because nothing
+ * here reads the scene back. A missile's position is its own.
+ */
+export interface OrdnanceWorld {
+  attach(object: THREE.Object3D): void;
+  detach(object: THREE.Object3D): void;
+  readonly npcs: readonly NpcShip[];
+}
+
+/**
+ * An NPC spends a round, and it leaves the rail.
+ *
+ * ONE HOME for what a missile `FireEvent` MEANS, because there are two
+ * resolvers — `world-step.ts` for the game and `ai-training/scenario.ts` for the
+ * trainer — and the trainer's had neither half of this: it spent no round and
+ * launched no missile (docs/TODO/62). The pair is a rule, not presentation, so
+ * neither resolver may own it. It is the first slice of docs/TODO/64; the
+ * laser's dice, its damage and the shield face it lands on still have two homes.
+ */
+export function launchNpcMissile(npc: NpcShip, ordnance: Ordnance): OrdnanceOutcome {
+  npc.state.missiles -= 1;
+  return ordnance.launchHostile(npc.nosePosition(new THREE.Vector3()));
+}
+
 export class Ordnance {
   readonly missiles: Missile[] = [];
   /** the ship a missile would fly at, also used by the HUD */
   targetLock: NpcShip | null = null;
   armed = false;
 
-  private readonly world: World;
+  private readonly world: OrdnanceWorld;
   private readonly tmp = new THREE.Vector3();
   private readonly tmpQ = new THREE.Quaternion();
   private readonly tmpM = new THREE.Matrix4();
 
   /** Missiles live in the world: that is where they are drawn and what they hunt. */
-  constructor(world: World) {
+  constructor(world: OrdnanceWorld) {
     this.world = world;
   }
 

@@ -165,8 +165,10 @@ let elapsed = 0;
 function resetEpisode(newSeed?: number): void {
   for (const v of views) scene.remove(v.object);
   for (const t of tracers) scene.remove(t.line);
+  for (const m of drawnMissiles) scene.remove(m);
   views = [];
   tracers = [];
+  drawnMissiles.clear();
   if (newSeed !== undefined) seed = newSeed;
   episode = scenario.build(seed);
   elapsed = 0;
@@ -184,7 +186,40 @@ function resetEpisode(newSeed?: number): void {
 /** scratch for the tracer geometry below */
 const tracerDir = new THREE.Vector3();
 
+/**
+ * The warheads currently on screen.
+ *
+ * A missile is not an `EpisodeShip` and does not want to be: `ordnance.ts`
+ * already flies a real `Object3D` for it, so this page adds that object rather
+ * than building a second one to copy a position into. Kept as a set because the
+ * episode's list is the truth and this is only what has been shown of it.
+ *
+ * It exists because pirates in an episode LAUNCH now (docs/TODO/62), and a
+ * warhead is 250 of the commander's 765 pool points: without this the page would
+ * show a target losing a third of herself to nothing at all, which is exactly
+ * the kind of lie the viewer is here to stop telling.
+ */
+const drawnMissiles = new Set<THREE.Object3D>();
+
+/** Add what has been launched, drop what has gone off. */
+function syncMissiles(): void {
+  const live = new Set<THREE.Object3D>();
+  for (const m of episode.missiles) {
+    live.add(m.object);
+    if (!drawnMissiles.has(m.object)) {
+      scene.add(m.object);
+      drawnMissiles.add(m.object);
+    }
+  }
+  for (const object of drawnMissiles) {
+    if (live.has(object)) continue;
+    scene.remove(object);
+    drawnMissiles.delete(object);
+  }
+}
+
 function syncViews(events: ShotEvent[]): void {
+  syncMissiles();
   for (const v of views) {
     v.object.position.set(v.sim.pos.x, v.sim.pos.y, v.sim.pos.z);
     v.object.quaternion.set(v.sim.quat.x, v.sim.quat.y, v.sim.quat.z, v.sim.quat.w);
@@ -263,7 +298,9 @@ function renderHud(): void {
   episode.pirates.forEach((pi, i) => {
     lines.push(
       `PIRATE ${i + 1}   hp ${Math.max(0, pi.hp).toFixed(2)}  shots ${pi.shotsFired}  hits ${pi.shotsHit}` +
-      `  acc ${(pi.shotsFired ? (100 * pi.shotsHit) / pi.shotsFired : 0).toFixed(0)}%${pi.alive ? '' : '  ✝'}`);
+      `  acc ${(pi.shotsFired ? (100 * pi.shotsHit) / pi.shotsFired : 0).toFixed(0)}%` +
+      // The rack, because a fight can now turn on it: 250 pool points a round.
+      `  msl ${pi.missilesFired}/${pi.missilesCarried}${pi.alive ? '' : '  ✝'}`);
   });
   // The three the game ships, asked for rather than typed out — the same rule
   // the rows above fly under.

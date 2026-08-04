@@ -250,10 +250,13 @@ export interface PlayerRef {
  * your own hull does. Counted off the fleet at the moment it is asked rather
  * than latched, so a ship that arrives late to a fight already in progress
  * reads the same situation as one that has been there throughout.
+ *
+ * It takes the FLEET rather than a `WorldView` because a training episode has
+ * one and not the other, and it only ever read `view.fleet` (docs/TODO/62).
  */
-export function matesLost(view: WorldView): number {
+export function matesLost(fleet: readonly NpcShip[]): number {
   let lost = 0;
-  for (const s of view.fleet) if (!s.state.alive) lost += 1;
+  for (const s of fleet) if (!s.state.alive) lost += 1;
   return lost;
 }
 
@@ -638,7 +641,8 @@ export class NpcShip {
         // only the flying, since attack() keeps its gun. See break-off.ts.
         : this.attack(dt, player.position, distPlayer, true, undefined, view.fleet,
           this.velocityOf(player.quaternion, player.speed));
-      return this.chooseWeapon(shot, dt, distPlayer, player.position, view, matesLost(view));
+      return this.chooseWeapon(shot, dt, distPlayer, player.position,
+        view.missileInbound, matesLost(view.fleet));
     }
 
     if (this.npcTarget && this.npcTarget.state.alive) {
@@ -1105,10 +1109,23 @@ export class NpcShip {
    * about to die is rarely either, so it died with the missile still on the
    * rail. That is what `npcMissileLastStand` fixes, and it is why it does not
    * consult the gun's cooldown or its firing gate.
+   *
+   * PUBLIC, and taking two scalars rather than a `WorldView`, for the same
+   * reason `brainFly`, `attack` and `regenerate` are public: `update()` runs it
+   * for the live sky, and a training episode drives the flight directly, so the
+   * episode owes the ship this call too. It was private and view-shaped, and the
+   * consequence was that **no pirate in a training episode had ever decided to
+   * launch** — 1,374 laser requests and 0 missile requests across 200 armed,
+   * hurt pirates (docs/TODO/62). The two arguments are exactly the facts that
+   * are not on the ship: whether the air is already occupied, and how the gang
+   * is doing. This is the seam docs/TODO/64 widens; it does not close it.
+   *
+   * CALL IT ONCE PER FRAME, not once per decision. It ticks `missileReload`
+   * itself, so a caller at the brains' 10 Hz would reload six times too slowly.
    */
-  private chooseWeapon(
+  chooseWeapon(
     shot: FireEvent | null, dt: number, dist: number, targetPos: THREE.Vector3,
-    view: WorldView, matesLost: number,
+    missileInbound: boolean, matesLost: number,
   ): FireEvent | null {
     if (this.state.missiles <= 0) return shot;
     this.state.missileReload = Math.max(0, this.state.missileReload - dt);
@@ -1122,7 +1139,7 @@ export class NpcShip {
     // that would have launched keeps its missile AND fires its gun — the gang
     // loses nothing except the ability to saturate a countermeasure that only
     // gets one press.
-    if (view.missileInbound) return shot;
+    if (missileInbound) return shot;
     if (npcMissileEmergency(
       this.healthFraction, this.state.passesMade, matesLost,
       dist, this.facing(targetPos),

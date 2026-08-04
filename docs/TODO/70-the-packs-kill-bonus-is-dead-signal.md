@@ -150,3 +150,31 @@ console.log({ fitnessPack: fit / 60, killTerm: kill / 60, kills, meanT: t / 60 }
 `npm run survivability` is the same claim from the commander's side: 0%
 destroyed at every gang size from one to four, where three used to kill her 5%
 of the time and four 9%.
+
+## 2026-08-04 — docs/TODO/62 landed, and it did NOT close this
+
+The first option above was "wait for item 62", on the reasoning that a gang that
+can launch has roughly double the throughput and that is exactly the gap between
+7.4 points a second and the 15.3 she heals. 62 is done. Re-running the snippet at
+the bottom of this file, unchanged, on the same 60 seeds:
+
+    { fitnessPack: 4.61, killTerm: 0, kills: 0, meanT: 59.96 }   ← unchanged
+
+Byte-identical to the "after" row, because **three `pirate-pack-r4-selectonly`
+launch zero missiles at the armed scripted trader.** They carry them; nothing
+lets them spend them.
+
+`npcMissileEmergency` has three ways in — a hull under 0.4, a wingman already
+lost, and two completed passes — and against a hauler that shoots back weakly and
+runs, a gang reaches none of them. The third is the interesting one and it is
+structurally unreachable in training: `passesMade` only ticks inside `attack()`,
+the scripted break-off, and an episode never hands a brain-flown pirate over to
+it the way `NpcShip.update()` does inside `BRAIN_HANDOVER_RANGE`. Measured, three
+shipped pirates over 60 fights make **0.00 passes each**, where three scripted
+ones make 3.88. That is docs/TODO/73.
+
+So the option list is down to three, and the shape of the finding has sharpened
+rather than changed: it is not "the gang needs more damage", it is **the gang
+cannot get into the state where its heaviest weapon unlocks**. Fixing 73 is the
+version of "wait for 62" that might actually work, and it should be measured
+before anything is re-weighted.

@@ -20,14 +20,23 @@ consequences"* — and there are two Games:
 | | the game | the trainer |
 |---|---|---|
 | resolver | `world-step.ts` `resolveNpcFire` | `scenario.ts` `resolveNpcShot` |
-| reads `event.weapon` | yes | **no** |
-| spends `state.missiles` | yes | **no** |
-| calls `chooseWeapon` | yes | **no** |
+| reads `event.weapon` | yes | ~~no~~ — **closed by docs/TODO/62** |
+| spends `state.missiles` | yes | ~~no~~ — **closed by 62**: both call `ordnance.ts`'s `launchNpcMissile` |
+| calls `chooseWeapon` | yes | ~~no~~ — **closed by 62**: it is public and takes two scalars |
 | regenerates the target | `systems.ts regenerate()` | ~~the gun's half only~~ — **closed by docs/TODO/63**: the episode's target runs the whole rule |
+| hands over inside `BRAIN_HANDOVER_RANGE` | the scripted break-off | **no** — found by 62, written up as docs/TODO/73 |
 
 Every row after the first is a divergence nobody chose. They were found by
 asking one question about missiles; there is no reason to believe the list is
 complete, and no mechanism that would have reported any of them.
+
+**The last row is the proof of that.** It was not in this table when the item was
+written; doing 62 turned it up, and it is not even about resolving a shot — a
+brain-flown pirate in an episode flies its policy to zero range where the game
+hands over to `attack()` inside 150 units, so it never completes a pass, never
+accrues `passesMade`, and can never take the missile launch that rewards
+engaging. Four known divergences now, three of them closed one at a time by
+hand, and still nothing that would report the fifth. That is this item.
 
 This is the failure CLAUDE.md is organised against, stated in its own words:
 **one rule with two homes, kept in step by hope.** It is worth writing down that
@@ -83,3 +92,25 @@ Delete one branch of the shared resolver and confirm the parity test fails. That
 is the only evidence that the gate is real rather than decorative — the same
 standard `npm test`'s "the ban is not vacuous" checks already hold themselves
 to.
+
+**And prove the GAME side is byte-identical, which is a different check.** This
+item is a refactor of live combat, and CLAUDE.md's rule for one is equivalence
+with the previous code — same seed, identical outcome — not self-consistency.
+docs/TODO/62 did it like this, and the recipe is worth reusing:
+
+- `test/missiles.test.ts`'s `fight(seed, count, frames)` already builds the
+  fixture — a real `Game` on `headlessShell()`, the sky emptied and refilled with
+  a known gang, `world.scene.updateMatrixWorld(true)` for the settling step, and
+  a per-frame line. Widen the line to every field a divergence could show in
+  (positions, quaternions, pools, racks, reloads, phases, missiles in flight via
+  `__game.missiles`) and print it instead of asserting on it.
+- `git worktree add <dir> <commit>` for the old tree, symlink `node_modules`,
+  run the same file in both, `diff` and `shasum -a 256`. Not `git stash`.
+- Prove the trace is not vacuous before believing it: perturb one line of the
+  code under test and confirm the hash moves. 62's probe changed the missile's
+  muzzle from the nose to the hull centre and the trace diverged at frame 0.
+
+62 ran three fights over 8,103 frames — 5,127,986 bytes, sha256
+`3b02a88b…dde8c` on both `38914c7` and the change — which is what says
+`matesLost(view) -> matesLost(view.fleet)`, `chooseWeapon(…, view, …) -> (…,
+view.missileInbound, …)` and the extraction of `launchNpcMissile` moved nothing.

@@ -238,14 +238,18 @@ needs two Escapes.
 Chris, 2026-08-03: *"Training should match the 'real world' otherwise it's
 always going to be wrong."*
 
-Three items from one question — why a scripted NPC can fire a missile in the
-game and not in a training episode. The answer is that invariant 5's "one
+It started as three items from one question — why a scripted NPC can fire a
+missile in the game and not in a training episode — and answering two of them
+turned it into six. The answer is that invariant 5's "one
 combat model" covers the DECISION half of combat and not the RESOLUTION half:
 `world-step.ts` and `ai-training/scenario.ts` are two implementations of
 invariant 15's contract, and they have silently diverged on the weapon, the
 missile rack and shield regeneration. 62 and 63 were the two known divergences —
-63 is closed — and 64 is the mechanism that would have caught them and stops the
-next one.
+**both are closed** — and 64 is the mechanism that would have caught them and
+stops the next one. Doing 62 turned up a fourth divergence nobody was looking
+for, which is 64's whole argument restated: **73**, a training pirate never hands
+over to the scripted break-off, so it never completes a pass and can never earn a
+missile the way the game intends.
 
 61 is decided and done: **deleted**. Chris, 2026-08-03. `pirate-attack-e1` was
 restored to be compared against `pirate-attack-g3` as the solo pirate policy, and
@@ -270,12 +274,14 @@ it does. Do 65 next, then retrain defence again. 63 left two things open and
 neither is 63's to close — they are **70** and **71** below.
 
 - [x] 61 — [Promote or delete the attack-run candidate](61-decide-the-attack-run-candidate.md) — decision · medium · small
-- [ ] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
+- [x] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
 - [x] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
 - [ ] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
 - [ ] 65 — [The defender is selected for not fighting](65-the-defender-is-selected-for-not-fighting.md) — training methodology · high · medium
 - [ ] 70 — [The pack's kill bonus can no longer be earned](70-the-packs-kill-bonus-is-dead-signal.md) — training methodology · high · medium
 - [ ] 71 — [A defender cannot see its own pools](71-a-defender-cannot-see-its-own-pools.md) — training fidelity · high · medium
+- [ ] 72 — [The target cannot answer a missile](72-the-target-cannot-answer-a-missile.md) — training fidelity · high · large
+- [ ] 73 — [A training pirate never hands over, so it never earns a missile](73-a-training-pirate-never-breaks-off.md) — training fidelity · medium · medium
 
 70 and 71 came out of 63 and are the two things it could not close. 70: a gang of
 three killed the armed scripted trader in 21 of 60 episodes and now kills her in
@@ -284,6 +290,27 @@ is a constant zero, and it blocks a meaningful pack retrain. 71: `observe()` is
 fourteen numbers and own health is not one of them, so "break off and heal" is
 not learnable however 65 fixes the selection — which is why the kill rate was
 identical either side of 63.
+
+62 is done, and like 63 it changed a world rather than a brain. A training pirate
+calls `NpcShip.chooseWeapon` now, the trainer's resolver reads `shot.weapon`, and
+the round is spent through `ordnance.ts`'s own `launchNpcMissile` over an
+`OrdnanceWorld` an episode supplies — no second missile model, which was the one
+thing the item forbade. `jameson-defend-g1` fell from **99.2% of her pools left to
+90.1%** over 240 held-out fights and died in **6 of them where it had died in
+none**, and `npm run survivability` moved off 0% destroyed at every gang size for
+the first time: four organised pirates now kill her in 8.3 seconds, which is
+Chris's real 9.1-second death appearing in the trainer. `EPISODE_SCHEMA` is **3**;
+a schema-2 record describes a world where only a laser could reach her.
+
+62 leaves two things open and each has its own file. **72**: she has no E.C.M. and
+no output that could press it, so missiles are currently undodgeable in training —
+which is the same fidelity fault as 62 pointing the other way, and it wants 65 and
+71 first. **73**: brain-flown pirates make **zero passes** in an episode because
+there is no handover to the scripted break-off at `BRAIN_HANDOVER_RANGE`, so the
+"tougher than you thought" launch — the one that rewards ENGAGING — is unreachable
+for exactly the ships the game sends at a player. 62 did NOT restore 70's kill
+bonus for the same reason: three shipped pack pirates against the armed scripted
+trader still launch **0** missiles and still kill her **0** times in 60.
 
 ## The attack run, and what comes after it
 

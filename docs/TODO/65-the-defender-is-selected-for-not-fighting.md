@@ -161,3 +161,25 @@ either side of 63, because nothing about the flying could change. 65 can fix WHA
 is selected for; it cannot make the policy capable of "break off while the
 shields come back". Do this item first — it is cheaper and it is a real defect on
 its own — but a retrain after it is still fitting a health-blind pilot.
+
+## 2026-08-04, again — the third instance, and the clearest one
+
+docs/TODO/62 put missiles into training and the defence phase was retrained twice
+under it, at 300 generations. Both champions on 240 held-out episodes, against
+the incumbent:
+
+| brain | pools left | taken/ep | dealt/ep | kills | shots/ep | cleared |
+| --- | --- | --- | --- | --- | --- | --- |
+| **`jameson-defend-g1` (shipped)** | 90.1% | 300.4 | **24.7** | **5.8%** | **232** | **6/240** |
+| `jameson-defend-t62` | 90.7% | 316.7 | 0.0 | 5.1% | **0** | 0/240 |
+| `jameson-defend-t62b` | **92.7%** | **277.7** | 4.1 | 3.3% | 26 | 2/240 |
+
+**`jameson-defend-t62` fires zero shots across 240 fights and still ranks above
+the shipped brain on the metric champions are selected by.** Not "shoots badly" —
+does not shoot. It is the argument at the top of this file with the last of the
+noise taken out: an armed trader that never arms is what the selector asks for.
+
+Neither was promoted. The one new thing 62 contributes is a `died` column that is
+no longer saturated — 0/240 for every defender before today, and 6 / 5 / 4 for
+these three — so a fix to this item now has at least one outcome signal that
+discriminates without having to be invented.

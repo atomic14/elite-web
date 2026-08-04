@@ -5,8 +5,19 @@
 // The pirates are `NpcShip`s flying `NpcShip.brainFly`. The target is a
 // `PlayerShip` flown from a `FlightDemand`, exactly as the human's hands and
 // the combat computer fly it. The guns are `game/gunnery.ts`, the ramming is
-// `game/collisions.ts`, the dice are `game/rng.ts`. There is no second physics
-// here at all — this file chooses who fights whom, and scores it.
+// `game/collisions.ts`, the missiles are `game/ordnance.ts`, the dice are
+// `game/rng.ts`. There is no second physics here at all — this file chooses who
+// fights whom, and scores it.
+//
+// WHAT IT IS NOT is `world-step.ts`. Invariant 5 covers deciding and invariant
+// 15 splits deciding from resolving, so `Episode.step` is the trainer's
+// orchestrator standing where the game's step stands — two implementations of
+// one contract, which had quietly diverged three times (docs/TODO/64). Every
+// call below that looks redundant is a debt to that split being paid:
+// `p.npc.regenerate(dt)`, the target's `regenerate` inside `fly()`, and
+// `p.npc.chooseWeapon(...)`, which is the one that decides whether a missile
+// leaves the rail. A pirate had carried a rack the whole time and had never once
+// been asked (docs/TODO/62).
 //
 // It used to be a second physics. `ai-training/core.ts` carried its own vector
 // and quaternion maths, its own PRNG, a `CLASSES` table mirroring
@@ -28,8 +39,12 @@ import * as THREE from 'three';
 
 import { PlayerShip, PLAYER_FLIGHT, rampToward, type FlightDemand } from '../player.ts';
 import {
-  NpcShip, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
+  NpcShip, matesLost, steerQuatToward, BRAIN_RATE_RAMP, BRAIN_RATE_DECAY,
+  type FireEvent,
 } from '../game/npc.ts';
+import {
+  Ordnance, launchNpcMissile, type Missile, type OrdnanceWorld,
+} from '../game/ordnance.ts';
 import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
 import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
 import {
@@ -293,8 +308,14 @@ function pirateSpecFor(seed: number, index: number, count: number): NpcSpec {
  * an energy unit that says how fast. A schema-1 record describes a world where
  * damage was permanent, so its pools-left figure is not the same measurement as
  * a schema-2 one and nothing should average the two.
+ *
+ * **3** since docs/TODO/62: pirates launch the missiles they have always been
+ * carrying. A warhead is 250 of the commander's 765 pool points, so a schema-2
+ * record describes a world in which the only thing that could reach her was a
+ * laser — the reason `jameson-defend-g1` ends 240 held-out episodes with 99.2%
+ * of her pools. Nothing should average a 2 with a 3 either.
  */
-export const EPISODE_SCHEMA = 2;
+export const EPISODE_SCHEMA = 3;
 
 // --- the target's scale, which is now the commander's ------------------------
 //
@@ -308,6 +329,8 @@ export const EPISODE_SCHEMA = 2;
 //   NPC laser -> another ship   npc-energy.ts npcCrossfireDamage
 //   player laser -> a ship      npc.ts      takeLaserHit (the oracle)
 //   a ram, either way           impact-damage.ts IMPACT.ram
+//   a warhead -> the target     ordnance.ts flies it, impact-damage.ts
+//                               IMPACT.warhead prices it (docs/TODO/62)
 //
 // AND THE POOLS COME BACK, by `systems.ts`'s own `regenerate` and no other rule
 // — the same call `world-step.ts` makes for the commander every frame, and the
@@ -386,6 +409,8 @@ export interface EpisodeSetup {
     controller: string;
     /** what one of its registered hits costs THIS target, armour already off */
     damagePerHit: number;
+    /** the rack it warped in with — 250 pool points a round (docs/TODO/62) */
+    missiles: number;
   }[];
 }
 
@@ -414,6 +439,9 @@ export interface EpisodeReport {
     hits: number;
     damageDealt: number;
     damageTaken: number;
+    /** warheads it put in the air, and what is still on the rail */
+    missilesFired: number;
+    missilesLeft: number;
   }[];
 }
 
@@ -475,11 +503,27 @@ class PirateShip implements EpisodeShip {
   shotsHit = 0;
   damageDealt = 0;
   damageTaken = 0;
+  /**
+   * Warheads this ship has put in the air.
+   *
+   * Counted separately from `shotsFired`, which is a LASER tally: a missile has
+   * no hit roll and no cone, so folding it in would corrupt every accuracy
+   * figure derived from the pair. It is also the only way to see the rack empty,
+   * which is the acceptance test docs/TODO/62 sets.
+   */
+  missilesFired = 0;
+  /**
+   * The rack it warped in with — read at construction, because `state.missiles`
+   * is what is LEFT and a record written at the end of a fight would report the
+   * empty rail as the fit-out.
+   */
+  readonly missilesCarried: number;
 
   constructor(spec: NpcSpec, position: THREE.Vector3, variantSeed: number) {
     this.npc = new NpcShip('pirate', position, variantSeed, spec);
     this.radius = this.npc.radius;
     this.name = shipDisplayName(spec.designId);
+    this.missilesCarried = this.npc.state.missiles;
   }
 
   get pos(): THREE.Vector3 { return this.npc.object.position; }
@@ -661,6 +705,18 @@ export class Episode {
 
   private readonly opts: EpisodeOptions;
   private readonly fleet: NpcShip[] = [];
+  /**
+   * The missiles in this episode's sky — `game/ordnance.ts`, unchanged, over a
+   * sky with nothing to draw into.
+   *
+   * NOT a second missile model, which is the one thing docs/TODO/62 forbids: the
+   * spawn, the homing, the 25-second life, the 50-unit fuse and the E.C.M. rule
+   * are the game's. All an episode supplies is the `OrdnanceWorld` — its own
+   * fleet, and an `attach` with no scene behind it, which is the same bargain
+   * `headlessShell()` makes for the renderer and `inert-dom.ts` for a painter.
+   * Nothing reads the scene back, so dropping the writes changes no rule.
+   */
+  private readonly ordnance: Ordnance;
   private readonly obs = new Float32Array(PACK_WIDE_OBS_SIZE);
   private readonly scratch = makeScratch();
   private readonly meView = shipView();
@@ -675,6 +731,13 @@ export class Episode {
 
   constructor(opts: EpisodeOptions) {
     this.opts = opts;
+    // The sky this episode's warheads fly in: its own fleet, and nowhere to
+    // draw. `npcs` is the live array, not a copy, because the pirates are pushed
+    // into it below and `Ordnance` reads it whenever it is asked.
+    const sky: OrdnanceWorld = {
+      attach: () => {}, detach: () => {}, npcs: this.fleet,
+    };
+    this.ordnance = new Ordnance(sky);
     this.playerLaser = PLAYER_LASERS[opts.traderLaser ?? 'pulse'];
     this.maxTime = opts.maxTime ?? 45;
     // 6000 against a 3500 laser and a 1500-2700 spawn: comfortably outside
@@ -710,11 +773,28 @@ export class Episode {
     this.tailTime = this.pirates.map(() => 0);
   }
 
+  /**
+   * The warheads in the air, for anything that draws the episode.
+   *
+   * Read-only, and it is `ordnance.ts`'s own list rather than a copy: each entry
+   * carries the `Object3D` the missile model already flies, so the combat viewer
+   * adds it to its scene and the positions keep themselves. Without this the
+   * viewer would show a target losing a third of her pools to nothing at all.
+   */
+  get missiles(): readonly Missile[] { return this.ordnance.missiles; }
+
   /** @returns shot events for this step (for the viewer's tracers) */
   step(dt: number): ShotEvent[] {
     if (this.done) return [];
     this.t += dt;
     const events: ShotEvent[] = [];
+
+    // ONE READ PER FRAME, before anybody decides — `world-step.ts` builds its
+    // `WorldView` once outside the loop and every ship in that frame sees the
+    // same answer. Asking the ordnance per pirate instead would let the first
+    // launcher silence the rest within the same step, which is a different
+    // program from the one the game runs.
+    const missileInbound = this.ordnance.missileInbound;
 
     // --- pirates ---
     for (let i = 0; i < this.pirates.length; i++) {
@@ -748,8 +828,15 @@ export class Episode {
         // is the one thing this file is organised against.
         : p.npc.attack(dt, this.trader.pos, range, true, undefined, this.fleet,
           this.traderVelocity());
-      if (shot && this.trader.alive) {
-        events.push(this.resolveNpcShot(p, range));
+      // WHICH WEAPON leaves the rail is the ship's decision and not the
+      // flight's, and until docs/TODO/62 this call was missing here — so a
+      // training pirate had a full rack, every reason to use it, and no way to
+      // ask. Every frame, not every decision: it ticks its own reload.
+      const fired = p.npc.chooseWeapon(
+        shot, dt, range, this.trader.pos, missileInbound, matesLost(this.fleet));
+      if (fired && this.trader.alive) {
+        const e = this.resolveNpcShot(p, fired, range);
+        if (e) events.push(e);
       }
       // geometry AFTER the step, as the shaping terms always measured it
       const after = this.tmp.copy(this.trader.pos).sub(p.pos);
@@ -805,6 +892,10 @@ export class Episode {
     }
 
     this.resolveCollisions();
+    // ...and then the warheads, in the phase order world-step.ts runs them in:
+    // ships move and shoot, ships are separated and billed, and only then do the
+    // projectiles fly (`stepProjectilesAndEffects`).
+    this.applyOrdnance(dt);
 
     const nearest = this.nearestPirate();
     if (this.trader.alive && nearest
@@ -822,10 +913,25 @@ export class Episode {
 
   /**
    * A pirate pulled the trigger. Resolving it is world-step.ts's
-   * `resolveNpcFire`, minus the tracer and the sound: roll against the range
-   * curve, roll the damage.
+   * `resolveNpcFire`, minus the tracer and the sound: read the weapon the ship
+   * chose, roll against the range curve, roll the damage.
+   *
+   * @returns the tracer to draw, or null when nothing was drawable — a missile
+   * is a ship in the sky for the next twenty-five seconds, not a bolt that
+   * arrives in the same frame it left. Reporting one as a `ShotEvent` would put
+   * a laser line in the viewer and a hit in the accuracy denominator.
    */
-  private resolveNpcShot(p: PirateShip, dist: number): ShotEvent {
+  private resolveNpcShot(p: PirateShip, shot: FireEvent, dist: number): ShotEvent | null {
+    if (shot.weapon === 'missile') {
+      // world-step.ts's missile branch, and now literally the same call: the
+      // round is spent and the warhead is in the sky (ordnance.ts). It used to
+      // be neither — every FireEvent was resolved here as a laser hit, so a
+      // missile would have arrived instantly, for laser damage, off an
+      // inexhaustible rack (docs/TODO/62).
+      p.missilesFired += 1;
+      launchNpcMissile(p.npc, this.ordnance);
+      return null;
+    }
     p.shotsFired += 1;
     const hit = random() < npcHitChance(dist);
     if (hit) {
@@ -836,9 +942,33 @@ export class Episode {
       const damage = npcLaserDamageToPlayer(p.npc.weaponByte, this.trader.shipId);
       p.shotsHit += 1;
       p.damageDealt += damage;
-      this.trader.takeDamage(damage, this.hitFromFront(p));
+      this.trader.takeDamage(damage, this.hitFromFront(p.pos));
     }
     return { from: p, to: this.trader, hit };
+  }
+
+  /**
+   * What the warheads did — world-step.ts's `applyOrdnance`, with nothing to
+   * explode and nobody to tell.
+   *
+   * Only one of the four `OrdnanceEvent`s can happen in an episode and the other
+   * three say why. `hitNpc` needs a missile with a ship for a target, which only
+   * the commander's own launcher makes; `ecmDefeated` needs that same ship to
+   * carry E.C.M.; `expired` is a firework. A hostile warhead reaching the target
+   * is billed exactly as the game bills it — `IMPACT.warhead` in her own pool
+   * points, on the face it came in at.
+   *
+   * IT IS NOT CREDITED TO A PIRATE'S `damageDealt`, because nothing in the sky
+   * remembers who launched it — not here and not in the game, where a `Missile`
+   * carries a target and a life and no owner. The fitness functions are
+   * unaffected: every one of them reads `trader.damageTaken`, which this feeds.
+   * `missilesFired` is where a pirate's own rack is visible.
+   */
+  private applyOrdnance(dt: number): void {
+    for (const e of this.ordnance.step(dt, this.trader.pos)) {
+      if (e.kind !== 'hitPlayer' || !this.trader.alive) continue;
+      this.trader.takeDamage(playerImpactDamage(IMPACT.warhead), this.hitFromFront(e.at));
+    }
   }
 
   /**
@@ -858,8 +988,8 @@ export class Episode {
    * the reason it matters here is that the commander has two shields and an
    * attacker on your six is spending a different pool from one head-on.
    */
-  private hitFromFront(p: PirateShip): boolean {
-    const toShooter = this.tmp2.copy(p.pos).sub(this.trader.pos);
+  private hitFromFront(from: THREE.Vector3): boolean {
+    const toShooter = this.tmp2.copy(from).sub(this.trader.pos);
     return this.trader.forward(this.tmp).dot(toShooter) > 0;
   }
 
@@ -1116,6 +1246,7 @@ export class Episode {
         maxEnergy: p.npc.maxEnergy,
         controller: this.opts.pirates[i].kind,
         damagePerHit: npcLaserDamageToPlayer(p.npc.weaponByte, this.trader.shipId),
+        missiles: p.missilesCarried,
       })),
     };
   }
@@ -1150,6 +1281,8 @@ export class Episode {
         hits: p.shotsHit,
         damageDealt: p.damageDealt,
         damageTaken: p.damageTaken,
+        missilesFired: p.missilesFired,
+        missilesLeft: p.npc.state.missiles,
       })),
     };
   }

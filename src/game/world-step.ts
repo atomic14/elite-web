@@ -52,7 +52,9 @@ import type { PlayerPoolPoints } from './damage-units.ts';
 import type { DamageSource } from './combat.ts';
 import { dealToNpc, type DealtEvent } from './damage-dealt.ts';
 import { viewDirection } from './views.ts';
-import { Ordnance, ordnanceMessage, type OrdnanceOutcome } from './ordnance.ts';
+import {
+  Ordnance, launchNpcMissile, ordnanceMessage, type OrdnanceOutcome,
+} from './ordnance.ts';
 import type { NpcShip, FireEvent, WorldView } from './npc.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
@@ -661,10 +663,11 @@ export class WorldStep {
       kind: 'npcFired', npc, weapon: event.weapon, atPlayer: event.at === 'player',
     });
     if (event.at === 'player') {
-      // The SHIP chose the weapon (npc.ts chooseWeapon); we only apply it.
+      // The SHIP chose the weapon (npc.ts chooseWeapon); we only apply it — and
+      // "spend the round, put it in the sky" is one rule with one home, because
+      // the trainer's resolver has to make the same call (ordnance.ts).
       if (event.weapon === 'missile') {
-        npc.state.missiles -= 1;
-        this.reply(this.ordnance.launchHostile(npc.nosePosition(this.tmp).clone()), out);
+        this.reply(launchNpcMissile(npc, this.ordnance), out);
         return;
       }
       const dist = npc.object.position.distanceTo(player.position);

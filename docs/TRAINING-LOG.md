@@ -2229,3 +2229,137 @@ rule and not of the brain.
   header no longer claims recharge is left out.
 - **`train/profile-sweep.ts`**'s share column is cumulative, beside the `taken`
   column it has to agree with.
+
+## 2026-08-04 — missiles exist in training now (TODO 62)
+
+**A NEW BASELINE, AGAIN, AND A WIDER ONE THAN 63's.** Every defence, evade and
+survivability figure taken before this entry — including the ones taken earlier
+today, under docs/TODO/63 — was measured in a world where the only thing that
+could reach the commander was a laser. It is not any more. As with 63 this is
+written down rather than quietly re-baselined; attack and pack figures against a
+target that never shoots back are unaffected, and the measurement below says so.
+
+`NpcShip.chooseWeapon` turns a laser shot into a missile launch and was reachable
+only from `NpcShip.update()`, which a training episode never calls. So no pirate
+in any training run this project has ever done had *decided* to launch. Measured
+with the item's own snippet — 200 pirates, full racks, hurt to 30% of their
+banks, 45 seconds each:
+
+    before                              { laser: 1374, missile: 0 }
+    after, driven the way an episode
+    drives one (fly, then choose)       { laser: 1365, missile: 400 }
+
+400 warheads from 200 ships carrying two apiece: the rack empties exactly and
+never further. Two more defects went with it — `scenario.ts`'s resolver never
+read `shot.weapon` (a missile would have landed instantly, for laser damage) and
+never spent the round (the rack was infinite). `ordnance.ts` now owns
+`launchNpcMissile`, which **both** resolvers call, and `Ordnance` takes an
+`OrdnanceWorld` — `attach`, `detach`, `npcs` — so an episode flies the game's own
+missile model over its own fleet with nowhere to draw. There is no second missile
+model. `EPISODE_SCHEMA` is **3**.
+
+### What it did to the numbers
+
+`npm run defence-probe`, `jameson-defend-g1`, the same 240 held-out episodes
+(bases 8,675,309 and 1,234,577):
+
+| | pools left | by 1 / 2 / 3 / 4 pirates | killed | died |
+| --- | --- | --- | --- | --- |
+| before (lasers only, this morning) | 99.2% | 100.0 / 99.6 / 99.1 / 97.9 | 5.7% | **0/240** |
+| **after** | **90.1%** | 96.4 / 89.5 / 88.8 / 86.2 | 5.7% | **6/240** |
+
+272 warheads left the rail across 480 such fights, out of 433 carried, with 161
+still racked at the end and **not one ship firing more than it carried**.
+
+`npm run survivability`, 200 episodes a row, is the same claim from her side, and
+it is the first time this table has not been a column of zeroes:
+
+| gang | destroyed, before | destroyed, after | pools stripped |
+| --- | --- | --- | --- |
+| 3 × `pirate-attack-g3` | 0% | **4% in 31.2s** | 32% → 34% |
+| 4 × `pirate-attack-g3` | 0% | **4% in 23.2s** | 44% → 48% |
+| 3 × `pirate-pack-r4-selectonly` | 0% | **1% in 13.0s** | 15% → 16% |
+| 4 × `pirate-pack-r4-selectonly` | 0% | **1% in 8.3s** | 23% → 24% |
+
+**A gang of four now kills her in 8.3 seconds when it kills her**, against
+Chris's real 9.1-second death on 2026-08-03, which was almost entirely missiles.
+Note what the last column says: cumulative damage barely moved. A missile is not
+a bit more pressure, it is a discontinuity — 250 points of a 765-point commander
+arriving at once, which is why it changes the death rate and not the average.
+
+The kill column did not move in a single cell of either table. That is
+docs/TODO/71: a defence policy's fourteen observations do not include its own
+health, so nothing about how it flies can change.
+
+### What did NOT change
+
+Three `pirate-pack-r4-selectonly` against the armed scripted trader, docs/TODO/70's
+own 60 seeds: `fitnessPack` **4.61**, kill term **0.00**, **0 kills**, 442.2 pool
+points, 80.0 shots — byte-identical to 70's "after" row — and **0 missiles
+launched**. 70 hoped this item would restore its kill bonus. It does not.
+
+The reason is a fourth divergence between the game and the trainer, found by this
+work and written up as docs/TODO/73. `npcMissileEmergency`'s three ways in are a
+hull under 0.4, a dead wingman, and **two completed passes**; `passesMade` only
+ticks inside `attack()`, the scripted break-off; and a training episode never
+hands over to it, where `NpcShip.update()` hands over inside
+`BRAIN_HANDOVER_RANGE`. Measured over 60 fights, three attackers against a
+`jameson-defend-g1` target with a military laser:
+
+| attackers | passes per pirate | missiles launched (of 61 carried) |
+| --- | --- | --- |
+| `pirate-attack-g3` (brain) | **0.00** | 13 |
+| the scripted attack run | **3.88** | 35 |
+
+So in training the missile is currently a weapon of desperation only, and the
+"tougher than you thought" launch Chris asked for — the one that rewards
+ENGAGING — is unreachable for brain-flown ships. Against a target that never
+shoots back, none of the three reasons can fire at all.
+
+`test/ai.test.ts`'s gates print 12.0% shipped and 1.7% untrained, exactly as
+before: a solo pirate against an unarmed scripted trader launches nothing, so the
+attack phase's baseline is untouched. Its defended figure moved 20.8% → 21.9%.
+
+### The retrain: 300 generations, twice, and NEITHER SHIPS
+
+    npm run train -- defend --validate-select \
+        --out jameson-defend-t62  --gens 300                        # 452s, pop 48, eps 3
+    npm run train -- defend --validate-select \
+        --out jameson-defend-t62b --gens 300 --pop 48 --eps 6       # 881s — run 19's budget
+
+Opponent the scripted attack run (what ships), the varied fight from
+`train/defence-fight.ts`, and now with warheads in it.
+
+    t62   94.1% validation pools left, shaped 12.02, throttles forward 12%
+          (290 champions re-judged, 233 rejected for constant throttle)
+    t62b  94.2% validation pools left, shaped 11.73, throttles forward 75%
+          (289 champions re-judged, 220 rejected)
+
+On the same 240 held-out episodes as the table above:
+
+| brain | pools left | taken/ep | dealt/ep | kills | shots/ep | cleared | died |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **`jameson-defend-g1` (shipped)** | 90.1% | 300.4 | **24.7** | **5.8%** | **232** | **6/240** | 6/240 |
+| `jameson-defend-t62` | 90.7% | 316.7 | 0.0 | 5.1% | **0** | 0/240 | 5/240 |
+| `jameson-defend-t62b` | **92.7%** | **277.7** | 4.1 | 3.3% | 26 | 2/240 | **4/240** |
+
+**`jameson-defend-t62` fires zero shots. Not "few" — none, over 240 fights** —
+and it still reads *better* on the metric champions are chosen by. `t62b` is a
+genuinely tougher pilot to kill (92.7% of her pools, 277.7 points taken, 4 deaths
+against 6) and shoots 26 times an episode against 232, deals a sixth of the
+damage, and clears 2 fights where the incumbent clears 6.
+
+Neither is promoted. The bar was "better on pools-left AND on kills"; both are
+better on the first and worse on the second, which is docs/TODO/65's inversion
+appearing for the third time and this run's most legible instance of it yet — a
+policy that has stopped pulling the trigger altogether is the one the selector
+prefers. `src/ai-training/brains/` holds the same three files it held this
+morning; `train/logs/jameson-defend-t62*.jsonl` are the record, and re-running
+the table means retraining with the commands above.
+
+**Missiles did not change that, and were never going to.** Making the world
+harder does not fix a selector that pays 1,000× for terminal `hp` and 3 points
+for a kill. What they DID do is make the difference between defenders visible in
+a column that was previously saturated: `died` was 0/240 for everything before
+today, and it now separates 4, 5 and 6. Do docs/TODO/65 next, then retrain
+defence again — with 71's health input if it lands, and 72's E.C.M. after that.
