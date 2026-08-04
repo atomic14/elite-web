@@ -5,7 +5,7 @@
 
 ## Why
 
-CLAUDE.md invariant 9 names four places a binding lives. There are six, and
+docs/INVARIANTS.md invariant 9 names four places a binding lives. There are six, and
 they disagree.
 
 | key | `controls.ts` | `?` panel | README | `manual.ts` |
@@ -57,7 +57,7 @@ admitted at `controls.ts:218-220`.
   list it, and nothing appears that is not bound.
 - A test fails if a binding is added without its documentation, and if a menu
   row names a key with no binding.
-- CLAUDE.md invariant 9 states the true arrangement.
+- docs/INVARIANTS.md invariant 9 states the true arrangement.
 
 ## Verify
 

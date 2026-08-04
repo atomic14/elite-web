@@ -476,7 +476,7 @@ trained pirate hands back to the scripted break-off. Measured over 80 s of
 unnecessary.** See "Collision round" at the end of this file.
 
 **The original plan was a collision model in `ai-training/core.ts` plus a retrain.** That
-is a sim/game parity issue (CLAUDE.md invariant 5) and the shipped brains
+is a sim/game parity issue (docs/INVARIANTS.md invariant 5) and the shipped brains
 were all fitted without it, so every one of them would need re-validating
 through the tournament. Worth doing as its own round: it would let the
 policies learn deflection and break-off themselves rather than having the
@@ -1901,7 +1901,7 @@ Chris's ruling stands and the oracle is untouched. Two things were checked and
 one was wrong.
 
 The military laser is **6,000 Cr, not 60,000** — the catalogue's `60000` is
-tenths of a credit, as everything in this project is (CLAUDE.md invariant 8),
+tenths of a credit, as everything in this project is (docs/INVARIANTS.md invariant 8),
 and both the TODO and a comment in `test/campaign.ts` had read it as credits.
 And it is not remote: 49 of galaxy 1's 256 systems are TL10+, and **201 of 256
 are within a single 7-light-year jump of one** (241 within two). Every commander

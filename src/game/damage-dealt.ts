@@ -26,7 +26,7 @@
 // It applies and reports; it decides nothing else. Who is billed, whether a
 // bounty is paid and whether anyone was watching are the caller's — the ram and
 // the warhead go on to `StepHost.destroyNpc` through a returned event, the way
-// `npcFired` already reaches a measuring caller (CLAUDE.md invariant 15).
+// `npcFired` already reaches a measuring caller (docs/INVARIANTS.md invariant 15).
 
 import type * as THREE from 'three';
 

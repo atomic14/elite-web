@@ -48,7 +48,7 @@ same weight, so finding one means reading rather than scanning.
 - `npm test`'s combat-trainer suites still pass. They find rows by LABEL rather
   than index (TODO 29 fixed that); keep it that way.
 - The screen still owns its rendering, its keys and its state in one file,
-  returns an outcome, and never touches the Game (CLAUDE.md invariant 13).
+  returns an outcome, and never touches the Game (docs/INVARIANTS.md invariant 13).
 
 ## Verify
 

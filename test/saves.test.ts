@@ -1,6 +1,6 @@
 // Named saves: the name rules, the key space, and the way back from a death.
 //
-// This is the enforcement half of docs/TODO/40 and of CLAUDE.md invariant 3.
+// This is the enforcement half of docs/TODO/40 and of docs/INVARIANTS.md invariant 3.
 // Three claims are load-bearing and each is asserted against the REAL storage
 // path, driven through a fake `localStorage` (node has none):
 //

@@ -1,6 +1,6 @@
 // A key is only bound once, and every surface that lists it renders from that.
 //
-// This is the enforcement half of CLAUDE.md invariant 9. A binding used to be
+// This is the enforcement half of docs/INVARIANTS.md invariant 9. A binding used to be
 // written out by hand in six places and they disagreed: the combat computer,
 // the energy bomb and the galactic jump were missing from the manual, the
 // distress beacon — which hands GalCop your cargo — was in NO in-game help

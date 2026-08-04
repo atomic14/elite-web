@@ -22,7 +22,7 @@ What goes:
 - `SaveRecord.from` if nothing else reads it — it exists to make a re-run of
   the migration idempotent.
 - The migration fixtures and cases in `test/saves.test.ts`.
-- The migration half of CLAUDE.md invariant 3, which should end up describing
+- The migration half of docs/INVARIANTS.md invariant 3, which should end up describing
   the scheme that exists rather than the one it replaced.
 
 ## Watch out for

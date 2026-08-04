@@ -44,7 +44,7 @@ const HULL_MATERIAL = new THREE.MeshBasicMaterial({
  * (Transporter, Thargoid, Thargon, escape pod, alloy plate, boulder, asteroid,
  * splinter) are asymmetric, and for those a mirror is a different ship. A
  * rotation is what "point the nose the other way" actually means, so that is
- * what the builder does. See CLAUDE.md invariant 7.
+ * what the builder does. See docs/INVARIANTS.md invariant 7.
  */
 function toWorld(v: [number, number, number], scale: number): [number, number, number] {
   return [-v[0] * scale, v[1] * scale, -v[2] * scale];

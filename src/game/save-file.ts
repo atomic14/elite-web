@@ -89,7 +89,7 @@ export interface SaveRecord {
    * So renaming a commander deliberately leaves this alone, and the rename
    * screen says so on the screen.
    *
-   * "Career" is the word CLAUDE.md invariant 3 documents the key space under,
+   * "Career" is the word docs/INVARIANTS.md invariant 3 documents the key space under,
    * which is the whole reason it is still here. It carries no meaning to a
    * player and nothing a player reads says it (docs/TODO/56).
    */

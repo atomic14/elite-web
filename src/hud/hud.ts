@@ -548,7 +548,7 @@ export class Hud {
 /**
  * The cockpit's elements, or inert stand-ins when there is no document.
  *
- * The HUD is a dumb painter (CLAUDE.md invariant 15): it reads a frame and
+ * The HUD is a dumb painter (docs/INVARIANTS.md invariant 15): it reads a frame and
  * writes text, classes, styles and two canvases, and nothing reads any of it
  * back. So with no DOM every element becomes a sink — see engine/inert-dom.ts,
  * which explains why this exists at all.

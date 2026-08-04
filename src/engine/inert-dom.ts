@@ -10,7 +10,7 @@
 // world/corona-texture.ts makes with canvas: code that knows about the platform is
 // the code that copes with the platform being absent. None of what a painter
 // does has to SUCCEED for the game to be correct — the HUD is a dumb painter
-// (CLAUDE.md invariant 15) and nothing reads it back — it only has to not throw.
+// (docs/INVARIANTS.md invariant 15) and nothing reads it back — it only has to not throw.
 //
 // This is emphatically not a DOM implementation. If a rule ever depends on what
 // one of these returns, that rule is in the wrong file.

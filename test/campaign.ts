@@ -228,7 +228,7 @@ function runCareer(seed: number, systems: StarSystem[], strategy: Strategy = 'tr
     // than skipping: put the 6,000 Cr military laser second and a hunter buys
     // nothing else until it has one. Cheap survivability first, the expensive
     // gun once it is actually reachable. (The price is 60,000 TENTHS — money is
-    // tenths of a credit everywhere in this project, CLAUDE.md invariant 8.)
+    // tenths of a credit everywhere in this project, docs/INVARIANTS.md invariant 8.)
     const COMBAT_KIT = ['beam', 'ecm', 'energyUnit', 'escapePod',
       'combatComputer', 'military', 'missile'];
     // A trader needs a list too. Without one it shopped in EQUIPMENT_CATALOGUE

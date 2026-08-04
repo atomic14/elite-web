@@ -45,7 +45,7 @@ export interface RenderStack {
 
 export function createRenderStack(canvas: HTMLCanvasElement, scene: THREE.Scene): RenderStack {
   // No logarithmic depth buffer: it would defeat the polygonOffset trick that
-  // keeps hull fills behind wireframe edges (CLAUDE.md invariant 6).
+  // keeps hull fills behind wireframe edges (docs/INVARIANTS.md invariant 6).
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 

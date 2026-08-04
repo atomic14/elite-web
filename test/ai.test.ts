@@ -324,7 +324,7 @@ console.log('\npurity');
     .map(({ rel }) => rel);
   check(`...and the only other file that may name it is keymap.ts (${stray.join(', ') || 'none stray'})`,
     stray.length === 0);
-  // The namespace is the whole harness-safety argument (CLAUDE.md invariant 3):
+  // The namespace is the whole harness-safety argument (docs/INVARIANTS.md invariant 3):
   // every key in the program is `ns + id`, applied in this one file, and `ns`
   // moves one way. A second literal key would be a way round both.
   check('...and every key is built from the namespace',

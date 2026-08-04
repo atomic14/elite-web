@@ -31,7 +31,7 @@ that is not the model, and the simpler one wins.
 
 ## This changes a stated invariant
 
-CLAUDE.md invariant 3 says the `elite-web-*` keys are NEVER renamed, because
+docs/INVARIANTS.md invariant 3 says the `elite-web-*` keys are NEVER renamed, because
 they are where every existing player's commander lives. The rule is right
 about the risk and this item does not get to wave it away: the deliverable is
 the new scheme PLUS a migration that cannot lose a save, and invariant 3 is

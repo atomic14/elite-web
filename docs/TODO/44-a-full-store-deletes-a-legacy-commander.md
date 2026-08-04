@@ -31,7 +31,7 @@ keys now: []
 (`migrateLegacySave`) let the throw propagate, which skipped the delete. The
 new swallowing write turned a safe failure into data loss.
 
-It also contradicts CLAUDE.md invariant 3, which states that a crash, a
+It also contradicts docs/INVARIANTS.md invariant 3, which states that a crash, a
 refused write or a full store "leaves them exactly where they were and the
 next boot tries again".
 

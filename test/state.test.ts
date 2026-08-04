@@ -125,7 +125,7 @@ console.log('\nbehaviour-driving values are state');
       career: 'SaveRecord.career — the shelf key; see test/save-transfer.test.ts',
       systems: 'the 256 stars are DERIVED, not stored: restore rebuilds them with'
         + ' generateGalaxy(commander.galaxy), which is byte-matched to 1984 and'
-        + ' therefore cannot disagree with what was saved (CLAUDE.md invariant 4).'
+        + ' therefore cannot disagree with what was saved (docs/INVARIANTS.md invariant 4).'
         + ' It was passing this scan against the SHIP systems, a different field.',
     };
     for (const key of Object.keys(st)) {

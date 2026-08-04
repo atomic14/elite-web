@@ -212,7 +212,7 @@ console.log('\nthe roster states its identity');
 console.log('\nlegacy commanders load as a Cobra Mk III');
 {
   // The real save path, on a fake store, in the harness namespace
-  // `test/harness.ts` switched this process into (CLAUDE.md invariant 3).
+  // `test/harness.ts` switched this process into (docs/INVARIANTS.md invariant 3).
   const held = new Map<string, string>();
   const fakeStorage = {
     get length() { return held.size; },

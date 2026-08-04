@@ -43,7 +43,7 @@ throttled, three arrow presses moved the selection one row.
   bound.
 - No change to `held()`, to continuous flight controls, or to the ordering
   contract in `ui/screen-host.ts` (the menu cursor runs before the top screen
-  and consumes; CLAUDE.md invariant 14).
+  and consumes; docs/INVARIANTS.md invariant 14).
 - A headless test drives `Input` directly and asserts both properties.
 
 ## Verify

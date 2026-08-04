@@ -77,7 +77,7 @@ export interface EliteAHull {
 /**
  * The nose points along -Z in world space, and `buildShip` turns it there.
  *
- * Defs are stated +Z-nose, as the source states them (CLAUDE.md invariant 7).
+ * Defs are stated +Z-nose, as the source states them (docs/INVARIANTS.md invariant 7).
  * The builder used to mirror Z alone, which is a REFLECTION: identical to a half
  * turn for a left/right symmetric hull, and a mirror image for anything else.
  * Thirty of the thirty-eight released designs are symmetric and never noticed;

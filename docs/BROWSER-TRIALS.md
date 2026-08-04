@@ -16,7 +16,7 @@ FIRST — it moves the whole page into a scratch namespace, one way, so neither
 your typing nor the running game's own autosave can compute a real save key.
 There is nothing to back up and nothing to restore, which is the point:
 backing up and restoring was not enough, because the autosave runs every 20
-seconds and a tab left open overwrote the restore. See CLAUDE.md's invariant 3.
+seconds and a tab left open overwrote the restore. See docs/INVARIANTS.md invariant 3.
 
 ---
 

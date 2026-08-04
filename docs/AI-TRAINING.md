@@ -8,7 +8,7 @@
 > authority is always `src/ai-training/policy.ts`, which exports the sizes.
 > The fitness figures once quoted here have been removed rather than
 > re-measured: they predate several combat-number changes, each of which
-> invalidates the brains they were measured on (CLAUDE.md invariant 5). Runs,
+> invalidates the brains they were measured on (docs/INVARIANTS.md invariant 5). Runs,
 > curves and hyperparameters: `docs/TRAINING-LOG.md`. Watch the results at
 > `/viewer`.
 

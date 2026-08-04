@@ -1,7 +1,7 @@
 // Work on offer at this station: pick one and sign for it.
 //
 // The rules live in game/contracts.ts so the headless campaign runs the same
-// code the game does (CLAUDE.md invariant 10). This is only the screen.
+// code the game does (docs/INVARIANTS.md invariant 10). This is only the screen.
 
 import { renderContracts } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome } from '../../ui/screen-host.ts';

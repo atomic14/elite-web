@@ -22,7 +22,7 @@ their seed and their brain, and `←/→` already walks them.
   fields differ instead of quietly showing a difference that means nothing.
   Different BRAINS is the point; different anything else is a confound.
 - Pick the other record with the keys already in use. Do not add a binding
-  unless there is genuinely no room — CLAUDE.md invariant 9 lists four places a
+  unless there is genuinely no room — docs/INVARIANTS.md invariant 9 lists four places a
   binding lives, and they change together.
 - Copy and export should be able to take the pair, since the pair is the
   finding.

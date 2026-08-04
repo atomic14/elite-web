@@ -256,7 +256,7 @@ export function hermitMarket(
 // --- taking work, and being paid for it -------------------------------------
 //
 // These were `acceptContract` and `settleContracts`, two methods of game.ts —
-// which is exactly what CLAUDE.md's invariant 10 forbids, and it had already
+// which is exactly what docs/INVARIANTS.md invariant 10 forbids, and it had already
 // cost something: test/campaign.ts carried its own transcription of the
 // settlement, so the balance harness was scoring rules that only resembled the
 // shipped ones. It calls these now.

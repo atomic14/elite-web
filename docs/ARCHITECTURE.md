@@ -786,7 +786,7 @@ ships.
   (`save-file.ts`; the word is invariant 3's and no player reads it). `<ns>boot`
   says which record the next boot resumes, or `new:<NAME>` when it is a
   commander who does not have one yet; docking and dying drop the ring, never the
-  checkpoint. CLAUDE.md invariant 3 is the whole rule.
+  checkpoint. docs/INVARIANTS.md invariant 3 is the whole rule.
 - **Debug handles** (deliberate, documented): `window.__game` (a
   `legacyHandles(Game)` console view — used by the autopilot test harness, see
   docs/JAMESON-TRIALS.md), `window.__policyKit` (trained brains + inference
@@ -807,7 +807,7 @@ ships.
   changes in one place: `engine/keymap.ts` for the flight axes, `controls.ts`
   plus `command-help.ts` for everything else. The README is the only hand-
   written surface left, and `test/key-help.test.ts` holds it to the table in
-  both directions (CLAUDE.md invariant 9, docs/TODO/50).
+  both directions (docs/INVARIANTS.md invariant 9, docs/TODO/50).
 
 ## Where to start reading, in order
 

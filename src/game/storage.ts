@@ -1,7 +1,7 @@
 // Where a save is kept. The only file that may touch localStorage for a SAVE —
 // `engine/keymap.ts` is the one carve-out, and it holds the single
 // `elite-web-keymap` key, which is a display preference and not a career
-// (CLAUDE.md invariant 3 states the same exception).
+// (docs/INVARIANTS.md invariant 3 states the same exception).
 //
 // Chris's framing, and it is the right one: the storage mechanism was an
 // implementation detail leaking into something that would otherwise be pure.
@@ -24,7 +24,7 @@
 //                                     here is who to start instead (TODO 45, 56)
 //
 // `<CAREER>` is WHICH COMMANDER A SAVE BELONGS TO — the name they were created
-// under. The word is CLAUDE.md invariant 3's and it survives in the code for
+// under. The word is docs/INVARIANTS.md invariant 3's and it survives in the code for
 // that reason alone; nothing a player reads says it (docs/TODO/56), and
 // `SaveRecord.career` in save-file.ts is where the choice of word is argued.
 //
