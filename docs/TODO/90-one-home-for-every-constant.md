@@ -1055,6 +1055,128 @@ one thing no slice has touched: CLAUDE.md does not yet carry the
 read-it-do-not-grep-it instruction below — the gate catches a second home
 mechanically, but the instruction is what stops one being written.
 
+**Slice 9 — the galaxy, and the encyclopaedia's own geometry over it —
+landed.** Two files touched in the home, one of them new, and the count went
+from 239 home / 261 out across 73 files to **243 home / 257 out across 72**.
+The whole group left the pending list: `galaxy/galaxy.ts`, `galaxy/goatsoup.ts`
+and `galaxy/descriptions.ts` are named STAYS entries now, `encyclopaedia/filters.ts`
+declares no constants at all and came off the list entirely, and
+`encyclopaedia/chart.ts`/`encyclopaedia/main.ts` are named STAYS entries with
+one name apiece.
+
+| moved | file |
+| --- | --- |
+| the chart projection's width, and the height derived from the halving `chart-metric.ts` already named | `constants/chart-metric.ts` |
+| the tech level scale the encyclopaedia's filter is bounded by | `constants/tech-level.ts` |
+
+**This slice's honest outcome is mostly STAYS, exactly as the item's own
+caution predicted.** Fourteen of the eighteen declared names in the group are
+the 1984 generator's own data or a presentation exemption the item already
+ruled out by name:
+
+- `galaxy/galaxy.ts` (nine names) and `galaxy/goatsoup.ts` (two) — the three
+  seed words and the twist, the digraph and species-name tables, the
+  goat-soup grammar's option lists, and the market model's per-commodity base
+  prices, gradients, quantities and masks. All of it is transcribed from the
+  1984 algorithm rather than chosen by Harmless, which is exactly what
+  docs/TODO/90 names by example — "the market model's per-commodity base
+  prices and gradients... TRANSCRIBED FROM A SOURCE". `ECONOMY_NAMES` and
+  `GOVERNMENT_NAMES` are the same case: the original's own category names,
+  not a Harmless wording.
+- `galaxy/descriptions.ts`'s `OVERLAYS` — a JSON map resolved once at load
+  and keyed by system index, the `MISSILE_HULL` shape from slice 1: a
+  catalogue-style lookup rather than a tunable rule, and content
+  (docs/TODO/58's generated prose) rather than a game constant.
+- `encyclopaedia/chart.ts`'s `THEME` — the encyclopaedia's own green and
+  amber, which docs/TODO/90's scope section rules out of scope by name
+  alongside every other phosphor colour in the game.
+- `encyclopaedia/main.ts`'s `GALAXY` — which galaxy this build of the
+  encyclopaedia covers, a page-build choice tied to the descriptions corpus
+  being galaxy-1-only (recorded in `descriptions.ts`'s own header), not a
+  rule any other module has an opinion about.
+
+**Two names moved, matching the slice brief's own examples almost word for
+word.** The brief named "a chart's projection scale" and "a filter's
+threshold" as the shape of thing that DOES move despite living in a
+presentation file, and both turned up:
+
+- `encyclopaedia/chart.ts`'s private `SPAN_X`/`SPAN_Y` were the chart's
+  projection span — 256 wide, 128 tall — and they are exactly the "chart
+  projection's 256/128/4" docs/TODO/90's scope section names as in scope
+  ("the galaxy's own geometry"). They join `chart-metric.ts`'s existing
+  `TENTHS_PER_CHART_UNIT` and `CHART_Y_SQUASH` as `CHART_SPAN_X` and
+  `CHART_SPAN_Y`. **`CHART_SPAN_Y` is now an expression.** It was a second
+  literal, 128, sitting inside a comment that already explained the halving
+  ("chart y counts for half of chart x") without naming it; it is
+  `CHART_SPAN_X / CHART_Y_SQUASH` now, so "the chart is drawn half-height" is
+  one fact rather than two — 256 / 2 is 128 exactly, so nothing moved.
+- `encyclopaedia/filters.ts`'s `TECH_MIN`/`TECH_MAX` were the filter's bounds
+  on the tech-level range, and they are exactly "a filter's threshold". They
+  are `constants/tech-level.ts` now, a new file: the raw techLevel the 1984
+  algorithm computes is capped at 0-14 by its own arithmetic (`(s1>>8)&3`
+  tops out at 3, `economy^7` at 7, `government>>1` at 3, plus one if
+  government is odd), and every reader adds one before showing it — so 15 is
+  the algorithm's own ceiling restated in shown units, not a number Harmless
+  picked. It cannot be expressed as that arithmetic because this directory
+  may not import `galaxy.ts`, so the derivation is written out in prose
+  beside the literal, the same shape as `torus.ts`'s mass-lock radii or
+  `jettison.ts`'s tonne value.
+
+**One duplicate found and left for its own slice.** `game/screens/chart.ts:158`
+still writes `target.width / 256` as a bare literal — the same span as
+`CHART_SPAN_X`, unnamed, in the console's own short-range chart. It is
+`ui/screens.ts`'s group (the console slice), not the galaxy's, so it stays
+inline; noted on the cleanup list for whoever takes that slice.
+
+**Neither `descriptions.ts` nor `galaxy.ts`/`goatsoup.ts` changed at all.** No
+divergence, no unexpressed relationship, and no coincidence worth recording
+turned up in either — they are exactly what docs/TODO/90 predicted this
+partition would be: a byte-accurate transcription with nothing to move.
+
+Byte-identical, verified against a worktree at HEAD: **17,511 compared, 0
+changed** — every name in `src/constants/` then against now (including the
+two new ones), all 256 systems of galaxies 1/2/3/8 field by field (name, x,
+y, economy, government, techLevel, population, productivity, radius,
+species, `describeSystem`, the goat-soup description, and galaxy 1's AI
+overlay text), the market table for six sample systems over all 256
+fluctuations, the encyclopaedia chart's real `toScreen` projection exercised
+through the actual `Chart` class over three viewport sizes with pan and zoom
+applied (recording every drawn point), and the tech-level filter's
+`emptyFilter`/`isUntouched`/`matches` swept over all 256 galaxy-1 systems at
+four tech-min and three tech-max settings. `Chart`'s constructor uses
+TypeScript parameter properties, which node's `--experimental-strip-types`
+cannot parse; the harness ran under `--experimental-transform-types` instead,
+the same class the browser and `npm run build` see. The harness was broken
+twice and restored: `CHART_SPAN_X` 256 → 257 reported 110 changes, and
+`TECH_MAX` 15 → 14 reported 2.
+
+The four gates: `npm run build` passes (the encyclopaedia still builds its
+530 kB page with the chart and rail wired up, invariant 1 unaffected); `npm
+run campaign` reports "all balance checks passed" — untouched, since nothing
+this slice moved reaches the campaign's trader/market/contract path; `npm run
+elite-a` 490 passed, 0 failed; `npm run portability` 0 contaminated. The full
+suite reads 3155, unchanged — this slice added no new behaviour, only a new
+address for four numbers, and the existing `test/encyclopaedia.test.ts`
+checks (`the tech bounds cover every world`, `an untouched filter matches
+every world`) already pinned them; its import was repointed from
+`filters.ts` to `constants/tech-level.ts` rather than kept as a re-export.
+Both browser-console harnesses were grepped for every name this slice moved,
+created or touched, plus the file names themselves: clean — neither reaches
+past `COMMODITIES`/`generateMarket` in `galaxy/galaxy.ts`, which this slice
+left untouched.
+
+Four breaks, all confirmed red and restored with targeted edits: the gate's
+stray `SOME_RULE` in `encyclopaedia/main.ts` (1 failure), a side-effect
+import from `constants/tech-level.ts` into `galaxy/galaxy.ts` (1 failure), a
+diverged `TECH_MAX` at 12 (2 failures — `an untouched filter matches every
+world` and `the tech bounds cover every world`), and the equivalence harness
+itself (above).
+
+**Still to do**, in the groups the gate's list already names: the station,
+the console, the combat trainer, saves, and the policy seam. Plus one thing
+no slice has touched: CLAUDE.md does not yet carry the
+read-it-do-not-grep-it instruction below.
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give

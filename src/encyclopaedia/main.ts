@@ -14,9 +14,10 @@
 // filters.ts are pure and are what `npm run portability` counts.
 
 import { generateGalaxy } from '../galaxy/galaxy.ts';
+import { TECH_MIN, TECH_MAX } from '../constants/tech-level.ts';
 import { factsFor, type Entry } from './entry.ts';
 import {
-  emptyFilter, facetsOf, selectSlugs, isUntouched, TECH_MIN, TECH_MAX, type Filter,
+  emptyFilter, facetsOf, selectSlugs, isUntouched, type Filter,
 } from './filters.ts';
 import { Chart } from './chart.ts';
 

@@ -3,6 +3,7 @@
 // painted from one answer instead of each deciding for itself.
 
 import { ECONOMY_NAMES, GOVERNMENT_NAMES } from '../galaxy/galaxy.ts';
+import { TECH_MIN, TECH_MAX } from '../constants/tech-level.ts';
 import type { Entry } from './entry.ts';
 
 export interface Filter {
@@ -16,9 +17,6 @@ export interface Filter {
   /** Matched against the name, case-insensitively. */
   search: string;
 }
-
-export const TECH_MIN = 1;
-export const TECH_MAX = 15;
 
 export const emptyFilter = (): Filter => ({
   economies: new Set(),

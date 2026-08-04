@@ -9,16 +9,8 @@
 // What is shared is the only thing that matters: the coordinates come from
 // `generateGalaxy`, so the shape of the sky is the same shape the game flies.
 
+import { CHART_SPAN_X, CHART_SPAN_Y } from '../constants/chart-metric.ts';
 import type { Entry } from './entry.ts';
-
-/**
- * Chart coordinates are x 0-255, y 0-255 with the chart drawn at half height —
- * that halving is the 1984 convention (galaxy.ts documents it on StarSystem)
- * and it is what makes the galaxy the wide band everyone recognises rather
- * than a square.
- */
-const SPAN_X = 256;
-const SPAN_Y = 128;
 
 export interface View {
   /** Screen pixels per chart unit at zoom 1. Recomputed on resize. */
@@ -84,7 +76,7 @@ export class Chart {
     this.canvas.height = Math.round(h * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // Fit the whole galaxy with a small margin, then let zoom take over.
-    this.view.scale = Math.min(w / (SPAN_X + 12), h / (SPAN_Y + 12));
+    this.view.scale = Math.min(w / (CHART_SPAN_X + 12), h / (CHART_SPAN_Y + 12));
     this.draw();
   }
 
@@ -93,8 +85,8 @@ export class Chart {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     return [
-      w / 2 + (e.x - SPAN_X / 2) * scale * zoom + panX,
-      h / 2 + (e.y / 2 - SPAN_Y / 2) * scale * zoom + panY,
+      w / 2 + (e.x - CHART_SPAN_X / 2) * scale * zoom + panX,
+      h / 2 + (e.y / 2 - CHART_SPAN_Y / 2) * scale * zoom + panY,
     ];
   }
 

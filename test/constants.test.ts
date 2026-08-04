@@ -245,18 +245,6 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'the galaxy: the 1984 generator, its names and the encyclopaedia over it',
-    files: {
-      'galaxy/galaxy.ts': ALL,
-      'galaxy/goatsoup.ts': ALL,
-      'galaxy/descriptions.ts': ALL,
-      'encyclopaedia/chart.ts': ALL,
-      'encyclopaedia/filters.ts': ALL,
-      'encyclopaedia/main.ts': ALL,
-    },
-  },
-
-  {
     why: 'the station: its slot, the approach, and being pushed back out of it',
     files: {
       'game/docking.ts': ALL,
@@ -327,6 +315,53 @@ const OUTSIDE: readonly Group[] = [
   },
 
   // --- decided: these stay where they are ------------------------------------
+
+  {
+    why: 'STAYS: the classic Elite galaxy generator\'s own data — the three seed words'
+      + ' and the twist they advance under, the digraph table two different name'
+      + ' generators both index, the species-name tables, and the market model\'s'
+      + ' per-commodity base prices, gradients, quantities and masks. Every one of these'
+      + ' is transcribed from the 1984 algorithm rather than chosen by Harmless; docs/TODO/90'
+      + ' rules the tables out by name and invariant 4 is what holds them to the original\'s'
+      + ' bytes. `ECONOMY_NAMES` and `GOVERNMENT_NAMES` are the same case: the original\'s'
+      + ' own category names, not a Harmless wording',
+    files: {
+      'galaxy/galaxy.ts': ALL,
+      'galaxy/goatsoup.ts': ALL,
+    },
+  },
+
+  {
+    why: 'STAYS: a JSON overlay resolved once at load and keyed by system index — the'
+      + ' `MISSILE_HULL` shape, not a rule. It is Harmless\'s own generated prose'
+      + ' (docs/TODO/58) rather than 1984 data, but it is content laid over the galaxy'
+      + ' rather than a game constant, and the map itself is nothing more than the'
+      + ' committed JSON given a name',
+    files: {
+      'galaxy/descriptions.ts': ALL,
+    },
+  },
+
+  {
+    why: 'STAYS: the encyclopaedia\'s own green and amber, which docs/TODO/90 rules out of'
+      + ' scope by name alongside every other phosphor colour in the game — "the'
+      + ' encyclopaedia\'s separate green and amber" stays duplicated, and docs/TODO/93'
+      + ' owns it, not this item',
+    files: {
+      'encyclopaedia/chart.ts': ['THEME'],
+    },
+  },
+
+  {
+    why: 'STAYS: which galaxy this build of the encyclopaedia covers — a page-build choice'
+      + ' tied to the descriptions corpus being galaxy-1-only (galaxy/descriptions.ts\'s own'
+      + ' header explains why), not a rule any other module has an opinion about. Read once,'
+      + ' at the top of the page\'s own entry point, and nothing outside this file could use'
+      + ' a second copy',
+    files: {
+      'encyclopaedia/main.ts': ['GALAXY'],
+    },
+  },
 
   {
     why: 'STAYS: hull and pack DATA, not constants. Generated or transcribed from a'

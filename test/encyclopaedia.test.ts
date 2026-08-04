@@ -13,8 +13,9 @@ import { readFileSync } from 'node:fs';
 import { systemDescription } from '../src/galaxy/descriptions.ts';
 import { entryFor, factsFor, entryHtml, slugFor } from '../src/encyclopaedia/entry.ts';
 import {
-  emptyFilter, matches, selectSlugs, facetsOf, isUntouched, TECH_MIN, TECH_MAX,
+  emptyFilter, matches, selectSlugs, facetsOf, isUntouched,
 } from '../src/encyclopaedia/filters.ts';
+import { TECH_MIN, TECH_MAX } from '../src/constants/tech-level.ts';
 import { escapeHtml } from '../src/engine/escape-html.ts';
 import { check, eq } from './harness.ts';
 import { g1 } from './fixtures.ts';

@@ -1,5 +1,6 @@
 // The 1984 chart metric: the two numbers that turn a pair of chart coordinates
-// into a distance in tenths of a light year.
+// into a distance in tenths of a light year, and the span of the coordinate
+// space every chart projects.
 //
 // The arithmetic is `distanceTenths` in galaxy/navigation.ts, whose header
 // records that the rule had grown three implementations before it existed. It
@@ -33,3 +34,27 @@ export const TENTHS_PER_CHART_UNIT = 4;
  * isotropic.
  */
 export const CHART_Y_SQUASH = 2;
+
+/**
+ * The width of the coordinate space every chart projects: `StarSystem.x` runs
+ * 0-255, the top byte of a 16-bit seed word — the original's chart grid IS
+ * this span rather than a number anyone at Harmless chose.
+ *
+ * TWO CHARTS FIT THE WHOLE GALAXY AGAINST IT, which is what makes it a rule
+ * and not a fact local to one drawing. The encyclopaedia's canvas
+ * (`encyclopaedia/chart.ts`) divides the viewport by `CHART_SPAN_X + 12` to
+ * leave a margin; the game's own short-range chart (`ui/screens.ts` via
+ * `game/screens/chart.ts`) still writes `target.width / 256` as a bare
+ * literal that has not been brought here — see
+ * docs/TODO/90-constants-cleanup.md.
+ */
+export const CHART_SPAN_X = 256;
+
+/**
+ * ...and the height, which is HALF of that — `CHART_Y_SQUASH` restated as a
+ * span rather than a divisor, so "the chart is drawn half-height" is one fact
+ * instead of two. It was a second literal, 128, sitting inside
+ * `encyclopaedia/chart.ts` beside a comment that already explained the
+ * halving without naming it.
+ */
+export const CHART_SPAN_Y = CHART_SPAN_X / CHART_Y_SQUASH;

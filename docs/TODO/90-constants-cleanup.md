@@ -551,6 +551,15 @@ the survey suspected the figure was really the Dodo's. Both released stations
 carry 240 (read from the catalogue, 2026-08-04), so the prose is true of the
 Coriolis — and of the Dodo — and nothing needed changing.
 
+### What slice 9 left behind, and for whom
+
+`game/screens/chart.ts:158` still writes `target.width / 256` as a bare
+literal — the same span as the encyclopaedia's new `CHART_SPAN_X`
+(`constants/chart-metric.ts`), unnamed in the console's own short-range
+chart. It is the console slice's file (`ui/screens.ts`'s group), not the
+galaxy's, so it was left rather than moved; when that slice lands it can read
+`CHART_SPAN_X` instead of the digit.
+
 ### The README is a prose home for the torus multiplier
 
 `README.md`'s key table says "torus jump drive (8×, stars streak; cuts out when
@@ -648,6 +657,13 @@ still resolve. **`test/playtest.js` did hold a sixth home for the escape cost**
 — `if (g.commander.fuel < 10) break; // no fuel to jump clear` — and it takes
 `WITCHSPACE_ESCAPE_COST` out of `constants/jump.ts` now, alongside the
 `PLAYER_FLIGHT` import it already had.
+
+Slice 9 did it for `CHART_SPAN_X`, `CHART_SPAN_Y`, `TECH_MIN` and `TECH_MAX`
+plus the functions whose files changed (`Chart`, `emptyFilter`, `matches`,
+`isUntouched`, `facetsOf`, `selectSlugs`, `generateGalaxy`,
+`planetDescription`, `systemDescription`): neither harness names any of them.
+Both reach `COMMODITIES` and `generateMarket` out of `galaxy/galaxy.ts`, which
+this slice left untouched (it is DATA, not a constant), and both still resolve.
 
 ### `src/constants/` is not in docs/ARCHITECTURE.md
 
