@@ -31,7 +31,7 @@ import {
 } from '../src/ai-training/policy.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
-import type { LaserType } from '../src/game/commander.ts';
+import { defenceFight } from './defence-fight.ts';
 
 const args = process.argv.slice(2);
 const PHASES = ['attack', 'evade', 'pack', 'defend'];
@@ -121,52 +121,12 @@ const opponent: Brain | null =
   opponentName && opponentName !== SCRIPTED ? loadBrain(opponentName) : null;
 if (opponentName === SCRIPTED) console.log('opponent: the scripted attack run (what ships)');
 
-/**
- * WHAT A DEFENDER MEETS, varied by seed.
- *
- * Chris: "we should train against all the different scenarios and ships. Let's
- * make sure our combat computer sees everything that could be thrown at it."
- *
- * `jameson-defend-g1` and the first g2 both trained against EXACTLY two pirates
- * flying at EXACTLY one hull, so what they were fitted for was a single
- * scenario repeated with different dice. The game does not do that: a wave is
- * one ship or six, the tiers climb, and the same policy flies the combat
- * computer in whatever the commander happens to be sitting in.
- *
- * Three things vary and one already did:
- *
- *   - HOW MANY, 1 to 4. One pirate is a duel and four is a gang, and they are
- *     not the same problem — a policy fitted only against two learns a spacing
- *     that is wrong for both.
- *   - WHICH SHIP IT IS FLYING, across every hull the episode can field. The
- *     combat computer flies the commander's ship, so a policy that only works
- *     in one is a policy that stops working when he buys a better one.
- *   - WHICH PIRATES, which `pirateSpecFor` already keys off the seed — hull and
- *     tier both — so this was the one axis that was already honest.
- *
- * One function because the episode builder AND `scriptedReference` must field
- * the same fight, or the baseline the run is judged against is a different
- * fight from the run.
- */
-function defenceSetup(seed: number): { count: number; hull: TargetHullId; laser: LaserType } {
-  const HULLS: TargetHullId[] = ['playerCobra', 'traderCobra', 'playerCobraSlow'];
-  // Pulse is deliberately NOT in the rotation. A commander who has bought the
-  // combat computer has bought a gun to go with it, and pulse reloads at 0.24s
-  // against 0.09 for the other two — a policy fitted at that rate learns a
-  // trigger discipline that is wrong for the ship it will actually be flying.
-  const LASERS: LaserType[] = ['beam', 'military'];
-  return {
-    // `>>> 3` and `>>> 9` so the count, the hull and `pirateSpecFor`'s own
-    // `seed % 3` tier read different bits: taken off the low bits they would
-    // move in lockstep and "vary by seed" would mean three axes with one value.
-    // The shifts are the ones that come out even over the seed stride actually
-    // used (7919) — `>>> 5` gave the hulls a 44/38/38 lean over 120 episodes.
-    count: 1 + ((seed >>> 3) % 4),
-    hull: HULLS[(seed >>> 9) % HULLS.length]!,
-    laser: LASERS[(seed >>> 15) % LASERS.length]!,
-  };
-}
-
+// WHAT A DEFENDER MEETS is `train/defence-fight.ts`, and it is one function
+// because three callers must field the same fight: the episode builder, the
+// `scriptedReference` this run is judged against, and `train/defence-probe.ts`,
+// which measures the finished policy on held-out seeds. It lived here and was
+// copied there, with a comment in each telling the reader to keep them in step.
+//
 /** The opponent as an Episode controller — a policy, or the scripted run. */
 const opponentController = (): Controller =>
   (opponentName === SCRIPTED ? { kind: 'scripted' } : { kind: 'policy', brain: opponent! });
@@ -334,7 +294,7 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
   }
   if (phase === 'defend') {
     // an armed Jameson against whatever the seed throws at it
-    const { count, hull, laser } = defenceSetup(seed);
+    const { count, hull, laser, energyUnit } = defenceFight(seed);
     return new Episode({
       seed,
       pirates: Array.from({ length: count }, () => opponentController()),
@@ -342,6 +302,7 @@ function makeEpisodeFor(genome: Brain, seed: number): Episode {
       traderArmed: true,
       traderClass: hull,
       traderLaser: laser,
+      targetEnergyUnit: energyUnit,
     });
   }
   // pack: 2-4 ships sharing one policy vs an armed scripted trader. Pack
@@ -382,6 +343,18 @@ function fitnessOf(ep: Episode): number {
  * The polarity trap is unchanged and worth restating: in `evade` and `defend`
  * the trader dying is a FAILURE. Scoring every phase by damage done to the
  * trader selected the evader that died most often, and cost four retrains.
+ *
+ * TWO HALVES OF THIS ARE NO LONGER THE SAME QUANTITY, since docs/TODO/63 gave
+ * the target its recharge. `targetDamageShare()` is cumulative — the points a
+ * pirate took off her, whatever came back — and the attack and pack phases are
+ * measured exactly as they were. `ep.trader.hp` is TERMINAL, and under recovery
+ * it answers "how healthy did she end" rather than "how much did she avoid".
+ * Measured on the validation seeds, the scripted `holding` pilot takes the LEAST
+ * damage of any defender (150 points against a runner's 172) and kills 42% of
+ * its attackers, and ends with the LOWEST hp of the five, because winning ends
+ * the episode early and it heals for less of the clock. That is a defect in the
+ * outcome, not in the world, and it is docs/TODO/65's to fix — which is why the
+ * fix is not smuggled in here.
  */
 function outcomeOf(ep: Episode): number {
   const defending = phase === 'evade' || phase === 'defend';
@@ -413,13 +386,15 @@ function scriptedReference(gen: number): number {
     if (phase === 'evade') {
       ep = new Episode({ seed, pirates: [opponentController()], trader: { kind: 'scripted' } });
     } else if (phase === 'defend') {
+      const { count, hull, laser, energyUnit } = defenceFight(seed);
       ep = new Episode({
         seed,
-        pirates: Array.from({ length: defenceSetup(seed).count }, () => opponentController()),
+        pirates: Array.from({ length: count }, () => opponentController()),
         trader: { kind: 'scripted' },
         traderArmed: true,
-        traderClass: defenceSetup(seed).hull,
-        traderLaser: defenceSetup(seed).laser,
+        traderClass: hull,
+        traderLaser: laser,
+        targetEnergyUnit: energyUnit,
       });
     } else if (phase === 'pack') {
       ep = new Episode({

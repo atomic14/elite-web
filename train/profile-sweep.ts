@@ -178,7 +178,11 @@ export function printPlayerHullSweep(brainName: string): void {
       while (!ep.done) ep.step(FIXED_DT);
       const r = ep.report();
       taken += r.target.damageTaken;
-      share += 1 - r.target.healthFraction;
+      // the share TAKEN, not the share still missing at the end: the pools
+      // recharge since docs/TODO/63, so `1 - healthFraction` here would have
+      // been a different quantity from the `taken` beside it and would have
+      // measured how recently she was hit.
+      share += ep.targetDamageShare();
       hits += r.pirates.reduce((a, p) => a + p.hits, 0);
     }
     console.log(`| ${pad(hull.name, 14)} | ${rpad(hull.perHitShieldArmour, 6)} | `

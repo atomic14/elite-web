@@ -49,8 +49,8 @@ import type { LaserType } from '../game/commander.ts';
 import { pirateSpecForTier } from '../game/ship-specs.ts';
 import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
 import {
-  LASER_COOL_RATE, MAX_ENERGY, MAX_SHIELD, applyDamage, durability, freshSystems,
-  type ShipSystems,
+  MAX_ENERGY, MAX_SHIELD, applyDamage, durability, freshSystems, regenerate,
+  type RegenOptions, type ShipSystems,
 } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
@@ -286,8 +286,15 @@ function pirateSpecFor(seed: number, index: number, count: number): NpcSpec {
   return pirateSpecForTier(memberTier(tier, index), (seed >>> 2) + index * 7 + count);
 }
 
-/** The record schema an episode's setup and report are written against. */
-export const EPISODE_SCHEMA = 1;
+/**
+ * The record schema an episode's setup and report are written against.
+ *
+ * **2** since docs/TODO/63: the target's pools recharge, and its fit-out carries
+ * an energy unit that says how fast. A schema-1 record describes a world where
+ * damage was permanent, so its pools-left figure is not the same measurement as
+ * a schema-2 one and nothing should average the two.
+ */
+export const EPISODE_SCHEMA = 2;
 
 // --- the target's scale, which is now the commander's ------------------------
 //
@@ -302,14 +309,28 @@ export const EPISODE_SCHEMA = 1;
 //   player laser -> a ship      npc.ts      takeLaserHit (the oracle)
 //   a ram, either way           impact-damage.ts IMPACT.ram
 //
-// ONE THING IS DELIBERATELY LEFT OUT, and it is the difference between a
-// trainer and a playtest: the target's pools DO NOT RECHARGE. A shield face
-// recovers 8.9 points a second and a pirate lands about two, so an episode with
-// regeneration in it cannot be lost by anyone and carries no gradient at all.
-// That is a fact about a 45-second episode rather than about the brain — see
-// docs/TRAINING-LOG.md, where regeneration is what made the real game's gang
-// fights survivable. `npm run survivability` is where the question of how a
-// real fight ends belongs.
+// AND THE POOLS COME BACK, by `systems.ts`'s own `regenerate` and no other rule
+// — the same call `world-step.ts` makes for the commander every frame, and the
+// same debt `p.npc.regenerate(dt)` pays on the pirate side.
+//
+// This block used to say the opposite, and said it deliberately: "the target's
+// pools DO NOT RECHARGE ... an episode with regeneration in it cannot be lost by
+// anyone and carries no gradient at all". The arithmetic behind that is right —
+// a shield face recovers 8.9 points a second and one pirate lands about two —
+// and the conclusion drawn from it was still wrong, because it is an argument
+// about the FITNESS made by changing the WORLD. A commander in a real fight
+// loses a face on a pass and gets it back before the next one; `energyLow` is
+// the console light that says when. An episode where damage was permanent had
+// exactly one surviving strategy, which is never to be hit, and that is a very
+// good description of the policy it produced (docs/TODO/63). Whether pools-left
+// still discriminates between two defenders is a question for the selection
+// rule (docs/TODO/65), and the answer to it is not a second physics.
+//
+// It costs what the old comment says it costs: a gentler episode, and a
+// pools-left figure that now measures recovery as well as avoidance. Every
+// defence and evade number in docs/TRAINING-LOG.md predating 2026-08-04 was
+// measured without it and is INCOMPARABLE with one measured after, which the log
+// says in its own words rather than being silently re-baselined.
 
 /**
  * The commander's laser, from the commander's hull — one entry per type.
@@ -352,6 +373,8 @@ export interface EpisodeSetup {
     hull: TargetHullId;
     laser: string;
     armed: boolean;
+    /** part of the fit-out, because it doubles how fast the pools come back */
+    energyUnit: boolean;
     controller: string;
     pools: { foreShield: number; aftShield: number; energy: number };
   };
@@ -412,6 +435,18 @@ export interface EpisodeOptions {
    * so every existing episode and every archived run means what it did.
    */
   traderLaser?: LaserType;
+  /**
+   * Does the target carry an extra energy unit? It DOUBLES the bank's recharge
+   * (`ENERGY_UNIT_MULTIPLIER`), and since the pools recharge at all it is the
+   * one fitting that changes how a fight goes rather than how it opens.
+   *
+   * It sits beside `traderLaser` for the same reason that was added: a commander
+   * who has bought the combat computer is being fitted out, not launched, and a
+   * policy fitted at exactly one recovery rate has learned a disengage-and-heal
+   * discipline that is wrong for the ship it will be flying. Off unless a caller
+   * says otherwise, so every existing episode and archived run means what it did.
+   */
+  targetEnergyUnit?: boolean;
   /**
    * Which of the 15 flyable hulls the target IS — its per-hit armour and the
    * size of its three pools. The Cobra Mk III unless a caller says otherwise,
@@ -481,6 +516,12 @@ class TargetShip implements EpisodeShip {
    * hit by the game's `applyDamage`. It was a single normalized `hp` field.
    */
   readonly sys: ShipSystems;
+  /**
+   * Which hull's recharge rating and which fit-out `regenerate` runs on — built
+   * once, because `energyRegenPerSecond` applies each of them exactly once and a
+   * caller assembling this per frame is how a rate gets doubled twice.
+   */
+  readonly regen: RegenOptions;
   /** every point the pools can hold: both faces and the bank */
   readonly maxPool: number;
   alive = true;
@@ -494,12 +535,13 @@ class TargetShip implements EpisodeShip {
   pitchRate = 0;
   rollRate = 0;
 
-  constructor(hull: TargetHull, shipId: PlayerHullId) {
+  constructor(hull: TargetHull, shipId: PlayerHullId, energyUnit: boolean) {
     this.hull = hull;
     this.radius = hull.radius;
     this.name = hull.name;
     this.shipId = shipId;
     this.sys = freshSystems();
+    this.regen = { shipId, energyUnit };
     this.maxPool = durability(true);
     this.ship = new PlayerShip(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
     this.ship.speed = hull.maxSpeed * 0.5;
@@ -547,9 +589,20 @@ class TargetShip implements EpisodeShip {
    */
   fly(dt: number, demand: FlightDemand): void {
     this.ship.update(dt, demand);
-    // the gun's half of systems.ts `regenerate` — the only half a target has
-    this.laserCooldown -= dt;
-    this.laserTemp = Math.max(0, this.laserTemp - LASER_COOL_RATE * dt);
+    // THE WHOLE OF systems.ts's `regenerate`, which is the same call
+    // world-step.ts makes for the commander once a frame: the gun's cooldown and
+    // heat, the energy bank, and both shield faces once the bank is out of its
+    // last quarter. It ran only the gun's two lines and called them "the only
+    // half a target has" — a statement about the code, since nothing stopped a
+    // target having the other half, and it made every hit permanent for as long
+    // as any defence policy has existed (docs/TODO/63).
+    //
+    // Here rather than in `Episode.step` because this is where a target's frame
+    // is, and every controller in this file — the policy's `step`, the four
+    // scripted pilots' `coast` — comes through it exactly once per step. Moving
+    // it to `Episode.step` would be equally correct, and would put the target's
+    // clock somewhere the target does not own.
+    regenerate(this.sys, dt, this.regen);
   }
 
   /**
@@ -636,7 +689,8 @@ export class Episode {
 
     this.trader = new TargetShip(
       TARGET_HULLS[opts.traderClass ?? 'traderCobra'](),
-      opts.targetShipId ?? COBRA_MK_3_HULL_ID);
+      opts.targetShipId ?? COBRA_MK_3_HULL_ID,
+      !!opts.targetEnergyUnit);
     // random initial trader orientation
     steerQuatToward(
       this.trader.quat, randomDirection(this.tmp).multiplyScalar(1000), Math.PI);
@@ -1045,8 +1099,13 @@ export class Episode {
       target: {
         shipId: this.trader.shipId,
         hull: this.opts.traderClass ?? 'traderCobra',
-        laser: this.trader.hull.gun === 'player' ? 'pulse' : 'npc',
+        // WHICH laser, not "the commander has one": every defence episode fires
+        // beam or military (`train/defence-fight.ts`) and this said `pulse`
+        // for all of them, because it was written when there was one.
+        laser: this.trader.hull.gun === 'player'
+          ? (this.opts.traderLaser ?? 'pulse') : 'npc',
         armed: !!this.opts.traderArmed,
+        energyUnit: this.trader.regen.energyUnit,
         controller: this.opts.trader.kind,
         pools: { foreShield: MAX_SHIELD, aftShield: MAX_SHIELD, energy: MAX_ENERGY },
       },
@@ -1105,9 +1164,28 @@ export class Episode {
   // functions below, whose constants were tuned over eighteen runs against a
   // 0..1 scale, would all silently change meaning.
 
-  /** Share of the target's pools removed, 0..1. Its damage, from its side. */
+  /**
+   * Share of the target's pools TAKEN OFF HER over the episode, 0..1 — its
+   * damage, from its side, and the same question `pirateDamageShare` asks of a
+   * pirate.
+   *
+   * It read `1 - trader.hp`, and while nothing recovered that was the same
+   * number. Since docs/TODO/63 the pools come back, and the two quantities are
+   * not the same at all: measured over `test/ai.test.ts`'s 60 held-out seeds,
+   * the shipped pirate takes 12.0% of the commander's pools and leaves 0.4%
+   * still missing at the end, because a scripted hauler heals the rest back
+   * before the clock runs out. `1 - hp` under recovery answers "how recently was
+   * she hit", which is not what any caller wants: `fitnessAttack` pays 6x this
+   * for a pirate's WORK, `fitnessPack` divides it by the clock to get pressure,
+   * and `evolve.ts` selects attack and pack champions on it.
+   *
+   * The pirate side was always cumulative — `p.damageTaken` over its bank —
+   * precisely because pirates have always regenerated. This is the same choice,
+   * made on the other ship, and it is the observation boundary's own rule: exact
+   * points inside, divided by their own maximum here and nowhere else.
+   */
   targetDamageShare(): number {
-    return Math.max(0, Math.min(1, 1 - this.trader.hp));
+    return Math.max(0, Math.min(1, this.trader.damageTaken / this.trader.maxPool));
   }
 
   /** Share of pirate i's own released bank that has been taken off it, 0..1. */

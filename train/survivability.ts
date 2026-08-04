@@ -20,11 +20,18 @@
 // and what it costs them — because "kill rate" alone stopped being the
 // interesting number the moment a kill stopped being cheap.
 //
-// TWO THINGS THE REAL GAME HAS AND THIS DOES NOT, both favouring the player:
-// pool RECHARGE (a shield face recovers 8.9 points a second, which is more than
-// a gang of three lands, and it is left out because an episode with it in has
-// no gradient — see ai-training/scenario.ts), and ECM, the escape capsule, the
-// torus drive and a station to run to. Treat every row as a floor.
+// POOL RECHARGE IS IN IT NOW (docs/TODO/63), and it is the biggest single thing
+// these rows ever left out: a shield face recovers 8.9 points a second, which is
+// more than a gang of three lands. The header used to say it was left out
+// "because an episode with it in has no gradient", which is an argument about
+// the fitness made by changing the world; the episode runs `systems.ts`'s
+// `regenerate` now, exactly as the game does. **Every figure this tool printed
+// before 2026-08-04 is on the old world and is not comparable with one printed
+// after it.**
+//
+// What the real game still has and this does not, all of it favouring the
+// player: E.C.M., the escape capsule, the torus drive and a station to run to.
+// Treat every row as a floor.
 //
 // Not a substitute for flying it. `T` at any station is.
 
@@ -59,9 +66,17 @@ interface Result {
   kill: number;
   /** mean seconds to the kill, of the fights that ended in one */
   ttk: number;
-  /** mean share of her three pools stripped by the end */
+  /**
+   * Mean share of her three pools STRIPPED OVER THE FIGHT — cumulative, which
+   * is `Episode.targetDamageShare()`. It was `1 - trader.hp` at the end, and
+   * once the pools come back that answers "how recently was she hit" instead.
+   */
   poolLost: number;
-  /** share of episodes her FACING shield was flattened */
+  /**
+   * Share of episodes a shield face was flattened AT ANY POINT. Watched every
+   * step for the same reason: a face that was taken down and recovered is still
+   * a face that was taken down, and the end-of-episode reading would miss it.
+   */
   shieldDown: number;
   /** attackers destroyed per episode */
   lost: number;
@@ -81,13 +96,15 @@ function run(pirateBrain: Brain, gang: number): Result {
       maxTime: MAX_TIME,
     });
     let death = MAX_TIME;
+    let flattened = false;
     while (!ep.done) {
       ep.step(DT);
       if (!ep.trader.alive && death === MAX_TIME) death = ep.t;
+      if (ep.trader.sys.foreShield <= 0 || ep.trader.sys.aftShield <= 0) flattened = true;
     }
     if (!ep.trader.alive) { kills += 1; ttk += death; }
-    poolLost += 1 - ep.trader.hp;
-    if (ep.trader.sys.foreShield <= 0 || ep.trader.sys.aftShield <= 0) shieldDown += 1;
+    poolLost += ep.targetDamageShare();
+    if (flattened) shieldDown += 1;
     for (const p of ep.pirates) if (!p.alive) lost += 1;
   }
   return {
@@ -101,7 +118,7 @@ function run(pirateBrain: Brain, gang: number): Result {
 
 console.log(`\n${N} episodes per row · ${MAX_TIME}s · defender flies ${BRAIN_NAMES.defend}`);
 console.log(`the commander's own pools: ${durability(true)} points across two ${MAX_SHIELD}-point`
-  + ' shields and the bank, no recharge — see the header\n');
+  + ' shields and the bank, recharging as the game does — see the header\n');
 console.log('| gang | brain | destroyed | pools stripped | a shield flattened | they lost |');
 console.log('| --- | --- | --- | --- | --- | --- |');
 for (const gang of [1, 2, 3, 4]) {

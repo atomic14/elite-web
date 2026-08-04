@@ -485,6 +485,13 @@ train/profile-sweep.ts      the catalogue rather than the policies: all 15
                             flyable hulls as the target, all 38 designs'
                             recommended profiles, non-combat objects excluded
                             from the aggregates
+train/defence-fight.ts      what a defender MEETS, from one seed: count, hull,
+                            laser, energy unit — imported by the trainer and by
+                            the probe below, so they cannot measure different
+                            distributions
+train/defence-probe.ts      is the defender fighting or just surviving? pools
+                            left AND kills, broken down by what made it hard,
+                            on held-out seeds
 train/survivability.ts      how a fight against a real gang ends, in the
                             commander's own pool points
 tools/import-elite-a.mjs    npm run generate:elite-a — reads the vendored pack,

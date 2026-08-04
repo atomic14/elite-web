@@ -23,7 +23,7 @@ consequences"* — and there are two Games:
 | reads `event.weapon` | yes | **no** |
 | spends `state.missiles` | yes | **no** |
 | calls `chooseWeapon` | yes | **no** |
-| regenerates the target | `systems.ts regenerate()` | the gun's half only |
+| regenerates the target | `systems.ts regenerate()` | ~~the gun's half only~~ — **closed by docs/TODO/63**: the episode's target runs the whole rule |
 
 Every row after the first is a divergence nobody chose. They were found by
 asking one question about missiles; there is no reason to believe the list is

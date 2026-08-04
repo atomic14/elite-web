@@ -2067,3 +2067,165 @@ Putting a candidate back is still the one move TODO 57's entry describes, and
 this run is the worked example of the guard doing its job: it reported the extra
 file for as long as the decision was open, and the decision — not the guard —
 is what closed it.
+
+## 2026-08-04 — the target's pools come back (TODO 63), and a NEW BASELINE
+
+**Every defence and evade figure above this line was measured in a world where
+the commander's damage was permanent.** They are not wrong; they are
+**incomparable** with anything measured after this entry, and that is the whole
+point of writing it rather than quietly re-baselining. Attack and pack figures
+are unaffected, and the paragraph "what did NOT change" below is the measurement
+that says so rather than the assurance.
+
+`ai-training/scenario.ts`'s `TargetShip.fly()` ran two lines of `systems.ts`'s
+`regenerate` — the laser's cooldown and heat — under a comment calling them *"the
+only half a target has"*. It runs the whole function now, the same call
+`world-step.ts` makes for the commander every frame: the energy bank recharges
+every tick and both shield faces come back once the bank is out of its last
+quarter (`energyLow`). The **extra energy unit** went in with it as part of the
+defence fit-out, beside the laser choice, because it DOUBLES the recovery rate
+and is 15,000 credits next to the combat computer on the same shelf; it is an
+`EpisodeOptions.targetEnergyUnit` and it is on the episode's setup record.
+`EPISODE_SCHEMA` is **2**.
+
+The old comment's arithmetic was right — a shield face recovers 8.9 points a
+second and one pirate lands about two — and its conclusion (*"an episode with
+regeneration in it cannot be lost by anyone and carries no gradient at all"*) was
+an argument about the FITNESS settled by changing the WORLD. What the gradient
+should be is `train/evolve.ts`'s problem and docs/TODO/65's; what the world is,
+is the game's.
+
+### What it did to the numbers
+
+`npm run defence-probe`, `jameson-defend-g1`, the same 240 held-out episodes
+either side of the change:
+
+| | pools left | by 1 / 2 / 3 / 4 pirates | killed | died |
+| --- | --- | --- | --- | --- |
+| before (permanent damage) | 78.0% | 91.2 / 81.5 / 75.4 / 64.7 | 5.7% | 0/240 |
+| **after (the game's rule)** | **99.2%** | 100.0 / 99.6 / 99.1 / 97.9 | 5.7% | 0/240 |
+
+Identical kills, because the defence observation carries **no health input at
+all** (`policy.ts` `observe()` is 14 numbers and own-hp is not one of them —
+only the 26-input `observePackWide` has it, at slot 25). So a defender cannot
+condition on its own pools, cannot learn "break off and heal", and its flying
+does not change: what changed is the accounting, and the gradient.
+
+`npm run survivability` moved further, and this is the row that matters for
+balance:
+
+| gang | destroyed, before | destroyed, after | a shield flattened, before → after |
+| --- | --- | --- | --- |
+| 3 × `pirate-attack-g3` | 5% in 39.2s | **0%** | 34% → 10% |
+| 4 × `pirate-attack-g3` | 9% in 31.7s | **0%** | 55% → 17% |
+
+Cumulative damage is unchanged (5 / 18 / 32 / 44% of her pools by gang size,
+against 5 / 18 / 31 / 43 before). **Four pirates cannot kill a Cobra Mk III
+inside 45 seconds once she recharges.** That is the game's own answer and the
+reason the real thing is survivable; treat every survivability row as an even
+softer floor than its header already said.
+
+### What did NOT change, measured rather than assumed
+
+`targetDamageShare()` was `1 - trader.hp` and is now `trader.damageTaken /
+maxPool` — the SAME question `pirateDamageShare` has always asked of a pirate,
+which was cumulative precisely because pirates have always regenerated. Under
+recovery the two stopped being the same number: over `test/ai.test.ts`'s 60
+held-out seeds the shipped pirate takes **12.0%** of the commander's pools and
+leaves **0.4%** still missing at the end, because a scripted hauler heals the
+rest back before the clock runs out. `fitnessAttack` pays 6× this for a pirate's
+WORK and `fitnessPack` divides it by the clock to get pressure, so terminal hp
+would have cut the attack phase's reward signal thirtyfold.
+
+With the cumulative reading, a solo attack episode is **bit-identical** either
+side of the change (91.67 points taken, t 45.017, 15.58 shots, 0/60 kills, over
+`test/ai.test.ts`'s seeds), and `test/ai.test.ts`'s gates print exactly the
+figures they were baselined on: 12.0% shipped, 1.7% untrained, 20.8% defended
+against 23.5% scripted. **The attack phase does not need retraining.**
+
+**The pack phase is a different story and is NOT resolved here.** Three
+`pirate-pack-r4-selectonly` against an armed scripted trader killed her in
+**21 of 60** episodes before and **0 of 60** now, so `fitnessPack`'s kill bonus
+(`12 + 5 × (1 - t/maxTime)`) never fires against that opponent any more. Its
+damage and pressure terms are cumulative and intact, and the shipped pack brain
+was fitted with the bonus live. Nobody has retrained it and nobody should on this
+entry alone — it wants its own decision, with a fight Chris flies.
+
+### The retrain: 300 × 48 × 6, twice, and NEITHER SHIPS
+
+    npm run train -- defend --validate-select \
+        --out jameson-defend-t63  --gens 300 --pop 48 --eps 6      # 926s train, 16m21 wall
+    npm run train -- defend --validate-select --select-kills \
+        --out jameson-defend-t63k --gens 300 --pop 48 --eps 6      # 917s train, 15m51 wall
+
+Same budget as run 19's three retrains, opponent the scripted attack run (what
+ships), the varied fight from the new `train/defence-fight.ts` — 1-4 pirates,
+three hulls, beam or military, energy unit or not.
+
+    t63   99.9% validation pools left, shaped 11.89, throttles forward 20%
+          (286 champions re-judged, 72 rejected for constant throttle)
+    t63k  99.8% validation pools left, shaped 12.36, throttles forward 100%
+          (288 champions re-judged, 157 rejected)
+
+The item predicted the champion's pools-left would be "materially higher than
+the ~82% the pre-change policies score". It is: **99.9%**. That is the whole
+problem. On 240 held-out episodes, against the incumbent:
+
+| brain | pools left | taken/ep | dealt/ep | kills | shots/ep | cleared |
+| --- | --- | --- | --- | --- | --- | --- |
+| **`jameson-defend-g1` (shipped)** | 99.2% | 168.1 | **25.0** | **5.7%** | 234 | **6/240** |
+| `jameson-defend-t63` | 99.2% | 170.4 | 10.2 | 3.7% | 41 | 2/240 |
+| `jameson-defend-t63k` | 98.9% | 175.1 | 3.0 | 4.1% | 13 | 1/240 |
+
+Both candidates take **more** damage than the brain they were meant to beat, deal
+**2.4× and 8× less**, and fire 41 and 13 shots an episode against 234. `t63k`
+has essentially stopped shooting. **Neither is promoted; the weights are
+deleted** (TODO 57's precedent — `src/ai-training/brains/` holds exactly the
+three the game flies and `npm test` fails on a fourth), and
+`train/logs/jameson-defend-t63*.jsonl` are the record. Re-running the table means
+retraining with the commands above.
+
+This is not a failed search, and more compute is not the answer — docs/TODO/65
+says why, in arithmetic. `evolve.ts` picks its champion on
+`v.win * 1000 + clamp(v.shaped, ±499)` with `win` = terminal `hp`, and in this
+world the five candidate behaviours score:
+
+| defender | pools left | damage TAKEN | kills | shaped | selection score |
+| --- | --- | --- | --- | --- | --- |
+| `holding` (turns and shoots) | 97.5% | **150** | **42.4%** | **18.09** | **993.6** ← last |
+| `jameson-defend-g1` | 99.1% | 167 | 3.5% | 8.89 | 999.5 |
+| `scripted` hauler | 98.7% | 179 | 0.0% | 11.84 | 998.8 |
+| `weaving` | 98.9% | 190 | 1.0% | 12.18 | 1001.0 |
+| `runner` (never fires) | 99.3% | 172 | 0.0% | 11.78 | **1005.0** ← first |
+
+The pilot that takes the least damage and kills the most comes last; the one that
+never pulls a trigger comes first. `fitnessDefend` ranks them correctly and the
+1000× outcome term overrides it. **And regeneration adds a second inversion on
+top:** `holding` CLEARS 7 of those 24 fights, mean 37.3s against 45.0, so it
+heals for less of the clock and reads worst on terminal hp despite being the
+least damaged — over the full-length episodes only, the gap all but closes
+(98.4% against 99.2%). Terminal `hp` now penalises **winning**. Both inversions
+belong to docs/TODO/65, which has this table appended to it, and the honest
+outcome here is to leave the shipped brain alone and let 65 fix the selection
+first.
+
+CLAUDE.md's *"the defence policy evades superbly and shoots badly"* stands, and
+this run is one more piece of evidence that it is a property of the selection
+rule and not of the brain.
+
+### Also in this change
+
+- **`train/defence-fight.ts`** — one function for what a defender meets, imported
+  by `train/evolve.ts` and `train/defence-probe.ts`. It was four lines copied into
+  both, each with a comment asking the reader to keep them in step; adding the
+  energy-unit axis to that was the run where they would have stopped agreeing.
+  The bit it reads (6) was chosen by counting: bit 21, the obvious next one, is
+  CONSTANT over a 240-episode probe because 2²¹ is 265 strides of 7,919 wide.
+- **`EpisodeSetup.target.laser` was lying.** It read `pulse` whenever the target
+  flew the commander's hull, so every defence episode — all of which fire beam or
+  military — recorded the wrong gun. It reports `opts.traderLaser` now.
+- **`train/survivability.ts`** counts a flattened shield when it happens rather
+  than at the end (a face that came back is still a face that went down), and its
+  header no longer claims recharge is left out.
+- **`train/profile-sweep.ts`**'s share column is cumulative, beside the `taken`
+  column it has to agree with.

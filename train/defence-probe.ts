@@ -15,7 +15,8 @@
 // retrained policies read 72-75%, so the retrains looked worse and the obvious
 // conclusion was that they needed more search.
 //
-// Broken down, over 400 held-out episodes (2026-08-03):
+// Broken down, over 400 held-out episodes (2026-08-03, and see the note below —
+// these were measured in a world where the commander's pools never came back):
 //
 //   by pirate count     pools left      pirates killed
 //     1                    91.4%             10.2%
@@ -45,21 +46,30 @@
 //   killed         the share of attacking pirates destroyed. NOT part of the
 //                  selection metric today, which is the finding.
 //
+// ## The numbers above are on the OLD baseline
+//
+// docs/TODO/63 gave the target `systems.ts`'s `regenerate` — the same call the
+// game makes for the commander every frame — so pools-left now measures recovery
+// as well as avoidance, and a figure from before 2026-08-04 is not comparable
+// with one from after it. They are kept because they are what was measured and
+// what docs/TODO/65 was found from; re-run the tool for a current one.
+//
 // ## The fight it flies
 //
-// The same varied setup `train/evolve.ts`'s `defenceSetup()` builds, and for
-// the same reason: 1 to 4 pirates, one of three hulls, beam or military laser,
-// against the SCRIPTED attack run that every pirate flies since d563e3d. The
-// axes are taken off different bits of the seed so they do not move in
-// lockstep. Held-out seed bases by default — never `evolve.ts`'s validation
-// base, because a policy is selected on that one and quoting it back is asking
-// a brain how it did on its own exam.
+// `train/defence-fight.ts`, which `train/evolve.ts` builds the phase's episodes
+// from — the same function rather than the same four lines, so this tool cannot
+// come to measure a distribution nothing was fitted to. 1 to 4 pirates, one of
+// three hulls, beam or military laser, with or without the extra energy unit,
+// against the SCRIPTED attack run that every pirate flies since d563e3d. Held-out
+// seed bases by default — never `evolve.ts`'s validation base, because a policy
+// is selected on that one and quoting it back is asking a brain how it did on
+// its own exam.
 
 import { readFileSync } from 'node:fs';
-import { Episode, type TargetHullId } from '../src/ai-training/scenario.ts';
+import { Episode } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
-import type { LaserType } from '../src/game/commander.ts';
+import { defenceFight } from './defence-fight.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
 
@@ -73,24 +83,6 @@ const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);
  */
 export const HELD_OUT_BASES = [8_675_309, 1_234_577];
 
-const HULLS: TargetHullId[] = ['playerCobra', 'traderCobra', 'playerCobraSlow'];
-const LASERS: LaserType[] = ['beam', 'military'];
-
-/**
- * The fight a seed describes — the SAME derivation as `evolve.ts`'s
- * `defenceSetup`, and it has to stay that way or this tool measures a different
- * distribution from the one the policy was fitted on.
- */
-export function defenceFight(seed: number): {
-  count: number; hull: TargetHullId; laser: LaserType;
-} {
-  return {
-    count: 1 + ((seed >>> 3) % 4),
-    hull: HULLS[(seed >>> 9) % HULLS.length]!,
-    laser: LASERS[(seed >>> 15) % LASERS.length]!,
-  };
-}
-
 export interface Cell { n: number; pools: number; died: number; killed: number }
 
 const blank = (): Cell => ({ n: 0, pools: 0, died: 0, killed: 0 });
@@ -101,11 +93,13 @@ export function probeDefence(brain: Brain, episodes: number): {
   byCount: Map<number, Cell>;
   byHull: Map<string, Cell>;
   byLaser: Map<string, Cell>;
+  byEnergyUnit: Map<string, Cell>;
 } {
   const overall = blank();
   const byCount = new Map<number, Cell>();
   const byHull = new Map<string, Cell>();
   const byLaser = new Map<string, Cell>();
+  const byEnergyUnit = new Map<string, Cell>();
   const put = <K>(m: Map<K, Cell>, k: K, c: Cell): void => {
     const cell = m.get(k) ?? blank();
     cell.n += 1; cell.pools += c.pools; cell.died += c.died; cell.killed += c.killed;
@@ -115,7 +109,7 @@ export function probeDefence(brain: Brain, episodes: number): {
   for (const base of HELD_OUT_BASES) {
     for (let e = 0; e < episodes; e++) {
       const seed = base + e * 7919;
-      const { count, hull, laser } = defenceFight(seed);
+      const { count, hull, laser, energyUnit } = defenceFight(seed);
       const ep = new Episode({
         seed,
         pirates: Array.from({ length: count }, () => ({ kind: 'scripted' as const })),
@@ -123,6 +117,7 @@ export function probeDefence(brain: Brain, episodes: number): {
         traderArmed: true,
         traderClass: hull,
         traderLaser: laser,
+        targetEnergyUnit: energyUnit,
       });
       ep.setup();
       while (!ep.done) ep.step(FIXED_DT);
@@ -139,9 +134,10 @@ export function probeDefence(brain: Brain, episodes: number): {
       put(byCount, count, one);
       put(byHull, hull, one);
       put(byLaser, laser, one);
+      put(byEnergyUnit, energyUnit ? 'energy unit' : 'no energy unit', one);
     }
   }
-  return { overall, byCount, byHull, byLaser };
+  return { overall, byCount, byHull, byLaser, byEnergyUnit };
 }
 
 function row(label: string, c: Cell): string {
@@ -173,6 +169,10 @@ export function printDefenceShape(names: string[], episodes: number): void {
     for (const k of [...r.byHull.keys()].sort()) row2(k, r.byHull.get(k)!);
     console.log('  --- by laser');
     for (const k of [...r.byLaser.keys()].sort()) row2(k, r.byLaser.get(k)!);
+    // The axis docs/TODO/63 added, and the one the selection metric CAN see:
+    // it doubles the bank's recharge, so it moves pools-left directly.
+    console.log('  --- by energy unit (recovery rate — see docs/TODO/63)');
+    for (const k of [...r.byEnergyUnit.keys()].sort()) row2(k, r.byEnergyUnit.get(k)!);
   }
   console.log('\npools left is what `evolve.ts` selects champions on; killed is not.');
   console.log('a policy that survives by never engaging tops the first column and');

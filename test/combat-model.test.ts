@@ -28,9 +28,16 @@ import {
   ACCEL_FRACTION,
   shipAccel,
 } from '../src/game/ship-specs.ts';
-import { PlayerShip, PLAYER_FLIGHT, rampFlightRate, rampToward } from '../src/player.ts';
+import {
+  PlayerShip, PLAYER_FLIGHT, rampFlightRate, rampToward, type FlightDemand,
+} from '../src/player.ts';
+import {
+  LOW_ENERGY, MAX_ENERGY, MAX_SHIELD, applyDamage, energyLow, freshSystems, regenerate,
+  type ShipSystems,
+} from '../src/game/systems.ts';
+import { playerPoolPoints } from '../src/game/damage-units.ts';
 import { ccRamp, CC_MAX_PITCH, CC_MAX_ROLL } from '../src/game/combat-computer.ts';
-import { shipDesignIdOf } from '../src/game/ship-identity.ts';
+import { COBRA_MK_3_HULL_ID, shipDesignIdOf } from '../src/game/ship-identity.ts';
 import { npcMaxEnergy } from '../src/game/npc-energy.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { check } from './harness.ts';
@@ -236,4 +243,98 @@ console.log('\none combat model (the trainer flies the game)');
   check('ramming costs each side its own stated points, and both the same speed',
     IMPACT.ram.ship === 44 && IMPACT.ram.commander === 115
     && PLAYER_SPEED_KEPT === NPC_SPEED_KEPT);
+
+  // 9. THE TARGET'S POOLS COME BACK, by systems.ts's rule and no other.
+  //
+  // The trainer ran two lines of `regenerate` — the laser's cooldown and heat —
+  // and called them "the only half a target has". The other half is the half a
+  // fight is about: the bank recharges every tick and both shield faces come
+  // back once it is out of its last quarter, so a commander loses a face on a
+  // pass and has it again before the next one. Without it damage was permanent
+  // and the only strategy that survived an episode was never being hit, which
+  // is the policy that shipped (docs/TODO/63).
+  //
+  // Asserted as EQUIVALENCE with the game's own function over the same inputs,
+  // not as "the number went up": a second recharge rule that merely climbed
+  // would pass the second kind of check and is exactly what this file exists to
+  // stop. The target is flown for the whole ten seconds — `fly()` is the frame
+  // every controller in scenario.ts comes through — with no pirate shooting at
+  // it, because a hit landing mid-run would be measuring the dice instead.
+  {
+    const demand = (): FlightDemand => ({
+      pitchRate: 0, rollRate: 0, throttle: 0, fire: false,
+      limits: { accel: 220, maxSpeed: 400 },
+    });
+    const flown = (hit: number, seconds: number, energyUnit = false) => {
+      const ep = new Episode({
+        seed: 4242, pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },
+        traderClass: 'playerCobra', targetEnergyUnit: energyUnit,
+      });
+      ep.trader.takeDamage(playerPoolPoints(hit), true);
+      for (let i = 0; i < seconds * 60; i++) ep.trader.fly(1 / 60, demand());
+      return ep.trader.sys;
+    };
+    const reference = (hit: number, seconds: number, energyUnit = false): ShipSystems => {
+      const sys = freshSystems();
+      applyDamage(sys, playerPoolPoints(hit), true, () => 1);
+      for (let i = 0; i < seconds * 60; i++) {
+        regenerate(sys, 1 / 60, { shipId: COBRA_MK_3_HULL_ID, energyUnit });
+      }
+      return sys;
+    };
+    const same = (a: ShipSystems, b: ShipSystems): boolean =>
+      JSON.stringify(a) === JSON.stringify(b);
+
+    // A face gone and a bite out of the bank, and neither pool near its ceiling:
+    // both branches of `regenerate` run, and a cap would not hide a wrong rate.
+    const HIT = MAX_SHIELD + 145;
+    const hurt = flown(HIT, 10);
+    check('a damaged target at t+10s is exactly what the game\'s regenerate gives'
+      + ` (fore ${hurt.foreShield}, aft ${hurt.aftShield}, energy ${hurt.energy})`,
+    same(hurt, reference(HIT, 10)));
+    check('...and it really did recover: both pools are above where the hit left them',
+      hurt.foreShield > 0 && hurt.energy > MAX_ENERGY - 145
+      && hurt.foreShield < MAX_SHIELD && hurt.energy < MAX_ENERGY);
+
+    // Beaten down past the console light: the bank climbs, the shields wait for
+    // it. The rule that makes disengaging a decision rather than a formality —
+    // and a five-second window, because at this rate the bank climbs back over
+    // LOW_ENERGY in about eight and a half.
+    const beaten = flown(MAX_SHIELD + MAX_ENERGY - 10, 5);
+    check('a target below ENERGY LOW gets its bank back and no shields'
+      + ` (energy ${beaten.energy}, fore ${beaten.foreShield})`,
+    same(beaten, reference(MAX_SHIELD + MAX_ENERGY - 10, 5))
+      && beaten.foreShield === 0 && beaten.energy > 10 && energyLow(beaten.energy));
+    check(`...and ${LOW_ENERGY} points is where energyLow stops saying so`,
+      energyLow(LOW_ENERGY) && !energyLow(LOW_ENERGY + 1));
+
+    // The fit-out is an INPUT, not a constant: an energy unit doubles the bank's
+    // recharge, and the episode has to carry which one the commander flew or the
+    // record cannot say what was measured.
+    const boosted = flown(HIT, 10, true);
+    check(`the extra energy unit reaches the rule (energy ${hurt.energy}`
+      + ` -> ${boosted.energy})`,
+    same(boosted, reference(HIT, 10, true)) && boosted.energy > hurt.energy);
+    const ep = new Episode({
+      seed: 7, pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },
+      traderClass: 'playerCobra', traderLaser: 'military', targetEnergyUnit: true,
+    });
+    check('...and the setup record says so, with the laser it actually fires',
+      ep.setup().target.energyUnit === true && ep.setup().target.laser === 'military');
+  }
+
+  // ...and it happens inside a real episode, not only when a test drives the
+  // target's frame. A fight where nothing came back would leave exactly
+  // `damageTaken` missing from the pools.
+  {
+    const ep = new Episode({
+      seed: 31, pirates: [{ kind: 'scripted' }, { kind: 'scripted' }],
+      trader: { kind: 'scripted' }, traderClass: 'playerCobra',
+    });
+    while (!ep.done) ep.step(1 / 60);
+    const permanent = ep.trader.maxPool - ep.trader.damageTaken;
+    check(`an episode's target ends above what permanent damage would leave`
+      + ` (${ep.trader.pool} of ${ep.trader.maxPool}, ${ep.trader.damageTaken} taken)`,
+    ep.trader.damageTaken > 0 && ep.trader.pool > permanent);
+  }
 }

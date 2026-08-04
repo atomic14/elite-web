@@ -243,8 +243,9 @@ game and not in a training episode. The answer is that invariant 5's "one
 combat model" covers the DECISION half of combat and not the RESOLUTION half:
 `world-step.ts` and `ai-training/scenario.ts` are two implementations of
 invariant 15's contract, and they have silently diverged on the weapon, the
-missile rack and shield regeneration. 62 and 63 are the two known divergences;
-64 is the mechanism that would have caught them and stops the next one.
+missile rack and shield regeneration. 62 and 63 were the two known divergences —
+63 is closed — and 64 is the mechanism that would have caught them and stops the
+next one.
 
 61 is decided and done: **deleted**. Chris, 2026-08-03. `pirate-attack-e1` was
 restored to be compared against `pirate-attack-g3` as the solo pirate policy, and
@@ -258,11 +259,31 @@ there to re-run them against. A save carrying `passes` still loads, is not
 migrated and flies the shipped brains, which is TODO 57's precedent, and
 `test/brain-names.test.ts` now asserts it for `passes` too.
 
+63 is done, and it changed a baseline rather than a brain: the episode's target
+runs the whole of `systems.ts`'s `regenerate` now, so **every defence and evade
+figure in docs/TRAINING-LOG.md before 2026-08-04 is incomparable with one after
+it** — the entry there says so rather than re-baselining quietly. The defence
+phase was retrained twice at run 19's budget and **neither shipped**: both
+champions validate at 99.8-99.9% of her pools left and both are worse than the
+incumbent on held-out seeds, which is 65's arithmetic doing exactly what 65 says
+it does. Do 65 next, then retrain defence again. 63 left two things open and
+neither is 63's to close — they are **70** and **71** below.
+
 - [x] 61 — [Promote or delete the attack-run candidate](61-decide-the-attack-run-candidate.md) — decision · medium · small
 - [ ] 62 — [Missiles do not exist in training, and nothing said so](62-missiles-do-not-exist-in-training.md) — training fidelity · high · medium
-- [ ] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
+- [x] 63 — [A training target's shields never come back](63-shields-never-come-back-in-training.md) — training fidelity · high · small
 - [ ] 64 — [One resolver, so the trainer and the game cannot drift](64-one-fire-resolver.md) — architecture · high · large
 - [ ] 65 — [The defender is selected for not fighting](65-the-defender-is-selected-for-not-fighting.md) — training methodology · high · medium
+- [ ] 70 — [The pack's kill bonus can no longer be earned](70-the-packs-kill-bonus-is-dead-signal.md) — training methodology · high · medium
+- [ ] 71 — [A defender cannot see its own pools](71-a-defender-cannot-see-its-own-pools.md) — training fidelity · high · medium
+
+70 and 71 came out of 63 and are the two things it could not close. 70: a gang of
+three killed the armed scripted trader in 21 of 60 episodes and now kills her in
+0, so `fitnessPack`'s kill bonus — **51% of the shipped pack policy's fitness** —
+is a constant zero, and it blocks a meaningful pack retrain. 71: `observe()` is
+fourteen numbers and own health is not one of them, so "break off and heal" is
+not learnable however 65 fixes the selection — which is why the kill rate was
+identical either side of 63.
 
 ## The attack run, and what comes after it
 

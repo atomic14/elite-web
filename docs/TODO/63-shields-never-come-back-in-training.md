@@ -81,3 +81,27 @@ taking hits was made irreversible by the trainer rather than by the game.
 should be materially higher than the ~82% the pre-change policies score, because
 the metric now includes recovery. Then fly it: `T` at any station, fit the
 combat computer, and press `K`.
+
+## Done, 2026-08-04 — and two things it left open
+
+The change is in, the log has the new baseline, and the defence phase was
+retrained twice at run 19's budget. **Neither candidate shipped**: both validated
+at 99.8-99.9% of her pools left and both were worse than `jameson-defend-g1` on
+held-out seeds — more damage taken, 2.4x and 8x less dealt, 41 and 13 shots an
+episode against 234. That is docs/TODO/65's arithmetic, measured in the new
+world; the table is appended to that item.
+
+Two consequences are NOT closed here, and each has its own file rather than a
+paragraph in an index:
+
+- **docs/TODO/70** — a gang of three killed the armed scripted trader in 21 of 60
+  episodes before this change and 0 of 60 after, so `fitnessPack`'s kill bonus is
+  a constant zero. It was 51% of the shipped pack policy's fitness, and it blocks
+  a meaningful pack retrain.
+- **docs/TODO/71** — `observe()` is fourteen numbers and the defender's own health
+  is not one of them. Recovery is now real and no policy can perceive it, which is
+  why the kill rate was identical to the decimal either side of this change.
+
+The attack phase needed nothing: `targetDamageShare()` became cumulative
+(`trader.damageTaken / maxPool`, the same question `pirateDamageShare` has always
+asked of a pirate) and a solo attack episode is bit-identical either side.

@@ -153,7 +153,9 @@ are Vite entries in `vite.config.ts`; add new pages there or they won't build.
    Dictatorship. Never "fix" `galaxy.ts` maths; it is byte-matched to the 1984
    algorithm. `npm test` asserts it.
 5. **One combat model.** `src/ai-training/scenario.ts` builds episodes out of
-   `NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts` and `rng.ts`. A change
+   `NpcShip`, `PlayerShip`, `gunnery.ts`, `collisions.ts`, `systems.ts` — the
+   target takes its damage AND its recharge from the game's own rules — and
+   `rng.ts`. A change
    to a combat number therefore changes the game and the training world
    together — so nothing desyncs, but it **invalidates the brains**. Retrain
    deliberately.

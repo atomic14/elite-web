@@ -115,3 +115,49 @@ two blocks it prints. The per-hull and per-laser kill spreads should now be
 visible to the selection metric, and the
 `by pirate count` pools gradient should not have collapsed — a policy that
 trades all its survival for kills has overcorrected.
+
+## What item 63 did to these numbers (2026-08-04) — re-derived, not carried over
+
+63 is done: the episode's target runs `systems.ts`'s `regenerate` now. Every
+figure above is on the old world. Here is the same claim re-measured on the new
+one, and it is **stronger, not weaker**.
+
+`evolve.ts`'s own selection score, on its own 24 validation seeds, five
+defenders flying the same fights (scripted attackers, 1-4 of them):
+
+| defender | pools left | damage TAKEN | pirates killed | shaped | **selection score** |
+| --- | --- | --- | --- | --- | --- |
+| `holding` (turns and shoots) | 97.5% | **150 pts** | **42.4%** | **18.09** | **993.6** ← last |
+| `jameson-defend-g1` (shipped) | 99.1% | 167 | 3.5% | 8.89 | 999.5 |
+| `scripted` hauler | 98.7% | 179 | 0.0% | 11.84 | 998.8 |
+| `weaving` | 98.9% | 190 | 1.0% | 12.18 | 1001.0 |
+| `runner` (never fires) | 99.3% | 172 | 0.0% | 11.78 | **1005.0** ← first |
+
+The pilot that takes the LEAST damage and kills the MOST comes **last**, and the
+pilot that never pulls a trigger comes **first**. `fitnessDefend` gets it right —
+18.09 for the fighter against 11.78 for the runner — and the 1000x `win` term in
+front of it decides anyway, exactly as this item says.
+
+**And there is a new failure mode on top of the old one.** With recovery in the
+world, `hp` at the end of an episode is close to "how long since she was last
+hit". `holding` ends its fights early — it CLEARS 7 of 24, mean 37.3s against
+45.0 — so it heals for less of the clock and reads lowest on the metric despite
+being the least damaged. Terminal `hp` now penalises winning. Restricted to
+episodes that ran the full 45s the gap mostly closes (98.4% against the runner's
+99.2%), which is the tell: the outcome is measuring the clock, not the fight.
+
+So a fix that keeps terminal `hp` as the outcome has to answer BOTH — that
+shooting is worth almost nothing, and that finishing is worth less than
+dawdling. `Episode.targetDamageShare()` is already the cumulative form of this
+quantity for the attack and pack phases (63 changed it to read
+`trader.damageTaken`, because `1 - hp` stopped meaning "damage done" the moment
+anything healed); `1 - targetDamageShare()` is the same quantity from the
+defender's side and has neither defect.
+
+**And this item is only half the ceiling — see docs/TODO/71.** `observe()` is
+fourteen numbers and the defender's own health is not one of them, so a policy
+cannot condition on being hurt at all: the kill rate was identical to the decimal
+either side of 63, because nothing about the flying could change. 65 can fix WHAT
+is selected for; it cannot make the policy capable of "break off while the
+shields come back". Do this item first — it is cheaper and it is a real defect on
+its own — but a retrain after it is still fitting a health-blind pilot.
