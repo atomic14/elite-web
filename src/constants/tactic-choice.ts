@@ -5,10 +5,11 @@
 // `tactics.ts` is the vocabulary. The gates, the roll and the trigger that spend
 // these are `game/tactic-choice.ts`.
 //
-// One number of the choice is not here: `RAM_MIN_SPEED` is
-// `PLAYER_FLIGHT.maxSpeed * 0.7`, and this directory may not import, so it stays
-// in game/tactic-choice.ts until the commander's envelope arrives. Restating 400
-// as a literal would be a second home for it.
+// `RAM_MIN_SPEED` waited for the flight slice: it is a fraction of the
+// commander's top speed, and restating 400 as a literal would have given that
+// speed a second home. `player-flight.ts` brought the envelope in.
+
+import { PLAYER_FLIGHT } from './player-flight.ts';
 
 /**
  * How much wider than contact a pass has to be AIMED to actually clear, as a
@@ -24,6 +25,21 @@
  * worst case is 0.16 rad/s demanded of a Python that has 0.35.
  */
 export const PASS_CLEARANCE = 1.6;
+
+/**
+ * The slowest hull that may be offered a ram.
+ *
+ * A commander's Cobra tops out at 400 and NOTHING in the roster is faster — the
+ * quickest pirate is a Constrictor at 370 — so a gate of "faster than the
+ * player" would offer this to nobody. The question is a different one: can this
+ * hull force contact on a commander who is FIGHTING rather than fleeing? 0.7 of
+ * the commander's top speed binds where it should — half the roster is too slow,
+ * including the Monitor at 152 and the Python at 160, and the Python making 0
+ * passes while loitering at 739 units is the record docs/TODO/68 was written
+ * against. A ship that cannot arrive should never be given a tactic whose entire
+ * content is arriving.
+ */
+export const RAM_MIN_SPEED = PLAYER_FLIGHT.maxSpeed * 0.7;
 
 /**
  * How hurt a ship has to be before being hit makes it rethink.

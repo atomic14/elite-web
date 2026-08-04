@@ -14,7 +14,8 @@
 // Mouse DECAY is not done here: `decayMouse` mutates the Input, and a pure
 // producer must not. The caller does it, immediately after reading — see
 // Game.pilotDemand.
-import { PLAYER_FLIGHT, rampFlightRate, type FlightDemand } from '../player.ts';
+import { rampFlightRate, type FlightDemand } from '../player.ts';
+import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
 
 /**
  * Just enough of `Input` to fly by — structural, so `Input` satisfies it

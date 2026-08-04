@@ -34,8 +34,11 @@
   //   law.ts        CONTRABAND — the ONE definition
   //   commander.ts  what counts against the hold, and how big it is
   //   storage.ts    the one-way switch into the harness save namespace
-  //   player.ts     the ship's real pitch, roll, acceleration and rate ramp
-  const [galaxyMod, navMod, contractsMod, lawMod, commanderMod, storageMod, playerMod] =
+  //   player.ts     the ramp the commander's controls integrate with
+  //   constants/player-flight.ts
+  //                 the ship's real pitch, roll, acceleration and rate ramp
+  const [galaxyMod, navMod, contractsMod, lawMod, commanderMod, storageMod, playerMod,
+    flightMod] =
     await Promise.all([
       import('/src/galaxy/galaxy.ts'),
       import('/src/galaxy/navigation.ts'),
@@ -44,6 +47,7 @@
       import('/src/game/commander.ts'),
       import('/src/game/storage.ts'),
       import('/src/player.ts'),
+      import('/src/constants/player-flight.ts'),
     ]);
   const { COMMODITIES, generateMarket } = galaxyMod;
   const { distanceTenths } = navMod;
@@ -51,7 +55,8 @@
   const { isContraband } = lawMod;
   const { cargoTonnes: holdTonnes, cargoCapacity: holdCapacity } = commanderMod;
   const { useHarnessSaves, clearHarnessSaves, saveNamespace } = storageMod;
-  const { PLAYER_FLIGHT, rampFlightRate } = playerMod;
+  const { rampFlightRate } = playerMod;
+  const { PLAYER_FLIGHT } = flightMod;
 
   const V = g.player.position.clone().constructor;
   const Q = g.player.quaternion.clone().constructor;
@@ -174,8 +179,9 @@
       // The ship that ships. This was 0.7 pitch / 1.2 roll / 120 accel /
       // 300 top speed with a 4-5 ramp — half the real pitch and roll (1.45 and
       // 2.5), a fifth off the acceleration, and a decay of 5 where the real
-      // controls bleed off at 12. src/player.ts owns these; PLAYER_FLIGHT and
-      // rampFlightRate are exported so they cannot drift apart again.
+      // controls bleed off at 12. src/constants/player-flight.ts owns them;
+      // PLAYER_FLIGHT and rampFlightRate are exported so they cannot drift
+      // apart again.
       const F = PLAYER_FLIGHT;
       this.cPitch = rampFlightRate(this.cPitch, c.pitch * F.maxPitch, c.pitch !== 0, dt);
       this.cRoll = rampFlightRate(this.cRoll, c.roll * F.maxRoll, c.roll !== 0, dt);

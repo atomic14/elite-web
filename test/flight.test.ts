@@ -11,16 +11,16 @@ import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import {
   PlayerShip,
-  PLAYER_FLIGHT,
   rampFlightRate,
   type FlightDemand,
 } from '../src/player.ts';
+import { PLAYER_FLIGHT } from '../src/constants/player-flight.ts';
 import { flightDemand, type FlightControls } from '../src/engine/flight-controls.ts';
 import { keymap } from '../src/engine/keymap.ts';
+import { CombatComputer } from '../src/game/combat-computer.ts';
 import {
-  CombatComputer, CC_MAX_PITCH, CC_MAX_ROLL,
-} from '../src/game/combat-computer.ts';
-import { CC_ACCEL, CC_MAX_SPEED } from '../src/constants/combat-computer.ts';
+  CC_ACCEL, CC_MAX_PITCH, CC_MAX_ROLL, CC_MAX_SPEED,
+} from '../src/constants/combat-computer.ts';
 import { freshSystems } from '../src/game/systems.ts';
 import { check } from './harness.ts';
 

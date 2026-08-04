@@ -85,11 +85,28 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'per-module scratch vectors, reused so a per-frame path allocates nothing.'
-      + ' docs/TODO/90 rules them out by name: they are MUTABLE, so a shared home'
-      + ' would be a bug rather than a fix',
+    why: 'per-module three.js vectors — scratch buffers and the fixed axes a rotation is'
+      + ' taken about — hoisted so a per-frame path allocates nothing. docs/TODO/90'
+      + ' rules them out by name: a THREE.Vector3 is MUTABLE, so a shared home would'
+      + ' be a bug rather than a fix',
     files: {
       'game/npc.ts': ['ZERO', 'UP'],
+      'player.ts': ['AXIS_X', 'AXIS_Z'],
+    },
+  },
+
+  {
+    why: 'STAYS, with one exception: the roster is hull DATA — which designs fly which'
+      + ' role, and how each is presented — and `KEY_SEP` and the lookup map are how it'
+      + ' is indexed. docs/TODO/90 rules the tables out by name. The exception is'
+      + ' `WORLD_SPEED_PER_SOURCE_SPEED`, a real derivation that is blocked: its other'
+      + ' half is a released hull, which means the Elite-A catalogue and six generated'
+      + ' tables, and this directory may not import. See docs/TODO/90-constants-cleanup.md',
+    files: {
+      'game/ship-specs.ts': [
+        'SOURCE_DESIGN', 'ASTEROID_IDENTITY', 'WORLD_SPEED_PER_SOURCE_SPEED', 'SPECS',
+        'PIRATE_TIERS', 'CONSTRICTOR_SPEC', 'KEY_SEP', 'BY_ROLE_AND_DESIGN',
+      ],
     },
   },
 
@@ -109,20 +126,14 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'the ship the player flies, and the clock the world advances on. Two combat'
-      + ' constants wait on it: the combat computer\'s turn caps are `TURN` and'
-      + ' `RAM_MIN_SPEED` is `PLAYER_FLIGHT.maxSpeed`, and both are expressions today'
-      + ' — writing them in src/constants/ before their anchors arrive would mean'
-      + ' restating the anchor as a literal',
+    why: 'the clock the world advances on and the jump it is interrupted by: the fixed'
+      + ' slice, the sun, the four camera views, the countdown and what a witchspace'
+      + ' escape costs',
     files: {
-      'player.ts': ALL,
-      'game/ship-specs.ts': ALL,
       'game/world-step.ts': ALL,
       'game/views.ts': ALL,
       'game/hyperspace.ts': ALL,
       'galaxy/navigation.ts': ALL,
-      'game/combat-computer.ts': ['CC_MAX_PITCH', 'CC_MAX_ROLL'],
-      'game/tactic-choice.ts': ['RAM_MIN_SPEED'],
     },
   },
 

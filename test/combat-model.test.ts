@@ -24,19 +24,20 @@ import { shipTargetRadius } from '../src/ships/registry.ts';
 import {
   SPECS,
   type NpcSpec,
-  TURN,
-  ACCEL_FRACTION,
   shipAccel,
 } from '../src/game/ship-specs.ts';
+import { ACCEL_FRACTION, TURN } from '../src/constants/hull-motion.ts';
 import {
-  PlayerShip, PLAYER_FLIGHT, rampFlightRate, type FlightDemand,
+  PlayerShip, rampFlightRate, type FlightDemand,
 } from '../src/player.ts';
+import { PLAYER_FLIGHT } from '../src/constants/player-flight.ts';
 import { LOW_ENERGY, MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
 import {
   applyDamage, energyLow, freshSystems, regenerate, type ShipSystems,
 } from '../src/game/systems.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
-import { ccRamp, CC_MAX_PITCH, CC_MAX_ROLL } from '../src/game/combat-computer.ts';
+import { ccRamp } from '../src/game/combat-computer.ts';
+import { CC_MAX_PITCH, CC_MAX_ROLL } from '../src/constants/combat-computer.ts';
 import { COBRA_MK_3_HULL_ID, shipDesignIdOf } from '../src/game/ship-identity.ts';
 import { npcMaxEnergy } from '../src/game/npc-energy.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
@@ -287,9 +288,10 @@ console.log('\none combat model (the trainer flies the game)');
     worst === 0 && peak > cap * 0.9);
   }
 
-  // 7. TURN belongs to the roster now (npc.ts used to import it from the
-  // simulator), and the combat computer's caps are the trader Cobra's roster
-  // row times TURN — the hull the defence policy was fitted in.
+  // 7. TURN is the roster's shared multiplier now (constants/hull-motion.ts;
+  // npc.ts used to import it from the simulator), and the combat computer's
+  // caps are the trader Cobra's roster row times TURN — the hull the defence
+  // policy was fitted in.
   //
   // Against the ROW, and against the numbers, rather than against
   // `0.5 * TURN.pitch` — the right-hand side of the definition with the `0.5`
@@ -309,6 +311,35 @@ console.log('\none combat model (the trainer flies the game)');
   near('...and that hull still pitches at the 0.7 the brain was trained against',
     CC_MAX_PITCH, 0.7, 1e-9);
   near('...and rolls at 1.2', CC_MAX_ROLL, 1.2, 1e-9);
+
+  // 7b. THE COMMANDER'S PITCH CAP IS ARGUED FOR AGAINST FOUR PIRATE HULLS, and
+  // the argument is four numbers transcribed out of the roster into a comment
+  // in another file. One of them had already gone stale — it named an Asp Mk II
+  // at 1.68, and the Asp left the pirate roster (ship-specs.ts states why), so
+  // the reasoning cited a ship the player cannot meet. Now that PLAYER_FLIGHT
+  // and TURN are in one directory the products can be re-derived, which is what
+  // this does: every figure the comment quotes comes from the row it names.
+  //
+  // The CLAIM, not the arithmetic: you out-turn the two heavier hulls, and the
+  // two lightest still edge you. That is what "as it should be — those are far
+  // smaller ships" means, and it is what a change to any of the five numbers
+  // has to be checked against.
+  {
+    const pitchOf = (designId: number) => {
+      const row = SPECS.pirate.find((s) => s.designId === shipDesignIdOf(designId))!;
+      return row.turnRate * TURN.pitch;
+    };
+    const [cobra, krait, mamba, sidewinder] = [10, 19, 18, 17].map(pitchOf);
+    check('the commander out-turns a pirate Cobra and a Krait'
+      + ` (${PLAYER_FLIGHT.maxPitch} against ${cobra.toFixed(2)} and ${krait.toFixed(2)})`,
+    PLAYER_FLIGHT.maxPitch > cobra && PLAYER_FLIGHT.maxPitch > krait);
+    check(`...matches a Mamba (${mamba.toFixed(2)})`,
+      Math.abs(PLAYER_FLIGHT.maxPitch - mamba) < 0.05);
+    check(`...and is still edged by a Sidewinder (${sidewinder.toFixed(2)})`,
+      sidewinder > PLAYER_FLIGHT.maxPitch);
+    check('...and the Asp Mk II the comment used to cite is not a pirate at all',
+      !SPECS.pirate.some((s) => s.designId === shipDesignIdOf(23)));
+  }
 
   // 8. Ramming: one constant, one speed rule, billed by the episode the way
   // world-step.ts bills it.

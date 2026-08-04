@@ -48,7 +48,8 @@
 
 import * as THREE from 'three';
 
-import { PlayerShip, PLAYER_FLIGHT, rampToward, type FlightDemand } from '../player.ts';
+import { PlayerShip, rampToward, type FlightDemand } from '../player.ts';
+import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
 import { NpcShip, steerQuatToward, type FireEvent } from '../game/npc.ts';
 import { BRAIN_RATE_DECAY, BRAIN_RATE_RAMP } from '../constants/brain-flight.ts';
 import {
@@ -56,7 +57,8 @@ import {
 } from '../game/ordnance.ts';
 import { resolveNpcFire, type FireWorld } from '../game/fire-resolution.ts';
 import { hitFromAhead } from '../game/shield-face.ts';
-import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
+import { SPECS, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
+import { TURN } from '../constants/hull-motion.ts';
 import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
 import { LASER_RANGE } from '../constants/player-gun.ts';
 import {

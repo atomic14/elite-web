@@ -17,11 +17,11 @@ import * as THREE from 'three';
 import { seedWorld } from '../src/game/rng.ts';
 import { TACTICS, TACTIC_IDS, type TacticId } from '../src/constants/tactics.ts';
 import {
-  RAM_MIN_SPEED, chooseTactic, tacticsFor, tacticSwitchReason,
+  chooseTactic, tacticsFor, tacticSwitchReason,
   type TacticHull, type TacticReason,
 } from '../src/game/tactic-choice.ts';
 import {
-  PASS_CLEARANCE, TACTIC_HURT_HEALTH, TACTIC_LAST_STAND_HEALTH,
+  PASS_CLEARANCE, RAM_MIN_SPEED, TACTIC_HURT_HEALTH, TACTIC_LAST_STAND_HEALTH,
   TACTIC_MIN_DWELL, TACTIC_SLEEPER_SECONDS,
 } from '../src/constants/tactic-choice.ts';
 import { COMMANDER_HULL_RADIUS } from '../src/constants/collision.ts';

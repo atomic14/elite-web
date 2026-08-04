@@ -305,13 +305,81 @@ The suite reads 3066 rather than 3067 because `tactics.ts` left
 lost gate: the table is now under the constants gate's import-nothing rule,
 which is stricter than the purity check it replaced.
 
-**Still to do**, in the groups the gate's list already names: the flight model,
-the rest of the commander's pools, spawning and population, the career, the
-galaxy, the station, the console, the combat trainer, saves, and the policy
-seam. Plus two things neither slice has touched: `MAX_TRADERS` still has two
-homes, and CLAUDE.md does not yet carry the read-it-do-not-grep-it instruction
-below — the gate catches a second home mechanically, but the instruction is what
-stops one being written.
+**Slice 3 — the flight model — landed.** Two new files, four edited, and the
+count went from 77 home / 375 out across 91 files to **83 home / 363 out across
+89**.
+
+| moved | file |
+| --- | --- |
+| the commander's envelope — speed, thrust, the two turn caps and the ramp | `constants/player-flight.ts` |
+| the Harmless motion overlay every roster row shares — `TURN`, `ACCEL_FRACTION` | `constants/hull-motion.ts` |
+
+`src/game/combat-computer.ts` and `src/game/tactic-choice.ts` now declare no
+constants at all and came off the list; `src/player.ts` keeps only its two
+`THREE.Vector3` axes and joined the mutable-vectors entry beside `npc.ts`'s
+`ZERO`/`UP`. `src/game/ship-specs.ts` moved from "pending" to a named list: the
+roster tables are DATA and stay, which docs/TODO/90 rules by name.
+
+**The three constants slice 2 left behind are all expressions now**, in the same
+file as the value each derives from. `RAM_MIN_SPEED` = `PLAYER_FLIGHT.maxSpeed *
+0.7` is in `constants/tactic-choice.ts`; `CC_MAX_PITCH` and `CC_MAX_ROLL` =
+`0.5 * TURN.pitch/roll` are in `constants/combat-computer.ts`. All three
+evaluate to what they did — 280, 0.7 and 1.2.
+
+**`PLAYER_FLIGHT` is now the only spelling of the commander's envelope.**
+`player.ts` held six module-private literals AND an object assembled from them:
+the flight model read the literals and everybody else read the object, so the
+same six values were written down twice in one file. The literals are gone and
+`PlayerShip.update` reads the object. This is what the item means by not
+reintroducing a second spelling — the shape that already existed had one.
+
+**`WORLD_SPEED_PER_SOURCE_SPEED` did not come.** Half of it is `PLAYER_FLIGHT`,
+which is home; the other half is `playerHull(COBRA_MK_3_HULL_ID).maxSpeed`, and
+reaching a released hull means `ship-identity.ts` → `catalogue.ts` → six
+generated tables. The survey proposed relaxing the leaf rule for exactly this
+("the catalogue is itself a leaf"), and that is not what the catalogue is: only
+`combat-math.ts` imports nothing. Restating 42 would put a pack number in a
+Harmless file, which `ship-specs.ts`'s own header forbids. It stays where both
+halves are in scope, and it is on the cleanup list with the reason.
+
+**The 4.1396 pair now names itself from both sides.** `brain-flight.ts` already
+warned against fusing `BRAIN_RATE_RAMP` with the commander's; the mirror is
+beside `PLAYER_FLIGHT.rateRamp`, each names the other, each says which one is
+safe to retune, and both name `test/combat-model.test.ts` as the gate that pins
+all four constants against the linear rule they were re-fitted from.
+
+**One stale transcription found and gated.** `MAX_PITCH`'s comment argued the
+commander's agility against four pirate hulls by writing out `turnRate ×
+TURN.pitch` for each — and one of the four was an Asp Mk II at 1.68, a hull that
+is no longer rostered as a pirate at all. Now that both anchors are in one
+directory the products are re-derived in `test/combat-model.test.ts` from the
+rows they name, and the four checks assert the CLAIM (you out-turn the heavy
+hulls, the light ones still edge you) rather than the arithmetic. That is one of
+the survey's six "reasoning that cites another file's value by transcribed
+number", and it had already gone wrong.
+
+**Slice 2 left `train/jameson-autopilot.js` broken and this slice fixed it.**
+The console harness destructures `CC_MAX_SPEED` and `CC_ACCEL` out of
+`/src/game/combat-computer.ts`, which stopped exporting them when they moved. A
+module namespace object has no missing-property error, so both were `undefined`
+and the harness was throttling the player to `Math.min(undefined, …)`. Nothing
+went red because nothing runs it. Any slice that moves a constant out of a
+module has to check the two browser-console harnesses by hand.
+
+Byte-identical, verified by importing the old modules from a worktree at HEAD:
+**373 compared, 0 changed** — the six envelope fields, both `TURN` axes,
+`ACCEL_FRACTION`, `WORLD_SPEED_PER_SOURCE_SPEED`, the three unblocked
+derivations, thrust and both turn caps for all 48 roster rows, and every name in
+`src/constants/` at HEAD against every name in it now. The harness was broken
+(`ACCEL_FRACTION` 0.46 → 0.461) and reported 48 changes before being restored.
+
+**Still to do**, in the groups the gate's list already names: the world clock and
+the jump, the rest of the commander's pools, spawning and population, the career,
+the galaxy, the station, the console, the combat trainer, saves, and the policy
+seam. Plus two things no slice has touched: `MAX_TRADERS` still has two homes,
+and CLAUDE.md does not yet carry the read-it-do-not-grep-it instruction below —
+the gate catches a second home mechanically, but the instruction is what stops
+one being written.
 
 ## What to work out
 

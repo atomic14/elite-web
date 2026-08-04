@@ -30,17 +30,24 @@
   // static `import`, but it can use a dynamic one against the dev server —
   // which is how the commodity table, the contraband list and the autopilot's
   // turn rates stop being copies kept in step by hope.
-  const [galaxyMod, contractsMod, lawMod, ccMod, storageMod] = await Promise.all([
-    import('/src/galaxy/galaxy.ts'),
-    import('/src/game/contracts.ts'),
-    import('/src/game/law.ts'),
-    import('/src/game/combat-computer.ts'),
-    import('/src/game/storage.ts'),
-  ]);
+  const [galaxyMod, contractsMod, lawMod, ccMod, ccConstMod, storageMod] =
+    await Promise.all([
+      import('/src/galaxy/galaxy.ts'),
+      import('/src/game/contracts.ts'),
+      import('/src/game/law.ts'),
+      import('/src/game/combat-computer.ts'),
+      import('/src/constants/combat-computer.ts'),
+      import('/src/game/storage.ts'),
+    ]);
   const { COMMODITIES, generateMarket } = galaxyMod;
   const { applyMarketPressure } = contractsMod;
   const { isContraband } = lawMod;
-  const { CC_MAX_PITCH, CC_MAX_ROLL, CC_MAX_SPEED, CC_ACCEL, ccRamp } = ccMod;
+  // The four caps left combat-computer.ts for src/constants/ (docs/TODO/90);
+  // destructuring them from ccMod silently gave `undefined`, because a module
+  // namespace object has no missing-property error. `ccRamp` is still the
+  // autopilot's.
+  const { ccRamp } = ccMod;
+  const { CC_MAX_PITCH, CC_MAX_ROLL, CC_MAX_SPEED, CC_ACCEL } = ccConstMod;
   const { useHarnessSaves, clearHarnessSaves, saveNamespace } = storageMod;
 
   const isTonne = (i) => COMMODITIES[i].unit === 't';

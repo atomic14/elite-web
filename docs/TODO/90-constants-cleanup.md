@@ -17,18 +17,33 @@ Three kinds, and they want different treatment:
 
 | what | where | unblocked by |
 | --- | --- | --- |
-| `RAM_MIN_SPEED` = `PLAYER_FLIGHT.maxSpeed * 0.7` | `game/tactic-choice.ts:66` | the flight slice, which brings `PLAYER_FLIGHT` forward |
-| `CC_MAX_PITCH` = `0.5 * TURN.pitch` | `game/combat-computer.ts:40` | the flight slice, which brings `TURN` forward |
-| `CC_MAX_ROLL` = `0.5 * TURN.roll` | `game/combat-computer.ts:41` | as above |
+| `WORLD_SPEED_PER_SOURCE_SPEED` = `PLAYER_FLIGHT.maxSpeed / playerHull(COBRA_MK_3_HULL_ID).maxSpeed` | `game/ship-specs.ts:107` | nothing scheduled — see below |
 
-All three are correctly-derived constants that an import-nothing leaf cannot
+All of these are correctly-derived constants that an import-nothing leaf cannot
 reach. **This will keep happening**: the constants that most want to be
 expressions are exactly the ones that pull another module's table into the leaf.
 When a slice leaves one behind, add it here rather than weakening the leaf rule.
 
-The other half of the `4.1396` pair — `player.ts`'s `RATE_RAMP` and
-`RATE_DECAY` — also lands in the flight slice, and needs the mirror of the
-warning `constants/brain-flight.ts` already carries.
+**The flight slice closed the other three.** `RAM_MIN_SPEED`, `CC_MAX_PITCH` and
+`CC_MAX_ROLL` were waiting on `PLAYER_FLIGHT` and `TURN`; those are now
+`constants/player-flight.ts` and `constants/hull-motion.ts`, and each derivation
+lives in the constants file for its own subject — `RAM_MIN_SPEED` in
+`constants/tactic-choice.ts`, the two caps in `constants/combat-computer.ts`.
+They still evaluate to 280, 0.7 and 1.2. The same slice wrote the mirror of
+`brain-flight.ts`'s `4.1396` warning beside `PLAYER_FLIGHT.rateRamp`, so the
+pair now names itself from both sides.
+
+**`WORLD_SPEED_PER_SOURCE_SPEED` is a harder case than the three above, and it
+may never move.** Half of it is `PLAYER_FLIGHT`, which is home. The other half
+is a released hull's top speed, and reaching one means `ship-identity.ts` →
+`catalogue.ts` → six generated tables. The survey suggested relaxing the leaf
+rule here on the grounds that "the catalogue is itself a leaf" — it is not; only
+`combat-math.ts` imports nothing, and `playerHull` is nowhere near it. The
+alternative, restating the Cobra's 42 as a literal, puts a pack number in a
+Harmless file, which `ship-specs.ts`'s header forbids in capitals. So it stays
+beside the roster, where both halves are already in scope, and the reasoning is
+written out beside it. Anyone who wants it in the home has to answer the leaf
+question first, for the whole directory.
 
 ---
 
@@ -70,6 +85,26 @@ For each: is the value right and the prose wrong, or the other way round? A
 one-unit move on the first, ten on the second, 1.2 on the third — small, but
 each is a real change to how a ship flies.
 
+### Five of the six transcribed-number comments are still out there
+
+The survey listed six places where reasoning cites another file's value by
+writing the number out: `save-file.ts:36`, `input.ts:53`, `player.ts:52-56`,
+`docking.ts:11`, `jettison.ts:29`, `starfield.ts:48`.
+
+**The flight slice did `player.ts`'s, and found it already wrong.** The
+commander's pitch cap was argued against four pirate hulls by transcribing
+`turnRate × TURN.pitch` for each, and one of the four was an Asp Mk II at 1.68 —
+a hull that has since been taken off the pirate roster on purpose. The comment
+was reasoning about a ship the player cannot meet. It is now re-derived from the
+rows it names in `test/combat-model.test.ts`, and the checks assert the claim
+(you out-turn the heavy hulls, the light ones still edge you) rather than the
+arithmetic.
+
+That is the shape to copy for the other five: bringing both anchors into
+`src/constants/` is what makes the reference expressible, and a check that
+re-derives the product is what stops the next one rotting. **Expect at least one
+of the remaining five to be wrong already.**
+
 ### `MAX_TRADERS` still has two homes
 
 `game/encounters.ts:43` and `game/population.ts:41`, both `= 4`. This is the
@@ -105,6 +140,25 @@ Recorded so nobody assumes the gate is total:
   invariant 15 keeps being broken by — see the survey's training section.
 - **Non-TypeScript homes.** CSS and the four `.html` files. 93 owns the first;
   nothing owns the second.
+
+### The two browser-console harnesses are not on any gate
+
+`test/playtest.js` and `train/jameson-autopilot.js` reach into `src/` with
+DYNAMIC imports against the dev server, which is the whole point of them: the
+commodity table, the contraband list and the autopilot's turn rates stop being
+copies kept in step by hope. Nothing type-checks them and nothing runs them, and
+a module namespace object has no missing-property error, so a name that moves
+becomes `undefined` in silence.
+
+**It has already happened.** Slice 2 moved `CC_MAX_SPEED` and `CC_ACCEL` out of
+`game/combat-computer.ts`, and `jameson-autopilot.js:43` went on destructuring
+them from it — so the harness spent the interval throttling the player to
+`Math.min(undefined, …)`, which is `NaN`. The flight slice found it and fixed
+both files.
+
+Until something checks them, **every slice must grep these two files for the
+names it moves.** That is the one place in this project where grep is the right
+tool, because the hazard is a name that is not there.
 
 ### `player-interest.ts` and `tactics.ts` were deleted
 

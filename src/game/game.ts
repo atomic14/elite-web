@@ -38,7 +38,8 @@ import { LivingGalaxy } from '../galaxy/living.ts';
 import { generateContractOffers, acceptContract, settleContracts, contractMessage, hermitMarket, type ContractEvent } from './contracts.ts';
 import { pirateThreat, markOf } from './threat.ts';
 import { createStarfield, SpaceDust } from '../world/starfield.ts';
-import { PLAYER_FLIGHT, type FlightDemand } from '../player.ts';
+import { type FlightDemand } from '../player.ts';
+import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
 import { Input } from '../engine/input.ts';
 import { flightDemand } from '../engine/flight-controls.ts';
 import {

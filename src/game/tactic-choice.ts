@@ -26,10 +26,9 @@
 import { TACTICS, type TacticId } from '../constants/tactics.ts';
 import { COMMANDER_HULL_RADIUS } from '../constants/collision.ts';
 import {
-  PASS_CLEARANCE, TACTIC_HURT_HEALTH, TACTIC_LAST_STAND_HEALTH,
+  PASS_CLEARANCE, RAM_MIN_SPEED, TACTIC_HURT_HEALTH, TACTIC_LAST_STAND_HEALTH,
   TACTIC_MIN_DWELL, TACTIC_SLEEPER_SECONDS, TACTIC_WEIGHTS,
 } from '../constants/tactic-choice.ts';
-import { PLAYER_FLIGHT } from '../player.ts';
 
 /**
  * What a tactic needs to know about the hull flying it.
@@ -45,25 +44,6 @@ export interface TacticHull {
   readonly maxSpeed: number;
   readonly turnRate: number;
 }
-
-/**
- * The slowest hull that may be offered a ram.
- *
- * A commander's Cobra tops out at 400 and NOTHING in the roster is faster — the
- * quickest pirate is a Constrictor at 370 — so a gate of "faster than the
- * player" would offer this to nobody. The question is a different one: can this
- * hull force contact on a commander who is FIGHTING rather than fleeing? 0.7 of
- * the commander's top speed binds where it should — half the roster is too slow,
- * including the Monitor at 152 and the Python at 160, and the Python making 0
- * passes while loitering at 739 units is the record docs/TODO/68 was written
- * against. A ship that cannot arrive should never be given a tactic whose entire
- * content is arriving.
- *
- * It is not in `constants/tactic-choice.ts` with the rest of the choice because
- * that directory may not import, and restating 400 as a literal would give the
- * commander's top speed a second home. It moves when `PLAYER_FLIGHT` does.
- */
-export const RAM_MIN_SPEED = PLAYER_FLIGHT.maxSpeed * 0.7;
 
 /** Does a pass aimed this wide clear this hull and the commander together? */
 function clears(hull: TacticHull, missDistance: number): boolean {

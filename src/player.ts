@@ -9,14 +9,21 @@
 // engine/flight-controls.ts, the defence policy through
 // game/combat-computer.ts, a harness or a replay by writing four numbers
 // down. That is the whole seam, and it is why no browser reaches this file.
+//
+// The ENVELOPE it flies — top speed, thrust, the two turn caps and the ramp's
+// two rates — is `constants/player-flight.ts`. This file is the rule; that one
+// is the arguments, and `rampToward` takes another pilot's arguments just as
+// readily (see `constants/brain-flight.ts`).
 import * as THREE from 'three';
+
+import { PLAYER_FLIGHT } from './constants/player-flight.ts';
 
 /**
  * What a pilot is asking of the ship this frame.
  *
  * Turn RATES rather than stick deflection, because the ramp belongs to the
- * pilot and not to the hull: the human ramps against MAX_ROLL/MAX_PITCH with
- * RATE_RAMP/RATE_DECAY, and the combat computer deliberately ramps against
+ * pilot and not to the hull: the human ramps against `PLAYER_FLIGHT`'s caps at
+ * its two rates, and the combat computer deliberately ramps against
  * the softer caps the defence brain was trained at (CC_MAX_*, ccRamp). Both
  * hand the ship a rate in rad/s; the ship turns at it and asks nothing.
  */
@@ -45,62 +52,6 @@ export interface FlightDemand {
   limits?: { accel: number; maxSpeed: number };
 }
 
-const MAX_SPEED = 400;
-const ACCEL = 220;
-/**
- * The player's Cobra. Raised from 1.1/2.0 so you can actually hold a bead on
- * a fighter: NPC pitch is turnRate × 1.4 (TURN, in game/ship-specs.ts), so a Sidewinder
- * pitches at 1.54 and a Krait at 1.40 — against 1.1 they simply turned inside
- * you and combat felt unwinnable. At 1.45 you out-turn a pirate Cobra (1.12)
- * and a Krait, match a Mamba, and are still edged by a Sidewinder (1.54) and
- * an Asp (1.68), which is as it should be — those are far smaller ships.
- *
- * Training now flies THIS ship as the target (ai-training/scenario.ts reads
- * PLAYER_FLIGHT), so a change here is a change to the world every pirate brain
- * is fitted in. It used to be free — the simulator carried its own copy of the
- * commander, and the copy was wrong (accel 120 against 220) for every brain up
- * to generation 1. Free was worse.
- */
-const MAX_ROLL = 2.5;
-const MAX_PITCH = 1.45;
-const RATE_RAMP = 4.1396;
-/**
- * How fast the turn rate bleeds off when you let go. Was 5.0, which made a
- * light tap far bigger than it should be: most of the movement came AFTER
- * the key was released, not during it. Measured on a 100ms tap at 1/60s, the
- * ship swung 6.9 degrees, of which 5.5 was coast-down — against target hit
- * windows of 1-2.5 degrees. At 12 the same tap is 3.7 degrees and stops when
- * you stop. Peak rates are untouched, so sustained turns are as quick as
- * before; only the tail is tightened.
- */
-const RATE_DECAY = 13.3886;
-
-/**
- * The player's flight envelope, in one place a harness can read.
- *
- * `engine/flight-controls.ts` reads it to turn a keyboard into a demand, and
- * `update()` below reads the constants directly.
- * It also exists because the console harnesses that fly the player's ship with a
- * trained policy (test/playtest.js, test/gang-trial.js) each hand-copied these
- * numbers, and both had drifted to roughly HALF the real pitch and roll —
- * 0.7/1.2 against 1.45/2.5, ramping 4/5 against 4/12. Every "can a commander
- * survive this?" figure they produced was measured on a ship that does not
- * ship. One rule, one home; this is the home.
- */
-export const PLAYER_FLIGHT = {
-  maxSpeed: MAX_SPEED,
-  accel: ACCEL,
-  maxRoll: MAX_ROLL,
-  maxPitch: MAX_PITCH,
-  rateRamp: RATE_RAMP,
-  rateDecay: RATE_DECAY,
-} as const;
-
-/**
- * The rate ramp the player's controls use, exported for the same reason as
- * PLAYER_FLIGHT: a harness that copies the caps but not the ramp is still
- * flying a different ship.
- */
 /**
  * The frame-rate-independent approach toward a target rate.
  *
@@ -144,10 +95,16 @@ export function rampToward(
   return Math.abs(next) < 0.001 && !active ? 0 : next;
 }
 
+/**
+ * The ramp the player's own controls use, exported for the same reason
+ * `PLAYER_FLIGHT` is: a harness that copies the caps but not the ramp is still
+ * flying a different ship.
+ */
 export function rampFlightRate(
   current: number, target: number, active: boolean, dt: number,
 ): number {
-  return rampToward(current, target, active, dt, RATE_RAMP, RATE_DECAY);
+  return rampToward(
+    current, target, active, dt, PLAYER_FLIGHT.rateRamp, PLAYER_FLIGHT.rateDecay);
 }
 
 export class PlayerShip {
@@ -164,11 +121,11 @@ export class PlayerShip {
     this.position.copy(spawn);
     const m = new THREE.Matrix4().lookAt(spawn, lookAt, new THREE.Vector3(0, 1, 0));
     this.quaternion.setFromRotationMatrix(m);
-    this.speed = MAX_SPEED * 0.25;
+    this.speed = PLAYER_FLIGHT.maxSpeed * 0.25;
   }
 
   get maxSpeed(): number {
-    return MAX_SPEED;
+    return PLAYER_FLIGHT.maxSpeed;
   }
 
   getForward(out: THREE.Vector3): THREE.Vector3 {
@@ -186,8 +143,8 @@ export class PlayerShip {
     this.rollRate = demand.rollRate;
     this.pitchRate = demand.pitchRate;
 
-    const accel = demand.limits?.accel ?? ACCEL;
-    const maxSpeed = demand.limits?.maxSpeed ?? MAX_SPEED;
+    const accel = demand.limits?.accel ?? PLAYER_FLIGHT.accel;
+    const maxSpeed = demand.limits?.maxSpeed ?? PLAYER_FLIGHT.maxSpeed;
     if (demand.throttle > 0) this.speed = Math.min(maxSpeed, this.speed + accel * dt);
     if (demand.throttle < 0) this.speed = Math.max(0, this.speed - accel * dt);
 

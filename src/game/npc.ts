@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { buildShip, buildAsteroid } from '../ships/geometry.ts';
 import { registeredHull } from '../ships/registry.ts';
 import {
-  ASTEROID_IDENTITY, TURN, rosterSpec, shipAccel, type NpcSpec,
+  ASTEROID_IDENTITY, rosterSpec, shipAccel, type NpcSpec,
 } from './ship-specs.ts';
+import { TURN } from '../constants/hull-motion.ts';
 import type { NpcRole } from './ship-roles.ts';
 import type {
   NpcCombatProfileId, ShipDesignId, ShipIdentity,
