@@ -8,6 +8,28 @@ and generated outputs do not overlap.
 TODO 01-16 were completed and checkpointed in commit `0fc8627`. TODO 17-20
 were completed through commit `09278b7`.
 
+## Picking this up cold
+
+**Work in progress: [90](90-one-home-for-every-constant.md), five slices of
+roughly eleven done.** If you are starting a fresh session and want to continue
+it, read that file's **"Running a slice"** section — it is a self-contained
+recipe, including the traps that have already cost real work. The plan itself
+is not prose: `test/constants.test.ts`'s `OUTSIDE` array is the list of what is
+still owed, grouped by the slice that will take it, and the gate prints how
+much is left every time it runs. At the last commit that was **115 constants
+home, 341 still out across 87 files**.
+
+Nothing else is half-finished. Every other open item below is a self-contained
+file, as the paragraph above says.
+
+**Decisions already made, so they are not reopened**: constants move by MEANING
+and never by value (`BRAIN_RATE_RAMP` and the commander's `RATE_RAMP` are both
+4.1396 and must never be fused — one is a feel setting, the other is what every
+shipped brain was fitted at). CSS is out of 90's scope and is [93](93-one-home-for-the-phosphor.md).
+Legacy and migration handling was deleted outright rather than preserved, three
+times over, because nobody but Chris has ever played this game — the cleanup
+list records what went and why, so it is not helpfully reinstated.
+
 ## The combat trainer
 
 Progress: **9 / 9 complete**. `T` at any station is where Chris playtests, so

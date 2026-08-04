@@ -214,6 +214,111 @@ the list of decisions Chris has to make before any code moves.
 byte-identical, with any divergence corrections landed separately as the
 behaviour changes they are.
 
+## Running a slice — the recipe
+
+Written down because the first five slices were driven from prompts that no
+longer exist. **This section is the handoff.** A cold session should be able to
+run slice six from here without asking anything.
+
+### 1. Read, in this order
+
+`CLAUDE.md` · this file, especially Progress · `90-constants-cleanup.md` ·
+the relevant partition of `90-constants-survey.md` · then `src/constants/*.ts`
+and `test/constants.test.ts` in full. Five slices set the precedent; match it
+rather than inventing a sixth shape.
+
+### 2. Pick the slice from the gate, not from a list here
+
+`test/constants.test.ts`'s `OUTSIDE` array **is** the plan. Each entry is a
+group with a `why` and the files still owed. Take one entry, move its
+constants, shrink the entry. When a file declares nothing it comes off
+entirely. The gate prints `N home, M still out across F files`; that must go
+down every slice.
+
+### 3. The shape, already decided
+
+The file is the namespace: `src/constants/<subject>.ts`, flat
+`export const`s, consumed as `import * as X` where a prefix reads well.
+**The evidence moves WHOLE** — a forty-line sweep table moves as forty lines.
+No abbreviating, no pointers back to the old home. **`src/constants/` imports
+nothing outside itself**; if a constant cannot come without breaking that,
+leave it and add it to the cleanup list with the reason.
+
+Logic stays where it is and imports what it needs. You are moving values.
+
+### 4. Prove equivalence — the worktree check
+
+Every slice has done this and it is the strongest check available:
+
+```sh
+git worktree add /tmp/base HEAD
+ln -s "$PWD/node_modules" /tmp/base/node_modules
+```
+
+Then a throwaway script that imports the OLD modules from `/tmp/base/src` and
+the new constants from `src/`, compares every moved name, and prints
+`N compared, M changed`. Where a constant is only observable through something
+else — the roster's computed accel, a seeded world's frames — compare that
+instead. **Then break your own harness** by nudging one constant, confirm the
+count moves, and restore it. A harness that reports 0 changed because it is
+comparing nothing is the failure mode.
+
+`git worktree remove --force /tmp/base` afterwards.
+
+### 5. The four gates
+
+`npm run build` (lint + tests) · `npm run campaign` — byte-identical on all 33
+balance rows · `npm run elite-a` · `npm run portability` — 0 contaminated.
+**Read the current baselines from the last Progress entry**, not from here;
+they move every slice.
+
+### 6. Break the gate, and break what you wrote
+
+Add `export const SOME_RULE = 42` to a file in your slice and confirm the
+constants gate fails. Then break each rule you claimed to protect and confirm
+the right test goes red. CLAUDE.md: a gate you have not broken is not a gate.
+
+### 7. Traps that have actually bitten
+
+- **`git checkout <file>` to undo a deliberate break destroys your real edits.**
+  Slice 1 lost everything it had done to `gunnery.ts` that way. Undo with a
+  targeted string replacement.
+- **Grep `test/playtest.js` and `train/jameson-autopilot.js` for every name you
+  move.** They reach into `src/` with *dynamic* imports, so a moved name becomes
+  `undefined` with no error — a namespace object has no missing-property check.
+  Slice 2 left the autopilot computing `NaN` for the player's speed and nothing
+  went red, because nothing runs those files.
+- **A threshold gate that probes at `CONSTANT ± 1` is vacuous** — the probe
+  moves with the constant. Slice 5 wrote one, and all three mass-lock rungs
+  stayed green at 4,510. Bisect the threshold out of the real function and
+  compare it to the constant.
+- **An optional field is not automatically a tolerance.** Check what writes it.
+- **A comment that blames old saves may be describing live behaviour.** The
+  identity round found a tier fallback whose real job is a design the roster
+  stopped flying; deleting it would have been a behaviour change.
+
+### 8. Do not touch
+
+The three arithmetic mismatches in the cleanup list's Open section
+(`slash.missDistance`, `CLEAR_RANGE`, `CC_ACCEL`) — expressing any of them
+moves behaviour. Anything else on that list marked **Decided**. And do not
+reinstate legacy or migration handling; three rounds deleted it deliberately
+and the cleanup list says why.
+
+### 9. When done
+
+Add a Progress entry here in the shape of the five above — what moved, the new
+gate counts, what stayed behind and why, what you broke to prove it. Update the
+cleanup list. **Do not tick the item.** Do not edit the survey; it is the
+phase-1 record and it is allowed to be wrong in the ways later slices found.
+
+### 10. The last slice, and only the last
+
+Add the read-it-do-not-grep-it instruction to CLAUDE.md — the wording is below,
+under "The CLAUDE.md instruction". It waits because pointing an agent at a
+half-built home is worse than pointing it nowhere. Add `src/constants/` to
+`docs/ARCHITECTURE.md` at the same time.
+
 ## Progress
 
 **Slice 1 — weapons and ordnance — landed.** `src/constants/` exists, with the
