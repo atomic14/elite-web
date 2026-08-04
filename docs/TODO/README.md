@@ -444,6 +444,71 @@ survivability. Every death of every defence policy has a warhead in it, so that
 column is **72**'s — until she can answer a missile it measures how many
 warheads a policy attracts — and the ceiling on the fighting itself is **71**'s.
 
+## From the independent AI review (2026-08-04)
+
+An outside read of every NPC-AI and scripting path — the scripted flight model,
+the weapons and their resolution, the four encoders and the three shipped
+policies, the training pipeline, the probes, and the tests that are supposed to
+hold all of it — after commits `83426d0`..`dbc7f3c`. Every item below was
+CONFIRMED by running something, and each file carries the command and the output.
+
+The method that found half of them was a mutation sweep: eighteen deliberate
+breaks to rules in `npc.ts`, `break-off.ts`, `pass-aim.ts`, `extend-arc.ts`,
+`separation.ts`, `gunnery.ts`, `shield-face.ts`, `tactic-choice.ts`,
+`observation.ts` and `selection.ts`, each run against `npm test` and restored.
+Fifteen of the eighteen were caught. **Three were not, and one more constant —
+`BRAIN_RATE_DECAY`, which governs how every brain-flown ship and the purchasable
+combat computer bleeds off a turn — can be moved with no test failing at all.**
+
+- [ ] 75 — [A gang never knows it is losing](75-a-gang-never-knows-it-is-losing.md) — combat bug/training fidelity · high · small
+- [ ] 76 — [Wingman avoidance can be deleted and nothing notices](76-wingman-avoidance-has-no-test.md) — test gap · medium · small
+- [ ] 77 — [A brain-flown ship is "evading" forever](77-a-brain-flown-ship-is-evading-forever.md) — combat bug · medium · small
+- [ ] 78 — [Every ram in training lands on the fore shield](78-every-ram-in-training-hits-the-fore-shield.md) — training fidelity · medium · small
+- [ ] 79 — [The "trader that shoots back" in the attack pool never fires](79-the-armed-hauler-in-the-pool-never-fires.md) — training methodology · medium · small
+- [ ] 80 — [The defence probe's headline is the metric 65 threw out](80-the-defence-headline-is-the-metric-65-rejected.md) — training methodology · medium · small
+- [ ] 81 — [Two rows in the brain picker both say they are what ships](81-two-rows-both-say-they-are-what-ships.md) — UI/UX · medium · small
+- [ ] 82 — [The tournament and survivability do not score what ships](82-the-tournament-does-not-score-what-ships.md) — training methodology · medium · small
+- [ ] 83 — [The one-warhead-in-the-air cap has no test](83-the-one-warhead-cap-has-no-test.md) — test gap · medium · small
+- [ ] 84 — [The probe's "on-six" column cannot move](84-the-on-six-column-cannot-move.md) — training methodology · low · small
+- [ ] 85 — [The combat computer flies a ramp the policy was not fitted at](85-the-combat-computer-flies-a-ramp-the-policy-was-not-fitted-at.md) — training fidelity · medium · small
+- [ ] 86 — [The co-pilot you buy parks your ship](86-the-co-pilot-you-buy-parks-your-ship.md) — combat feel/design · medium · medium
+- [ ] 87 — [Three parity checks assert `f(x) === f(x)`](87-three-checks-that-restate-their-own-implementation.md) — test gap · low · small
+
+**75 is the one to do first**, and it is the third instance of the shape 70 and
+73 already name: a reward reason that cannot be earned. `matesLost` counts dead
+ships in `world.npcs`, and every kill path splices the ship out of that array
+inside the same statement — so "the gang is losing" is a launch reason the game
+can never reach, while a training episode (which never prunes its fleet) reaches
+it fine. 70 is `passesMade` dead in the trainer, 73 is the handover that would
+fix it, and this is `matesLost` dead in the sky. Between them, each of
+`npcMissileEmergency`'s three reasons is unreachable in one of the two worlds.
+Do **83** with it or before it: the one-in-the-air cap is what keeps a gang that
+CAN escalate survivable, and it has no test either.
+
+**76, 83 and 87 are the mutation sweep's three misses**, and they are not the
+same kind of gap. 76 is a whole rule module — `separation.ts`, with its own swept
+constants and three call sites in the attack run — that no test imports at all.
+83 is one guard on a stated fairness rule with a recorded failure behind it. 87
+is three assertions that expand to `f(x) === f(x)` in the file whose own comment
+says "assert the rule rather than the copies".
+
+**81, 82 and 84 are the same root**: `d563e3d` made the scripted attack run what
+ships, and the surfaces that describe or measure the AI did not all follow.
+`pirate-attack-g3`'s picker line still says "THE FIGHT THE GAME SHIPS" beside a
+`scripted` line that says "WHAT SHIPS"; `npm run evaluate`'s flight table and
+`npm run survivability`'s eight rows have no entry for the AI a player meets;
+and the `scripted` line's own quoted figures do not reproduce (4.42 attack runs
+measured against a claimed 5.2, and it is not the tactics vocabulary — forcing
+every roll to `run` reads 4.33).
+
+**86 is the one that needs a human.** Nothing about `jameson-defend-g2` has been
+flown, and it is both the armed trader's brain and the combat computer the player
+buys. It is stationary on nine frames out of ten — mean speed 10.6 out of 400 on
+the commander's own hull — and no term in the selection can see that. The
+measurements say it is excellent (0 deaths in 800, 41.6% of its attackers
+destroyed, every warhead answered); CLAUDE.md says a policy that wins every
+measurement can still be the wrong one, and this is exactly that case.
+
 ## Follow-ups
 
 - [x] 41 — [Name the opposition, not the file](41-name-the-opposition-not-the-file.md) — UI/UX · high · medium
