@@ -29,9 +29,8 @@ import {
   COBRA_MK_3_HULL_ID, HARMLESS_OVERLAYS, PLAYER_HULL_IDS,
   npcCombatProfileIdOf, type PlayerHullId,
 } from '../src/game/ship-identity.ts';
-import {
-  laserForView, playerLaser, playerLaserHit, LASER_PACING,
-} from '../src/game/gunnery.ts';
+import { laserForView, playerLaser, playerLaserHit } from '../src/game/gunnery.ts';
+import { LASER_PACING } from '../src/constants/player-gun.ts';
 import {
   energyAfterDamage, isDestroyed, npcEnergyPolicy, playerLaserDamage,
 } from '../src/game/npc-energy.ts';

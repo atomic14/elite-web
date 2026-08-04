@@ -8,9 +8,12 @@
 import * as THREE from 'three';
 import { existsSync } from 'node:fs';
 import {
-  npcHitChance, NPC_HIT_CAP, NPC_HIT_FLOOR,
-  NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_LASER_RANGE,
+  npcHitChance,
 } from '../src/game/gunnery.ts';
+import {
+  NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_HIT_CAP, NPC_HIT_FLOOR,
+  NPC_LASER_RANGE,
+} from '../src/constants/npc-gun.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import {
   NpcShip,
@@ -31,9 +34,9 @@ import {
 import {
   PlayerShip, PLAYER_FLIGHT, rampFlightRate, type FlightDemand,
 } from '../src/player.ts';
+import { LOW_ENERGY, MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
 import {
-  LOW_ENERGY, MAX_ENERGY, MAX_SHIELD, applyDamage, energyLow, freshSystems, regenerate,
-  type ShipSystems,
+  applyDamage, energyLow, freshSystems, regenerate, type ShipSystems,
 } from '../src/game/systems.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
 import { ccRamp, CC_MAX_PITCH, CC_MAX_ROLL } from '../src/game/combat-computer.ts';

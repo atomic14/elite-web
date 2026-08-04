@@ -12,7 +12,8 @@
 // WebGL, so the hulls can simply be BUILT in a test. Which they are.
 
 import * as THREE from 'three';
-import { LASER_RANGE, hitCone, canisterCone } from './gunnery.ts';
+import { LASER_RANGE } from '../constants/player-gun.ts';
+import { hitCone, canisterCone } from './gunnery.ts';
 
 /** Anything the beam can stop against. */
 export interface Solid {

@@ -35,9 +35,7 @@ import { npcImpactDamage, IMPACT } from '../src/game/impact-damage.ts';
 import { brainByName } from '../src/game/brains.ts';
 import { SHIPPED_BRAINS, type BrainSelection } from '../src/game/brain-names.ts';
 import { SPECS } from '../src/game/ship-specs.ts';
-import {
-  MISSILE_LAST_STAND_HULL, MISSILE_RELOAD,
-} from '../src/game/missile-launch.ts';
+import { MISSILE_LAST_STAND_HULL, MISSILE_RELOAD } from '../src/constants/ordnance.ts';
 import { PLAYER_INTEREST_RANGE } from '../src/game/player-interest.ts';
 import { check } from './harness.ts';
 

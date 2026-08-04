@@ -41,7 +41,7 @@ import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
 import {
   MISSILE_LAST_STAND_HULL, MISSILE_LAST_STAND_MIN_RANGE, MISSILE_MAX_RANGE, MISSILE_RELOAD,
-} from '../src/game/missile-launch.ts';
+} from '../src/constants/ordnance.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 

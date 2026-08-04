@@ -40,9 +40,11 @@ import { newCommander } from '../src/game/commander.ts';
 import {
   Combat, damagePlayer, type CombatEvent, type CombatScratch,
 } from '../src/game/combat.ts';
-import { MAX_ENERGY, MAX_SHIELD, applyDamage, freshSystems } from '../src/game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
+import { applyDamage, freshSystems } from '../src/game/systems.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
-import { npcHitChance, npcLaserDamageToPlayer, NPC_VS_NPC_HIT } from '../src/game/gunnery.ts';
+import { npcHitChance, npcLaserDamageToPlayer } from '../src/game/gunnery.ts';
+import { NPC_VS_NPC_HIT } from '../src/constants/npc-gun.ts';
 import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
 import type { FireEvent, NpcShip } from '../src/game/npc.ts';
 import { seedWorld } from '../src/game/rng.ts';

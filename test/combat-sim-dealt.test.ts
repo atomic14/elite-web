@@ -29,7 +29,7 @@ import { headlessShell } from '../src/engine/shell.ts';
 import { withoutSaving } from '../src/game/storage.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { IMPACT } from '../src/game/impact-damage.ts';
-import { ENERGY_BOMB_RANGE } from '../src/game/ordnance.ts';
+import { ENERGY_BOMB_RANGE } from '../src/constants/ordnance.ts';
 import type { NpcShip } from '../src/game/npc.ts';
 import type { CombatSimReport } from '../src/game/combat-sim-report.ts';
 import {

@@ -60,8 +60,9 @@ import { resolveNpcFire, type FireWorld } from '../game/fire-resolution.ts';
 import { hitFromAhead } from '../game/shield-face.ts';
 import { SPECS, TURN, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
 import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
+import { LASER_RANGE } from '../constants/player-gun.ts';
 import {
-  LASER_RANGE, hitCone, canFire, chargeShot, playerLaser,
+  hitCone, canFire, chargeShot, playerLaser,
   npcHitChance, npcTriggerPull, npcWeaponByte,
 } from '../game/gunnery.ts';
 import { npcCrossfireDamage } from '../game/npc-energy.ts';
@@ -76,8 +77,9 @@ import { memberTier } from '../game/threat.ts';
 import type { LaserType } from '../game/commander.ts';
 import { pirateSpecForTier } from '../game/ship-specs.ts';
 import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../constants/pools.ts';
 import {
-  MAX_ENERGY, MAX_SHIELD, applyDamage, durability, energyLeft, freshSystems,
+  applyDamage, durability, energyLeft, freshSystems,
   poolsLeft, regenerate, type RegenOptions, type ShipSystems,
 } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';

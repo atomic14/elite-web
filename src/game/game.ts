@@ -100,7 +100,8 @@ import {
   Ordnance, ordnanceMessage, fireEcm,
   type OrdnanceOutcome,
 } from './ordnance.ts';
-import { hitCone, LASER_RANGE, AIM_ASSIST } from './gunnery.ts';
+import { AIM_ASSIST, LASER_RANGE } from '../constants/player-gun.ts';
+import { hitCone } from './gunnery.ts';
 import { freshTimers } from './encounters.ts';
 import { breachLoss } from './systems.ts';
 import {

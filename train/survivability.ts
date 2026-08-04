@@ -49,7 +49,8 @@
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { readFileSync } from 'node:fs';
-import { durability, MAX_SHIELD } from '../src/game/systems.ts';
+import { durability } from '../src/game/systems.ts';
+import { MAX_SHIELD } from '../src/constants/pools.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
 
 const BRAINS = new URL('../src/ai-training/brains/', import.meta.url);

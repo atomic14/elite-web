@@ -22,13 +22,15 @@
 import * as THREE from 'three';
 import { newCommander } from '../src/game/commander.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
-import { Ordnance, ECM_ENERGY_COST } from '../src/game/ordnance.ts';
+import { Ordnance } from '../src/game/ordnance.ts';
+import { ECM_ENERGY_COST } from '../src/constants/ordnance.ts';
 import { restoreRng, rngState, seedWorld } from '../src/game/rng.ts';
 import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
 import { freshState } from '../src/game/state.ts';
 import {
-  applyDamage, energyLow, freshSystems, LOW_ENERGY, MAX_ENERGY, MAX_SHIELD, regenerate,
+  applyDamage, energyLow, freshSystems, regenerate,
 } from '../src/game/systems.ts';
+import { LOW_ENERGY, MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
 import { World } from '../src/game/world.ts';
 import { WorldStep, type StepHost } from '../src/game/world-step.ts';
 import { buildHudFrame } from '../src/hud/hud-binding.ts';

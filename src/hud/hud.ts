@@ -61,7 +61,8 @@ export interface HudState {
   energyFrac: number; // 0..1
   /**
    * How many BANKS the energy pool reads as, and whether the pilot is into the
-   * last of them — both from systems.ts (`ENERGY_BANKS`, `energyLow`).
+   * last of them — `ENERGY_BANKS` (constants/pools.ts) and `energyLow`
+   * (systems.ts).
    *
    * The console draws one segment per bank and turns the last one red at
    * exactly the moment the world step says ENERGY LOW. The ANSWER arrives, not

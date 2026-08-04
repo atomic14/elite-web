@@ -99,6 +99,11 @@ import './combat-sim-opening.test.ts';
 import './combat-sim-strip.test.ts';
 import './combat-sim-career.test.ts';
 
+// --- where the code lives ---------------------------------------------------
+// Not a behaviour: a scan of src/ that fails when a game-rule constant grows a
+// second home. See docs/TODO/90.
+import './constants.test.ts';
+
 // Installs a fake AudioContext, so keep it after every behavioural test that
 // may call a richer sound such as explosion().
 import './audio.test.ts';

@@ -26,8 +26,10 @@ import { chooseTactic, tacticSwitchReason, type TacticHull } from './tactic-choi
 import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
 import { separationFrom, SEPARATION_PUSH } from './separation.ts';
 import type { BrainSelection } from './brain-names.ts';
-import { npcTriggerPull, npcWeaponByte, THARGOID_FIRE_RATE } from './gunnery.ts';
-import { npcMissileEmergency, MISSILE_RELOAD } from './missile-launch.ts';
+import { THARGOID_FIRE_RATE } from '../constants/npc-gun.ts';
+import { MISSILE_RELOAD } from '../constants/ordnance.ts';
+import { npcTriggerPull, npcWeaponByte } from './gunnery.ts';
+import { npcMissileEmergency } from './missile-launch.ts';
 import {
   energyAfterDamage, isDestroyed, npcEnergyPolicy, playerLaserDamage,
   regeneratedEnergy, type NpcEnergyPolicy,

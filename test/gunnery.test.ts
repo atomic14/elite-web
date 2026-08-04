@@ -6,7 +6,11 @@
 
 import * as THREE from 'three';
 import { traceShot } from '../src/game/shot.ts';
-import { Ordnance, ordnanceMessage, ECM_ENERGY_COST } from '../src/game/ordnance.ts';
+import { Ordnance, ordnanceMessage } from '../src/game/ordnance.ts';
+import {
+  ECM_ENERGY_COST, MISSILE_COMMIT_PASSES, MISSILE_LAST_STAND_GATE,
+  MISSILE_LAST_STAND_HULL, MISSILE_LAST_STAND_MIN_RANGE, MISSILE_MAX_RANGE,
+} from '../src/constants/ordnance.ts';
 import { World } from '../src/game/world.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld } from '../src/game/rng.ts';
@@ -17,15 +21,11 @@ import {
   assistAt,
   hitCone,
   canisterCone,
-  LASER_PACING,
   playerLaser,
   playerLaserHit,
-  AIM_ASSIST,
 } from '../src/game/gunnery.ts';
-import {
-  npcMissileEmergency, MISSILE_COMMIT_PASSES, MISSILE_MAX_RANGE,
-  MISSILE_LAST_STAND_HULL, MISSILE_LAST_STAND_GATE, MISSILE_LAST_STAND_MIN_RANGE,
-} from '../src/game/missile-launch.ts';
+import { AIM_ASSIST, LASER_PACING } from '../src/constants/player-gun.ts';
+import { npcMissileEmergency } from '../src/game/missile-launch.ts';
 import { freshSystems } from '../src/game/systems.ts';
 import { COBRA_MK_3_HULL_ID, PLAYER_HULL_IDS } from '../src/game/ship-identity.ts';
 import { check, eq } from './harness.ts';

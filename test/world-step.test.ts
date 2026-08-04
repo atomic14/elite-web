@@ -15,7 +15,7 @@ import {
   type StepEvent,
   type StepHost,
 } from '../src/game/world-step.ts';
-import { MAX_ENERGY, MAX_SHIELD } from '../src/game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
 import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';
 import { playerPoolPoints, type PlayerPoolPoints } from '../src/game/damage-units.ts';
 import { npcLaserDamageToPlayer } from '../src/game/gunnery.ts';

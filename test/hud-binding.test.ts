@@ -8,7 +8,8 @@ import { readFileSync } from 'node:fs';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { buildHudFrame, compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
-import { ENERGY_BANKS, energyLow, LOW_ENERGY, MAX_ENERGY } from '../src/game/systems.ts';
+import { energyLow } from '../src/game/systems.ts';
+import { ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY } from '../src/constants/pools.ts';
 import { check } from './harness.ts';
 
 console.log('\nhud binding');

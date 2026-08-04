@@ -44,7 +44,7 @@ import {
 } from '../src/game/ship-identity.ts';
 import { OBJECT_DESIGNS } from '../src/ships/registry.ts';
 import { CONSTRICTOR_SPEC, SPECS } from '../src/game/ship-specs.ts';
-import { MAX_ENERGY, MAX_SHIELD } from '../src/game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { CargoField } from '../src/game/cargo.ts';
 import { seedWorld } from '../src/game/rng.ts';

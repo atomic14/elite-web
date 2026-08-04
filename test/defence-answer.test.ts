@@ -36,11 +36,11 @@ import {
 } from '../src/ai-training/scenario.ts';
 import { defenceFight } from '../train/defence-fight.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';
-import {
-  Ordnance, fireEcm, autopilotEcm, ECM_ENERGY_COST,
-} from '../src/game/ordnance.ts';
+import { Ordnance, fireEcm, autopilotEcm } from '../src/game/ordnance.ts';
+import { ECM_ENERGY_COST } from '../src/constants/ordnance.ts';
 import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';
-import { MAX_ENERGY, freshSystems } from '../src/game/systems.ts';
+import { MAX_ENERGY } from '../src/constants/pools.ts';
+import { freshSystems } from '../src/game/systems.ts';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { seedWorld } from '../src/game/rng.ts';

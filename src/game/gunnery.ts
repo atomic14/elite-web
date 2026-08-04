@@ -9,17 +9,28 @@
 // One split is worth naming. A mount's CADENCE and HEAT are Harmless's numbers
 // and always were; what one hit is WORTH is the released game's, and a property
 // of the hull as much as of the laser — the pack gives each of the 15 flyable
-// ships its own byte per laser. So `LASER_PACING` holds the first,
-// `playerLaserHit` looks up the second, and neither is a second home for the
-// other. What that hit COSTS a target is game/npc-energy.ts's business.
+// ships its own byte per laser. So `LASER_PACING` (constants/player-gun.ts)
+// holds the first, `playerLaserHit` looks up the second, and neither is a second
+// home for the other. What that hit COSTS a target is game/npc-energy.ts's.
 //
-// BOTH GUNS LIVE HERE, asymmetrically, because the released game is. Outgoing,
-// this answers the STRENGTH and the target applies its own defence
+// BOTH GUNS ARE RESOLVED HERE, asymmetrically, because the released game is.
+// Outgoing, this answers the STRENGTH and the target applies its own defence
 // (`npc-energy.ts`); incoming, the pack tabulates the finished number for every
 // (build, hull) pair, so `npcLaserDamageToPlayer` answers it in one call and
 // `systems.ts` spends it. Neither restates a line of the oracle's arithmetic.
+//
+// The numbers both guns are governed by are constants/player-gun.ts and
+// constants/npc-gun.ts, which is where the reasoning for each of them lives too.
 
 import type { Equipment, LaserType } from './commander.ts';
+import {
+  AIM_ASSIST, ASSIST_FADE_END, ASSIST_FADE_START, CANISTER_GRAZE,
+  LASER_CUTOUT, LASER_GRAZE, LASER_PACING,
+} from '../constants/player-gun.ts';
+import {
+  NPC_COOLDOWN_LO, NPC_COOLDOWN_SPREAD, NPC_FIRE_GATE, NPC_HIT_BASE,
+  NPC_HIT_CAP, NPC_HIT_FALLOFF, NPC_HIT_FLOOR, NPC_LASER_RANGE,
+} from '../constants/npc-gun.ts';
 import { playerPoolPoints, type PlayerPoolPoints } from './damage-units.ts';
 import {
   eliteADamageToPlayer, eliteANpcLaserStrength, eliteAPlayerLaserHit,
@@ -51,59 +62,6 @@ export interface LaserSpec extends GunPacing {
   /** Which of the four the shot came out of, for a report that wants to say. */
   readonly type: EliteALaserType;
 }
-
-export const LASER_RANGE = 3500;
-
-/**
- * The cadence and heat of each fitted laser. Harmless's numbers, unchanged.
- *
- * `mining` is absent because Harmless has no mining MOUNT: the mining laser is
- * a fitting that changes what a destroyed rock yields (see `Combat.destroy`),
- * not a weapon you select. The equipment redesign that turns it into a real
- * fourth mount is DEFERRED by the combat plan — `playerLaserHit` below already
- * answers for it, so when the redesign lands only a pacing row is missing.
- */
-export const LASER_PACING: Record<LaserType, GunPacing> = {
-  pulse: { cooldown: 0.24, heat: 0.055 },
-  beam: { cooldown: 0.09, heat: 0.035 },
-  military: { cooldown: 0.09, heat: 0.03 },
-};
-
-/** The laser cuts out at this temperature and will not fire again until it cools. */
-export const LASER_CUTOUT = 0.98;
-
-/**
- * How much of a target's silhouette counts as a hit, as a multiple of its
- * radius. Do NOT confuse with the sim's `LASER.aim`, which governs NPC gunnery
- * during training; this one is the player's, and the two are independent.
- */
-export const LASER_GRAZE = 0.9;
-
-/**
- * Grazing radius for drifting cargo, in world units. Canisters are ~12 units
- * across, so an exact ray needs 1.4 degrees at 500m and they felt unhittable.
- * They are not a skill target — shooting one is a deliberate act — so they get
- * a flat, generous tolerance.
- */
-export const CANISTER_GRAZE = 20;
-
-/**
- * Aim assist: an angular allowance ON TOP of the target's silhouette, so a
- * shot that is nearly right still connects.
- *
- * Chris's idea, and the player's half of the problem the NPCs have. A
- * Sidewinder at 500 units subtends 1.9 degrees; holding a human hand inside that
- * while both ships manoeuvre is most of why fights felt like flailing. Two
- * degrees at knife range, tapering to nothing by ASSIST_FADE_END so distance
- * shooting still demands precision and nobody snipes across three kilometres.
- *
- * The ring sight is drawn to this exact angle — see #crosshair in style.css.
- * If you change it, the reticle changes with it, which is the point: the
- * circle is not decoration, it is the envelope.
- */
-export const AIM_ASSIST = 0.035;
-export const ASSIST_FADE_START = 900;
-export const ASSIST_FADE_END = 2400;
 
 /** The assist allowance at a given range, in radians. */
 export function assistAt(dist: number): number {
@@ -210,21 +168,9 @@ export function chargeShot(sys: GunHeat, laser: GunPacing): void {
 // --- the NPC's gun ---------------------------------------------------------
 //
 // gunnery.ts owned the player's laser and nothing owned the NPC's, which is how
-// its numbers ended up as literals inside game.ts's resolveNpcFire. They were
-// also mirrored by an `NPC_GUN` in the training simulator, kept in step by hand
-// — and were not, for six training rounds: the sim handed every ship the
-// player's pulse laser, 0.667 damage/second against this gun's 0.041. Training
-// flies THIS gun now, so these numbers are the balance levers for the game and
-// the trainer at once.
-
-/**
- * How far an NPC can shoot. Matches the player's LASER_RANGE above, and it has
- * to: a brain trained to open fire at 3000 units was silently refused the shot
- * by a 2600 gate, so it sat there pointing straight at the target and never
- * pulled the trigger. Measured before the change, two tier-0 pirates over 45
- * seconds: pointing at the player 90% of the time, inside 2600 only 51% of it.
- */
-export const NPC_LASER_RANGE = 3500;
+// its numbers ended up as literals inside game.ts's resolveNpcFire. They are
+// constants/npc-gun.ts now, with the account of the parallel simulator that once
+// mirrored them; what is left here is the trigger sequence that spends them.
 
 /**
  * The packed weapon byte one exact released build carries.
@@ -275,21 +221,6 @@ export const npcLaserStrength = (weaponByte: number): number =>
   eliteANpcLaserStrength(weaponByte);
 
 /**
- * Time between an NPC's shots. The player's pulse laser reloads in 0.24s; these
- * are the game's deliberate handicap, and they are NOT what limits an NPC's
- * damage. Tested at pulse-laser parity (five times faster): 3.7 shots a minute
- * per ship against the current 4.1, and no difference in damage, because a
- * pirate is only inside the 0.25 rad firing gate for about 5% of a fight. It is
- * not waiting on the cooldown; it is waiting to be aimed at you.
- */
-export const NPC_COOLDOWN_LO = 0.9;
-export const NPC_COOLDOWN_SPREAD = 0.8;
-/** How near the nose a target must be before an NPC pulls the trigger. */
-export const NPC_FIRE_GATE = 0.25;
-/** Thargoids reload faster than anything else in the galaxy. */
-export const THARGOID_FIRE_RATE = 0.7;
-
-/**
  * Pull an NPC's trigger: the gate, the range and the cooldown, in that order,
  * plus the cooldown the shot spends.
  *
@@ -322,23 +253,6 @@ export function npcTriggerPull(
   if (cooldown > 0 || dist >= NPC_LASER_RANGE || angle >= NPC_FIRE_GATE) return null;
   return (NPC_COOLDOWN_LO + rng() * NPC_COOLDOWN_SPREAD) * rateScale;
 }
-
-/** Hit chance falls off with range, clamped at both ends. */
-export const NPC_HIT_BASE = 0.9;
-export const NPC_HIT_FALLOFF = 3500;
-export const NPC_HIT_CAP = 0.85;
-export const NPC_HIT_FLOOR = 0.15;
-/**
- * Whether one ship's shot at another connects: a coin flip, and Harmless's.
- *
- * There is no damage constant beside it any more. What a crossfire hit is
- * WORTH is `npcCrossfireDamage` in npc-energy.ts — the firing build's own laser
- * strength against the target's own defence — where it used to be a flat 0.11
- * on the pre-parity normalized scale that made a Thargoid's gun and a Worm's
- * identical. Whether it lands stays a die roll, exactly as the player-facing
- * gun's does.
- */
-export const NPC_VS_NPC_HIT = 0.5;
 
 /** Chance an NPC's shot connects at `dist`. */
 export function npcHitChance(dist: number): number {

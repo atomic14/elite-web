@@ -214,6 +214,54 @@ the list of decisions Chris has to make before any code moves.
 byte-identical, with any divergence corrections landed separately as the
 behaviour changes they are.
 
+## Progress
+
+**Slice 1 — weapons and ordnance — landed.** `src/constants/` exists, with the
+shape decided: one file per subject, flat named `export const`s, per-constant
+JSDoc, and the evidence moved WHOLE with the value. No re-exports and no
+pointers back to an old home.
+
+| moved | file |
+| --- | --- |
+| the player's laser — reach, pacing, cut-out, graze, aim assist | `constants/player-gun.ts` |
+| the NPC's laser — reach, gate, cadence, hit curve, crossfire coin | `constants/npc-gun.ts` |
+| the warhead, the launch gates, the E.C.M. and the bomb | `constants/ordnance.ts` |
+| the commander's pool capacities and what one bank holds | `constants/pools.ts` |
+
+40 constants home, 412 still out across 99 files.
+
+Three relationships were asked for and two were expressed:
+
+- **`NPC_LASER_RANGE` is now `LASER_RANGE`.** Its own comment always said it had
+  to match; nothing enforced it.
+- **`ECM_ENERGY_COST` is now `ENERGY_BANK_POINTS`**, a new single home for
+  `MAX_ENERGY / ENERGY_BANKS` that `LOW_ENERGY` also derives from. `MAX_ENERGY`,
+  `MAX_SHIELD`, `ENERGY_BANKS` and `LOW_ENERGY` came forward from `systems.ts`
+  to make that possible; the rest of `systems.ts` waits for its own slice.
+- **`NPC_HIT_FALLOFF` is UNRESOLVED and stays a literal.** It is a denominator
+  rather than a reach — the floor binds first, at 2,625 — and the initial commit
+  shows the expression was written when the NPC's own gate was 2,600, so it was
+  not the NPC gun's range when it was chosen. Two readings survive and they want
+  different expressions (`NPC_LASER_RANGE`, or `NPC_LASER_RANGE / 0.75`, which is
+  a behaviour change). The argument is written out beside the constant.
+
+**The gate is `test/constants.test.ts`**, in `npm test` and therefore in the
+build. It scans `src/` for module-level `UPPER_CASE` declarations, reading the
+LEFT of the `=` so that derived constants cannot hide from it the way they hid
+from the census grep above. It holds THE LIST of everything still outside the
+home, grouped by the slice that will take it, and fails on a stale entry as well
+as an unlisted one. It also fails if `src/constants/` imports anything outside
+itself, if a name is declared twice inside it, or if any file in `src/`
+redeclares a name that lives there — which is the `MAX_TRADERS` check.
+
+**Still to do**, in the groups the gate's list already names: the fight, the
+flight model, the rest of the commander's pools, spawning and population, the
+career, the galaxy, the station, the console, the combat trainer, saves, and the
+policy seam. Plus two things this slice did not touch: `MAX_TRADERS` still has
+two homes, and CLAUDE.md does not yet carry the read-it-do-not-grep-it
+instruction below — the gate catches a second home mechanically, but the
+instruction is what stops one being written.
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give

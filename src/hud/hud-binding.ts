@@ -21,9 +21,8 @@ import {
 } from './hud-model.ts';
 import { hostilesNear, type NpcShip } from '../game/npc.ts';
 import type { CommanderData } from '../game/commander.ts';
-import {
-  ENERGY_BANKS, energyLow, MAX_ENERGY, MAX_SHIELD, type ShipSystems,
-} from '../game/systems.ts';
+import { ENERGY_BANKS, MAX_ENERGY, MAX_SHIELD } from '../constants/pools.ts';
+import { energyLow, type ShipSystems } from '../game/systems.ts';
 import type { World } from '../game/world.ts';
 import type { Missile } from '../game/ordnance.ts';
 import type { Canister } from '../game/cargo.ts';

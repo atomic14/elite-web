@@ -27,6 +27,7 @@
 // sum so 15, 60 and 144 Hz agree, the same clock the NPC banks run on.
 
 import { random } from './rng.ts';
+import { LOW_ENERGY, MAX_ENERGY, MAX_SHIELD } from '../constants/pools.ts';
 import type { Equipment } from './commander.ts';
 import { eliteARegenTicks, eliteATicksPerPoint } from './elite-a/combat-math.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
@@ -55,27 +56,18 @@ export interface ShipSystems {
   cabinTemp: number;
 }
 
-/** The released capacity of every flyable hull's energy bank and each shield. */
-export const MAX_ENERGY = 255;
-export const MAX_SHIELD = 255;
-
 /**
  * What the banks held before TODO 27, and the divisors a legacy save is
  * migrated against. Migration data: nothing live reads them.
+ *
+ * They are NOT `ENERGY_BANKS` under another name, however alike 4 and 4 look:
+ * that is how many segments the console draws today, this is how many points the
+ * pool held in 1984's arithmetic, and a save on disk depends on the second. They
+ * were historically one fact and are now permanently two, which is why the live
+ * capacities moved to constants/pools.ts and these did not follow.
  */
 export const LEGACY_MAX_ENERGY = 4;
 export const LEGACY_MAX_SHIELD = 1;
-
-/**
- * How many BANKS the console reads the energy pool as, and where the last of
- * them begins. Four, as the original's console did: TODO 27 made energy one
- * 255-point pool, but a player still flies by "how many banks left", so the
- * console draws this many segments (hud.ts, via the frame) and `energyLow`
- * below is the last of them emptying — change ENERGY_BANKS and the gauge, the
- * warning and the shield cut-off move together. LOW_ENERGY is a point COUNT.
- */
-export const ENERGY_BANKS = 4;
-export const LOW_ENERGY = Math.round(MAX_ENERGY / ENERGY_BANKS);
 
 /**
  * You are down to your last bank: the shields stop recovering (below), the step

@@ -27,9 +27,10 @@ import { World } from '../src/game/world.ts';
 import {
   Ordnance, launchNpcMissile, type OrdnanceWorld,
 } from '../src/game/ordnance.ts';
-import { MISSILE_RELOAD } from '../src/game/missile-launch.ts';
+import { MISSILE_RELOAD } from '../src/constants/ordnance.ts';
 import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';
-import { MAX_ENERGY, MAX_SHIELD, applyDamage, freshSystems } from '../src/game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
+import { applyDamage, freshSystems } from '../src/game/systems.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 

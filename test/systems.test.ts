@@ -22,16 +22,15 @@ import {
   repairAtStation,
   scoopFuel,
   updateCabinTemp,
-  ENERGY_BANKS,
   ENERGY_UNIT_MULTIPLIER,
   LEGACY_MAX_ENERGY,
   LEGACY_MAX_SHIELD,
-  LOW_ENERGY,
-  MAX_ENERGY,
-  MAX_SHIELD,
   type RegenOptions,
   type ShipSystems,
 } from '../src/game/systems.ts';
+import {
+  ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY, MAX_SHIELD,
+} from '../src/constants/pools.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
 
 /** The hull the recharge policy is anchored on — see systems.ts. */

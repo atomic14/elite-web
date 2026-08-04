@@ -22,7 +22,8 @@ import {
 } from '../src/game/storage.ts';
 import { commanderOf, dockId, flightIds, type SaveRecord } from '../src/game/save-file.ts';
 import { Combat, firePlayerLaser, damagePlayer } from '../src/game/combat.ts';
-import { durability, MAX_ENERGY } from '../src/game/systems.ts';
+import { MAX_ENERGY } from '../src/constants/pools.ts';
+import { durability } from '../src/game/systems.ts';
 import { CONTRABAND, CLEAN, FUGITIVE } from '../src/game/law.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld, rngState, restoreRng } from '../src/game/rng.ts';

@@ -33,7 +33,8 @@
 // hunter and a Thargoid all reach `attack()` and all break off and shoot at the
 // same distance. The only difference any of them gets is the one that was
 // already there: a Thargoid's `THARGOID_FIRE_RATE` multiplier on the shared
-// cooldown, stated in gunnery.ts as a fire rate rather than as a second range.
+// cooldown, stated in constants/npc-gun.ts as a fire rate rather than as a
+// second range.
 //
 // ...and it still is. WHICH of the numbers below a given ship uses is
 // `tactics.ts`, which names four ways of flying the one run; every one of them

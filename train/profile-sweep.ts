@@ -33,7 +33,8 @@ import {
 import { npcEnergyPolicy, playerLaserDamage } from '../src/game/npc-energy.ts';
 import { eliteADesignIds } from '../src/game/elite-a/catalogue.ts';
 import { roleCandidateVariants, roleCombatProfileId } from '../src/game/role-variants.ts';
-import { MAX_ENERGY, MAX_SHIELD, durability } from '../src/game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
+import { durability } from '../src/game/systems.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import { FIXED_DT } from '../src/game/world-step.ts';

@@ -35,8 +35,9 @@ import {
   npcLaserDamageToPlayer, npcLaserStrength, npcWeaponByte,
 } from '../src/game/gunnery.ts';
 import {
-  applyDamage, breachLoss, durability, freshSystems, MAX_ENERGY, MAX_SHIELD,
+  applyDamage, breachLoss, durability, freshSystems,
 } from '../src/game/systems.ts';
+import { MAX_ENERGY, MAX_SHIELD } from '../src/constants/pools.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { Combat } from '../src/game/combat.ts';

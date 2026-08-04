@@ -25,7 +25,8 @@
 //
 // One rule, one home, twice over:
 //   * "lined up" is `NPC_FIRE_GATE` and the range cut-offs are `NPC_LASER_RANGE`
-//     (npc.ts, their gun) and `LASER_RANGE` (gunnery.ts, yours).
+//     (constants/npc-gun.ts, theirs) and `LASER_RANGE` (constants/player-gun.ts,
+//     yours).
 //     combat-recorder.js wrote 14.3 degrees and 3500 out by hand, so a balance
 //     change to either moved the game and left the measurement behind.
 //   * the JSON is VERSIONED (`schema`), as snapshot.ts's SNAPSHOT_VERSION is.
@@ -33,7 +34,8 @@
 //     first shape change would otherwise break it in silence.
 
 import * as THREE from 'three';
-import { LASER_RANGE, NPC_FIRE_GATE, NPC_LASER_RANGE } from './gunnery.ts';
+import { LASER_RANGE } from '../constants/player-gun.ts';
+import { NPC_FIRE_GATE, NPC_LASER_RANGE } from '../constants/npc-gun.ts';
 import type { DamageSource } from './combat.ts';
 import type { DealtSource } from './damage-dealt.ts';
 import type {

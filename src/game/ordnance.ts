@@ -13,6 +13,10 @@
 // docking and the trumbles. It owns the missiles in flight and the target
 // lock, because those are its state and nothing else writes them.
 //
+// The numbers — the seeker's envelope, the E.C.M.'s reach and its price, the
+// bomb's radius — are constants/ordnance.ts, one file for both halves of the
+// weapon, and that is where the reasoning behind each of them lives.
+//
 // Follows the house rule: it decides and reports, the Game applies. A missile
 // reaching its target returns a `hit` for the Game to bill, because
 // destroying a ship pays a bounty, moves your legal status and can scramble
@@ -22,44 +26,19 @@
 import * as THREE from 'three';
 import { buildShip } from '../ships/geometry.ts';
 import { OBJECT_DESIGNS, requireShipDef } from '../ships/registry.ts';
+import {
+  ECM_ENERGY_COST, ECM_RANGE, ECM_RATE, ENERGY_BOMB_RANGE, HOSTILE_MISSILE_LIFE,
+  LOCK_CONE, LOCK_RANGE, MISSILE_HIT_RANGE, MISSILE_LIFE, MISSILE_SPEED,
+  MISSILE_TURN,
+} from '../constants/ordnance.ts';
 import type { NpcShip } from './npc.ts';
 import type { CommanderData } from './commander.ts';
 import { random } from './rng.ts';
-import { MAX_ENERGY } from './systems.ts';
 import type { MissileSnapshot } from './snapshot.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 
 /** The released missile — one hull, resolved once. */
 const MISSILE_HULL = requireShipDef(OBJECT_DESIGNS.missile);
-
-/** Missile flight speed, world units per second. */
-export const MISSILE_SPEED = 700;
-/** How long a missile lives before it gives up and detonates. */
-export const MISSILE_LIFE = 25;
-/** A hostile missile lives longer — it has further to come. */
-export const HOSTILE_MISSILE_LIFE = 30;
-/** Turn rate while homing, radians per second. */
-const MISSILE_TURN = 2.5;
-/** Close enough to detonate. */
-const MISSILE_HIT_RANGE = 50;
-/** An E.C.M.-equipped target fries incoming missiles inside this. */
-const ECM_RANGE = 2800;
-/** ...at this chance per second. */
-const ECM_RATE = 0.45;
-/**
- * Firing the E.C.M. costs this much energy: a quarter of the bank.
- *
- * Exactly what the literal `1` bought when the bank held 4 points — read off
- * MAX_ENERGY rather than restated, so growing the pools could not quietly make
- * the E.C.M. free.
- */
-export const ECM_ENERGY_COST = Math.round(MAX_ENERGY / 4);
-/** The energy bomb reaches this far. */
-export const ENERGY_BOMB_RANGE = 8000;
-/** Lock cone: how near the crosshair a ship must be to be locked. */
-const LOCK_CONE = 0.09;
-/** ...and how far away it may be. */
-const LOCK_RANGE = 5500;
 
 export interface Missile {
   object: THREE.Object3D;
@@ -231,7 +210,7 @@ export function fireEcm(
  * because a successful burst empties the sky.
  *
  * It does not stop a HUMAN wasting one on an empty sky: that is the player's
- * key and the player's 64 energy points. It stops a co-pilot doing it.
+ * key and the player's bank to spend. It stops a co-pilot doing it.
  */
 export function autopilotEcm(policyWantsIt: boolean, missileInbound: boolean): boolean {
   return policyWantsIt && missileInbound;

@@ -30,7 +30,8 @@
 
 import type * as THREE from 'three';
 
-import { npcHitChance, npcLaserDamageToPlayer, NPC_VS_NPC_HIT } from './gunnery.ts';
+import { NPC_VS_NPC_HIT } from '../constants/npc-gun.ts';
+import { npcHitChance, npcLaserDamageToPlayer } from './gunnery.ts';
 import { npcCrossfireDamage } from './npc-energy.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import type { FireEvent, NpcShip } from './npc.ts';
