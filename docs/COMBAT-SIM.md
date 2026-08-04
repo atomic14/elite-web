@@ -128,12 +128,13 @@ also owns `arenaCentre` (where the fight happens at all):
 4,500 is not a preference. It is outside `NPC_LASER_RANGE` (3,500) even after
 the spawner's -15% scatter, so nobody shoots before the approach; inside
 `PLAYER_INTEREST_RANGE` (9,000), where an NPC starts caring about you at all, so
-it is an approach and not a stare; and far outside `PASS_FAR` (900), which
-matters because TODO 34's attack-run count starts a fight "outside" — a ship
-that STARTS inside `PASS_CLOSE` would score a completed run the first time it
-left, and one starting in the 400-900 dead band would have its first approach
-half-measured. The ambush is deliberately inside their gun, which is what an
-ambush is, and still clears `PASS_FAR` by more than double.
+it is an approach and not a stare; and far outside `PASS_FAR` (600 since
+docs/TODO/67 shortened the attack run; 900 when this was written), which matters
+because TODO 34's attack-run count starts a fight "outside" — a ship that STARTS
+inside `PASS_CLOSE` would score a completed run the first time it left, and one
+starting in the dead band between the two thresholds would have its first
+approach half-measured. The ambush is deliberately inside their gun, which is
+what an ambush is, and still clears `PASS_FAR` by four times over.
 
 The cone is 8 degrees because the scatter spreads a ship between 0.55 and 1.45
 of it off the axis: 4.4 to 11.6 degrees, comfortably inside a 60-degree

@@ -88,7 +88,12 @@ function defencePilot(): Controller {
   };
 }
 
-function pilotFor(b: TargetBehaviour): Controller {
+/**
+ * The pilot for a behaviour — EXPORTED, because `train/gap-probe.ts` measures a
+ * different thing about the same three fights and a second table of "what
+ * `evades` means" is a rule with two homes.
+ */
+export function pilotFor(b: TargetBehaviour): Controller {
   if (b === 'holds') return { kind: 'holding' };
   if (b === 'weaves') return { kind: 'weaving' };
   return defencePilot();

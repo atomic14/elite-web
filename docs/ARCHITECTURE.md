@@ -250,6 +250,8 @@ src/
     pass-aim.ts             where the closing leg AIMS: beside the target, and
                             ahead of it. The miss distance, the lead and the
                             stretch that makes a run pass by what it meant to
+    extend-arc.ts           the curve the run-OUT flies, so the turn-around and
+                            the run out overlap instead of being sequential
     ship-specs.ts           the roster: which hull flies which role, and its
                             stats — all of them Harmless's, none copied from
                             the pack
@@ -494,6 +496,10 @@ train/flight-probe.ts       is it flying, or is it a turret? the SHAPE of a
 train/ram-probe.ts          the other half of the probe above: contact against
                             a target that MOVES, five ships, counted where the
                             ram is billed rather than divided out of a total
+train/gap-probe.ts          the RHYTHM: seconds from one ship's merge to its
+                            next, and how far out it got in between — the
+                            number docs/TODO/67 is about, which a rate over a
+                            whole fight cannot see
 train/jameson-autopilot.js  the browser-console economy harness behind
                             docs/JAMESON-TRIALS.md
 train/profile-sweep.ts      the catalogue rather than the policies: all 15

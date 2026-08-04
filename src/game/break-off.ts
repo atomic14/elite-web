@@ -87,22 +87,6 @@ export const BREAK_OFF_RANGE = 220;
 export const BRAIN_HANDOVER_RANGE = 150;
 
 /**
- * The longest a ship lets a run get before turning back, and the default the
- * pure phase function assumes when nobody has rolled one.
- *
- * It USED to be a single fixed range for every ship, and equal to
- * `combat-sim-report.ts`'s `PASS_FAR` on the argument that a flight model
- * producing runs and a measurement counting them should use one number. That
- * argument was right about the coupling and wrong about the shape: one number
- * meant every ship in a gang turned at the same place and came back as a wave.
- * See `EXTEND_RANGE_MIN`/`MAX` below for what replaced it, and `PASS_FAR` for
- * what the coupling became — a threshold that has to sit BELOW the tightest
- * turn any ship makes, rather than equal to a range nothing is obliged to
- * reach.
- */
-export const EXTEND_RANGE = 900;
-
-/**
  * The band a ship's own turn-back range is rolled from, each time it extends.
  *
  * Chris, having flown the fixed version: "they fly quite far before turning for
@@ -114,36 +98,78 @@ export const EXTEND_RANGE = 900;
  * arrive together stay together — they merge as a wave, all extend, all turn,
  * and all come back at once. A band breaks that up.
  *
- * SHORTENING the run is the part that does not work, and it is not a tuning
- * failure. A ship does all of its turning in the CLOSING leg: `extending` flies
- * straight. So the closing leg has to contain both a 180 and the run-in that
- * settles the ship onto `PASS_MISS_DISTANCE`, and below about 700 there is no
- * longer room for both — the ship arrives at the merge still pointed at the
- * middle and flies into it. Over 60 episodes against a target that holds still,
- * contact damage per episode:
+ * SHORTENING the run used to be the part that did not work. It was 700-1100,
+ * and this comment carried the table that said why: below about 700 the ship
+ * arrived at the merge still pointed at the middle and flew into it, at 22.7
+ * points of contact damage an episode against 4.4 for the shipped band.
  *
- *   band        450-900   700-1100   750-1250   800-1400   900 fixed
- *   rammed         22.7        4.4        8.8        3.7         2.9
- *   passes/ep      4.77       5.30       4.98       4.63        5.25
- *   median apex     906       1126       1236       1331        1134
+ * TWO things were wrong with the flying, and only one of them was the one that
+ * had been diagnosed (docs/TODO/67).
  *
- * 700 to 1100: the most passes of any band tried, a ram figure close to the
- * fixed version's, and 355 units of real spread in where ships turn. Its median
- * apex is 1126 against the fixed 1134, so runs are the same LENGTH as before —
- * they are just no longer all the same length.
+ *   - `extending` steered for nothing, so the whole 180 had to happen in the
+ *     closing leg. `extend-arc.ts` is the curve that fixes it.
+ *   - THE AIM POINT WAS ON WHICHEVER SIDE THE SHIP'S OWN +X HAPPENED TO POINT,
+ *     which is the far side of the target about half the time — and a run aimed
+ *     at the far side is a run through the middle. `npc.ts`'s `passOffset` has
+ *     the measurement. This was the bigger of the two by a long way, and it was
+ *     what the old table was really measuring: a short run gives the chase less
+ *     room to recover from crossing the line.
  *
- * Making short runs actually flyable means giving the extend a curve, so the
- * ship is already coming round before the phase flips. Steering it at the
- * target during the extend does NOT do that: it cancels the extend outright,
- * measured at 0.90 passes an episode with the range spread collapsed to
- * 274/366/709, which is the turret shape this whole cycle exists to avoid.
+ * With both fixed the band comes down, and it is contact rather than passes
+ * that the sweep is read on now, because there is no longer any to speak of.
+ * Over 40 episodes, one pirate against a target that holds still (contact) and
+ * five against the same (per merge), with the arc at 70 degrees:
+ *
+ *   band          700-1100  550-950  500-850  450-800  400-700
+ *   contact 1v1        0.0      0.0      0.0      0.0      0.0
+ *   contact 5v1/mrg  0.016    0.010    0.010    0.008    0.007
+ *   median gap        8.52     7.62     7.32     7.15     6.85
+ *   median apex        946      821      783      755      707
+ *
+ * ...against the straight-extend 700-1100 this replaced, at a 9.47s gap, a
+ * 1,134 apex and 4.4 points of contact. (The band sweep was flown at 70 degrees
+ * of arc; the 60 that shipped reads 7.22 and 792 in the same fixture, and
+ * extend-arc.ts holds the sweep that chose it.) Every band on that row is
+ * flyable now, so the choice is a feel one: 500-850 is a quarter off the
+ * rhythm Chris asked about while keeping the run-out long enough to still be a
+ * run-out. The range spread a lone pirate sweeps is 167/549/913 against the
+ * 179/693/1157 that shipped — narrower, because the runs ARE shorter, and
+ * nowhere near the 274/366/709 of the turret this cycle exists to avoid.
+ *
+ * 400-700 is a shorter gap again and it is deliberately not taken: it apexes at
+ * 707, and `PASS_FAR` has to sit below the shortest run the model produces —
+ * see combat-sim-report.ts, where 600 counts 92% of the merges this band
+ * actually flies and there is no room left under `PASS_CLOSE` for another cut.
  *
  * The roll is re-taken on every extend rather than fixed at spawn — a per-ship
  * disposition would destagger the gang but leave each individual ship as
  * metronomic as before.
  */
-export const EXTEND_RANGE_MIN = 700;
-export const EXTEND_RANGE_MAX = 1100;
+export const EXTEND_RANGE_MIN = 500;
+export const EXTEND_RANGE_MAX = 850;
+
+/**
+ * The longest a ship lets a run get before turning back, and the default the
+ * pure phase function assumes when nobody has rolled one.
+ *
+ * It USED to be a single fixed range for every ship, and equal to
+ * `combat-sim-report.ts`'s `PASS_FAR` on the argument that a flight model
+ * producing runs and a measurement counting them should use one number. That
+ * argument was right about the coupling and wrong about the shape: one number
+ * meant every ship in a gang turned at the same place and came back as a wave.
+ * See `EXTEND_RANGE_MIN`/`MAX` above for what replaced it, and `PASS_FAR` for
+ * what the coupling became — a threshold that has to sit BELOW the tightest
+ * turn any ship makes, rather than equal to a range nothing is obliged to
+ * reach.
+ *
+ * It is the MIDDLE of the band it defaults for, because that is the only
+ * honest thing a default can be. It was left at 900 when the band came down to
+ * 500-850 (docs/TODO/67), which made the fallback a longer run than any ship in
+ * the game is allowed to roll — harmless, since every live caller passes the
+ * ship's own rolled range, and exactly the kind of number that stops being
+ * harmless the day somebody adds a caller that does not.
+ */
+export const EXTEND_RANGE = (EXTEND_RANGE_MIN + EXTEND_RANGE_MAX) / 2;
 
 /**
  * Turn a 0..1 roll into a turn-back range.
@@ -208,9 +234,12 @@ export const UNDER_FIRE_SECONDS = 1.2;
  * Extending is the only phase being hit changes, and it is the only one where
  * being hit makes no sense: `closing` is already turning, `passing` is over in
  * a fraction of a second, but a ship that has made its pass and is opening the
- * range holds ONE heading for as long as it takes to reach EXTEND_RANGE. If
- * somebody is hitting it during that, holding the line is the one thing a pilot
- * would not do — so it stops extending and comes back round.
+ * range is committed to going out for as long as it takes to reach its rolled
+ * turn-back. If somebody is hitting it during that, holding to the plan is the
+ * one thing a pilot would not do — so it stops extending and comes back round.
+ * (The run-out is a curve rather than a straight line since docs/TODO/67, which
+ * makes the case weaker and not wrong: a ship being shot at should come round
+ * NOW, not at the range it had picked before anybody was shooting.)
  *
  * That also makes the fight answer the player: getting on its six and landing
  * shots is what breaks the pattern, rather than the pattern running to a fixed
@@ -278,7 +307,9 @@ export function nextAttackPhase(
   // Cleared it. The pass is over the moment the range opens at all.
   if (phase === 'passing') return 'extending';
   // Still opening: hold the run out until there is room to turn in — UNLESS
-  // somebody is landing shots, in which case stop running in a straight line.
+  // somebody is landing shots, in which case cut it short and come round now.
+  // The run-out curves (extend-arc.ts), so a ship cut short here has already
+  // done as much of its turn as the range it reached had earned it.
   if (phase === 'extending') return dist > extendRange || underFire ? 'closing' : 'extending';
   return 'closing';
 }

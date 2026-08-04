@@ -151,8 +151,9 @@ console.log('\nNPC break-off');
 // --- an attack run, and what breaks it --------------------------------------
 
 // The run is a cycle and `nextAttackPhase` is pure so it can be walked without
-// flying anything. `EXTEND_RANGE` is deliberately the report's own `PASS_FAR`,
-// so a ship flying this scores the passes the trainer counts.
+// flying anything. `EXTEND_RANGE` is only the DEFAULT — the middle of the band
+// — since every ship rolls its own; it used to be the report's own `PASS_FAR`,
+// and combat-sim-report.ts has what became of that coupling.
 {
   const walk = (start: AttackPhase, ds: number[], fire = false) =>
     ds.reduce((p, d) => nextAttackPhase(p, d, fire), start);
@@ -241,8 +242,10 @@ check('the band is wide enough to destagger a gang',
 // THE COUPLING, asserted rather than remembered. The pass counter needs the
 // ship to open back out past PASS_FAR; if a ship may turn back before it ever
 // gets there, the measurement stops seeing the runs the model produces. The
-// tightest run apexes above EXTEND_RANGE_MIN because the ship keeps opening for
-// about a second after it decides, so this is the conservative form.
+// tightest run still apexes above EXTEND_RANGE_MIN because the ship keeps
+// opening while it comes round, so this is the conservative form — and the
+// measured version is in combat-sim-report.ts, where 600 counts 92% of the
+// merges this band actually flies and the 900 it replaced counted 12%.
 check('PASS_FAR stays below the shortest run the model can fly',
   PASS_FAR < EXTEND_RANGE_MIN + BREAK_OFF_RANGE,
   `PASS_FAR ${PASS_FAR} vs tightest apex ~${EXTEND_RANGE_MIN + BREAK_OFF_RANGE}`);

@@ -75,6 +75,10 @@ npm run ram-probe  # the other half: does the attack run still MISS a target
                    # that moves? Five ships, contact counted where the ram is
                    # billed, against a target that holds / evades / weaves.
                    # `-- <episodes>`. TODO 66 is what it was built for
+npm run gap-probe  # the RHYTHM: seconds between one ship's merges, and how far
+                   # out it got in between. Five ships, because that is the
+                   # shape the complaint was about. `-- <episodes> [holds|
+                   # evades|weaves|all]`. TODO 67 is what it was built for
 npm run defence-probe # is the defender fighting or just surviving? — pools left,
                    # the share of the attacking force she BROKE and kills, broken
                    # down by pirate count, hull and laser, on held-out seeds.

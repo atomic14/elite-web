@@ -346,7 +346,7 @@ it left open — two measured faults in the run's geometry, the design it makes
 possible, and one piece of wording nobody could read.
 
 - [x] 66 — [The pass aims where you were, not where you will be](66-the-pass-aims-where-you-were.md) — combat bug · medium · small
-- [ ] 67 — [Short attack runs are not flyable, so the rhythm is fixed at ~9s](67-short-attack-runs-are-not-flyable.md) — combat feel · medium · medium
+- [x] 67 — [Short attack runs are not flyable, so the rhythm is fixed at ~9s](67-short-attack-runs-are-not-flyable.md) — combat feel · medium · medium
 - [ ] 68 — [A vocabulary of tactics, not one behaviour](68-a-vocabulary-of-tactics.md) — combat feel/design · medium · large
 - [x] 69 — [The setup panel says "HULL (0)" and means "ask the hull"](69-the-panel-says-hull-zero.md) — UI/UX · low · small
 
@@ -369,6 +369,44 @@ report: the geometry the item PREDICTED — a fast head-on merge eating the offs
 — is real but is not what was producing Chris's rams, and against a target
 translating at 400 the fix buys a quarter more merges at the same contact per
 merge rather than less contact.
+
+67 is done, and the item's diagnosis was half of the cause. The half it named
+is real: `extending` steered for nothing, so the whole 180 had to happen in the
+closing leg. `game/extend-arc.ts` is the curve that fixes it — a heading held at
+a ramping angle to the OUTWARD radial, which keeps the range opening (so the
+phase machine cannot be starved and the curve cannot become an orbit) while the
+nose comes round. The half it did not name was bigger: **the aim point was on
+whichever side the ship's own +X happened to point**, which is the far side of
+the target about half the time, and a run aimed at the far side is a run through
+the middle. Worse, it ran away — steering at a point defined by your own +X
+moves the point, so the nose sat 25-60 degrees off the aim for seconds while the
+ship turned at its cap. That is what "an intended 110 delivered as 75" was, and
+what the old band table was really measuring. `passOffset` takes the side off
+the HEADING now: the side the ship is already stepping to, which no run has to
+cross the target to reach.
+
+Together they take the merge-to-merge gap Chris asked about from **9.47s to
+7.22s** with the run-out still apexing at 792, and contact does not pay for it —
+it falls. One pirate against a target that holds: 4.4 points an episode to
+**0.0**, closest approach 47 to 108. Five against a moving one (`ram-probe`):
+holds 0.38 rams an episode to 0.17, evades 0.63 to 0.20, weaves 0.38 to **0.05**.
+The band is 500-850 and `EXTEND_RANGE_MIN` came down as the item asked, with its
+table re-derived over the five bands that are now all flyable.
+
+The price is a threshold and a point of balance, both stated rather than hidden.
+`PASS_FAR` is **600**: at 900 the new runs would have counted 12% of the merges
+they actually fly, so every attack-run figure in the game and in flight-probe
+would have read near zero for a model that had just got better — the archived
+rows in `train/logs/todo32/` are now a record of a different threshold as well
+as a different flight model. And a shorter rhythm is more pressure: over 240
+held-out defence fights `jameson-defend-g1` keeps **88.7%** of her pools where
+she kept 90.1%. The decomposition says which half did it — the aim fix alone
+takes her to 91.8%, and the arc's extra runs per minute take her back down —
+so it is the rate, not the ramming, and it is the thing to fly before keeping.
+No retrain is owed (no combat number moved; the shipped policies do not run
+`attack()` outside `BRAIN_HANDOVER_RANGE`), but the defence brain was fitted
+against a slower opponent and that is a retrain that might now find something.
+
 
 69 is done: a delegated row reads `FROM THE HULL — NONE` / `FROM THE HULL — 60%`
 and a set one reads `0` / `60%`, so the mode is words and the number after it is

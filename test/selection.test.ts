@@ -166,8 +166,20 @@ check(`the turret breaks the attacking force (${pct(fought.broken)} of its banks
 check(`...where the pacifist barely scratches it (${pct(fled.broken)})`, fled.broken < 0.05);
 check(`the turret CLEARS fights (${fought.cleared}/${EPISODES} against`
   + ` ${fled.cleared}/${EPISODES})`, fought.cleared > 4 && fled.cleared === 0);
-check(`...and takes less damage for it (${fought.taken.toFixed(0)} points against`
-  + ` ${fled.taken.toFixed(0)})`, fought.taken < fled.taken);
+// ...and what it buys is that the fight ENDS, which is not the same claim this
+// line used to make. It used to be that the turret took less damage outright —
+// 263 points against the pacifist's 305 — and docs/TODO/67 changed that, not
+// the selection rule: attack runs stopped flying into people, and contact was
+// most of what a passive commander was taking. The pacifist's total fell by a
+// fifth (305 -> 238) while the turret's barely moved. So cumulative damage no
+// longer separates them and the honest statement is the trade: a pilot who
+// stops to shoot is hit harder while it lasts, and it lasts a third as long.
+check(`...trading a higher damage RATE for a fight that ends`
+  + ` (${(fought.taken / fought.seconds).toFixed(1)}/s over ${fought.seconds.toFixed(1)}s`
+  + ` against ${(fled.taken / fled.seconds).toFixed(1)}/s over ${fled.seconds.toFixed(1)}s,`
+  + ` totals ${fought.taken.toFixed(0)} and ${fled.taken.toFixed(0)})`,
+fought.taken / fought.seconds > fled.taken / fled.seconds
+  && fought.seconds < fled.seconds * 0.75);
 
 // THE TRAP THE OLD OUTCOME FELL INTO, measured on the pair: winning the fight
 // early means healing for less of the clock, so the pilot that is hit LESS ends
@@ -212,10 +224,25 @@ oldScore(fled.hp, fled.shaped) > oldScore(fought.hp, fought.shaped));
       +swing.toFixed(9), SHAPED_SHARE);
   }
   // ...so it cannot reorder two genomes whose outcomes are further apart than
-  // that — which is what "break ties WITHIN an outcome band" always meant.
-  check(`an outcome gap of ${pct(fought.outcome - fled.outcome)} cannot be bought`
-    + ' back with shaped fitness',
-  championScore('defend', fought.outcome, -1e6) > championScore('defend', fled.outcome, 1e6));
+  // that — which is what "break ties WITHIN an outcome band" always meant. The
+  // bound is `SHAPED_SHARE / (1 - SHAPED_SHARE)`, and it is asserted of the
+  // FORMULA rather than of this fixture because the fixture moved: the gap
+  // between shooting and not shooting was 35.0% and docs/TODO/67 took it to
+  // 30.5%, by taking contact damage out of the world. Both halves of the gap
+  // moved for the same reason — the pacifist keeps more of her pools when
+  // nothing rams her, and the turret breaks fewer attackers when they stop
+  // destroying themselves on her hull (71.9% killed -> 65.6%).
+  const unbuyable = SHAPED_SHARE / (1 - SHAPED_SHARE);
+  check(`an outcome gap over ${pct(unbuyable)} cannot be bought back with shaped fitness`,
+    championScore('defend', 0.5 + unbuyable * 1.01, -1e6)
+      > championScore('defend', 0.5, 1e6));
+  // ...and THIS pair no longer clears that bar, which is worth stating out loud
+  // rather than leaving as a check that quietly stopped being made: shooting is
+  // still ranked first here (above, on the shaped values these two genomes
+  // actually produce), but it is no longer ranked first by arithmetic alone.
+  check(`...and the turret/pacifist gap is ${pct(fought.outcome - fled.outcome)},`
+    + ' which is inside that bar and so rests on the shaping being honest',
+  fought.outcome - fled.outcome > 0.2);
   // What it did contribute here — reported rather than bounded, because the
   // share of a PARTICULAR score depends on how good the outcome was.
   const contribution = shapedContribution('defend', fought.outcome, fought.shaped);

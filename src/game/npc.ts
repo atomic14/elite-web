@@ -18,6 +18,7 @@ import {
   EXTEND_RANGE_MAX, nextAttackPhase, closingThrottle, rollExtendRange, type AttackPhase,
 } from './break-off.ts';
 import { leadTime, passMissDistance } from './pass-aim.ts';
+import { extendArcAngle } from './extend-arc.ts';
 import { PLAYER_INTEREST_RANGE } from './player-interest.ts';
 import { separationFrom, SEPARATION_PUSH } from './separation.ts';
 import type { BrainSelection } from './brain-names.ts';
@@ -1024,8 +1025,41 @@ export class NpcShip {
       }
       this.state.speed = approach(this.state.speed, this.maxSpeed, this.accel * dt);
     } else if (this.state.attackPhase === 'extending') {
-      // Past it and opening the range. Hold the run out to its rolled range,
-      // `nextAttackPhase` puts it back on `closing` and it comes round again.
+      // Past it and opening the range — ON A CURVE. This phase used to steer
+      // for nothing at all, which meant the whole 180 had to happen in the
+      // closing leg and short runs were unflyable. extend-arc.ts has the rule
+      // and the arithmetic; what is here is the geometry it takes as numbers.
+      //
+      // The heading asked for is `psi` off the OUTWARD radial: cos(psi) along
+      // the way out, sin(psi) along `passOffset` — the same side vector the
+      // closing leg aims off, which during a run-out is the lateral part of the
+      // heading the pass left the ship with. So the curve continues the pass
+      // rather than arguing with it, it bends toward the side the next run-in
+      // is going to want instead of across it, and it is one rule doing both
+      // jobs rather than two that have to agree.
+      //
+      // It is taken FIRST because it borrows the scratch `out` is about to use.
+      // And it is `passOffset` rather than the raw heading because that one has
+      // a tie-break for a ship with no side yet: a plane derived from a heading
+      // collapses the moment the ship points dead radial, which is exactly what
+      // the ramp asks for at the start of a run-out. Measured with the raw
+      // heading, the median error at the turn-back was 179 degrees: no arc.
+      const side = this.passOffset(targetPos);
+      const out = this.tmpDir2.copy(this.object.position).sub(targetPos);
+      const outLen = out.length();
+      if (outLen > 1e-4) {
+        out.divideScalar(outLen);
+        const psi = extendArcAngle(dist, this.state.extendRange);
+        const arc = this.tmpLead.copy(this.object.position)
+          .addScaledVector(out, Math.cos(psi) * dist)
+          .addScaledVector(side, Math.sin(psi) * dist);
+        // A steered phase can see its wingmen, and this one could not before it
+        // was steered: five ships curving back toward one target converge by
+        // construction. Same push the closing leg uses — separation.ts.
+        const crowd = separationFrom(this.object.position, this.matePositions(fleet), this.tmpAway);
+        if (crowd > 0) arc.addScaledVector(this.tmpAway, SEPARATION_PUSH * crowd);
+        this.steerToward(arc, dt);
+      }
       this.state.speed = approach(this.state.speed, this.maxSpeed, this.accel * dt);
     } else {
       // AIM BESIDE WHERE IT WILL BE, not beside where it is. Two rules, and
@@ -1224,26 +1258,61 @@ export class NpcShip {
   }
 
   /**
-   * A unit vector to one side of the run in, for the attack run to aim at.
+   * A unit vector to one side of the run in — THE SIDE THE SHIP IS ALREADY
+   * STEPPING TO.
    *
-   * Perpendicular to the line to the target and lying in the attacker's own
-   * roll plane: it is the ship's local +X with the along-the-run component
-   * taken out. Two consequences, and both are why it is derived rather than
-   * stored. It turns WITH the ship, so a rolling attacker keeps sidestepping
-   * the same way instead of flipping sides as the world geometry crosses an
-   * axis; and it needs no state, so nothing new has to be snapshotted for a
-   * reload to fly the same run.
+   * It is the part of the ship's own heading that is not along the line of
+   * sight, normalized: "keep going the way you are going, only more so." Which
+   * is the whole rule, and it is a correction rather than a preference.
    *
-   * Degenerate only if the ship is looking exactly along its own +X, which its
-   * nose is +Z and cannot be; the guard is there because a normalize of a zero
-   * vector is a NaN that would propagate into the position.
+   * IT USED TO BE THE SHIP'S LOCAL +X, deprojected the same way, on the
+   * reasoning that an offset in the attacker's own roll plane turns WITH the
+   * ship instead of flipping sides as the world geometry crosses an axis. That
+   * is true and it is not the problem. The problem is that +X is 90 degrees off
+   * the nose, so the aim point sits to one side of the ship REGARDLESS of which
+   * side of the target the ship is actually passing — and half the time that is
+   * the far side, which the ship can only reach by flying through the target it
+   * is trying to miss.
+   *
+   * Worse, it runs away. Steering toward a point defined by the ship's own +X
+   * rotates +X, which moves the point, so the ship chases its own right hand
+   * around: measured on the run-in, the angle between the nose and the aim
+   * point sat at 25-60 degrees for seconds at a stretch while the ship turned
+   * at its cap — an equilibrium, not a convergence. The miss distance a pass
+   * delivered was therefore whatever fell out of that chase, which is why
+   * docs/TODO/66 measured an intended 110 delivered as 75, and why the tail of
+   * it was inside the hull: over 60 one-on-one episodes, 29% of a Python's
+   * merges closed inside 70 units.
+   *
+   * Taking the side off the HEADING makes the same loop negative feedback. The
+   * demanded angle is `atan(m/d)` from the line of sight on the side the ship
+   * is already on, so a ship wide of it turns in and a ship inside it turns
+   * out, and neither has to cross the target to get there. Measured over the
+   * same 60 episodes, with everything else identical: not one merge inside 70
+   * units on any hull in the roster, contact per episode 0.10 -> 0.00
+   * one-on-one and 0.018 -> 0.007 per merge in a five-ship gang.
+   *
+   * `passSide` is the tie-break and only the tie-break: a ship pointed dead at
+   * its target has no side yet, and that is exactly when a coin has to be
+   * tossed. It falls back to the old local-+X construction for it, so the roll
+   * that varies a gang's runs still varies them.
+   *
+   * Still derived rather than stored, so nothing new has to be snapshotted for
+   * a reload to fly the same run.
    */
   private passOffset(targetPos: THREE.Vector3): THREE.Vector3 {
     const to = this.tmpDir2.copy(targetPos).sub(this.object.position).normalize();
-    const side = this.tmpSide.set(1, 0, 0).applyQuaternion(this.object.quaternion);
+    const side = this.tmpSide.set(0, 0, -1).applyQuaternion(this.object.quaternion);
     side.addScaledVector(to, -side.dot(to));
     const len = side.length();
-    return len > 1e-4 ? side.multiplyScalar(this.state.passSide / len) : side.set(0, 0, 0);
+    // 1e-3 rather than 1e-4: this is "the ship has no side yet", not "this
+    // vector would divide badly", and a heading a thousandth off the line of
+    // sight is dead on for the purposes of choosing one.
+    if (len > 1e-3) return side.divideScalar(len);
+    const tie = this.tmpSide.set(1, 0, 0).applyQuaternion(this.object.quaternion);
+    tie.addScaledVector(to, -tie.dot(to));
+    const tieLen = tie.length();
+    return tieLen > 1e-4 ? tie.multiplyScalar(this.state.passSide / tieLen) : tie.set(0, 0, 0);
   }
 
   /**

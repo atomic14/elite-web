@@ -11,6 +11,10 @@ import { playerLaser } from '../src/game/gunnery.ts';
 import { COBRA_MK_3_HULL_ID } from '../src/game/ship-identity.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { assignNpcTargets } from '../src/game/npc-targeting.ts';
+import { Episode } from '../src/ai-training/scenario.ts';
+import { BREAK_OFF_RANGE } from '../src/game/break-off.ts';
+import { PASS_MISS_DISTANCE } from '../src/game/pass-aim.ts';
+import { FIXED_DT } from '../src/game/world-step.ts';
 import { check } from './harness.ts';
 
 // --- NPCs actually fly ------------------------------------------------------
@@ -286,4 +290,64 @@ console.log('\nNPC targeting');
     check('...as are the ones that moved on while we were still on their list',
       !trader.hasAttacker(bored));
   }
+}
+
+// --- an attack run passes on the side it is ALREADY on ----------------------
+//
+// `passOffset` is the whole of docs/TODO/67's second half, and it is a rule
+// about which side, not about how far — `pass-aim.ts` owns the distance and is
+// asserted next door, purely. This one can only be asserted by flying, because
+// what was wrong with it was a feedback loop rather than a number: the offset
+// used to be taken off the ship's local +X, which is 90 degrees off the nose
+// and therefore on the far side of the target about half the time, and steering
+// at a point defined by your own +X moves the point. Measured on the run-in,
+// the nose sat 25-60 degrees off the aim for seconds at a time while the ship
+// turned at its cap — and the run crossed the target's line to get there.
+//
+// So this is the gate: ONE pirate against a target that holds still, over
+// enough merges to see a tail, and not one of them closes inside a hull. It
+// read 29% of a Python's merges inside 70 units before the fix, and the contact
+// those produced is what the item was opened for. One pirate rather than a
+// gang on purpose: keeping wingmen out of each other's way is separation.ts's
+// job and a crowd is its fixture, so a gang here would be measuring two rules
+// and blaming this one. What a gang costs is measured, not asserted —
+// `npm run ram-probe`.
+{
+  const closest: number[] = [];
+  let rams = 0;
+  for (let e = 0; e < 8; e++) {
+    const ep = new Episode({
+      seed: 41_000_003 + e * 7919,
+      pirates: [{ kind: 'scripted' }],
+      trader: { kind: 'holding' },
+      traderArmed: false,
+      traderClass: 'playerCobra',
+      maxTime: 60,
+    });
+    ep.setup();
+    const p = ep.pirates[0];
+    let inside = false;
+    let low = Infinity;
+    while (!ep.done) {
+      ep.step(FIXED_DT);
+      if (!p.alive) break;
+      const d = ep.trader.pos.distanceTo(p.pos);
+      const now = d < BREAK_OFF_RANGE;
+      if (now) low = Math.min(low, d);
+      if (!now && inside) { closest.push(low); low = Infinity; }
+      inside = now;
+    }
+    rams += ep.traderRams;
+  }
+  closest.sort((a, b) => a - b);
+  const nearest = closest[0] ?? 0;
+  const median = closest[Math.floor(closest.length / 2)] ?? 0;
+  // 55 is the largest contact radius in the roster plus the commander's own
+  // (pass-aim.ts states it); 70 leaves the run a margin over touching.
+  check(`no merge closes inside a hull (${closest.length} merges, nearest`
+    + ` ${nearest.toFixed(0)} units)`, closest.length > 40 && nearest > 70);
+  check(`...and the typical one arrives at the miss distance it aimed for`
+    + ` (median ${median.toFixed(0)} against PASS_MISS_DISTANCE ${PASS_MISS_DISTANCE})`,
+  Math.abs(median - PASS_MISS_DISTANCE) < 25);
+  check(`...so nothing flies into the target at all (${rams} contacts)`, rams === 0);
 }

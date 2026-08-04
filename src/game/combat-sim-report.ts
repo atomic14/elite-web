@@ -102,15 +102,14 @@ export const SIX_CONE = Math.PI / 3;
  * TWO numbers, not one, because one threshold counts jitter: a ship holding
  * station at 400 crosses back and forth over a single line all fight and scores
  * a pass every time. With a gap it has to actually go somewhere — in past 400,
- * which is knife-fighting range for a human, and back out past 900, which is
+ * which is knife-fighting range for a human, and back out past 600, which is
  * far enough that it has plainly broken off rather than wobbled. A brain that
- * loiters at 600 scores none, however long it stays there.
+ * loiters at 450 scores none, however long it stays there.
  *
- * The values are `train/flight-probe.ts`'s originals, MOVED here rather than
- * re-picked, so every archived probe row (train/logs/todo32/flight-probe.txt)
- * still means what it says. The probe imports them from here now; when it kept
- * its own copy, the tool and the report could disagree about what a pass is,
- * which is this project's named failure — one rule with two homes.
+ * `PASS_CLOSE` is `train/flight-probe.ts`'s original, MOVED here rather than
+ * re-picked. The probe imports both from here now; when it kept its own copy,
+ * the tool and the report could disagree about what a pass is, which is this
+ * project's named failure — one rule with two homes.
  *
  * `PASS_FAR` USED TO BE THE SAME NUMBER AS break-off.ts's `EXTEND_RANGE`, on the
  * argument that a flight model producing runs and a measurement counting them
@@ -120,15 +119,36 @@ export const SIX_CONE = Math.PI / 3;
  * model can produce, or the measurement goes blind exactly where the flying got
  * better. `test/break-off.test.ts` asserts it.
  *
- * That was nearly a real break. An earlier, wider band reached down to 450 and
- * apexed around 680, and at that point 900 counted only 44% of the merges that
- * actually happened — the number was re-picked to 650 before the band settled.
- * The shipped band apexes no lower than about 948, where 900 counts 89% against
- * 650's 92%, and three points is not worth making an archived log incomparable.
- * It stays 900.
+ * That was nearly a real break once and it became a real one. It USED to be
+ * 900, on the grounds that the band then shipped apexed no lower than about 948
+ * and 900 counted 89% of the merges that happened — leaving an archived log
+ * comparable, which was worth more than the three points 650 would have added.
+ *
+ * docs/TODO/67 shortened the run: the run-out flies a curve now (extend-arc.ts)
+ * and the band is 500-850, which apexes at 666 at its tenth percentile. At that
+ * shape 900 counts **12%** of the merges a five-ship fight actually produces, so
+ * every attack-run figure in the game and in `train/flight-probe.ts` would have
+ * read close to zero for a flight model that had just got better at flying. It
+ * is 600, where the same measurement counts 92% — the coverage 900 used to have
+ * over the band it was picked for. Over 40 five-ship episodes:
+ *
+ *   PASS_FAR      450   500   550   600   650   700   800   900
+ *   merges counted 95%   94%   93%   92%   87%   76%   44%   12%
+ *
+ * The cost is real and is stated rather than hidden: a pass counted before this
+ * change and a pass counted after are not the same measurement, so the archived
+ * rows in train/logs/todo32/ are a record of a different flight model as well
+ * as a different threshold. `PASS_CLOSE` does NOT move — what "inside" means is
+ * unchanged, and it is what keeps the two halves of a comparison honest.
+ *
+ * 600 is also the floor. It sits 200 above `PASS_CLOSE`, which is the hysteresis
+ * that stops a ship loitering at one range scoring passes by wobbling, and the
+ * trained policies are the check on that rather than the arithmetic: over 40
+ * held-out episodes `pirate-attack-g3`, which hangs at a median of 240 units,
+ * scores 0.00 passes at this threshold exactly as it did at 900.
  */
 export const PASS_CLOSE = 400;
-export const PASS_FAR = 900;
+export const PASS_FAR = 600;
 
 /** How many exercise records the in-memory ring keeps. */
 export const SIM_LOG_LIMIT = 20;
