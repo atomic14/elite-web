@@ -33,7 +33,7 @@
 // in is how two unit systems quietly merge.
 //
 // EVERY NON-LASER SOURCE — a ram, a warhead, the energy bomb — is
-// `impact-damage.ts`, which states its numbers in these same points. There is
+// `constants/impact.ts`, which states its numbers in these same points. There is
 // no conversion function here and there must never be one again: the two
 // TODO 26/27 bridges (`legacyDamageToEnergy` and its player twin) existed
 // because five call sites spoke a normalized scale, and TODO 28 deleted the
@@ -79,7 +79,7 @@ const NON_REGENERATING_DESIGNS: ReadonlySet<number> =
 
 /**
  * The Cobra Mk III's design id, and the bank every Harmless impact number is
- * anchored on (`impact-damage.ts`). `SOURCE_DESIGN.cobraMk3` in ship-specs.ts is
+ * anchored on (`constants/impact.ts`). `SOURCE_DESIGN.cobraMk3` in ship-specs.ts is
  * the same number; `test/damage-paths.test.ts` holds the two together by name
  * and re-derives the anchor from the catalogue.
  */
@@ -113,7 +113,7 @@ const HARMLESS_POLICY: Readonly<Record<string, NpcEnergyPolicy>> = {
    * The derelict generation ship is the largest hull in the sky and dead: 252
    * is the Anaconda's bank, the heaviest hull on the trader roster — NOT the
    * heaviest in the released catalogue, which is the `W:29` Dragon at 255
-   * (`impact-damage.ts` names all five above 250). It stands in for the
+   * (`constants/impact.ts` names all five above 250). It stands in for the
    * endurance its 8 legacy hull points bought, and its reactors have been cold
    * for centuries, so it recovers nothing. How many shots that is depends on
    * the hull you are flying as much as the laser fitted to it — an Anaconda's

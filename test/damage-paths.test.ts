@@ -28,7 +28,8 @@ import * as THREE from 'three';
 
 import { check, eq } from './harness.ts';
 import { npcEnergyPoints, playerPoolPoints } from '../src/game/damage-units.ts';
-import { IMPACT, npcImpactDamage, playerImpactDamage } from '../src/game/impact-damage.ts';
+import { npcImpactDamage, playerImpactDamage } from '../src/game/impact-damage.ts';
+import { IMPACT } from '../src/constants/impact.ts';
 import {
   ANCHOR_NPC_MAX_ENERGY, COBRA_MK_3_DESIGN, npcCrossfireDamage, npcEnergyPolicy,
   playerLaserDamage,
@@ -121,13 +122,24 @@ console.log('\nthe Harmless impact rule — its anchors, re-derived');
 
   // The impact functions take NO TARGET. That is the structural reason a ram
   // cannot be halved by the Constrictor's flag or shrugged off by a station's:
-  // there is nothing to consult. The file imports the units and nothing else.
+  // there is nothing to consult. The spend side imports the units and nothing
+  // else, and the table's own home — constants/impact.ts since the fight's
+  // constants moved — imports nothing at all (the constants gate holds the
+  // directory to that; this holds the file, so the property is asserted where
+  // it is relied on).
   const impacts = src('game/impact-damage.ts');
   const imports = [...impacts.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
   check(`impact-damage.ts imports only the units (${imports.join(', ')})`,
     imports.length === 1 && imports[0] === './damage-units.ts');
   check('...so no impact can see a ship, a profile or a role',
     !/policy|profile|role|Constrictor|laserImmune/i.test(impacts.split('*/').pop() ?? ''));
+  // Both import shapes, because a side-effect `import 'x';` has no `from` and
+  // sailed straight past the first spelling of this check — the same hole the
+  // constants gate's leaf rule had, found the same way, by breaking it.
+  check('the table\'s home imports nothing at all',
+    !/^\s*import\b/m.test(code('constants/impact.ts')));
+  check('...and no impact NUMBER can see a ship, a profile or a role either',
+    !/policy|profile|role|Constrictor|laserImmune/i.test(code('constants/impact.ts')));
 }
 
 console.log('\nNPC versus NPC — the same oracle as the player-facing paths');
@@ -278,6 +290,8 @@ console.log('\nthe old scale is gone, and cannot come back');
     // rescaled the commander's pools.
     'game/ship-specs.ts', 'game/world.ts', 'game/persistence.ts',
     'ai-training/scenario.ts',
+    // the impact table's home since the fight's constants moved
+    'constants/impact.ts',
   ];
   const all = files.map((f) => [f, code(f)] as const);
 

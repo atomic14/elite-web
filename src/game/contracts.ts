@@ -387,4 +387,12 @@ export function contractMessage(e: ContractEvent, systems: StarSystem[]): Contra
   }
 }
 
+/**
+ * The most work you may hold at once.
+ *
+ * Lived as a bare `>= 3` in game.ts and a bare `>= 2` in test/campaign.ts —
+ * so the balance harness was playing a game with a smaller bulletin board than
+ * the one that ships. (This justification sat orphaned in threat.ts, a file
+ * that cannot see the constant, until the threat slice put it back beside it.)
+ */
 export const MAX_CONTRACTS = 3;

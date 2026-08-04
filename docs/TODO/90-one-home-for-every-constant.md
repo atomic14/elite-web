@@ -777,11 +777,126 @@ compares them against HEAD's source text and nothing else — which is why
 breaking `THARGOID_AMBUSH_RANGE` moved 1 comparison rather than hundreds. No
 unit test covers them either.
 
-**Still to do**, in the groups the gate's list already names: what is left of
-the fight, the career, the galaxy, the station, the console, the combat trainer,
-saves, and the policy seam. Plus one thing no slice has touched: CLAUDE.md does
-not yet carry the read-it-do-not-grep-it instruction below — the gate catches a
-second home mechanically, but the instruction is what stops one being written.
+**Slice 7 — what is left of the fight — landed.** Four files touched in the
+home, three of them new, and the count went from 175 home / 317 out across 83
+files to **187 home / 307 out across 82**. The whole fight group left the
+pending list: `game/impact-damage.ts` declares no constants at all and came off
+entirely, and the other five files are named entries now, each with its reason.
+
+| moved | file |
+| --- | --- |
+| every non-laser cost — the ram, the canister, the scrape, the warhead, the bomb | `constants/impact.ts` |
+| who is worth robbing — the prize saturation, the challenge rate, the score weights, the tier thresholds, the one curated hull | `constants/threat.ts` |
+| what destruction leaves behind — the escape-pod chances, and a mined rock's yield | `constants/wreck.ts` |
+| the one lie a brain is told — the target-speed floor | `constants/brain-flight.ts` |
+
+**`IMPACT` moved whole and its spend side did not.** The table with its anchors
+argument is `constants/impact.ts`; `game/impact-damage.ts` keeps only the two
+functions that turn a row into a branded number, still importing exactly
+`damage-units.ts` — so `test/damage-paths.test.ts`'s imports-only check still
+holds, and two new checks hold the table's home to importing nothing and to
+seeing no ship, profile or role. Fifteen import sites split across src, test
+and train, and docs/DAMAGE-PATHS.md's rows cite the new home.
+
+**The survey's strongest finding is now written beside its constant.**
+`PRIZE_SATURATION` is 25,000 tenths — 2,500 Cr — and its own comment said
+"1,600 Cr" for its whole life, with a sweep quoted against the 1,600 reading.
+The value stays (it is what the campaign's 33 rows are tuned against), both
+readings are written out beside it, and choosing is on the cleanup list's Open
+section. Which is right is a balance decision with a measurement attached.
+
+**`TARGET_SPEED_FLOOR`'s trainer divergence is recorded beside it too** — the
+game floors what a brain is told and `ai-training/scenario.ts` hands its
+pirates the raw speed, so a training pirate reads observation slot 10 in a
+range the live game never produces. The survey called it the biggest divergence
+of its partition; it is a decision (apply the floor in training, or delete the
+input and retrain), so the constant moved with the finding attached and the
+decision went to the cleanup list.
+
+**`FAME_FULL` stayed behind on purpose, and the relationship it restates is a
+check now.** 2560 is the rating ladder's own Dangerous rung; the ladder is the
+career slice's, so an expression cannot be written yet. `test/economy.test.ts`
+bisects the fame saturation score out of the real `pirateThreat` and asserts
+the real `rating()` starts saying Dangerous at exactly that score — the
+relationship the survey said was "said in prose, enforced by nothing".
+
+**Every moved tuning number is gated in the measured shape**, because the
+campaign pins them only in aggregate: the prize saturation and the challenge
+roll are bisected out of `pirateThreat`, the two tier thresholds out of a new
+two-line `tierForScore` (extracted so the ladder is probeable at all), the two
+score weights solved back out of `sourceThreatScore` as a linear system over
+the real roster with zero residual required, the escape-pod rate per role and
+the mining yield band flown through the real `wreck`/`destroy` over seeded
+kills (the yield's floor and ceiling must both actually occur), and the
+target-speed floor was already pinned by value in `test/brain-names.test.ts`.
+The escape rate was read at two sizes — 0.425/0.2025 at 400 kills,
+0.45975/0.1985 at 4,000 — same answer both times.
+
+**`brain-names.ts` stays whole, per name, and that is the right outcome, not a
+dodge.** It is the import-nothing leaf this item's own "Watch out for" section
+names as the model, and CLAUDE.md points at it as where the scripted/trained
+rule lives. Its thirteen constants are that rule's decisions stated as names,
+tables keyed on `BrainName` (a type declared beside them that the home may not
+import), two picker sentinels and the frozen empty default. `brains.ts`'s
+three parsed weights files and `LOADED` are the `MISSILE_HULL` shape.
+`npc-energy.ts`'s four are design ids, a catalogue read
+(`ANCHOR_NPC_MAX_ENERGY`, exactly `ANCHOR_RECHARGE_RATING`'s case) and a
+policy table keyed on imported overlay ids. `combat.ts` keeps the two
+commodity-index lists for the career slice's ordinary-goods unification, and
+`BEAM_FLASH`, which is a drawing duration.
+
+**One survey doubt settled by measurement**: `HARMLESS_POLICY`'s rock-hermit
+bank says "240 is what a Coriolis carries" and the survey suspected it was the
+Dodo's figure. Measured from the catalogue: both released stations carry 240,
+so the prose is true and nothing moved.
+
+**Two orphaned doc comments healed.** `threat.ts` carried `MAX_CONTRACTS`'
+whole justification while the constant sat bare in contracts.ts — the doc is
+beside its constant now — and a stray contraband sentence documenting no
+declaration at all (law.ts's `CONTRABAND` has its own) was deleted.
+
+**And a new gate had the old hole, found by breaking it.** The first spelling
+of "the table's home imports nothing" scanned for `from '...'`, so a
+side-effect `import '../game/rng.ts';` sailed past it — the exact shape slice
+6 found in the constants gate's leaf check. Only the constants gate went red
+(1 failure). The check matches both shapes now and was confirmed red against
+the same break before restoring.
+
+Byte-identical, verified against a worktree at HEAD: **2,693 compared, 0
+changed** — every name in `src/constants/` then against now, every `IMPACT`
+row and both spend functions per legal row, `markOf` over 360 synthetic
+commanders, `pirateThreat` over 7 systems x 3 dangers x 9 marks x 10 rng
+phases, `memberTier` over its grid, `sourceThreatScore` and `hullThreatTier`
+for all 49 rostered builds, `pirateBrainFor`'s guard and its floored
+target-speed curve under both A/B selections, a 200-kill seeded
+`wreck`/`destroy` trace through the real World (120 ships plus 80 mined
+rocks), and the stayed-behind names read out of HEAD's source. The harness was
+broken (`PRIZE_SATURATION` 25000 → 25100) and reported 211 changes before
+being restored.
+
+The four gates: `npm run build` passes (the two grown test files carry stated
+reasons in `tools/sizes.mjs`); `npm run campaign` byte-identical on all 33
+balance rows (only the runtime stamp differs); `npm run elite-a` 490 passed, 0
+failed — up from 483 by exactly the seven new assertions that run in that
+suite; `npm run portability` 0 contaminated. The full suite reads 3131 from
+3117, all fourteen new. Both console harnesses were grepped for every one of
+the thirty-one names this slice moved, created or left behind, plus the
+functions whose files changed: clean.
+
+Fourteen breaks, all confirmed red and restored: the gate's stray
+`SOME_RULE` (1 failure), the side-effect import into the home (1, and the new
+damage-paths check red against it after its own hole was closed), re-inlined
+literals for the prize saturation (1), the challenge rate (2), both tier
+thresholds (1 each), both score weights (2 each), the escape chance (1) and
+the mining yield (1), a diverged `FAME_FULL` at 2561 (1), the curated
+Sidewinder un-curated (3), the target-speed floor at 151 (1), and
+`IMPACT.ram.ship` at 45 (1).
+
+**Still to do**, in the groups the gate's list already names: the career, the
+galaxy, the station, the console, the combat trainer, saves, and the policy
+seam. Plus one thing no slice has touched: CLAUDE.md does not yet carry the
+read-it-do-not-grep-it instruction below — the gate catches a second home
+mechanically, but the instruction is what stops one being written.
 
 ## What to work out
 

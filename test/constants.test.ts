@@ -160,20 +160,80 @@ const OUTSIDE: readonly Group[] = [
     },
   },
 
-  // --- pending slices --------------------------------------------------------
-
   {
-    why: 'what is left of the fight: how much a kill is worth, what a hit costs, and'
-      + ' which brain flies it',
+    why: 'STAYS: the pack\'s own design ids and catalogue lookups, not tunable rules.'
+      + ' `NON_REGENERATING_DESIGNS` and `COBRA_MK_3_DESIGN` are design ids — the DATA'
+      + ' the fidelity contract and the anchor are stated in, held to ship-specs\''
+      + ' `SOURCE_DESIGN` and to registry.ts by tests — and `ANCHOR_NPC_MAX_ENERGY` is'
+      + ' read through the Elite-A catalogue, which this directory may not import: the'
+      + ' `ANCHOR_RECHARGE_RATING` shape exactly. `HARMLESS_POLICY` is keyed on'
+      + ' `HARMLESS_OVERLAYS` profile ids and typed over `combat-math.ts`, so it cannot'
+      + ' come without an import either; its two banks are measured catalogue figures'
+      + ' (both released stations carry 240) stated as Harmless\'s own',
     files: {
-      'game/npc-energy.ts': ALL,
-      'game/combat.ts': ALL,
-      'game/impact-damage.ts': ALL,
-      'game/threat.ts': ALL,
-      'game/brains.ts': ALL,
-      'game/brain-names.ts': ALL,
+      'game/npc-energy.ts': [
+        'NON_REGENERATING_DESIGNS', 'COBRA_MK_3_DESIGN', 'ANCHOR_NPC_MAX_ENERGY',
+        'HARMLESS_POLICY',
+      ],
     },
   },
+
+  {
+    why: 'MOVED, apart from three: what a kill leaves behind is constants/wreck.ts.'
+      + ' `WRECK_CARGO` and `ORE` are commodity indices into the 1984 market table, and'
+      + ' the ordinary-goods list has three homes the career slice will unify — moving'
+      + ' this one now would leave the other two behind (see'
+      + ' docs/TODO/90-constants-cleanup.md). `BEAM_FLASH` is how long the cockpit beams'
+      + ' stay LIT — a drawing duration read by two orchestrators and no rule, so it'
+      + ' stays under the item\'s own is-it-the-game-or-how-it-looks test',
+    files: {
+      'game/combat.ts': ['WRECK_CARGO', 'ORE', 'BEAM_FLASH'],
+    },
+  },
+
+  {
+    why: 'MOVED, apart from one BLOCKED restatement: the threat model\'s tuning is'
+      + ' constants/threat.ts. `FAME_FULL` is the rating ladder\'s own Dangerous rung'
+      + ' written out again, and it stays beside the model until the career slice gives'
+      + ' the ladder a home it can be an expression over — a literal in the home now'
+      + ' would be one home for the copy and none for the rule.'
+      + ' `test/economy.test.ts` bisects both out of the real functions and fails if'
+      + ' they part. See docs/TODO/90-constants-cleanup.md',
+    files: {
+      'game/threat.ts': ['FAME_FULL'],
+    },
+  },
+
+  {
+    why: 'STAYS: three parsed weights files and the name-to-weights table over them —'
+      + ' resolved once at load from JSON the game ships, not rules, the same shape as'
+      + ' `MISSILE_HULL` — and `LOADED` is keyed on `BrainName`, a type this directory'
+      + ' may not import. The one tunable number the file held, the target-speed floor,'
+      + ' is constants/brain-flight.ts now',
+    files: {
+      'game/brains.ts': ['PIRATE_BRAIN', 'PACK_BRAIN', 'DEFEND_BRAIN', 'LOADED'],
+    },
+  },
+
+  {
+    why: 'STAYS, all of it, per docs/TODO/90\'s own precedent: brain-names.ts is the'
+      + ' import-nothing leaf the home is MODELLED on, and CLAUDE.md names it as where'
+      + ' the scripted/trained rule lives. Nothing in it is a tunable game rule: the'
+      + ' five `BrainName` constants are that rule\'s decisions stated as names, the'
+      + ' five tables are keyed on `BrainName` — a type declared beside them that the'
+      + ' home may not import — the two `AS_*` strings are picker sentinels, and'
+      + ' `SHIPPED_BRAINS` is the frozen no-override default npm test asserts is empty.'
+      + ' Moving any of it would split the one file the rule lives in across two homes',
+    files: {
+      'game/brain-names.ts': [
+        'AS_SHIPPED', 'AS_THE_GAME_FLIES', 'BRAINS', 'SENTINEL_NAMES', 'SHIPPED_SOLO',
+        'SHIPPED_PACK', 'PACK_POLICY', 'TRAINED_SOLO', 'SHIPPED_DEFENCE',
+        'SHIPPED_BRAINS', 'PACK_BRAINS', 'SELECTIONS', 'LIVE_BRAIN_IDS',
+      ],
+    },
+  },
+
+  // --- pending slices --------------------------------------------------------
 
   {
     why: 'the career: the market, the law, contracts, missions and what a hold holds',

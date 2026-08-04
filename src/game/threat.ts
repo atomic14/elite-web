@@ -9,6 +9,10 @@ import { COMMODITIES, type StarSystem } from '../galaxy/galaxy.ts';
 import { isContraband } from './law.ts';
 import { random } from './rng.ts';
 import { npcCombatProfileById, type NpcCombatProfileId } from './ship-identity.ts';
+import {
+  CHALLENGE_RATE, CURATED_TIER, DEFENCE_WEIGHT, GANG_SCORE, LASER_WEIGHT,
+  PRIZE_SATURATION, PROFESSIONAL_SCORE,
+} from '../constants/threat.ts';
 
 // --- who's worth robbing ----------------------------------------------------
 //
@@ -24,19 +28,20 @@ import { npcCombatProfileById, type NpcCombatProfileId } from './ship-identity.t
 //      combat power grows maybe tenfold; this should grow two- or threefold,
 //      so upgrades are felt rather than cancelled out.
 
-/** Combat score at which fame is fully "worth coming for" — Dangerous. */
-const FAME_FULL = 2560;
-/** Share of receptions that are challengers, at full fame. */
-const CHALLENGE_RATE = 0.35;
-/** Slaves, Narcotics, Firearms — worth more to a pirate, and mark you as a smuggler. */
 /**
- * Cargo value (tenths of a credit) at which the prize term saturates — 1,600 Cr.
- * Tuned against the campaign sim: this makes gangs ~5% of receptions (2 per
- * career for a wealthy commander) while holding deaths per career at the 1.4
- * baseline. Lower it and gangs get commoner but the wealth curve collapses
- * (1,200 Cr → 9% gangs but median net worth 2,242 Cr against 3,661).
+ * Combat score at which fame is fully "worth coming for" — Dangerous.
+ *
+ * NOT in constants/threat.ts with the rest of the tuning, because it is not a
+ * free number: 2560 is the rating ladder's own Dangerous rung (`RATINGS` in
+ * game/rating.ts), restated here as a literal because neither file has a home
+ * the other can read it from yet. When the career slice brings the ladder into
+ * src/constants/, this becomes an expression over it rather than a second
+ * copy. Until then `test/economy.test.ts` holds the two together: it bisects
+ * the fame saturation point out of the real `pirateThreat` and the Dangerous
+ * rung out of the real `rating()`, and fails if they part. See
+ * docs/TODO/90-constants-cleanup.md, Blocked.
  */
-const PRIZE_SATURATION = 25000;
+const FAME_FULL = 2560;
 
 /** Everything a pirate can observe about you. */
 export interface Mark {
@@ -54,14 +59,6 @@ export interface Mark {
 }
 
 /** Read a commander the way a pirate's scanner would. */
-/**
- * The most work you may hold at once.
- *
- * Lived as a bare `>= 3` in game.ts and a bare `>= 2` in test/campaign.ts —
- * so the balance harness was playing a game with a smaller bulletin board than
- * the one that ships.
- */
-
 export function markOf(
   c: {
     cargo: number[];
@@ -117,43 +114,6 @@ export function memberTier(groupTier: number, memberIndex: number): number {
 // three NAMED source fields instead — a hull moves tier when the pack says it
 // is tougher, and never because someone retyped a table.
 
-/**
- * How dangerous one released build looks, from the pack's own numbers.
- *
- * Three fields, because three things decide whether a pirate is a nuisance or
- * a problem: how much shooting it survives (`maxEnergy`), how much of each hit
- * it shrugs off (`perHitDefence` — the subtraction, so a point of it is worth
- * far more than a point of energy), and how hard it hits back (`laserPower`).
- * Speed is deliberately absent: a fast hull is harder to catch, not harder to
- * beat, and weighting it made the Sidewinder outrank the Cobra.
- *
- * The weights are Harmless's and the numbers they multiply are the source's.
- */
-const DEFENCE_WEIGHT = 12;
-const LASER_WEIGHT = 8;
-
-/** Score at or above which a hull is a professional's, then a gang's. */
-const PROFESSIONAL_SCORE = 110;
-const GANG_SCORE = 160;
-
-/**
- * Hulls held at a tier the score alone would not give them, and why.
- *
- * ONE entry, and it has to exist: the builds these two turn up in as PIRATES —
- * `V:17` and `W:19`, which is what `role-variants.ts` picks and therefore what
- * the scorer reads — are the same ship in every field that matters (energy 82,
- * defence 2, laser 5, weapon byte 40; score 146 each), so no classification
- * over source data can separate them. It was true of the recommended defaults
- * before TODO 29 and it is still true of the pirate builds after it.
- * The Sidewinder is the cheap hull an opportunist flies in every version of
- * this game and the Krait is what turns up when someone means it, and that
- * distinction is worth keeping. It is a curated exception, stated here rather
- * than smuggled in as a tie-break nobody would find.
- */
-const CURATED_TIER: Record<string, 0 | 1 | 2> = {
-  'elite-a:design:17': 0, // Sidewinder — see above
-};
-
 /** The threat score of an exact released build. Exported for the tests. */
 export function sourceThreatScore(profileId: NpcCombatProfileId): number {
   const record = npcCombatProfileById(profileId);
@@ -163,18 +123,30 @@ export function sourceThreatScore(profileId: NpcCombatProfileId): number {
 }
 
 /**
+ * The tier ladder over a bare score — the two thresholds and nothing else.
+ *
+ * Its own function so the thresholds can be measured rather than transcribed:
+ * `test/ship-roles.test.ts` bisects both steps out of it and compares them to
+ * `PROFESSIONAL_SCORE` and `GANG_SCORE`, which a check probing at the
+ * constants themselves could never fail.
+ */
+export function tierForScore(score: number): 0 | 1 | 2 {
+  return score >= GANG_SCORE ? 2 : score >= PROFESSIONAL_SCORE ? 1 : 0;
+}
+
+/**
  * Which tier a hull flies in, from what the pack says it is.
  *
- * `designId` is only consulted for the curated exception above; everything
- * else comes off the exact build's own combat fields.
+ * `designId` is only consulted for the curated exception
+ * (`CURATED_TIER`, constants/threat.ts); everything else comes off the exact
+ * build's own combat fields.
  */
 export function hullThreatTier(
   designId: string, profileId: NpcCombatProfileId,
 ): 0 | 1 | 2 {
   const curated = CURATED_TIER[designId];
   if (curated !== undefined) return curated;
-  const score = sourceThreatScore(profileId);
-  return score >= GANG_SCORE ? 2 : score >= PROFESSIONAL_SCORE ? 1 : 0;
+  return tierForScore(sourceThreatScore(profileId));
 }
 
 export interface PirateThreat {

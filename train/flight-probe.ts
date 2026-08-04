@@ -64,7 +64,7 @@ import {
   type CombatSimReport, type FrameSample, type SimOutcome,
 } from '../src/game/combat-sim-report.ts';
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
-import { IMPACT } from '../src/game/impact-damage.ts';
+import { IMPACT } from '../src/constants/impact.ts';
 import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { describeFlight } from '../src/game/break-off.ts';
 

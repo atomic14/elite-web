@@ -19,6 +19,8 @@ Three kinds, and they want different treatment:
 | --- | --- | --- |
 | `WORLD_SPEED_PER_SOURCE_SPEED` = `PLAYER_FLIGHT.maxSpeed / playerHull(COBRA_MK_3_HULL_ID).maxSpeed` | `game/ship-specs.ts:107` | nothing scheduled — see below |
 | `ANCHOR_RECHARGE_RATING` = `playerHull(COBRA_MK_3_HULL_ID).energyRechargeRating` | `game/systems.ts` | nothing scheduled — the same case, see below |
+| `ANCHOR_NPC_MAX_ENERGY` = `recommendedNpcProfile(COBRA_MK_3_DESIGN).maxEnergy` | `game/npc-energy.ts` | nothing scheduled — the same case again, found by slice 7 |
+| `FAME_FULL = 2560` — the rating ladder's Dangerous rung, restated | `game/threat.ts` | the career slice, which owns `rating.ts`'s `RATINGS` |
 
 All of these are correctly-derived constants that an import-nothing leaf cannot
 reach. **This will keep happening**: the constants that most want to be
@@ -46,6 +48,16 @@ beside the roster, where both halves are already in scope, and the reasoning is
 written out beside it. Anyone who wants it in the home has to answer the leaf
 question first, for the whole directory.
 
+**`FAME_FULL` is a different kind of blocked: not a catalogue reach, a
+restatement.** 2560 is `rating.ts`'s own Dangerous rung, and threat.ts says so
+— but the ladder has no home in `src/constants/` yet, so an expression cannot
+be written, and moving the literal INTO the home would enshrine the copy while
+the rule stayed outside. It waits in `game/threat.ts` beside the model, and
+until the career slice moves the ladder, `test/economy.test.ts` holds the two
+together: it bisects the fame saturation score out of the real `pirateThreat`
+and asserts `rating()` starts saying Dangerous at exactly that score. Slice 7
+confirmed the pair by breaking it — 2561 goes red.
+
 **`ANCHOR_RECHARGE_RATING` is the second of exactly that shape, found by slice
 4, and it is now the only constant left in `game/systems.ts`.** It is the Cobra
 Mk III's `energyRechargeRating`, read from the catalogue so that a hull rated 2
@@ -56,6 +68,13 @@ which says in its header that this half could not follow and why. Slice 3
 predicted this would keep happening and it did, in the very next slice; the two
 of them together are the argument that whoever reopens the leaf rule should
 reopen it once, for the directory, rather than case by case.
+
+**`ANCHOR_NPC_MAX_ENERGY` is the third, found where the first two predicted.**
+The representative NPC's released bank, read off the catalogue through
+`recommendedNpcProfile(COBRA_MK_3_DESIGN)` so a re-import that moves the
+Cobra's bank moves the anchor. Same reach, same refusal to restate a pack
+number; it stays in `game/npc-energy.ts` as a named entry on the gate's list,
+beside the design ids it is read from.
 
 ---
 
@@ -369,6 +388,36 @@ and the rounded figure would have been off by the wrong sign. `test/arena.test.t
 had a round `Math.cos(1.0)` where it meant the cone the spawner promises, and
 reads `OPPOSITION_CONE * OPPOSITION_CONE_FAR` now.
 
+### `PRIZE_SATURATION`'s value and its own prose disagree by 900 credits
+
+The survey's strongest finding, moved to `constants/threat.ts` by slice 7 with
+the value untouched and both readings written beside it. The constant is
+25,000 tenths — 2,500 Cr — and the comment it carried for its whole life said
+"1,600 Cr", with its swept comparison ("1,200 Cr → 9% gangs but median net
+worth 2,242 Cr against 3,661") also written against the 1,600 reading. Either
+the constant moved from 16,000 and the prose never followed, or the prose was
+wrong when written; the history does not say which. 25,000 is what shipped and
+what `npm run campaign`'s 33 rows are tuned against. Choosing the other
+reading moves how often every wealthy commander meets a gang, so **it is a
+balance decision for Chris with a campaign run attached, not a refactor.**
+
+### The game floors a brain's target-speed input and the trainer does not
+
+The training partition's biggest divergence, recorded beside
+`TARGET_SPEED_FLOOR` when slice 7 moved it to `constants/brain-flight.ts`. The
+game hands every attack policy `max(150, actual)` (brains.ts `targetSpeed`);
+`ai-training/scenario.ts` hands its pirates the trader's raw speed, so against
+a slow or braking target a training pirate reads observation slot 10 anywhere
+down to 0.0 where the same brain in the game never reads below 0.375. Two of
+the four target speeds `flies()` samples are unreachable in the live game.
+
+Two readings survive: the floor is a real game rule the trainer must apply —
+in which case every pirate brain was fitted in a world that does not exist
+below 150 — or it is a patch for the brain being out of distribution at low
+speed, and brains.ts already names the honest fix ("deleting the input
+entirely... costs a retrain of every brain"). **Either way it is a behaviour
+change with a training run attached — a decision, not a lookup.**
+
 ### The thargon timer is 5 in one file and 4 in another
 
 `constants/encounters.ts`'s `THARGON_REDEPLOY` is 5 and `THARGON_AMBUSH_DELAY`
@@ -442,6 +491,23 @@ numbers impossible to separate, and the argument is written beside the constant.
 | `scatter(1)` in the hermit's placement | `spawning.ts` | nobody, and it is **a no-op that costs an rng draw**: `scatter(HERMIT_SCATTER).addScaledVector(scatter(1), 2)` adds a vector of magnitude 1 to 3 units to one of 7,000 to 21,000. Deleting it would change every seeded sky after it, so it is not a tidy-up |
 | `d < 7000` — how far an NPC chases another NPC before losing interest | `npc.ts:680` | the rest of the fight. It is one rung above every constant in `hunt-ranges.ts` (6,000/6,500/6,000) and the same number as `AMBUSH_STANDOFF`, which is a different rule. Nothing names it and nothing tests it |
 
+### What slice 7 left behind, and for whom
+
+| left | where | whose |
+| --- | --- | --- |
+| `WRECK_CARGO` and `ORE` — commodity indices for what a wreck spills and a rock yields | `combat.ts` | the career: `WRECK_CARGO` is the third home of the ordinary-goods list (see slice 6's entry above), `ORE` is its sibling, and both are indices into a table the galaxy slice owns |
+| `BEAM_FLASH = 0.12` — how long the cockpit beams stay lit | `combat.ts` | the console: it is a drawing duration under the item's own test, read by two orchestrators; the console slice can overrule that reading |
+| `capacity: largeBay ? 35 : 20` in `markOf` | `threat.ts` | the career. The survey's four-home cargo-capacity pair: `commander.ts:89` owns `cargoCapacity()`, and threat.ts restates both figures because the two files have no shared home yet |
+| the `* 4` tenths-per-basePrice multiplier in `markOf` | `threat.ts` | the career: `jettison.ts`'s `VALUE_PER_TONNE = 4` says in prose it must equal this, and nothing enforces it — the survey's pair, still unexpressed |
+| the government scale top, `7 - sys.government` | `threat.ts` | the galaxy: the survey counts six homes for the 7, which is `GOVERNMENT_NAMES.length - 1` |
+| `pirateThreat`'s ~18 formula weights (0.05, 0.25, 0.7, 0.6, 1.5, 1.2, 0.28, 0.5, 0.4...) | `threat.ts` | nobody: the shape of one function, out of scope by the item's own local-to-one-function rule, and `npm run campaign` pins them in aggregate |
+
+One survey doubt was settled by measurement rather than moved:
+`HARMLESS_POLICY`'s rock-hermit bank says "240 is what a Coriolis carries" and
+the survey suspected the figure was really the Dodo's. Both released stations
+carry 240 (read from the catalogue, 2026-08-04), so the prose is true of the
+Coriolis — and of the Dodo — and nothing needed changing.
+
 ### The README is a prose home for the torus multiplier
 
 `README.md`'s key table says "torus jump drive (8×, stars streak; cuts out when
@@ -509,6 +575,14 @@ functions whose exports changed shape, and both files were clean of every one.
 Neither harness names a scatter, a population chance, an encounter clock or any
 spawner function; `spawning.ts`, `population.ts`, `encounters.ts` and `world.ts`
 are not reached from either of them at all.
+
+Slice 7 did it for all thirty-one names it moved, created or left behind as
+named entries, plus the threat and brain functions whose files changed
+(`pirateThreat`, `markOf`, `memberTier`, `tierForScore`, `hullThreatTier`,
+`sourceThreatScore`, `pirateBrainFor`, `defenceBrain`, `npcImpactDamage`,
+`playerImpactDamage`) and the string `impact-damage` itself: neither harness
+names any of them. Their `threat` hits are local variables of their own combat
+loops.
 
 Slice 5 did it for all twenty-two names it moved, renamed or created, and both
 files were clean of every one of them. The only things either harness takes from

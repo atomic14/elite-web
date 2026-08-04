@@ -50,7 +50,7 @@ import { Episode, type Controller, type TargetHullId } from '../src/ai-training/
 import { brainFromFile, type BrainFile } from '../src/ai-training/policy.ts';
 import { defenceBrainNameFor } from '../src/game/brain-names.ts';
 import { countPasses, quantile } from '../src/game/combat-sim-report.ts';
-import { IMPACT } from '../src/game/impact-damage.ts';
+import { IMPACT } from '../src/constants/impact.ts';
 import { FIXED_DT } from '../src/constants/world-clock.ts';
 
 /** Held-out, and distinct from `flight-probe.ts`'s PROBE_BASE. */

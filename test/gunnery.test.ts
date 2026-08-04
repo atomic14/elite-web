@@ -316,7 +316,7 @@ console.log('\nordnance');
     let events: ReturnType<typeof ord.step> = [];
     for (let i = 0; i < 900 && !events.length; i++) events = ord.step(1 / 60, at(0, 0, 0));
     // The event reports the IMPACT; what a warhead is worth is the step's, from
-    // `IMPACT.warhead` — see game/impact-damage.ts.
+    // `IMPACT.warhead` — see src/constants/impact.ts.
     check('...and reports the impact for the step to bill',
       events.some((e) => e.kind === 'hitPlayer'));
 

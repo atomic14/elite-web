@@ -1,6 +1,6 @@
 // Ships are solid: the commander's contact radius, and what a collision costs in
 // speed. The overlap tests are `game/collisions.ts`; what a ram costs in DAMAGE
-// is `IMPACT.ram` in game/impact-damage.ts.
+// is `IMPACT.ram` in `./impact.ts`.
 
 /**
  * Speed retained after a collision — a ram should cost you your run.

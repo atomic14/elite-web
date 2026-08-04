@@ -25,7 +25,9 @@ import {
 import { generateGalaxy, generateMarket, COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { hermitMarket, marketEstimate, FLUCTUATIONS } from '../src/game/contracts.ts';
 import { LivingGalaxy } from '../src/galaxy/living.ts';
-import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
+import { pirateThreat, markOf, memberTier, type Mark } from '../src/game/threat.ts';
+import { CHALLENGE_RATE, PRIZE_SATURATION } from '../src/constants/threat.ts';
+import { rating } from '../src/game/rating.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 import { g1 } from './fixtures.ts';
@@ -230,6 +232,59 @@ console.log('\npirate economics');
       pirateThreat(lave, 0.1, markOf(unknown), fixed).tier === 0);
     check('challengers arrive as an organised gang, not a mugging',
       rolls.filter((r) => r.challenged).every((r) => r.tier === 2));
+  }
+
+  // The tuning moved to constants/threat.ts, so the rule and its numbers are
+  // in different files — these hold them together in the measured shape:
+  // each number is extracted from the REAL pirateThreat and compared to the
+  // constant, which a probe at `CONSTANT ± 1` could never fail.
+  {
+    const bare = (over: Partial<Mark>): Mark => ({
+      cargoValue: 0, contraband: 0, capacity: 20, combatScore: 0,
+      laser: 'pulse', notoriety: 0, ...over,
+    });
+
+    // The prize term: with nothing else on the mark, appeal is the prize
+    // alone, so the smallest cargo value at which it reaches 1 IS the
+    // saturation point.
+    let lo = 0;
+    let hi = 1 << 24;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pirateThreat(lave, 0, bare({ cargoValue: mid }), fixed).appeal >= 1) hi = mid;
+      else lo = mid;
+    }
+    eq('the prize term saturates exactly at PRIZE_SATURATION', hi, PRIZE_SATURATION);
+
+    // The challenge roll: at full fame, the roll's threshold IS the rate.
+    // Bisect the rng value at which `challenged` flips.
+    const famous = bare({ combatScore: 1 << 24 });
+    const flips = (x: number) => pirateThreat(lave, 0, famous, () => x).challenged;
+    let fLo = 0;
+    let fHi = 1;
+    for (let i = 0; i < 60; i += 1) {
+      const mid = (fLo + fHi) / 2;
+      if (flips(mid)) fLo = mid; else fHi = mid;
+    }
+    check(`the challenge roll at full fame is CHALLENGE_RATE (measured ${fHi})`,
+      Math.abs(fHi - CHALLENGE_RATE) < 1e-12);
+
+    // FAME_FULL stays module-private in threat.ts because it is not a free
+    // number: it restates the rating ladder's Dangerous rung, and cannot be an
+    // expression over it until the career slice gives the ladder a home. This
+    // is the check that holds the two copies together until then — the fame
+    // saturation score, bisected out of pirateThreat, must be exactly the
+    // score at which the real rating() starts saying Dangerous.
+    const challengedAt = (score: number) => pirateThreat(
+      lave, 0, bare({ combatScore: score }), () => CHALLENGE_RATE * (1 - 1e-9)).challenged;
+    let sLo = 0;
+    let sHi = 1 << 24;
+    while (sLo + 1 < sHi) {
+      const mid = (sLo + sHi) >> 1;
+      if (challengedAt(mid)) sHi = mid; else sLo = mid;
+    }
+    check(`fame saturates at the rating ladder's Dangerous rung (score ${sHi})`,
+      rating(sHi) === 'Dangerous' && rating(sHi - 1) !== 'Dangerous');
   }
 
   // ratings count difficulty, not bodies

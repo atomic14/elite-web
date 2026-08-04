@@ -33,7 +33,10 @@ import {
   shipAccel, sourceSpeedToWorld, specForDesign, WORLD_SPEED_PER_SOURCE_SPEED,
   type NpcSpec,
 } from '../src/game/ship-specs.ts';
-import { hullThreatTier, sourceThreatScore } from '../src/game/threat.ts';
+import { hullThreatTier, sourceThreatScore, tierForScore } from '../src/game/threat.ts';
+import {
+  DEFENCE_WEIGHT, GANG_SCORE, LASER_WEIGHT, PROFESSIONAL_SCORE,
+} from '../src/constants/threat.ts';
 import {
   isHarmlessOverlayId, npcCombatProfileById, recommendedProfileIdFor, shipDesign,
   shipDesignIdOf, SHIP_DESIGN_IDS,
@@ -221,6 +224,55 @@ console.log('\npirate threat tiers classify from source combat fields');
     'Cobra Mk III,Fer-de-Lance,Python');
   check('...and no tier is empty, so every threat level has hulls to draw from',
     PIRATE_TIERS.every((tier) => tier.length > 0));
+
+  // The constants moved to constants/threat.ts, so the rule and its numbers
+  // are in different files now — these hold them together, in the measured
+  // shape: the thresholds and the weights are extracted from the REAL
+  // functions and compared to the constants, which a probe at
+  // `CONSTANT ± 1` could never fail (the slice-5 lesson).
+  {
+    // The ladder's two steps, bisected out of tierForScore.
+    const stepTo = (tier: 1 | 2): number => {
+      let lo = 0;
+      let hi = 1 << 14;
+      while (lo + 1 < hi) {
+        const mid = (lo + hi) >> 1;
+        if (tierForScore(mid) >= tier) hi = mid; else lo = mid;
+      }
+      return hi;
+    };
+    eq('a professional begins exactly at PROFESSIONAL_SCORE', stepTo(1), PROFESSIONAL_SCORE);
+    eq('a gang ringleader begins exactly at GANG_SCORE', stepTo(2), GANG_SCORE);
+
+    // The two weights, solved back out of sourceThreatScore over the real
+    // roster: score - maxEnergy = defence * DW + laser * LW, so two builds
+    // with independent (defence, laser) pairs determine both, and every other
+    // build must then fit with zero residual.
+    const rows = [...Object.values(SPECS).flat(), CONSTRICTOR_SPEC]
+      .flatMap((s) => {
+        const record = npcCombatProfileById(s.profileId);
+        if (record.source !== 'elite-a') return [];
+        return [{
+          d: record.profile.perHitDefence, l: record.profile.laserPower,
+          rhs: sourceThreatScore(s.profileId) - record.profile.maxEnergy,
+        }];
+      });
+    const [a, b] = (() => {
+      for (const p of rows) {
+        for (const q of rows) {
+          if (p.d * q.l - p.l * q.d !== 0) return [p, q];
+        }
+      }
+      throw new Error('no independent pair of builds to solve the weights from');
+    })();
+    const det = a.d * b.l - a.l * b.d;
+    const solvedDefence = (a.rhs * b.l - b.rhs * a.l) / det;
+    const solvedLaser = (a.d * b.rhs - b.d * a.rhs) / det;
+    eq('the defence weight the scorer really applies', solvedDefence, DEFENCE_WEIGHT);
+    eq('...and the laser weight', solvedLaser, LASER_WEIGHT);
+    check('...and every rostered build fits those weights with zero residual',
+      rows.every((r) => r.rhs === r.d * DEFENCE_WEIGHT + r.l * LASER_WEIGHT));
+  }
 }
 
 // --- no source combat field is copied into the tables -----------------------

@@ -29,7 +29,8 @@ import { Episode } from '../src/ai-training/scenario.ts';
 import {
   genomeSize, HIDDEN, OBS_SIZE, OUT_SIZE, type Brain,
 } from '../src/ai-training/policy.ts';
-import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';
+import { playerImpactDamage } from '../src/game/impact-damage.ts';
+import { IMPACT } from '../src/constants/impact.ts';
 import { defenceFight } from '../train/defence-fight.ts';
 import {
   championScore, outcomeOf, defenceTerms, shapedContribution,

@@ -20,7 +20,11 @@ import {
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
-import { IMPACT, npcImpactDamage } from '../src/game/impact-damage.ts';
+import { npcImpactDamage } from '../src/game/impact-damage.ts';
+import { IMPACT } from '../src/constants/impact.ts';
+import {
+  ESCAPE_CHANCE, MINING_YIELD_MIN, MINING_YIELD_SPAN,
+} from '../src/constants/wreck.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { check, eq } from './harness.ts';
@@ -142,6 +146,56 @@ console.log('\ncombat');
     eq('a laser hit reports both sounds before ordered combat consequences',
       ordered.join('|'), 'sound:laser|sound:hit|fired|beam|offence');
   }
+  {
+    // The wreck constants moved to constants/wreck.ts, so the rule and its
+    // numbers are in different files — these fly the REAL wreck path over
+    // seeded kills and hold what it measurably does against the constants, so
+    // a re-inlined literal in combat.ts costs a red line (the
+    // spawning.test.ts shape).
+    seedWorld(90_007);
+    const escapeRate = (role: 'trader' | 'pirate'): number => {
+      const { world, combat } = setup();
+      let pods = 0;
+      for (let i = 0; i < 400; i += 1) {
+        const npc = world.spawn(role, at(-500), 0);
+        const before = world.cargo.items.filter((k) => k.kind === 'capsule').length;
+        combat.wreck(npc);
+        if (world.cargo.items.filter((k) => k.kind === 'capsule').length > before) {
+          pods += 1;
+        }
+      }
+      return pods / 400;
+    };
+    const traders = escapeRate('trader');
+    const pirates = escapeRate('pirate');
+    check(`a trader's pilot punches out at ESCAPE_CHANCE.trader `
+      + `(measured ${traders} over 400 kills)`,
+    Math.abs(traders - ESCAPE_CHANCE.trader) < 0.07);
+    check(`...and a pirate's at ESCAPE_CHANCE.other (measured ${pirates})`,
+      Math.abs(pirates - ESCAPE_CHANCE.other) < 0.07);
+
+    // ...and what a mined rock pays: every yield inside the stated band, and
+    // both ends of the band actually drawn.
+    const { world, combat, c } = setup();
+    (c.equipment as { miningLaser: boolean }).miningLaser = true;
+    const yields = new Set<number>();
+    let outside = 0;
+    for (let i = 0; i < 200; i += 1) {
+      const rock = world.spawn('asteroid', at(-500), 0);
+      const before = world.cargo.items.length;
+      combat.destroy(c, rock);
+      const got = world.cargo.items.length - before;
+      yields.add(got);
+      if (got < MINING_YIELD_MIN || got >= MINING_YIELD_MIN + MINING_YIELD_SPAN) {
+        outside += 1;
+      }
+    }
+    check(`a mined rock always pays within the stated band (saw ${
+      [...yields].sort().join('/')})`, outside === 0);
+    check('...and the band\'s floor and ceiling are both real',
+      yields.has(MINING_YIELD_MIN)
+      && yields.has(MINING_YIELD_MIN + MINING_YIELD_SPAN - 1));
+  }
 }
 // --- collision rates --------------------------------------------------------
 // The collision round concluded the shipped brains "already fly clear of the
@@ -159,7 +213,7 @@ console.log('\ncombat');
 console.log('\ncollision rates');
 {
   // What ONE ram costs a pirate, in the units its bank is kept in: the stated
-  // `IMPACT.ram` (game/impact-damage.ts). The ratio below is a count of
+  // `IMPACT.ram` (constants/impact.ts). The ratio below is a count of
   // collisions, so it has to divide by the same number the episode subtracted.
   const COLLISION_DAMAGE = npcImpactDamage(IMPACT.ram);
   const rams = (make: () => { pirates: Controller[]; trader: Controller; traderArmed?: boolean },

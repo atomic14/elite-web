@@ -42,7 +42,8 @@ import { CombatComputer } from '../src/game/combat-computer.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { check } from './harness.ts';
 import { playerPoolPoints } from '../src/game/damage-units.ts';
-import { IMPACT, npcImpactDamage } from '../src/game/impact-damage.ts';
+import { npcImpactDamage } from '../src/game/impact-damage.ts';
+import { IMPACT } from '../src/constants/impact.ts';
 import { dealToNpc } from '../src/game/damage-dealt.ts';
 
 // --- the exercise cannot touch the career ------------------------------------

@@ -50,7 +50,7 @@ import type {
  * 1 -> 2 (TODO 28): `damageToYou` and every `damageBySource` bucket in the
  * `them` direction changed MEANING. The laser buckets did not move, but a ram,
  * a canister on the hull, a Coriolis scrape and a warhead are stated point
- * numbers now (`impact-damage.ts`) rather than a normalized fraction pushed
+ * numbers now (`constants/impact.ts`) rather than a normalized fraction pushed
  * through a conversion — a warhead is 250 pool points where it was 332, and
  * `damageFromYou` moved too, because a crossfire hit is the firing build's own
  * laser against the target's own defence rather than a flat 11 points. Records

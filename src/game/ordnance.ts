@@ -56,7 +56,7 @@ export interface Missile {
  * see the scale — and `killed` was worse: an ordnance module deciding a ship was
  * destroyed, which is a consequence (a bounty, a legal status, a contract tick)
  * and therefore the Game's. What a warhead is worth is `IMPACT.warhead` in
- * impact-damage.ts, and the step spends it like any other hit.
+ * constants/impact.ts, and the step spends it like any other hit.
  */
 export type OrdnanceEvent =
   /** a missile reached an NPC — the Game applies the warhead and bills what follows */

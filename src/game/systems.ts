@@ -17,7 +17,7 @@
 // module that owns the rule and by nothing else: an NPC laser through
 // `gunnery.ts`'s `npcLaserDamageToPlayer` (its power, less this hull's armour,
 // once), and a ram, a canister, the Coriolis wall or a warhead through
-// `impact-damage.ts`. TODO 28 deleted the conversion that stood here, and the
+// `constants/impact.ts`. TODO 28 deleted the conversion that stood here, and the
 // normalized scale it converted from: there is no scale left to convert.
 //
 // RECHARGE IS HARMLESS POLICY, and the rates are `constants/recharge.ts` — the

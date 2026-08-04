@@ -21,7 +21,7 @@ import {
 // WHAT A RAM COSTS IS NOT HERE. It was `RAM_DAMAGE = 0.45`, a normalized
 // fraction that meant 44 points to a ship and 115 to the commander once it had
 // crossed a conversion — the mixing TODO 28 removed. The two numbers are
-// `IMPACT.ram` in game/impact-damage.ts now, stated in the units they are spent
+// `IMPACT.ram` in constants/impact.ts now, stated in the units they are spent
 // in. This file still says who touched whom and how much speed they keep; the
 // price stays the caller's, exactly as the header says.
 

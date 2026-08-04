@@ -66,7 +66,8 @@ import {
   npcHitChance, npcTriggerPull, npcWeaponByte,
 } from '../game/gunnery.ts';
 import { npcCrossfireDamage } from '../game/npc-energy.ts';
-import { IMPACT, npcImpactDamage, playerImpactDamage } from '../game/impact-damage.ts';
+import { npcImpactDamage, playerImpactDamage } from '../game/impact-damage.ts';
+import { IMPACT } from '../constants/impact.ts';
 import type { NpcEnergyPoints, PlayerPoolPoints } from '../game/damage-units.ts';
 import {
   COBRA_MK_3_HULL_ID,
@@ -383,8 +384,8 @@ export const EPISODE_SCHEMA = 5;
 //   NPC laser -> the target     gunnery.ts  npcLaserDamageToPlayer
 //   NPC laser -> another ship   npc-energy.ts npcCrossfireDamage
 //   player laser -> a ship      npc.ts      takeLaserHit (the oracle)
-//   a ram, either way           impact-damage.ts IMPACT.ram
-//   a warhead -> the target     ordnance.ts flies it, impact-damage.ts
+//   a ram, either way           constants/impact.ts IMPACT.ram
+//   a warhead -> the target     ordnance.ts flies it, constants/impact.ts
 //                               IMPACT.warhead prices it (docs/TODO/62)
 //
 // AND THE POOLS COME BACK, by `systems.ts`'s own `regenerate` and no other rule

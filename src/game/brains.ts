@@ -34,6 +34,7 @@ import {
 // it was a constant here and a literal there, and only one of them ever got
 // fixed. See constants/attack-run.ts.
 import { BRAIN_HANDOVER_RANGE } from '../constants/attack-run.ts';
+import { TARGET_SPEED_FLOOR } from '../constants/brain-flight.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import defendBrainFile from '../ai-training/brains/jameson-defend-g2.json' with { type: 'json' };
@@ -131,13 +132,6 @@ export function brainByName(name: BrainName): Brain | null {
 }
 
 /**
- * Floor under the target speed handed to the brains. See the call site in
- * update() — below roughly 150 the attack policies stop throttling forward,
- * and a commander who slows to fight gets pirates that hang in space.
- */
-const TARGET_SPEED_FLOOR = 150;
-
-/**
  * Pure value behind the optional console handle used by training harnesses.
  * The platform decides whether and where to publish it.
  */
@@ -168,28 +162,17 @@ export interface BrainChoice {
    */
   guard: number;
   /**
-   * What the brain is told the target's speed is.
+   * What the brain is told the target's speed is: real where the brain is
+   * competent, floored where it is not.
    *
-   * This was hardcoded to 300 for years because observe() feeds
+   * It was hardcoded to 300 for years because observe() feeds
    * `target.speed/400` to the network and the brains had only seen a freighter
-   * near 220. Generation 1 was trained across 90, 220 and 400 speed hulls plus
-   * two runners, so passing the real speed looked safe. It was not: Chris
-   * flies at a median of 66 and stops dead to turn, and pirates went inert —
-   * "they now sit still spinning", then "they just sit there". Measured in the
-   * sim, the attacker throttles forward on 19% of frames against a stationary
-   * target and 84% against one at 220.
-   *
-   * Adding a stationary knife-fighter to the training pool (g2) moved that
-   * from 19% to 43%, which is better and still not flying. The input is the
-   * problem, not the fit: a bare speed scalar carries no direction, tells a
-   * pirate almost nothing it cannot see from the geometry, and the policy has
-   * latched onto it anyway.
-   *
-   * So: real speed where the brain is competent, floored where it is not. The
-   * floor is a lie, but a bounded one that preserves the variation that
-   * actually matters — a target running at 400 still reads differently from
-   * one turning at 200. Deleting the input entirely is the honest fix and
-   * costs a retrain of every brain.
+   * near 220; passing the real speed alone made pirates go inert against a
+   * commander who stops to fight. The input is the problem, not the fit: a
+   * bare speed scalar carries no direction, tells a pirate almost nothing it
+   * cannot see from the geometry, and the policy has latched onto it anyway.
+   * The floor, its measurements and the trainer divergence it carries are
+   * `TARGET_SPEED_FLOOR` in constants/brain-flight.ts.
    */
   targetSpeed: (actual: number) => number;
 }

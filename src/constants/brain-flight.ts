@@ -1,5 +1,6 @@
 // How a trained policy becomes flight: the rate ramp every shipped brain was
-// fitted at, and how often one re-decides.
+// fitted at, how often one re-decides, and the one correction the game applies
+// to what a brain is told on the way in.
 //
 // The rule is `player.ts`'s `rampToward` — one copy, shared; these are the
 // arguments an NPC's brain
@@ -42,3 +43,34 @@ export const BRAIN_RATE_DECAY = 5.2207;
  * `0.1` out again.
  */
 export const DECISION_INTERVAL = 0.1;
+
+/**
+ * Floor under the target speed an attack policy is told — below roughly this,
+ * the shipped attack policies stop throttling forward, so a commander who
+ * slows to fight gets pirates that hang in space.
+ *
+ * The floor is a lie, and a bounded one: `observe()` feeds `target.speed/400`
+ * to the network, the brains were fitted against targets near freighter speed,
+ * and Chris flies at a median of 66 and stops dead to turn — which read as
+ * "they now sit still spinning". Measured in the sim, the attacker throttles
+ * forward on 19% of frames against a stationary target and 84% against one at
+ * 220; adding a stationary knife-fighter to the training pool (g2) moved that
+ * to 43%, which is better and still not flying. So the game hands the policy
+ * real speed where it is competent and this floor where it is not, preserving
+ * the variation that matters — a target running at 400 still reads differently
+ * from one turning at 200. Deleting the input entirely is the honest fix and
+ * costs a retrain of every brain. How the lie is applied is
+ * `BrainChoice.targetSpeed` in game/brains.ts.
+ *
+ * A DIVERGENCE, RECORDED RATHER THAN RESOLVED: the game applies this floor and
+ * the trainer does not — `ai-training/scenario.ts` hands its pirates the
+ * trader's raw speed, so against a slow or braking target a training pirate
+ * reads observation slot 10 anywhere down to 0.0 where the same brain in the
+ * game never reads below 150/400. Either the floor is a real game rule the
+ * trainer must apply — in which case every pirate brain was fitted in a world
+ * that does not exist below 150 — or it is a patch for the brain being out of
+ * distribution at low speed, in which case the fix is the retrain above.
+ * Either way it is a behaviour change with a training run attached, so it is a
+ * decision and not a refactor. See docs/TODO/90-constants-cleanup.md, Open.
+ */
+export const TARGET_SPEED_FLOOR = 150;

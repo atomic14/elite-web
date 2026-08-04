@@ -36,13 +36,12 @@ import { offenceFor, OFFENDER, FUGITIVE } from './law.ts';
 import { constrictorDestroyed } from './missions.ts';
 import { random, randomInt } from './rng.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
+import { ESCAPE_CHANCE, MINING_YIELD_MIN, MINING_YIELD_SPAN } from '../constants/wreck.ts';
 
 /** Cargo an ordinary wreck spills: food, textiles, liquor, machinery, alloys, furs, minerals. */
 const WRECK_CARGO = [0, 1, 4, 8, 9, 11, 12];
 /** A mined asteroid yields minerals and metals. */
 const ORE = [12, 12, 12, 13, 14];
-/** How often the pilot punches out before the hull goes. */
-const ESCAPE_CHANCE = { trader: 0.45, other: 0.2 };
 /** Seconds the cockpit beams stay lit after a shot. */
 export const BEAM_FLASH = 0.12;
 
@@ -241,7 +240,8 @@ export class Combat {
       out.push(say(`BOUNTY: ${formatCredits(npc.bounty)}`, 3));
     }
     if (npc.role === 'asteroid' && c.equipment.miningLaser) {
-      this.world.cargo.spawn(npc.object.position, 1 + randomInt(3), ORE);
+      this.world.cargo.spawn(npc.object.position,
+        MINING_YIELD_MIN + randomInt(MINING_YIELD_SPAN), ORE);
     }
     if (npc.state.isMissionTarget) {
       const e = constrictorDestroyed(c);
@@ -292,7 +292,7 @@ export class Combat {
    * ahead? And only the caller knows what hit them, which is why the number
    * arrives already finished and already in the commander's own unit: an NPC
    * laser has met the hull's armour once (`gunnery.ts`), and a ram, a canister,
-   * the Coriolis wall or a warhead is a stated `IMPACT` (`impact-damage.ts`).
+   * the Coriolis wall or a warhead is a stated `IMPACT` (`constants/impact.ts`).
    */
   hitPlayer(
     sys: ShipSystems,

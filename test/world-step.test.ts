@@ -15,7 +15,8 @@ import {
   type StepEvent,
   type StepHost,
 } from '../src/game/world-step.ts';
-import { IMPACT, playerImpactDamage } from '../src/game/impact-damage.ts';
+import { playerImpactDamage } from '../src/game/impact-damage.ts';
+import { IMPACT } from '../src/constants/impact.ts';
 import { playerPoolPoints, type PlayerPoolPoints } from '../src/game/damage-units.ts';
 import { npcLaserDamageToPlayer } from '../src/game/gunnery.ts';
 import { freshState } from '../src/game/state.ts';

@@ -40,13 +40,13 @@ now exactly two damage scales in the project and both are the released game's.
 | 1 | player laser | NPC / object | source points | `NpcEnergyPoints` | `npc-energy.ts` `playerLaserDamage` → `elite-a/combat-math.ts` | **source** — `(byte & 0x7f) >> 1`, times the target's multiplier, less `maxEnergy & 7` |
 | 2 | NPC laser | commander | source points | `PlayerPoolPoints` | `gunnery.ts` `npcLaserDamageToPlayer` → `elite-a/combat-math.ts` | **source** — `laserPower << 2`, less the hull's `perHitShieldArmour` |
 | 3 | NPC laser | another NPC | normalized `0.11` flat | `NpcEnergyPoints` | `npc-energy.ts` `npcCrossfireDamage` → `elite-a/combat-math.ts` | **source halves, Harmless composition** — the pack tabulates the two player-facing directions only, so this is the attacker's own `laserPower << 2` less the defender's own `maxEnergy & 7`. No third arithmetic. |
-| 4 | player missile warhead | NPC | "certainly fatal" (99 normalized) | `NpcEnergyPoints` 250 | `impact-damage.ts` `IMPACT.warhead` | **Harmless policy** |
-| 5 | NPC missile warhead | commander | normalized `1.3` | `PlayerPoolPoints` 250 | `impact-damage.ts` `IMPACT.warhead` | **Harmless policy** |
-| 6 | energy bomb | every NPC in range but a Thargoid | "certainly fatal" (99 normalized) | `NpcEnergyPoints` 255 | `impact-damage.ts` `IMPACT.energyBomb` | **Harmless policy** |
-| 7 | ship↔ship collision | both ships | normalized `0.45` | `NpcEnergyPoints` 44 | `impact-damage.ts` `IMPACT.ram` | **Harmless policy** |
-| 8 | player↔ship collision | commander | normalized `0.45` | `PlayerPoolPoints` 115 | `impact-damage.ts` `IMPACT.ram` | **Harmless policy** |
-| 9 | canister on an unscooped hull | commander | normalized `0.06` | `PlayerPoolPoints` 15 | `impact-damage.ts` `IMPACT.canisterOnHull` | **Harmless policy** |
-| 10 | Coriolis wall / fluffed slot | commander | normalized `0.9` | `PlayerPoolPoints` 230 | `impact-damage.ts` `IMPACT.stationScrape` | **Harmless policy** |
+| 4 | player missile warhead | NPC | "certainly fatal" (99 normalized) | `NpcEnergyPoints` 250 | `constants/impact.ts` `IMPACT.warhead` | **Harmless policy** |
+| 5 | NPC missile warhead | commander | normalized `1.3` | `PlayerPoolPoints` 250 | `constants/impact.ts` `IMPACT.warhead` | **Harmless policy** |
+| 6 | energy bomb | every NPC in range but a Thargoid | "certainly fatal" (99 normalized) | `NpcEnergyPoints` 255 | `constants/impact.ts` `IMPACT.energyBomb` | **Harmless policy** |
+| 7 | ship↔ship collision | both ships | normalized `0.45` | `NpcEnergyPoints` 44 | `constants/impact.ts` `IMPACT.ram` | **Harmless policy** |
+| 8 | player↔ship collision | commander | normalized `0.45` | `PlayerPoolPoints` 115 | `constants/impact.ts` `IMPACT.ram` | **Harmless policy** |
+| 9 | canister on an unscooped hull | commander | normalized `0.06` | `PlayerPoolPoints` 15 | `constants/impact.ts` `IMPACT.canisterOnHull` | **Harmless policy** |
+| 10 | Coriolis wall / fluffed slot | commander | normalized `0.9` | `PlayerPoolPoints` 230 | `constants/impact.ts` `IMPACT.stationScrape` | **Harmless policy** |
 | 11 | player laser | drifting canister / escape capsule | none — deleted on any hit | `NpcEnergyPoints` off an 8-point bank | `cargo.ts` `takeLaserHit` → same oracle as row 1 | **source** — designs 4 and 2 |
 | 12 | player laser | station (Coriolis, Dodo, rock hermit) | none — sparks only | none — `laserImmune` | `npc-energy.ts` policy field | **source** — `laserImmune`, and Harmless policy for the hermit overlay |
 | 13 | ship↔station collision | neither | none | none | `collisions.ts` `npcsVsStation` | Harmless: a bounce only, deliberately — damage here would kill docking traffic at random |
@@ -66,7 +66,7 @@ now exactly two damage scales in the project and both are the released game's.
 ## The one Harmless rule
 
 Rows 4–10 are the paths where the released source says nothing at all. They
-share one named rule, stated in `src/game/impact-damage.ts` and recorded in
+share one named rule, stated in `src/constants/impact.ts` and recorded in
 `docs/GAP-ANALYSIS.md`:
 
 > An impact costs a **fixed whole number of source points**, stated separately

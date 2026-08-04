@@ -56,7 +56,8 @@ import {
 } from '../constants/torus.ts';
 import { stepTrumbles, trumbleMessage } from './trumbles.ts';
 import { resolveNpcFire, type FireWorld } from './fire-resolution.ts';
-import { IMPACT, npcImpactDamage, playerImpactDamage } from './impact-damage.ts';
+import { npcImpactDamage, playerImpactDamage } from './impact-damage.ts';
+import { IMPACT } from '../constants/impact.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
 import type { DamageSource } from './combat.ts';
 import { dealToNpc, type DealtEvent } from './damage-dealt.ts';
@@ -70,7 +71,7 @@ import { AUTOSAVE_INTERVAL, type GameState } from './state.ts';
 // WHAT A CANISTER ON THE HULL OR A FLUFFED SLOT COSTS IS NOT HERE. They were
 // `0.06` and `0.9` on the pre-parity normalized scale, named here so that TODO
 // 28 would have a shopping list. They are `IMPACT.canisterOnHull` and
-// `IMPACT.stationScrape` in game/impact-damage.ts now, stated in the
+// `IMPACT.stationScrape` in constants/impact.ts now, stated in the
 // commander's own pool points beside every other non-laser number.
 
 /** the origin, for `lookAt` — scratch that must never be written to */
@@ -161,7 +162,7 @@ export interface StepHost {
    *
    * `damage` is finished `PlayerPoolPoints`: a laser has already met the hull's
    * armour once (`gunnery.ts`) and everything else is a stated `IMPACT`
-   * (`impact-damage.ts`). The unit is branded, so nothing else can be passed.
+   * (`constants/impact.ts`). The unit is branded, so nothing else can be passed.
    *
    * `source` is what did it, and the step is the only place that knows: it is a
    * static fact at each of the five calls below, where downstream it can only
