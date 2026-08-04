@@ -482,9 +482,10 @@ export class NpcShip {
 
   /**
    * @param identity what a RESTORED ship was — omitted for a fresh spawn, which
-   * takes the roster's, and omitted by a save written before ships had ids,
-   * which is what migrates such a ship onto its design's recommended variant.
-   * Deterministic either way: nothing here draws from the rng to decide it.
+   * takes the roster's. Every restore supplies one: a snapshot that names no
+   * ids is refused at `savedShipIdentity` rather than arriving here without
+   * them. Deterministic either way: nothing here draws from the rng to decide
+   * it.
    */
   constructor(
     role: NpcRole, position: THREE.Vector3, variantSeed: number,

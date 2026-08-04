@@ -359,8 +359,10 @@ export function rosterSpec(
 }
 
 export function specForDesign(
-  role: NpcRole, designId: ShipDesignId | undefined,
+  role: NpcRole, designId: ShipDesignId,
 ): NpcSpec | undefined {
-  return designId === undefined
-    ? undefined : BY_ROLE_AND_DESIGN.get(`${role}${KEY_SEP}${designId}`);
+  // `designId` was nullable while a snapshot could arrive without one; a
+  // snapshot that names no design is refused now (ship-identity.ts), so the
+  // only miss left is a design this role has no roster row for.
+  return BY_ROLE_AND_DESIGN.get(`${role}${KEY_SEP}${designId}`);
 }

@@ -61,13 +61,14 @@ export type NpcSnapshot = {
   seed: number;
   /**
    * What it IS — see ship-identity.ts. Immutable, so it is beside the state
-   * rather than in it, and OPTIONAL because a world written before this phase
-   * has neither: `savedShipIdentity` returns undefined for those and the ship
-   * comes back on its design's recommended variant, deterministically, from the
-   * role, seed and hull the save already carried.
+   * rather than in it, and REQUIRED: both were optional while a world written
+   * before this phase could turn up with neither, and `savedShipIdentity` gave
+   * such a ship its design's recommended variant. That tolerance is gone
+   * (2026-08-04) — a ship that does not say what it is makes the snapshot
+   * unreadable, and an unreadable snapshot is old junk rather than a world.
    */
-  designId?: string;
-  profileId?: string;
+  designId: string;
+  profileId: string;
   /** index into `npcs` of whatever it is hunting, or -1 */
   targetIndex: number;
   state: Record<string, unknown>;

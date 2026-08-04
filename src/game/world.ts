@@ -127,10 +127,12 @@ export class World {
    * Rebuild the fleet. `specFor` decides which hull each one gets — that is a
    * game rule (tier tables, the Constrictor), not a world one.
    *
-   * A save with no identity in it takes the roster's identity for its hull,
-   * which is that design's recommended variant — `savedShipIdentity` returns
-   * undefined and the constructor decides. That decision is deterministic, from
-   * the role, seed and hull the save already had, and rerolls nothing.
+   * Every saved ship states what it is, and `savedShipIdentity` throws for one
+   * that does not — so a snapshot this build cannot read comes apart here, and
+   * `Persistence.resume` catches it and boots the commander normally. The fleet
+   * this leaves behind is whatever was rebuilt before the bad ship: the restore
+   * as a whole is already not atomic (the galaxy and the scene are rebuilt
+   * above it), so the guarantee is the boot's, not this loop's.
    *
    * Rebuilding a ship DOES draw, because the constructor rolls the things a
    * fresh ship needs — but every one of them is then overwritten by the save,

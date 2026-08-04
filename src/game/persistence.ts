@@ -33,7 +33,7 @@ import type { Contract } from './commander.ts';
 import type { PirateThreat } from './threat.ts';
 import { CONSTRICTOR_SPEC, pirateSpecForTier, specForDesign } from './ship-specs.ts';
 import type { NpcRole } from './ship-roles.ts';
-import { migratedPlayerHullId } from './ship-identity.ts';
+import { requirePlayerHullId } from './ship-identity.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { Ordnance } from './ordnance.ts';
 import { rngState, restoreRng } from './rng.ts';
@@ -178,10 +178,14 @@ export class Persistence {
     }
     const s = this.state;
     s.commander = structuredClone(snap.commander);
-    // A world written before ships had ids carries a commander that has none.
-    // Same rule as the station save (storage.ts): missing or unresolvable means
-    // the Cobra Mk III every legacy career flew, never a failure to load.
-    s.commander.shipId = migratedPlayerHullId(s.commander.shipId);
+    // A commander must say what it is flying. Same rule as the station save
+    // (storage.ts), asked again because this is the other way a snapshot
+    // arrives: `restoreSnapshot` takes one straight from a console harness or
+    // the combat simulator, which never went past `readSave`. One home for the
+    // rule — `requirePlayerHullId` — asked at both boundaries. Missing or
+    // unresolvable used to migrate to the Cobra Mk III; it throws now, and
+    // `resume()` below turns that into a normal boot.
+    s.commander.shipId = requirePlayerHullId(s.commander.shipId);
     // `s.career` IS NOT TOUCHED HERE, and that is the fix in docs/TODO/43.
     // Restoring a world does not change whose autosave group this session
     // writes: that was decided at boot by `bootCareer()` from the record the
@@ -220,8 +224,14 @@ export class Persistence {
     // wearing a tier hull while keeping its saved identity — so what it WAS and
     // what it looked like disagreed for the rest of the session. Looking the
     // roster row up by the design the snapshot recorded cannot disagree with
-    // it. The tier is still the answer for a save written before ships had ids,
-    // which carries no design to look up.
+    // it.
+    //
+    // The tier is what is left when that lookup MISSES, and it can only miss
+    // one way now that every snapshot carries a design: the roster no longer
+    // flies that design in that role. Rosters do move — the Asp Mk II was taken
+    // off the pirate list on purpose — so a save from before such a move names
+    // a design that still resolves in the catalogue and has no row. It is not
+    // legacy tolerance; it is the answer for a hull that has been retired.
     this.ordnance.clear();
     s.world.restoreNpcs(snap.npcs, (n) => {
       if (n.state.isMissionTarget) return CONSTRICTOR_SPEC;

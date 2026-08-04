@@ -45,10 +45,10 @@
 // The choice is a pure function of (role, design) over generated data, so it is
 // the same in every session, on every machine, before and after a reload. A
 // ship's `profileId` is in its snapshot (`ship-identity.ts`), so a restored ship
-// keeps the exact build it had; a legacy snapshot with no id at all re-derives
-// one through this same function and therefore lands on the same build it would
-// have spawned with. No rng is drawn either way — which is the rule for anything
-// that decides a future frame.
+// keeps the exact build it had — and a snapshot that carries no id is refused
+// rather than re-derived (2026-08-04). Nothing here is a save path any more:
+// every call is a LIVE one, `ship-specs.ts` asking what a roster row flies. No
+// rng is drawn — which is the rule for anything that decides a future frame.
 
 import { eliteAVariantsOf } from './elite-a/catalogue.ts';
 import { eliteANpcLaserStrength } from './elite-a/combat-math.ts';
@@ -109,8 +109,8 @@ const cache = new Map<string, NpcCombatProfileId>();
  * The exact build a ship of this role and design flies.
  *
  * Deterministic, cached, and the ONLY place the choice is made. `ship-specs.ts`
- * calls it once per roster row at load; `persistence.ts` reaches the same answer
- * for a legacy snapshot through `ship-identity.ts`.
+ * calls it once per roster row at load, which is now its only caller: a restore
+ * reads the build out of the snapshot instead of asking again.
  */
 export function roleCombatProfileId(
   role: NpcRole, designId: ShipDesignId,

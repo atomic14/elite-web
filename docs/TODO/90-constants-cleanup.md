@@ -120,25 +120,57 @@ Two consequences worth knowing:
 and `game/persistence.ts`, so reinstating any of them fails the build. Break it
 by putting one back; that is what the check is for.
 
-### The identity fallbacks are NOT migrations, and were left alone
+### THE IDENTITY FALLBACKS WENT TOO. Do not reinstate them either.
 
-Slice 4 stopped at the SCALE conversions and this is the boundary it drew, so
-the next reader does not have to redraw it. Three things call themselves
-migrations and were kept:
+Slice 4 kept three of these on the grounds that they were corruption tolerance
+as well as history, and left the decision to the saves slice. **Chris overruled
+that on 2026-08-04:** *"yes, lose them — we don't need them. An unreadable save
+is just old junk at the moment."* So the answer to "what does an unreadable save
+do" is: it is not a save. Deleted:
 
-- **`migratedPlayerHullId`** (`ship-identity.ts`), called on every load from
-  `storage.ts` and `persistence.ts`. It maps a missing OR UNRESOLVABLE hull id
-  to the Cobra Mk III. The second half is corruption tolerance rather than
-  history — `test/ship-identity.test.ts` pins `'elite-a:player:99'` loading
-  rather than throwing — so deleting it decides what a hand-edited or damaged
-  save does, which is a live behaviour change and not the removal of dead code.
-- **`savedShipIdentity` returning undefined**, which lets a snapshot with no
-  ids take its design's recommended variant. Same shape.
-- **`role-variants.ts`'s re-derivation** for a snapshot with no profile id.
+| gone | what it was | what happens now |
+| --- | --- | --- |
+| `migratedPlayerHullId` (`ship-identity.ts`) | a missing OR unresolvable `shipId` became the Cobra Mk III, on every load from `storage.ts` and `persistence.ts` | `requirePlayerHullId` at both of those boundaries |
+| `savedShipIdentity` returning `undefined` for `{}` | a snapshot with no ids took its design's recommended variant | it throws; `NpcSnapshot.designId` and `.profileId` are REQUIRED |
 
-All three belong to the saves slice, which has to decide what an unreadable save
-does before any of them can go. Recorded here so that "delete the migrations" is
-not read as "delete these too" without that decision being made.
+**The refusal is the save system's existing one, not a new failure mode.** That
+was the open question and it is answered by matching what `parseSaveId` and a
+bad `v` already do:
+
+- `repairCommander`'s throw happens inside `readSave`'s `try`, so a record whose
+  commander names no hull **reads as null** — the same nothing an unparseable
+  key reads as. `bootSave()` then finds no save and `bootCommander()` starts a
+  fresh one. Nothing reaches the screen.
+- `savedShipIdentity`'s throw comes out of `World.restoreNpcs`, inside
+  `Persistence.restore`, which `Persistence.resume` already catches: *"a world
+  that will not come back must never cost you the commander"*. Every load in the
+  UI is `setBootId` plus `location.reload()`, so `resume` is the only path a
+  player can take into a restore. `test/world-step.test.ts` flies it and asserts
+  `resume()` returns false rather than throwing, with the same bytes WITH their
+  ids as the control.
+
+**`role-variants.ts` was the third name on the list and it is LOAD-BEARING —
+keep it.** Reading it, the only legacy thing in the file was the prose. Its
+`recommendedProfileIdFor` fallbacks are live rules: a trader, a rock or an
+overlay is not choosing a build for its gun, and the Constrictor sits in a slot
+no pirate band draws from. `roleCombatProfileId` is called once per roster row
+by `ship-specs.ts` at load and by nothing else now — a restore reads the build
+out of the snapshot. Only the header and one docstring changed.
+
+**A fourth thing was found and also kept**, for a reason that is not the one
+written beside it. `persistence.ts`'s `specForDesign(...) ?? pirateSpecForTier(...)`
+said the tier was "the answer for a save written before ships had ids, which
+carries no design to look up". Every snapshot carries a design now, so that
+sentence is dead — but the lookup can still miss, because a design the roster no
+longer flies in that role has no row, and rosters do move (the Asp Mk II came
+off the pirate list on purpose). `test/ship-roles.test.ts` tests that case now
+instead of the legacy one.
+
+Both harnesses were grepped for every name touched — `migratedPlayerHullId`,
+`savedShipIdentity`, `specForDesign`, `designId`, `profileId`, `shipId` — and
+neither names any of them. `test/playtest.js` and `train/jameson-autopilot.js`
+take `useHarnessSaves`, `clearHarnessSaves` and `saveNamespace` from
+`storage.ts` and nothing else, and all three are still exported.
 
 ---
 

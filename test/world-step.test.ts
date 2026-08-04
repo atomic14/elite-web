@@ -23,7 +23,7 @@ import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
 import {
   clearFlightSaves, withoutSaving, writeDockSave, writeFlightSave, writeNamedSave,
 } from '../src/game/storage.ts';
-import type { WorldSnapshot } from '../src/game/snapshot.ts';
+import type { NpcSnapshot, WorldSnapshot } from '../src/game/snapshot.ts';
 import { newCommander } from '../src/game/commander.ts';
 import {
   Combat,
@@ -616,6 +616,48 @@ console.log('\nheadless world step');
         .restore(JSON.parse(wire) as WorldSnapshot);
       check('...and a save made with none comes back with none (the control)',
         JSON.stringify(plain.state.brains) === '{}');
+    }
+
+    // A WORLD THIS BUILD CANNOT READ COSTS THE PLAYER NOTHING.
+    //
+    // Ships have had to say what they are since 2026-08-04: the migration that
+    // gave an id-less ship its design's recommended variant is deleted, so
+    // `savedShipIdentity` throws for a snapshot without ids and `restore` comes
+    // apart on it. `resume` is where that has to stop, because `resume` IS the
+    // boot path — `game.ts` calls it before the first frame and shows the
+    // station when it says no. A throw getting past it is an exception where a
+    // player expects a game.
+    {
+      const idless = JSON.parse(wire) as WorldSnapshot;
+      idless.npcs = idless.npcs.map((n) => {
+        const copy: Partial<NpcSnapshot> = { ...n };
+        delete copy.designId;
+        delete copy.profileId;
+        return copy as NpcSnapshot;
+      });
+      check('the refusal fixture has ships in it to be refused over',
+        idless.npcs.length > 0);
+
+      const boot = arrival(99);
+      const refusedHost: PersistenceHost = {
+        ...stubHost(boot.state, []), bootWorld: () => idless,
+      };
+      let threw = false;
+      let resumed = true;
+      try {
+        resumed = new Persistence(boot.state, boot.ordnance, new CombatComputer(), refusedHost)
+          .resume();
+      } catch { threw = true; }
+      check('a world whose ships name no build refuses to resume, and does not throw',
+        !threw && !resumed);
+
+      // The control: the same bytes WITH their ids resume, so the check above
+      // is about the missing ids and not about the fixture or the host.
+      const wholeHost: PersistenceHost = {
+        ...stubHost(boot.state, []), bootWorld: () => JSON.parse(wire) as WorldSnapshot,
+      };
+      check('...where the same world with its ids resumes (the control)',
+        new Persistence(boot.state, boot.ordnance, new CombatComputer(), wholeHost).resume());
     }
 
     // the negative control: an unrestored world must NOT match

@@ -117,11 +117,13 @@ const OVERLAY_BY_DESIGN = new Map(OVERLAYS.map((o) => [o.designId, o]));
 const OVERLAY_BY_PROFILE = new Map(OVERLAYS.map((o) => [o.profileId, o]));
 
 /**
- * What a career with no recorded hull was flying: the Cobra Mk III.
+ * The hull every career starts in: the Cobra Mk III.
  *
- * Every commander before this phase flew one, and this phase does not offer a
- * shipyard — so it is both the migration target for a legacy save and what
- * `newCommander()` starts you in.
+ * This phase does not offer a shipyard, so it is what `newCommander()` puts you
+ * in and the anchor every Harmless number is calibrated against
+ * (docs/DAMAGE-PATHS.md). It used to be a migration target as well — the hull a
+ * save with no recorded one was given — and that is gone (2026-08-04): a save
+ * that does not say what it is flying is not a save this build reads.
  */
 export const COBRA_MK_3_HULL_ID: PlayerHullId = `${PLAYER_PREFIX}7`;
 
@@ -233,7 +235,13 @@ export function eliteAShipIdentity(sourceDesignId: number): ShipIdentity {
   return { designId, profileId: recommendedProfileIdFor(designId) };
 }
 
-/** The deterministic profile for a design — the one a legacy ship migrates onto. */
+/**
+ * The deterministic profile for a design: the pack's own recommended build.
+ *
+ * What a design flies when nothing has chosen otherwise — a trader, a rock,
+ * either Harmless overlay, or a combat design the source filed in no band its
+ * role draws from (`role-variants.ts` names the Constrictor).
+ */
 export function recommendedProfileIdFor(designId: ShipDesignId): NpcCombatProfileId {
   const record = shipDesign(designId);
   return record.source === 'harmless'
@@ -241,35 +249,25 @@ export function recommendedProfileIdFor(designId: ShipDesignId): NpcCombatProfil
     : npcCombatProfileIdOf(recommendedNpcProfile(record.design.designId).variantId);
 }
 
-// --- the two serialization boundaries ---------------------------------------
+// --- the serialization boundary ----------------------------------------------
 
 /**
- * The hull a saved commander flies.
+ * The identity a saved ship comes back with. Both ids, or the save is refused.
  *
- * Missing means a career written before ships had ids, and every one of those
- * was a Cobra Mk III. INVALID means the same thing for our purposes — a value
- * we cannot resolve is not a ship — and a career must never fail to load over
- * it, so both migrate rather than throw. This is the only place that decision
- * is made (`storage.ts` and `persistence.ts` both call it).
- */
-export function migratedPlayerHullId(value: unknown): PlayerHullId {
-  return isPlayerHullId(value) ? value : COBRA_MK_3_HULL_ID;
-}
-
-/**
- * The identity a saved ship comes back with — or `undefined` for a save written
- * before ships had one, which the caller then derives from hull, role and seed
- * through `recommendedProfileIdFor`. That derivation is deterministic, so a
- * reload never rerolls what a ship is and never draws from the rng to find out.
+ * THERE IS NO LONGER A THIRD ANSWER. A snapshot with no ids at all used to
+ * return `undefined`, which let the ship take its design's recommended variant
+ * — tolerance for a world written before ships had ids. Chris, 2026-08-04: *"an
+ * unreadable save is just old junk at the moment"*, so a ship that does not say
+ * what it is is corruption like any other, and this throws for it.
  *
- * An id that is PRESENT and not in the catalogue is rejected rather than
- * quietly migrated: a legacy save has no id at all, so a bad one is corruption,
- * and `Persistence.resume` already treats a corrupt world as no world.
+ * Throwing is the whole handling, because the save system already refuses a
+ * thing it cannot read rather than reporting it: `Persistence.resume` catches
+ * and boots the commander normally, and `readSave` returns null for a record
+ * that will not parse. Nothing here reaches a player as an error.
  */
 export function savedShipIdentity(
   saved: { designId?: unknown; profileId?: unknown },
-): ShipIdentity | undefined {
-  if (saved.designId === undefined && saved.profileId === undefined) return undefined;
+): ShipIdentity {
   return {
     designId: requireShipDesignId(saved.designId),
     profileId: requireNpcCombatProfileId(saved.profileId),

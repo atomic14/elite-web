@@ -57,7 +57,7 @@ import {
   newCommander, defaultEquipment, DEFAULT_NAME,
   type CommanderData,
 } from './commander.ts';
-import { migratedPlayerHullId } from './ship-identity.ts';
+import { requirePlayerHullId } from './ship-identity.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import {
   SAVE_ID_PREFIX, SAVE_RECORD_VERSION,
@@ -179,7 +179,9 @@ export function readSave(id: string): SaveRecord | null {
     const rec = JSON.parse(raw) as SaveRecord;
     if (!rec || typeof rec !== 'object' || rec.v !== SAVE_RECORD_VERSION) return null;
     // Every commander that comes off the shelf goes through the same repairs,
-    // wherever it was kept — see `repairCommander`.
+    // wherever it was kept — see `repairCommander`. It REFUSES a commander
+    // flying a hull it cannot resolve, and the refusal arrives here as a throw,
+    // which the catch below turns into the same null a bad `v` gets.
     if (rec.world?.commander) rec.world.commander = repairCommander(rec.world.commander);
     if (rec.commander) rec.commander = repairCommander(rec.commander);
     return rec;
@@ -490,10 +492,18 @@ export function commanderNameTaken(name: string): boolean {
 /**
  * Every commander that comes off the shelf, repaired the same way.
  *
- * Fields added since a save was written get their defaults, and a hull id that
- * is missing or unresolvable becomes the Cobra Mk III every early career flew —
- * never a failure to load. This is a repair of a RECORD's contents and has
- * nothing to do with the key it was found under.
+ * Fields added since a save was written get their defaults. This is a repair of
+ * a RECORD's contents and has nothing to do with the key it was found under.
+ *
+ * THE HULL IS NOT REPAIRED, IT IS REQUIRED. A missing or unresolvable `shipId`
+ * used to become the Cobra Mk III (`migratedPlayerHullId`, deleted 2026-08-04):
+ * a career written before ships had ids flew one, and an id we cannot resolve
+ * was treated the same way so that a load could never fail. Chris: an
+ * unreadable save is old junk. So it throws, and the throw lands where every
+ * other refusal in this file lands — inside `readSave`'s `try`, which makes the
+ * record read as nothing at all, exactly as a bad `v` or an unparseable key
+ * does. A shelf with only such records boots a fresh commander; it never puts
+ * an error in front of a player.
  */
 function repairCommander(stored: Partial<CommanderData>): CommanderData {
   const parsed = { ...newCommander(), ...stored };
@@ -511,9 +521,10 @@ function repairCommander(stored: Partial<CommanderData>): CommanderData {
   }
   // saves from before weighted ratings: every past kill counts as one
   if (typeof parsed.combatScore !== 'number') parsed.combatScore = parsed.kills ?? 0;
-  // The rule is migratedPlayerHullId's, not this file's — persistence.ts
-  // restores a commander out of a world save and has to make the same choice.
-  parsed.shipId = migratedPlayerHullId(stored.shipId);
+  // `stored`, not `parsed`: the spread above has already filled in a fresh
+  // commander's Cobra, so asking `parsed` would accept a record that never said
+  // what it was flying and quietly reinstate half the deleted migration.
+  parsed.shipId = requirePlayerHullId(stored.shipId);
   if (typeof parsed.name !== 'string' || !parsed.name) parsed.name = DEFAULT_NAME;
   return parsed;
 }

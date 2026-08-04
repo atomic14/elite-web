@@ -36,7 +36,7 @@ import {
 import { hullThreatTier, sourceThreatScore } from '../src/game/threat.ts';
 import {
   isHarmlessOverlayId, npcCombatProfileById, recommendedProfileIdFor, shipDesign,
-  shipDesignIdOf,
+  shipDesignIdOf, SHIP_DESIGN_IDS,
 } from '../src/game/ship-identity.ts';
 import { registeredHull, shipDisplayName } from '../src/ships/registry.ts';
 import { STATION_DESIGNS, STATION_PRESENTATION_SCALE, stationDockZ } from '../src/ships/station-hulls.ts';
@@ -346,19 +346,31 @@ console.log('\nrestore rebuilds a ship from the design its snapshot recorded');
   check('...and the hull it came back on is the one its identity claims',
     world.npcs.every((n) => registeredHull(n.designId).targetRadius === n.radius));
 
-  // A save from before ships had ids has no design to look up, and still comes
-  // back through the tier table exactly as it always did.
-  const legacy = saved.map((s) => {
-    const copy = { ...s };
-    delete copy.designId;
-    delete copy.profileId;
-    return copy;
-  });
-  world.restoreNpcs(legacy, (n) => specForDesign(n.role as NpcRole, n.designId)
-    ?? pirateSpecForTier(Number(n.state.threatTier ?? 0), n.seed));
-  eq('a legacy pirate still falls back to its tier',
-    world.npcs.map((n) => n.designId).join('|'),
-    saved.map((s) => pirateSpecForTier(2, s.seed).designId).join('|'));
+  // WHAT THE TIER FALLBACK IS FOR NOW. It used to answer a save written before
+  // ships had ids, which had no design to look up; that save is refused
+  // outright since 2026-08-04, so the only way `specForDesign` misses is a
+  // design the roster no longer flies in this role — the Asp Mk II came off the
+  // pirate list on purpose, and rosters will move again.
+  const retired = SHIP_DESIGN_IDS.find(
+    (id) => !SPECS.pirate.some((s) => s.designId === id)
+      && id !== CONSTRICTOR_SPEC.designId && shipDesign(id).source === 'elite-a')!;
+  check('a design the pirate roster has retired has no row to find',
+    retired !== undefined && specForDesign('pirate', retired) === undefined);
+  world.restoreNpcs(
+    saved.map((s) => ({ ...s, designId: retired, profileId: recommendedProfileIdFor(retired) })),
+    (n) => specForDesign(n.role as NpcRole, n.designId)
+      ?? pirateSpecForTier(Number(n.state.threatTier ?? 0), n.seed));
+  // The ROW, not the hull: geometry hangs off the saved design either way, and
+  // what the fallback decides is what the ship is worth and how it is fitted.
+  const row = (s: NpcSpec) => `${s.bounty}:${s.cargoDrop ?? 0}:${s.armed ?? false}`;
+  eq('...so a pirate saved on it comes back flying its tier\'s row',
+    world.npcs.map((n) => `${n.bounty}:${n.cargoDrop}:${n.armed}`).join('|'),
+    saved.map((s) => row(pirateSpecForTier(2, s.seed))).join('|'));
+  // Not vacuous: without it the constructor takes `SPECS.pirate[seed % length]`,
+  // which for these seeds is a different row.
+  check('...where the row it would take without the fallback differs',
+    saved.some((s) => row(pirateSpecForTier(2, s.seed))
+      !== row(SPECS.pirate[s.seed % SPECS.pirate.length])));
 }
 
 // --- the roster is findable -------------------------------------------------

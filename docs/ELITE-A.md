@@ -88,13 +88,18 @@ changes the player's hull id; a future blueprint-set loader changes which
 variant an NPC spawns as; geometry changes neither. Combat reads the profile
 and does not care which policy chose it.
 
-**Migration.** A commander saved before this phase has no `shipId` and loads as
-the Cobra Mk III (`migratedPlayerHullId`). An NPC snapshot with no ids
-re-derives them from its role, its seed and its hull, deterministically and
-without drawing from the rng. A save that carries an EXACT variant which is not
-its design's recommended default keeps it — that is the property that makes
-saving the id worth anything, and `test/ship-identity.test.ts` checks it
-specifically, because re-deriving on restore passes every other test.
+**There is no migration, and that is deliberate.** A commander saved before
+this phase has no `shipId` and used to load as the Cobra Mk III
+(`migratedPlayerHullId`); an NPC snapshot with no ids used to re-derive them
+from its role, its seed and its hull. Both were deleted on 2026-08-04 — Chris:
+*"an unreadable save is just old junk at the moment"* — so a save that does not
+say what it is flying is refused. The refusal is the save system's existing one:
+`readSave` returns null for such a record and `Persistence.resume` boots the
+commander normally, so nothing reaches a player as an error. A save that carries
+an EXACT variant which is not its design's recommended default keeps it — that
+is the property that makes saving the id worth anything, and
+`test/ship-identity.test.ts` checks it specifically, because re-deriving on
+restore passes every other test.
 
 ## The geometry registry
 

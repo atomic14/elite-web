@@ -7,8 +7,8 @@
 //     an id is refused rather than half-resolved;
 //   * the two Harmless inventions stay visibly ours and never look like
 //     recovered source designs;
-//   * a career saved before ships had ids loads as a Cobra Mk III and loses
-//     nothing else;
+//   * a save that does not say what it is flying is REFUSED — as a record that
+//     reads as nothing, and as a world that will not restore;
 //   * all 15 flyable hulls survive commander JSON and the simulator's clone;
 //   * every ship in today's roster survives a snapshot, INCLUDING an exact
 //     variant that is not its design's recommended one — because re-deriving
@@ -26,7 +26,7 @@ import * as THREE from 'three';
 import {
   COBRA_MK_3_HULL_ID, HARMLESS_OVERLAYS, NPC_COMBAT_PROFILE_IDS, PLAYER_HULL_IDS,
   SHIP_DESIGN_IDS, isHarmlessOverlayId, isNpcCombatProfileId, isPlayerHullId,
-  isShipDesignId, migratedPlayerHullId, npcCombatProfileById, playerHull,
+  isShipDesignId, npcCombatProfileById, playerHull,
   recommendedProfileIdFor, requireNpcCombatProfileId, requirePlayerHullId,
   requireShipDesignId, savedShipIdentity, shipDesign,
 } from '../src/game/ship-identity.ts';
@@ -38,7 +38,9 @@ import type { NpcRole } from '../src/game/ship-roles.ts';
 import { roleCombatProfileId } from '../src/game/role-variants.ts';
 import { newCommander, type CommanderData } from '../src/game/commander.ts';
 import { exerciseCommander } from '../src/game/combat-sim-safety.ts';
-import { makeRecord, readSave, saveNamespace, writeSave } from '../src/game/storage.ts';
+import {
+  bootCommander, bootSave, makeRecord, readSave, saveNamespace, writeSave,
+} from '../src/game/storage.ts';
 import { commanderOf, fileId } from '../src/game/save-file.ts';
 import { World } from '../src/game/world.ts';
 import { Game } from '../src/game/game.ts';
@@ -54,6 +56,14 @@ console.log('\n--- ship identity ---');
 /** Did this throw? The rejection half of "invalid ids are refused". */
 const refuses = (fn: () => unknown): boolean => {
   try { fn(); return false; } catch { return true; }
+};
+
+/** A ship snapshot with its ids taken off: what a pre-TODO-23 world held. */
+const stripIds = (s: NpcSnapshot): NpcSnapshot => {
+  const copy: Partial<NpcSnapshot> = { ...s };
+  delete copy.designId;
+  delete copy.profileId;
+  return copy as NpcSnapshot;
 };
 
 // --- one id, exactly one record ---------------------------------------------
@@ -148,10 +158,13 @@ console.log('\ninvalid ids are rejected, not guessed at');
 
   check('a saved ship with a bad id is refused rather than migrated',
     refuses(() => savedShipIdentity({ designId: 'elite-a:design:99', profileId: 'x' })));
-  check('...and so is half an identity — a legacy save has NEITHER, not one',
+  check('...and so is half an identity',
     refuses(() => savedShipIdentity({ designId: 'elite-a:design:10' })));
-  check('a legacy ship, with neither, migrates instead',
-    savedShipIdentity({}) === undefined);
+  // `{}` was the tolerant case: it returned undefined so a ship could take its
+  // design's recommended variant. Deleted 2026-08-04 — an unreadable save is
+  // old junk (Chris), so a ship that says nothing is corruption like any other.
+  check('...and a ship that says nothing at all, which used to migrate',
+    refuses(() => savedShipIdentity({})));
 }
 
 // --- ours stays ours --------------------------------------------------------
@@ -207,9 +220,14 @@ console.log('\nthe roster states its identity');
     SPECS.trader[0].designId === SPECS.pirate[5].designId);
 }
 
-// --- a career saved before ships had ids ------------------------------------
+// --- a commander that does not say what it flies ----------------------------
+//
+// `migratedPlayerHullId` used to answer this — missing OR unresolvable became
+// the Cobra Mk III. Deleted 2026-08-04; `requirePlayerHullId` throws instead,
+// inside `readSave`'s try, so the record reads as NOTHING, which is the same
+// refusal a bad `v` gets and boots a fresh commander rather than an error.
 
-console.log('\nlegacy commanders load as a Cobra Mk III');
+console.log('\na commander that names no hull is not a save');
 {
   // The real save path, on a fake store, in the harness namespace
   // `test/harness.ts` switched this process into (docs/INVARIANTS.md invariant 3).
@@ -232,21 +250,29 @@ console.log('\nlegacy commanders load as a Cobra Mk III');
 
   try {
     // A commander exactly as it was written before this phase: no shipId at all.
-    const legacy: Record<string, unknown> = { ...newCommander(), credits: 4321, kills: 9 };
-    delete legacy.shipId;
-    legacy.cargo = [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    put(legacy);
+    const idless: Record<string, unknown> = { ...newCommander(), credits: 4321, kills: 9 };
+    delete idless.shipId;
+    idless.cargo = [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    put(idless);
+    check('a record whose commander names no hull reads as nothing at all',
+      readSave(ID) === null);
+    // Why refusing is safe: the shelf simply has no save on it, so the boot is
+    // a fresh commander and nothing reaches a player as an error.
+    check('...so the next boot is a fresh commander rather than an error',
+      bootSave() === null && bootCommander().shipId === COBRA_MK_3_HULL_ID
+      && bootCommander().credits !== 4321);
 
+    put({ ...idless, shipId: 'elite-a:player:99' });
+    check('a hull id outside the 15 is refused the same way, not migrated',
+      readSave(ID) === null);
+
+    // The control, and the property that matters: one that DOES say loads whole.
+    put({ ...idless, shipId: COBRA_MK_3_HULL_ID });
     const loaded = read();
-    eq('a save with no hull loads as the Cobra Mk III they all flew',
-      loaded.shipId, COBRA_MK_3_HULL_ID);
-    check('...and loses nothing else on the way',
-      loaded.credits === 4321 && loaded.kills === 9 && loaded.name === 'JAMESON'
+    check('a commander that names its hull loads, and loses nothing else',
+      loaded.shipId === COBRA_MK_3_HULL_ID
+      && loaded.credits === 4321 && loaded.kills === 9 && loaded.name === 'JAMESON'
       && loaded.cargo[1] === 2 && loaded.fuel === newCommander().fuel);
-    put({ ...legacy, shipId: 'elite-a:player:99' });
-    eq('an unresolvable hull id migrates too, rather than failing the load',
-      read().shipId, COBRA_MK_3_HULL_ID);
-    check('...still without losing the career', read().credits === 4321);
     // Every one of the 15, through the real bytes.
     const survived = PLAYER_HULL_IDS.filter((id) => {
       writeSave(ID, makeRecord('H', 'H', 'file', null, { ...newCommander(), shipId: id }));
@@ -257,11 +283,6 @@ console.log('\nlegacy commanders load as a Cobra Mk III');
     if (hadStorage) globals.localStorage = previousStorage;
     else delete globals.localStorage;
   }
-
-  eq('migration is one rule with one home', migratedPlayerHullId(undefined),
-    COBRA_MK_3_HULL_ID);
-  check('...which keeps a hull it recognises',
-    PLAYER_HULL_IDS.every((id) => migratedPlayerHullId(id) === id));
 
   // JSON, not the save layer: the same object crossing structuredClone and a
   // stringify/parse pair, which is what a world snapshot and a clone do.
@@ -316,7 +337,7 @@ console.log('\nnpc identity round-trips through a snapshot');
 
   const saved = world.captureNpcs();
   check('the snapshot carries the ids rather than leaving them to be worked out',
-    saved.every((s) => isShipDesignId(s.designId!) && isNpcCombatProfileId(s.profileId!)));
+    saved.every((s) => isShipDesignId(s.designId) && isNpcCombatProfileId(s.profileId)));
 
   world.restoreNpcs(saved, specFor);
   eq('...and every one of them comes back as what it was',
@@ -336,22 +357,17 @@ console.log('\nnpc identity round-trips through a snapshot');
     exact !== recommendedProfileIdFor('elite-a:design:10')
     && npcCombatProfileById(exact).source === 'elite-a');
 
-  // A world written before this phase: no ids at all.
-  const legacy: NpcSnapshot[] = saved.map((s) => {
-    const copy = { ...s };
-    delete copy.designId;
-    delete copy.profileId;
-    return copy;
-  });
-  world.restoreNpcs(legacy, specFor);
-  const migrated = world.npcs.map((n) => `${n.role} ${n.designId} ${n.profileId}`).join('|');
-  eq('a legacy fleet migrates onto the same identities its hulls always had',
-    migrated, before.join('|'));
-  // Twice, from a stream that has moved on in between: the derivation reads the
-  // role, the seed and the hull, and nothing else.
-  world.restoreNpcs(legacy, specFor);
-  eq('...deterministically, wherever the rng happens to be',
-    world.npcs.map((n) => `${n.role} ${n.designId} ${n.profileId}`).join('|'), migrated);
+  // A fleet with no ids on it used to migrate onto each hull's recommended
+  // variant. That answer is deleted, so restoring it throws — and throws for
+  // the FIRST ship rather than quietly rebuilding some of them.
+  check('a fleet that does not say what it is is refused, not migrated',
+    refuses(() => world.restoreNpcs(saved.map(stripIds), specFor)));
+  check('...before a single ship of it is in the sky', world.npcs.length === 0);
+  // ...and per ship, rather than as a shape test on the array.
+  check('...and so is one unresolvable id in an otherwise whole fleet',
+    refuses(() => world.restoreNpcs(
+      saved.map((s, i) => (i === 3 ? { ...s, profileId: 'elite-a:variant:Z:99' } : s)),
+      specFor)));
 }
 
 // --- restoring costs nothing ------------------------------------------------
@@ -380,20 +396,17 @@ console.log('\nrestoring a world neither draws nor re-decides');
     g.state.world.npcs.map((n) => `${n.designId} ${n.profileId}`).join('|'), before);
   eq('...flying against the same commander hull', g.state.commander.shipId, commanderHull);
 
-  // The other half of the migration: a world save with no ids anywhere.
-  const legacy = structuredClone(snap) as typeof snap;
-  legacy.npcs = legacy.npcs.map((n) => {
-    const copy = { ...n };
-    delete copy.designId;
-    delete copy.profileId;
-    return copy;
-  });
-  delete (legacy.commander as Partial<CommanderData>).shipId;
-  withoutSaving(() => g.restoreSnapshot(legacy));
-  eq('a world saved before this phase restores with the identities it implied',
+  // The commander half of the deleted migration, through the real orchestrator
+  // — the one boundary `readSave` does not stand at, because `restoreSnapshot`
+  // takes a snapshot straight from a harness or the simulator. The fleet half
+  // is above and again in test/world-step.test.ts, which proves the refusal
+  // reaches `resume` as a normal boot rather than as an error.
+  const noHull = structuredClone(snap) as typeof snap;
+  delete (noHull.commander as Partial<CommanderData>).shipId;
+  check('a world whose commander names no hull is refused, not migrated',
+    refuses(() => withoutSaving(() => g.restoreSnapshot(noHull))));
+  eq('...and it is refused before the restore reaches the sky',
     g.state.world.npcs.map((n) => `${n.designId} ${n.profileId}`).join('|'), before);
-  eq('...and its commander in the Cobra Mk III', g.state.commander.shipId, COBRA_MK_3_HULL_ID);
-  const legacyRng = rngState();
-  check('...still without touching the stream',
-    legacyRng.seed === snap.rng.seed && legacyRng.state === snap.rng.state);
+  check('...leaving the stream where it was',
+    rngState().seed === snap.rng.seed && rngState().state === snap.rng.state);
 }
