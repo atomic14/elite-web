@@ -29,6 +29,7 @@ import {
   SHIPPED_BRAINS, type BrainName, type BrainSelection,
 } from './brain-names.ts';
 import defendBrainFile from '../ai-training/brains/jameson-defend-g2.json' with { type: 'json' };
+import defendCandidateFile from '../ai-training/brains/jameson-defend-t91.json' with { type: 'json' };
 
 export const DEFEND_BRAIN: Brain | null = (() => {
   try {
@@ -48,8 +49,18 @@ export const DEFEND_BRAIN: Brain | null = (() => {
  * and "the ship flies the gang policy" cannot come apart, and a policy nothing
  * ships cannot quietly reappear in the bundle.
  */
+/** The TODO 91 candidate, in the bundle for stage 3's flying and nothing else. */
+const DEFEND_CANDIDATE: Brain | null = (() => {
+  try {
+    return brainFromFile(defendCandidateFile as unknown as BrainFile);
+  } catch {
+    return null;
+  }
+})();
+
 const LOADED: Record<BrainName, Brain | null> = {
   'jameson-defend-g2': DEFEND_BRAIN,
+  'jameson-defend-t91': DEFEND_CANDIDATE,
   // the pre-neuroevolution AI is code, not weights
   scripted: null,
 };

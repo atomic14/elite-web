@@ -118,6 +118,7 @@ export const SIM_BRAINS: readonly BrainId[] = [
   // cannot load. `jameson-defend-g2` stays because an exercise can put an
   // ARMED TRADER in the sky, and that is the policy it turns and fights with.
   'jameson-defend-g2',
+  'jameson-defend-t91',
   'scripted',
 ];
 

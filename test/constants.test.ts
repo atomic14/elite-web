@@ -196,7 +196,7 @@ const OUTSIDE: readonly Group[] = [
       + ' may not import. The one tunable number the file held, the target-speed floor,'
       + ' is constants/brain-flight.ts now',
     files: {
-      'game/brains.ts': ['DEFEND_BRAIN', 'LOADED'],
+      'game/brains.ts': ['DEFEND_BRAIN', 'DEFEND_CANDIDATE', 'LOADED'],
     },
   },
 

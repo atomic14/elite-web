@@ -46,6 +46,7 @@
  */
 export type BrainName =
   | 'jameson-defend-g2'
+  | 'jameson-defend-t91'
   | 'scripted';
 
 /**
@@ -98,6 +99,18 @@ export interface BrainProfile {
  * rest of the panel's prose in `screens/combat-sim-notes.ts`.
  */
 export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
+  // defence probe, 800 held-out fights on the docs/TODO/91 encoder: pools
+  // 98.2%, died 0/800, broke 11.4% of the attacking force, killed 6.8% —
+  // against the stale incumbent's 26.6%/13.4% flying out of distribution on
+  // the same seeds. The first candidate fitted to the new encoder, offered so
+  // it can be FLOWN before being judged (CLAUDE.md: prefer a fight a human
+  // flew); docs/TRAINING-LOG.md run 20 says why the numbers alone reject it.
+  'jameson-defend-t91': {
+    name: 'SITS TIGHT',
+    character: 'THE RETRAIN CANDIDATE ON THE NEW ENCODER — KEEPS 98.2% OF HER POOLS AND '
+      + 'NEVER DIES, BUT BREAKS ONLY 11.4% OF THE ATTACKING FORCE WHERE THE STALE '
+      + 'INCUMBENT STILL BREAKS 26.6%. FLY IT BEFORE JUDGING IT.',
+  },
   // defence probe, 800 held-out fights against the scripted attack run (1-4 of
   // them, three hulls, beam or military): 41.6% of her attackers destroyed,
   // 98.3% of her pools left, 0 deaths, and 0.00 warheads landed on her out of
@@ -193,7 +206,7 @@ export interface BrainSelection {
    * Fly NO brains at all — the A/B control that turns the DEFENCE policy off
    * too, so an armed trader falls back to running.
    *
-   * The only flag left. `pack` and `trained` selected the two trained pirate
+   * `pack` and `trained` selected the two trained pirate
    * policies, and Chris deleted those from the bundle on 2026-08-05: scripted
    * flies the opposition everywhere — the sky AND the trainer's rows — so a
    * flag whose policy is not in the bundle has nothing to select. An old save
@@ -202,6 +215,13 @@ export interface BrainSelection {
    * cannot name and offers to take it back.
    */
   scripted?: boolean;
+  /**
+   * Fly the TODO 91 defence candidate (`jameson-defend-t91`) instead of the
+   * incumbent — everywhere the defence flies: armed traders and the combat
+   * computer alike. The stage-3 A/B, here so it can be felt from the stick
+   * rather than judged from the probe table alone.
+   */
+  defendCandidate?: boolean;
 }
 
 /**
@@ -274,7 +294,8 @@ export function pirateBrainNameFor(
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
 export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): BrainName {
-  return sel.scripted ? 'scripted' : SHIPPED_DEFENCE;
+  if (sel.scripted) return 'scripted';
+  return sel.defendCandidate ? 'jameson-defend-t91' : SHIPPED_DEFENCE;
 }
 
 /**
@@ -294,6 +315,7 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
  */
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
   'jameson-defend-g2': {},
+  'jameson-defend-t91': { defendCandidate: true },
   scripted: { scripted: true },
 };
 

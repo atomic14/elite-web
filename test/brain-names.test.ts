@@ -381,7 +381,7 @@ console.log('\nbrain selection');
     check('no selection can put a trained policy on a pirate',
       pirateBrainNameFor(2, true, { scripted: true }) === 'scripted'
       && (Object.keys(BRAINS) as BrainName[])
-        .every((n) => n === 'scripted' || n === 'jameson-defend-g2'));
+        .every((n) => n === 'scripted' || n.startsWith('jameson-defend')));
   }
   check('the defence brain is fitted', defenceBrain() !== null);
 }
