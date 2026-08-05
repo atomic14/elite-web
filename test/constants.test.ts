@@ -343,12 +343,35 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'the policy seam: observation widths and the episode the trainer flies. The'
-      + ' shapes here are what every shipped genome was fitted at, so they are a'
-      + ' slice on their own and it is not a tidy',
+    why: 'STAYS, whole, on the brain-names.ts precedent: policy.ts IS "what shape a'
+      + ' genome is" — the four observation widths, the hidden width and the two head'
+      + ' counts are the policy format\'s own dimensions, welded to the network the'
+      + ' file defines and to observation.ts\'s encoder choice (`observeFor` picks the'
+      + ' encoder BY the input count). Moving them would split one format across two'
+      + ' homes; every shipped weights file is fitted at exactly these numbers. The'
+      + ' fitted-world constants that ARE tunable-shaped (`OBS_SPEED_SCALE`,'
+      + ' `TARGET_SPEED_FLOOR`, the ramp) live in constants/brain-flight.ts',
     files: {
-      'ai-training/policy.ts': ALL,
-      'ai-training/scenario.ts': ALL,
+      'ai-training/policy.ts': [
+        'OBS_SIZE', 'DEFEND_OBS_SIZE', 'PACK_OBS_SIZE', 'PACK_WIDE_OBS_SIZE',
+        'HIDDEN', 'OUT_SIZE', 'DEFEND_OUT_SIZE', 'MAX_OUT_SIZE',
+      ],
+    },
+  },
+
+  {
+    why: 'STAYS: `EPISODE_SCHEMA` is a format version welded to the episode record and'
+      + ' its five-bump history, the `SNAPSHOT_VERSION` shape; `TARGET_HULLS`,'
+      + ' `TRADER_COBRA`, `PLAYER_LASERS` and `TRADER_WEAPON_BYTE` are catalogue and'
+      + ' roster reads resolved at load, the `MISSILE_HULL` shape; and the three'
+      + ' `WEAVE_*` numbers calibrate the weaving INSTRUMENT docs/TODO/66 built — a'
+      + ' measurement target one private pilot flies, not a game rule, and nothing'
+      + ' outside `weavingTrader` could ever need them',
+    files: {
+      'ai-training/scenario.ts': [
+        'EPISODE_SCHEMA', 'TARGET_HULLS', 'TRADER_COBRA', 'PLAYER_LASERS',
+        'TRADER_WEAPON_BYTE', 'WEAVE_RADIUS', 'WEAVE_MIN_SECONDS', 'WEAVE_MAX_SECONDS',
+      ],
     },
   },
 

@@ -74,3 +74,21 @@ export const DECISION_INTERVAL = 0.1;
  * decision and not a refactor. See docs/TODO/90-constants-cleanup.md, Open.
  */
 export const TARGET_SPEED_FLOOR = 150;
+
+/**
+ * The speed scale every observation is normalized by, in world units a second:
+ * `observe()` writes `target.speed / OBS_SPEED_SCALE` to slot 10 and the
+ * closing rate over the same scale to slot 7, and `shipView()`'s default class
+ * max is this too.
+ *
+ * DO NOT FUSE IT WITH `PLAYER_FLIGHT.maxSpeed`. Both are 400 and they are not
+ * one rule — the same trap as `BRAIN_RATE_RAMP` and the commander's
+ * `RATE_RAMP`, at a different number. This is the scale every shipped genome
+ * was FITTED at: slot 10 at 0.5 means 200 units a second to every brain in the
+ * bundle, forever. The commander's top speed is a feel setting that a redesign
+ * may retune; if the two were one constant, retuning the engine would silently
+ * rescale every observation and put all three shipped policies out of
+ * distribution with nothing going red. `TARGET_SPEED_FLOOR / OBS_SPEED_SCALE`
+ * is the 0.375 the floor's own comment quotes.
+ */
+export const OBS_SPEED_SCALE = 400;

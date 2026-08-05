@@ -1371,6 +1371,93 @@ the combat trainer, and the policy seam. Plus one thing no slice has
 touched: CLAUDE.md does not yet carry the read-it-do-not-grep-it
 instruction below.
 
+**Slice 12 — the policy seam — landed, and it moved one constant and fixed
+three homes.** The count went from 266 home / 243 out across 69 files to
+**267 home / 243 out across 69**: the whole group resolved as named STAYS
+entries, exactly as the gate's own brief predicted ("the shapes here are
+what every shipped genome was fitted at, so it is not a tidy").
+
+| moved | file |
+| --- | --- |
+| the observation speed scale every genome was fitted at, with its do-not-fuse warning | `constants/brain-flight.ts` |
+
+**`policy.ts` stays whole, on the brain-names.ts precedent.** Its eight
+constants are the genome FORMAT's own dimensions — the four observation
+widths pick the encoder (`observeFor` chooses BY input count, so the sizes
+must stay distinct), and the two head counts are what a weights file IS.
+Moving them would split one format across two homes. `scenario.ts`'s eight
+are a format version with a five-bump history (`EPISODE_SCHEMA`, the
+`SNAPSHOT_VERSION` shape), four catalogue reads (the `MISSILE_HULL` shape),
+and the three `WEAVE_*` numbers that calibrate docs/TODO/66's measurement
+instrument — a synthetic target one private pilot flies, not a game rule.
+
+**The survey's "highest value per line in the partition" is done.**
+`observation.ts` normalized slots 11/12 by literal `1.4` and `2.4` — the
+residue of `TURN` being moved OUT of ai-training so the two could not
+disagree, and the two lines where they still could. Both read `TURN` now,
+and `test/observation.test.ts` pins the rule rather than the copy: a ship at
+its own pitch or roll cap reads exactly 1.
+
+**The log-distance encoding had three homes in one file and has one.**
+Slots 6, 17 and 19 each wrote
+`Math.min(2, log10(max(50, d) / 100)) / 2` out again, feeding three
+different brains — a floor or base moved in one place would have had every
+genome silently reading a different geometry. It is one `logDistance`
+helper now, and the test holds the three slots to one rule with an
+equilateral fixture (all three distances exactly 1,000 → all three slots
+exactly 0.5), plus the floor's edge at exactly 50 — the first spelling of
+that check compared two clamped reads and stayed green under a drifted
+floor, which is the vacuity trap again, caught by breaking it.
+
+**The 400 was the 4.1396 trap at a different number, and it is recorded the
+same way.** `observe()` normalized slot 10 and the closing rate by a bare
+`400` — the same value as `PLAYER_FLIGHT.maxSpeed` and NOT the same rule:
+it is the scale every shipped genome was fitted at, frozen, where the
+commander's top speed is a feel setting a redesign may retune. Fusing them
+would have every engine retune silently rescale every observation. It is
+`OBS_SPEED_SCALE` in `constants/brain-flight.ts` now, beside
+`TARGET_SPEED_FLOOR` (whose 0.375 quote is this scale's arithmetic) and the
+ramp's own warning, with the mirror argument written out.
+
+**One prose figure corrected**: `scenario.ts` claimed episodes fly the
+game's "25-second life" — `MISSILE_LIFE` is the PLAYER's warhead; every
+missile in an episode is hostile and lives `HOSTILE_MISSILE_LIFE` = 30. The
+sentence names the constants now and records its own correction. The
+survey's remaining training findings (`evolve.ts`'s `[400, 1.036]` fossil,
+the trial harness's 280 pin, the seed strides and `EPISODE_SECONDS`
+collisions) are all `train/` files, which are outside the home by decision
+— they wait on the "does train/ join" question in What to work out.
+
+Byte-identical, verified against a worktree at HEAD: **1,871 compared, 0
+changed** — every name in `src/constants/` then against now, all four
+encoders swept over 400 randomized view triples (positions, orientations,
+rates, pools, warhead flags), and five seeded episodes flown 30 seconds
+through both trees — solo policy, scripted vs holding, three scripted vs
+weaving, a two-policy pack vs runner, and a full defence fit (armed, beam,
+energy unit, E.C.M., defend-head genome) — with `setup()`, `report()`, the
+per-frame shot counts and all four fitness functions compared to the byte.
+The harness was broken (`OBS_SPEED_SCALE` 400 → 410) and reported **1,602**
+changes before being restored.
+
+The four gates: `npm run build` passes — `observation.ts` crossed 400 lines
+and carries its stated reason in `tools/sizes.mjs`; `npm run campaign`
+byte-identical, zero diff lines against the worktree's own run; `npm run
+elite-a` 490 passed, 0 failed; `npm run portability` 0 contaminated. The
+suite reads **3197 from 3187**, all ten new. Both console harnesses reach
+this seam only through `kit.observeFor`, which is unchanged and still
+exported.
+
+Eight breaks, all confirmed red and restored with targeted edits: the
+gate's stray `SOME_RULE` in scenario.ts (1 failure); drifted re-inlines for
+the pitch cap at 1.5 (1), the roll cap at 2.5 (1) and the speed scale at
+410 (1); slot 17 re-growing its own drifted spelling of the log rule (1);
+the shared rule's own base drifted to 110 (3) and its floor to 60 (1 —
+zero until the floor check was sharpened, which is why it was); and the
+equivalence harness itself (above).
+
+**Still to do**: the console and the combat trainer, then the CLAUDE.md
+instruction below, which only the last slice may add.
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give

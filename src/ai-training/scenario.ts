@@ -817,8 +817,11 @@ export class Episode {
    * sky with nothing to draw into.
    *
    * NOT a second missile model, which is the one thing docs/TODO/62 forbids: the
-   * spawn, the homing, the 25-second life, the 50-unit fuse and the E.C.M. rule
-   * are the game's. All an episode supplies is the `OrdnanceWorld` — its own
+   * spawn, the homing, the hostile warhead's own `HOSTILE_MISSILE_LIFE` clock,
+   * the `MISSILE_HIT_RANGE` fuse and the E.C.M. rule are the game's. (This
+   * sentence used to quote "the 25-second life" — `MISSILE_LIFE` is the
+   * PLAYER'S warhead; every missile in an episode is hostile and lives 30.)
+   * All an episode supplies is the `OrdnanceWorld` — its own
    * fleet, and an `attach` with no scene behind it, which is the same bargain
    * `headlessShell()` makes for the renderer and `inert-dom.ts` for a painter.
    * Nothing reads the scene back, so dropping the writes changes no rule.

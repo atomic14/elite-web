@@ -32,6 +32,8 @@
 import {
   DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain,
 } from './policy.ts';
+import { TURN } from '../constants/hull-motion.ts';
+import { OBS_SPEED_SCALE } from '../constants/brain-flight.ts';
 
 export type V3 = { x: number; y: number; z: number };
 export type Q4 = { x: number; y: number; z: number; w: number };
@@ -127,7 +129,7 @@ export interface ShipView {
  * feeds the defence brain a threat speed of 280 forever, because that is the
  * only number it has ever been flown against (see combat-computer.ts).
  */
-export function shipView(maxSpeed = 400, turnRate = 1, speed = 0): ShipView {
+export function shipView(maxSpeed = OBS_SPEED_SCALE, turnRate = 1, speed = 0): ShipView {
   return {
     pos: { x: 0, y: 0, z: 0 }, quat: { x: 0, y: 0, z: 0, w: 1 },
     speed, cls: { maxSpeed, turnRate, hp: 1 }, hp: 1,
@@ -147,6 +149,21 @@ export function writeView(v: ShipView, pos: V3, quat: Q4): void {
 function fwdOf(s: ShipView): V3 {
   return qRotate(s.quat, v3(0, 0, -1));
 }
+
+/**
+ * A distance, as every encoder reads one: log-decades over a 100-unit base,
+ * floored at 50 and capped two decades up, normalized to 0..1 — so 100 units
+ * is 0, 1,000 is 0.5 and 10,000 or more is 1.
+ *
+ * ONE HOME, and it had three: slot 6 (target), slot 17 (nearest mate) and
+ * slot 19 (mate-to-target) each wrote the expression out again, feeding three
+ * different brains — so a floor or decade base moved in one place would have
+ * had every genome silently reading a different geometry from the one it was
+ * fitted on. The 50/100/2 are what every shipped brain was fitted at;
+ * `test/observation.test.ts` holds the three slots to one rule.
+ */
+const logDistance = (d: number): number =>
+  Math.min(2, Math.log10(Math.max(50, d) / 100)) / 2;
 
 /**
  * Observation, everything in the observer's ship frame so policies are
@@ -172,13 +189,16 @@ export function observe(me: ShipView, target: ShipView, out: Float32Array): Floa
   out[3] = local.x;
   out[4] = local.y;
   out[5] = local.z;
-  out[6] = Math.min(2, Math.log10(Math.max(50, dist) / 100)) / 2;
-  out[7] = Math.max(-1, Math.min(1, closing / 400));
+  out[6] = logDistance(dist);
+  out[7] = Math.max(-1, Math.min(1, closing / OBS_SPEED_SCALE));
   out[8] = vDot(targetFwd, vNorm(vSub(me.pos, target.pos))); // +1 → target faces us
   out[9] = Math.acos(Math.max(-1, Math.min(1, vDot(myFwd, relDir)))) / Math.PI;
-  out[10] = target.speed / 400;
-  out[11] = me.pitchRate / (me.cls.turnRate * 1.4);
-  out[12] = me.rollRate / (me.cls.turnRate * 2.4);
+  out[10] = target.speed / OBS_SPEED_SCALE;
+  // The ship's own pitch and roll caps are `turnRate * TURN.*` — ship-specs.ts
+  // records that TURN moved OUT of ai-training/ precisely so the two could not
+  // disagree, and these two literals were the residue.
+  out[11] = me.pitchRate / (me.cls.turnRate * TURN.pitch);
+  out[12] = me.rollRate / (me.cls.turnRate * TURN.roll);
   out[13] = 1;
   return out;
 }
@@ -256,7 +276,7 @@ export function observePack(
     out[14] = local.x;
     out[15] = local.y;
     out[16] = local.z;
-    out[17] = Math.min(2, Math.log10(Math.max(50, bestD) / 100)) / 2;
+    out[17] = logDistance(bestD);
   } else {
     out[14] = 0; out[15] = 0; out[16] = 0; out[17] = 1;
   }
@@ -327,7 +347,7 @@ export function observePackWide(
     // where the mate sits relative to the target, expressed in our frame
     const flank = qRotate(inv, vNorm(vSub(best.pos, target.pos)));
     out[18] = Math.max(0, Math.min(1, best.hp / best.cls.hp));
-    out[19] = Math.min(2, Math.log10(Math.max(50, mateDist) / 100)) / 2;
+    out[19] = logDistance(mateDist);
     out[20] = vDot(mateFwd, vNorm(mateToTarget));
     out[21] = flank.x;
     out[22] = flank.y;
