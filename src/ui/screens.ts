@@ -24,6 +24,7 @@ import {
   type CombatSimReport, type OpeningGeometry, type WaveEscalation,
 } from '../game/combat-sim-report.ts';
 import { PASS_CLOSE, PASS_FAR } from '../constants/combat-record.ts';
+import { brainName } from '../game/brain-names.ts';
 import type {
   CompareGroup, SimComparePanel,
 } from '../game/combat-sim-compare.ts';
@@ -1209,7 +1210,10 @@ export function renderCombatSimReport(
       &middot; ${r.player.missiles} MISSILES
       ${r.player.ecm ? '&middot; E.C.M.' : ''}
       ${r.player.energyUnit ? '&middot; ENERGY UNIT' : ''}
-      ${r.player.energyBomb ? '&middot; ENERGY BOMB' : ''}
+      ${r.player.energyBomb ? '&middot; ENERGY BOMB' : ''}<br/>
+      COMBAT COMPUTER BRAIN: ${r.coPilot === 'scripted'
+        ? 'NONE' : `${(brainName(r.coPilot) ?? r.coPilot).toUpperCase()}
+          (${r.coPilot.toUpperCase()})`}
     </div>
     ${r.escalation ? escalation(r.escalation) : ''}
     <div class="chartrow">

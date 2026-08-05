@@ -181,6 +181,7 @@ export function probeEpisode(
     // An episode is not a trainer exercise: where its ships start is
     // ai-training/scenario.ts's business, so this record does not claim one.
     opening: NO_OPENING,
+    coPilot: 'scripted',
   });
 
   const target = ep.trader;

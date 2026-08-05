@@ -38,6 +38,7 @@ const setup = (over: Partial<ExerciseSetup> = {}): ExerciseSetup => ({
   mode: 'scenario',
   sampleHz: 10,
   opening: NO_OPENING,
+  coPilot: 'scripted',
   player: {
     shipId: 'elite-a:player:7',
     laser: 'beam', missiles: 4, ecm: true, energyUnit: true, energyBomb: false,

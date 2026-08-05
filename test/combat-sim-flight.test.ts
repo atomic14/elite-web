@@ -33,6 +33,7 @@ console.log('\ncombat simulator report — how they flew');
     mode: 'scenario',
     sampleHz: 10,
     opening: NO_OPENING,
+    coPilot: 'scripted',
     player: {
       shipId: 'elite-a:player:7',
       laser: 'beam', missiles: 0, ecm: false, energyUnit: false, energyBomb: false,

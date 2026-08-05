@@ -99,7 +99,7 @@ import type { Ordnance } from './ordnance.ts';
 import type { Persistence } from './persistence.ts';
 import { random, seedWorld } from './rng.ts';
 import { exerciseCommander, exerciseStepHost } from './combat-sim-safety.ts';
-import { selectionForBrain } from './brain-names.ts';
+import { defenceBrainNameFor, selectionForBrain } from './brain-names.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import { spawnOpposition, type OppositionUnit } from './spawning.ts';
 import { freshSession, type GameState } from './state.ts';
@@ -585,6 +585,9 @@ export class CombatSim {
         : scenarioById(spec.scenario).name,
       mode: spec.mode,
       player: this.loadout(),
+      // `state.brains` already carries this round's override if the panel set
+      // one — begin() applies it before any round is set up.
+      coPilot: defenceBrainNameFor(this.state.brains),
       opponents,
       opening,
       ...(endless ? { wave: this.round + 1 } : {}),

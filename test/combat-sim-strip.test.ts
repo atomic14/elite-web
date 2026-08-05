@@ -56,7 +56,7 @@ console.log('\ncombat simulator — the exercise strip');
     ...over,
   });
   const setup = (over: Partial<ExerciseSetup> = {}): ExerciseSetup => ({
-    seed: 1, scenario: 'Pirate pair', mode: 'scenario',
+    seed: 1, scenario: 'Pirate pair', mode: 'scenario', coPilot: 'scripted',
     player: { shipId: 'elite-a:player:7', laser: 'pulse', missiles: 3, ecm: false,
       energyUnit: false, energyBomb: false },
     opponents: [],

@@ -337,6 +337,13 @@ export interface ExerciseSetup {
   scenario: string;
   mode: SimMode;
   player: PlayerLoadout;
+  /**
+   * Which brain flew YOUR side — the combat computer if fitted, and every
+   * armed trader in the fight. The record named every opponent's brain and
+   * not this one, so an A/B export could not say which co-pilot it measured.
+   * `scripted` here means NONE: no policy was flying for you.
+   */
+  coPilot: string;
   opponents: OpponentSetup[];
   /** where they were when it started — see `OpeningGeometry` */
   opening: OpeningGeometry;
@@ -490,6 +497,8 @@ export interface CombatSimReport {
   /** seconds with at least one hostile in the sky */
   engagedSeconds: number;
   player: PlayerLoadout;
+  /** which brain flew your combat computer and every armed trader — see ExerciseSetup */
+  coPilot: string;
   /** where they were at t=0 — carried through from the setup */
   opening: OpeningGeometry;
   you: {
@@ -970,6 +979,7 @@ export class CombatSimRecorder {
       seconds: p.seconds,
       engagedSeconds: secs(engagedFrames),
       player: this.setup.player,
+      coPilot: this.setup.coPilot,
       opening: this.setup.opening,
       you: {
         shots: p.shots,

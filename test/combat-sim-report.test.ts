@@ -60,6 +60,7 @@ console.log('\ncombat simulator report');
     mode: 'scenario',
     sampleHz: 10,
     opening: NO_OPENING,
+    coPilot: 'scripted',
     player: loadout,
     opponents: [
       {
