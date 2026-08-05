@@ -64,13 +64,14 @@ const DT = FIXED_DT;
 const SEED_BASE = 918_273;
 const MAX_TIME = 45;
 
+// THE ATTACKERS ARE SCRIPTED — the only pirate pilot there is since
+// 2026-08-05, when the trained pirate policies left the bundle. The rows used
+// to fly pirate-attack-g3 and pirate-pack-r4-selectonly; what a player meets
+// is the attack run, so that is what the defender's survivability is measured
+// against. Only the defender is still a loadable choice.
 const BRAIN_NAMES = {
-  pack: process.env.PACK_BRAIN ?? 'pirate-pack-r4-selectonly',
-  solo: process.env.SOLO_BRAIN ?? 'pirate-attack-g3',
   defend: process.env.DEFEND_BRAIN ?? 'jameson-defend-g2',
 };
-const pack = load(BRAIN_NAMES.pack);
-const solo = load(BRAIN_NAMES.solo);
 const jameson = load(BRAIN_NAMES.defend);
 
 interface Result {
@@ -94,10 +95,10 @@ interface Result {
   lost: number;
 }
 
-function run(pirateBrain: Brain, gang: number): Result {
+function run(gang: number): Result {
   let kills = 0; let ttk = 0; let lost = 0; let poolLost = 0; let shieldDown = 0;
   const pirates: Controller[] = Array.from({ length: gang },
-    () => ({ kind: 'policy', brain: pirateBrain }));
+    () => ({ kind: 'scripted' as const }));
   for (let e = 0; e < N; e++) {
     const ep = new Episode({
       seed: SEED_BASE + e * 7919,
@@ -135,15 +136,10 @@ console.log(`the commander's own pools: ${durability(true)} points across two ${
 console.log('| gang | brain | destroyed | pools stripped | a shield flattened | they lost |');
 console.log('| --- | --- | --- | --- | --- | --- |');
 for (const gang of [1, 2, 3, 4]) {
-  for (const [label, brain] of [
-    [`${BRAIN_NAMES.solo} (opportunists)`, solo],
-    [`${BRAIN_NAMES.pack} (gangs)`, pack],
-  ] as const) {
-    const r = run(brain, gang);
-    console.log(`| ${gang} | ${label} | ${(r.kill * 100).toFixed(0)}% in `
-      + `${r.ttk.toFixed(1)}s | ${(r.poolLost * 100).toFixed(0)}% | `
-      + `${(r.shieldDown * 100).toFixed(0)}% | ${r.lost.toFixed(2)}/ep |`);
-  }
+  const r = run(gang);
+  console.log(`| ${gang} | scripted (what ships) | ${(r.kill * 100).toFixed(0)}% in `
+    + `${r.ttk.toFixed(1)}s | ${(r.poolLost * 100).toFixed(0)}% | `
+    + `${(r.shieldDown * 100).toFixed(0)}% | ${r.lost.toFixed(2)}/ep |`);
 }
 console.log('\npools stripped = mean share of fore + aft + bank gone when the fight ended');
 console.log('they lost = attackers destroyed per episode, by her guns or their own flying\n');

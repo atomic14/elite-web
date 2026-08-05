@@ -309,7 +309,10 @@ export function printFlightShapes(names: string[], episodes: number): void {
  * `SIM_BRAINS` is: what ships is now `scripted`, so deriving this would collapse
  * the list and quietly drop the things the probe exists to compare against.
  */
-const TRAINED_ALTERNATIVES = ['pirate-attack-g3', 'pirate-pack-r4-selectonly'];
+// Empty since 2026-08-05: the trained pirate policies left the bundle, so the
+// probe's roster is the scripted run — what ships — plus whatever candidate
+// names are passed to `printFlightShapes` by hand during an evaluation.
+const TRAINED_ALTERNATIVES: string[] = [];
 
 const isMain = process.argv[1]?.endsWith('flight-probe.ts') ?? false;
 if (isMain) {
