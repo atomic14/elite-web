@@ -162,11 +162,11 @@ console.log('\ncontracts');
 // themselves — a re-inlined literal in the filter or the commodity draw goes
 // red here and nowhere else.
 //
-// CONTRACT_RANGE is the recorded divergence (68 against the tank's 70, see
-// constants/contracts.ts): the check pins the shipped bound exactly, from
-// both sides — the furthest offer equals the furthest system the bound
-// admits, and the galaxy holds destinations just beyond it that are never
-// offered, so widening OR narrowing the filter moves the measurement.
+// CONTRACT_RANGE is MAX_FUEL now (resolved 2026-08-05 — the tank is the
+// rule): the check pins the bound exactly, from both sides — the furthest
+// offer equals the furthest system the bound admits, and the galaxy holds
+// destinations just beyond it that are never offered, so widening OR
+// narrowing the filter moves the measurement.
 
 console.log('\nthe bulletin board\'s reach');
 {
@@ -179,11 +179,11 @@ console.log('\nthe bulletin board\'s reach');
     for (const b of systems) {
       const d = distanceTenths(a, b);
       if (a.index !== b.index && d > 0 && d <= CONTRACT_RANGE && d > maxPossible) maxPossible = d;
-      if (d > CONTRACT_RANGE && d <= 70) justBeyond += 1;
+      if (d > CONTRACT_RANGE && d <= CONTRACT_RANGE + 5) justBeyond += 1;
     }
   }
   check(`the bound excludes real destinations (${justBeyond} pairs sit in `
-    + `(${CONTRACT_RANGE}, 70])`, justBeyond > 0);
+    + `(${CONTRACT_RANGE}, ${CONTRACT_RANGE + 5}])`, justBeyond > 0);
 
   // the sweep, read at two sizes (CLAUDE.md: read the set, not the sample) —
   // the answer must be the same one at both

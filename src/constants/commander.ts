@@ -38,7 +38,7 @@ export const STARTING_CREDITS = 1000;
  * the reach of a full tank, and the radius of the dashed circle both charts
  * draw. The living galaxy's convoys fly the same 7 LY range on the stated
  * grounds that every ship does; `contracts.ts`'s bulletin board reaches to 68
- * rather than 70, and that divergence is recorded beside `CONTRACT_RANGE`.
+ * rather than 70 — resolved 2026-08-05: `CONTRACT_RANGE` IS this constant now.
  */
 export const MAX_FUEL = 70;
 

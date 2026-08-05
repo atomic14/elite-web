@@ -428,7 +428,14 @@ speed, and brains.ts already names the honest fix ("deleting the input
 entirely... costs a retrain of every brain"). **Either way it is a behaviour
 change with a training run attached — a decision, not a lookup.**
 
-### The bulletin board reaches 68 tenths and everything else says 70
+### The bulletin board reaches 68 tenths and everything else says 70 — DECIDED 2026-08-05: the tank is the rule
+
+`CONTRACT_RANGE = MAX_FUEL` now, an expression at last; the 86 galaxy-1
+pairs in (68, 70] became offerable. The campaign's balance rows all still
+pass, and the trade decisions moved as widening the board must: median net
+worth 7577.4 → 7320.9 Cr, cash in hand 764.1 → 420.4, first upgrade leg 6 →
+9, best career 15085 → 18523 Cr — more work on offer means more taken, and
+more of the worth held as cargo mid-run. The finding as it stood:
 
 The survey's "reachable on a full tank is 68, 70 and 70", named by slice 8:
 `CONTRACT_RANGE = 68` (constants/contracts.ts) against `MAX_FUEL = 70`, which
