@@ -2933,3 +2933,37 @@ its first candidate lost (table above). A triple-budget rerun
 (`--gens 900 --pop 64 --eps 6`, out `jameson-defend-t91b`) was queued the
 same day; its figures go here when it lands, and promotion still happens at
 the stick.
+
+### The triple-budget rerun, and the two measurements that name the wall
+
+`jameson-defend-t91b` (900 gens, pop 64, eps 6 — 3x the budget) landed and
+made the pattern unambiguous. Held-out, 800 episodes each, same seeds:
+
+| brain | pools | died | broke | killed |
+| --- | --- | --- | --- | --- |
+| jameson-defend-g2 (incumbent, OOD) | 98.1% | 0/800 | 26.6% | 13.4% |
+| jameson-defend-t91 (300 gens) | 98.2% | 0/800 | 11.4% | 6.8% |
+| jameson-defend-t91b (900 gens) | 97.5% | **1/800** | **1.3%** | 1.8% |
+
+**More search buys more passivity.** The 3x champion throttles forward 9% of
+the time, breaks almost nothing, and is the first defence policy in this
+world to die on held-out seeds. The search is not the constraint; the
+observation is. Chris's diagnosis, measured:
+
+- **Nearest-threat churn.** The threat view is re-picked with no hysteresis
+  at all three call sites (combat-computer.ts, npc.ts, scenario.ts). Against
+  scripted gangs the defender's "target" switches identity 11.2/20.4/26.8
+  times a minute at gang 2/3/4, the bearing slots jump a mean of ~90 degrees
+  at each switch (the run spreads attackers to flanks), and the second
+  attacker is within 20% of the nearest for about a quarter of all frames —
+  a world whose target teleports, ten times a second.
+- **No motion, no memory.** The policy sees a facing dot and one closing
+  scalar; it cannot know where a target is heading or lead it. The SCRIPTED
+  run is handed the target's full velocity vector and leads its passes with
+  it — the hand-written pilot is better informed than the trained one.
+
+The next run is an encoder, not a budget: threat velocity in ship frame,
+second-threat bearing and count, missile bearing, the fore/aft split
+(~16 → 28, HIDDEN 64), plus a hysteresis latch on target selection that
+serves any brain. Both t91 candidates stay unpromoted; nothing merges
+before it is flown.
