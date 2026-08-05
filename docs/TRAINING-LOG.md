@@ -2914,3 +2914,22 @@ quality gates (the OOD reading above) and the only-what-ships weights gate,
 which correctly refuses the unpromoted candidates. Stage 3 — promotion — is a
 decision per phase, made at the stick: nothing merges to main until the
 replacement pirates have been flown from `T` and chosen over what ships.
+
+### Postscript — the pirate candidates are discarded, and so are their incumbents
+
+Chris, 2026-08-05, on being shown run 20: *"we have already decided that we
+are using the scripted pirates... the only thing we are trying to train is
+the traders and combat computer."* So the pirate half of this run is moot by
+decision, not by measurement: `pirate-attack-t91` and `pirate-pack-t91` are
+discarded unpromoted, and the two incumbents they were to replace —
+`pirate-attack-g3` and `pirate-pack-r4-selectonly` — left the bundle with
+them. Scripted is the only opposition anywhere: the sky, the trainer's picker
+rows and the A/B alike (`pack` and `trained` join the ride-along dead flags).
+The instruments changed with it: the ai-gate and collision ceilings now
+measure the scripted run, and `survivability`'s attacker rows are scripted.
+
+What remains of TODO 91 is the one policy that matters — the defence — and
+its first candidate lost (table above). A triple-budget rerun
+(`--gens 900 --pop 64 --eps 6`, out `jameson-defend-t91b`) was queued the
+same day; its figures go here when it lands, and promotion still happens at
+the stick.

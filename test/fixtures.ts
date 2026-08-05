@@ -53,7 +53,8 @@ export const shippedBrainFile = (which: string): string => {
   return m[1];
 };
 
-export const SHIPPED_PIRATE = shippedBrainFile('pirate');
+// There is no SHIPPED_PIRATE any more: the trained pirate weights left the
+// bundle on 2026-08-05 (scripted is the only opposition), so the one brain
+// the game imports is the defence.
 export const SHIPPED_DEFEND = shippedBrainFile('defend');
-export const shippedPirate = load(SHIPPED_PIRATE);
 export const jameson = load(SHIPPED_DEFEND);

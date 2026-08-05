@@ -15,7 +15,7 @@ import {
 import {
   observeFor, shipView, writeView, type ObservableMate,
 } from '../ai-training/observation.ts';
-import { pirateBrainFor, defenceBrain } from './brains.ts';
+import { defenceBrain } from './brains.ts';
 import {
   nextAttackPhase, closingThrottle, rollExtendRange, type AttackPhase,
 } from './break-off.ts';
@@ -658,23 +658,13 @@ export class NpcShip {
       isHostileToPlayer(this, playerLegal) && distPlayer < PLAYER_INTEREST_RANGE;
 
     if (aggressiveToPlayer) {
-      // Which brain, and the two numbers that come with it — see brains.ts.
-      const choice = this.role === 'pirate'
-        ? pirateBrainFor(this.state.threatTier, this.state.organised, brains) : null;
-      const shot = choice && distPlayer >= choice.guard
-        // The RAW speed: the clamp the game used to apply here
-        // (TARGET_SPEED_FLOOR) died with the target-speed slot it protected
-        // (docs/TODO/91) — the encoder reads speed only through the closing
-        // rate now, which the trainer always fed honestly.
-        ? this.brainFly(choice.brain, dt,
-          player.position, player.quaternion,
-          player.speed,
-          distPlayer, 'player',
-          choice.pack ? fleet : null)
-        // Inside knife range the scripted break-off takes over the FLYING — and
-        // only the flying, since attack() keeps its gun. See break-off.ts.
-        : this.attack(dt, player.position, distPlayer, true, undefined, view.fleet,
-          this.velocityOf(player.quaternion, player.speed));
+      // Every pirate a player meets flies the scripted attack run — the whole
+      // of CLAUDE.md's "scripted flies the opposition", and since 2026-08-05
+      // there is no trained pirate policy in the bundle for an A/B to select
+      // (brain-names.ts). The run closes, passes and extends; chooseWeapon
+      // decides what leaves the rail.
+      const shot = this.attack(dt, player.position, distPlayer, true, undefined,
+        fleet, this.velocityOf(player.quaternion, player.speed));
       return this.chooseWeapon(shot, distPlayer, player.position,
         view.missileInbound);
     }

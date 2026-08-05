@@ -18,7 +18,8 @@ import { NpcShip } from '../src/game/npc.ts';
 import { World } from '../src/game/world.ts';
 import { specForDesign } from '../src/game/ship-specs.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
-import { SHIPPED_BRAINS, type BrainSelection } from '../src/game/brain-names.ts';
+import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
+import { SPECS } from '../src/game/ship-specs.ts';
 import { showMessage, tickMessage } from '../src/game/session.ts';
 import { check, keys } from './harness.ts';
 import { g1 } from './fixtures.ts';
@@ -72,26 +73,28 @@ console.log('\nsnapshot round trip');
   const makePlayer = (pos: THREE.Vector3) =>
     ({ position: pos, quaternion: new THREE.Quaternion(), speed: 220 }) as never;
   const station = new THREE.Object3D();
-  // FLOWN BY A BRAIN, deliberately, and it must stay that way. `brainControl` is
-  // a cached policy decision and this file exists to prove it survives a save —
-  // it was the last field keeping a restored world from replaying its original.
-  // What SHIPS is the scripted attack run now, which never fills that field, so
-  // a fixture on the shipped selection would round-trip a null and quietly stop
-  // testing the thing it was written for. `trained: true` selects a policy that
-  // actually caches a decision.
-  const BRAIN_FLOWN: BrainSelection = { trained: true };
+  // FLOWN BY A BRAIN, deliberately, and it must stay that way. `brainControl`
+  // is a cached policy decision and this file exists to prove it survives a
+  // save — it was the last field keeping a restored world from replaying its
+  // original. Since 2026-08-05 the ONE ship that reaches `brainFly` in a
+  // shipped build is the armed trader on the defence policy (the trained
+  // pirate weights left the bundle), so the fixture is that trader, fleeing
+  // and provoked, under the shipped selection.
   const fly = (npc: NpcShip, frames: number) => {
     for (let i = 0; i < frames; i++) {
       npc.update(1 / 60, makePlayer(at(0, 0, 0)), {
-        station, dockZ: 160, fleet: [npc], playerLegal: 0, brains: BRAIN_FLOWN, missileInbound: false,
+        station, dockZ: 160, fleet: [npc], playerLegal: 0,
+        brains: SHIPPED_BRAINS, missileInbound: false,
       });
     }
   };
 
   // --- NpcState ------------------------------------------------------------
   seedWorld(20_260_729);
-  const flown = new NpcShip('pirate', at(120, -80, 1400), 5);
-  flown.state.threatTier = 1;
+  const flown = new NpcShip('trader', at(120, -80, 1400), 5,
+    SPECS.trader.find((s) => s.armed));
+  flown.state.fleeing = true;
+  flown.state.provokedByPlayer = true;
   fly(flown, 600);
 
   // A round trip over unchanged defaults proves nothing, so insist the state
@@ -122,7 +125,10 @@ console.log('\nsnapshot round trip');
     && Array.isArray((saved.dockPlan as Record<string, unknown>).heading)
     && Array.isArray((saved.dockPlan as Record<string, unknown>).up));
 
-  const fresh = new NpcShip('pirate', at(0, 0, 0), 5);
+  // the same role and the same armed spec as `flown`: a replay across a
+  // different hull would diverge on the envelope alone
+  const fresh = new NpcShip('trader', at(0, 0, 0), 5,
+    SPECS.trader.find((s) => s.armed));
   const meshPos = fresh.object.position;
   const meshQuat = fresh.object.quaternion;
   restoreState(fresh.state as unknown as Record<string, unknown>, saved);

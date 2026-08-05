@@ -9,9 +9,7 @@
 // the name rule and to the loader, and the two must land on the same policy.
 
 import { readdirSync, readFileSync } from 'node:fs';
-import {
-  pirateBrainFor, defenceBrain, brainByName,
-} from '../src/game/brains.ts';
+import { defenceBrain, brainByName } from '../src/game/brains.ts';
 import {
   AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, LIVE_BRAIN_IDS, SHIPPED_BRAINS,
   brainCharacter, brainName,
@@ -37,9 +35,7 @@ import { check, eq } from './harness.ts';
 
 console.log('\nwhich brain flies, by name');
 {
-  const NAMED: BrainName[] = [
-    'pirate-attack-g3', 'pirate-pack-r4-selectonly', 'jameson-defend-g2',
-  ];
+  const NAMED: BrainName[] = ['jameson-defend-g2'];
   const missing = NAMED.filter((n) => brainByName(n) === null);
   check(`every name the rule can return has weights behind it (${NAMED.length})`,
     missing.length === 0, missing.join(', '));
@@ -52,10 +48,12 @@ console.log('\nwhich brain flies, by name');
     const sel = liveBrainSelection(id);
     for (const tier of [0, 1, 2]) {
       for (const organised of [false, true]) {
-        const flown = pirateBrainFor(tier, organised, sel);
-        const named = pirateBrainNameFor(tier, organised, sel);
-        const want = named === 'scripted' ? null : brainByName(named);
-        if ((flown?.brain ?? null) !== want) disagreed.push(`${id}/${tier}/${organised}`);
+        // Pirates have no loader path at all since 2026-08-05: the name rule
+        // must answer 'scripted' for every tier under every selection, which
+        // is the whole of "scripted flies the opposition".
+        if (pirateBrainNameFor(tier, organised, sel) !== 'scripted') {
+          disagreed.push(`${id}/${tier}/${organised}`);
+        }
       }
       const defence = defenceBrainNameFor(sel);
       const wantDefence = defence === 'scripted' ? null : brainByName(defence);
@@ -87,10 +85,12 @@ console.log('\nwhich brain flies, by name');
     && pirateBrainNameFor(1, true) === 'scripted');
   check('...and an armed trader still turns and fights with the defence policy',
     defenceBrainNameFor() === 'jameson-defend-g2');
-  // The alternatives survive the change of default, and each is reachable.
-  check('...while every trained policy is still selectable',
-    pirateBrainNameFor(1, false, { trained: true }) === 'pirate-attack-g3'
-    && pirateBrainNameFor(1, true, { pack: true }) === 'pirate-pack-r4-selectonly');
+  // There are no trained pirate alternatives to select any more: the weights
+  // left the bundle on 2026-08-05 (scripted is the only opposition anywhere),
+  // and the A/B control that remains is the one that turns the DEFENCE off.
+  check('...and the one surviving override is the scripted control',
+    pirateBrainNameFor(1, false, { scripted: true }) === 'scripted'
+    && defenceBrainNameFor({ scripted: true }) === 'scripted');
 
   // the picker's row, both ways
   check('the live picker offers "as shipped" first, and it means no override',
@@ -120,8 +120,7 @@ console.log('\nwhich brain flies, by name');
     liveBrainId({ sharp: 'pro' } as unknown as BrainSelection) === null
     && liveBrainId({ t29: true, packT29: true } as unknown as BrainSelection) === null);
   check('the picked selection is a COPY — state.brains is mutable',
-    liveBrainSelection('pirate-pack-r4-selectonly')
-      !== liveBrainSelection('pirate-pack-r4-selectonly')
+    liveBrainSelection('scripted') !== liveBrainSelection('scripted')
     && !Object.isFrozen(liveBrainSelection(AS_SHIPPED)));
 }
 
@@ -193,9 +192,9 @@ console.log('\nthe trainer names what the game flies');
     for (const tier of [0, 1, 2]) {
       for (const organised of [false, true]) {
         const named = liveBrainFor('pirate', organised, tier, sel) as BrainName;
-        const flown = pirateBrainFor(tier, organised, sel)?.brain ?? null;
-        const want = named === 'scripted' ? null : brainByName(named);
-        if (flown !== want) wrong.push(`${id}/${tier}/${organised ? 'gang' : 'solo'}`);
+        if (named !== pirateBrainNameFor(tier, organised, sel)) {
+          wrong.push(`${id}/${tier}/${organised ? 'gang' : 'solo'}`);
+        }
       }
     }
     const trader = liveBrainFor('trader', false, 1, sel) as BrainName;
@@ -242,21 +241,20 @@ eq('...and it is the last row on the panel',
 check('...so no exercise setting sits below it',
   setupCells(d).filter((c) => c.fenced).length === 1);
 
-// step to a named policy: one arrow key, and it is the whole galaxy
-d.live = 'pirate-pack-r4-selectonly';
-// How it flies, and ONLY that. The file stem used to be appended here in a
-// quieter face; it is in the note under the panel now, because a pilot choosing
-// between `pirate-attack-g3` and `pirate-pack-r4-selectonly` is choosing between
-// build artefacts in the one column they read to make the choice.
-eq('a picked policy reads back on the row as how it flies', row().value,
-  `(${LIVE_BRAIN_IDS.indexOf('pirate-pack-r4-selectonly') + 1} OF ${LIVE_BRAIN_IDS.length})`
-  + ' HOLDS OFF');
+// step to a named value: one arrow key, and it is the whole galaxy. Since the
+// trained pirate policies left the bundle (2026-08-05) the only stepped value
+// that changes anything is the scripted A/B control, which also turns the
+// armed traders' defence policy off.
+d.live = 'scripted';
+eq('a picked value reads back on the row as how it flies', row().value,
+  `(${LIVE_BRAIN_IDS.indexOf('scripted') + 1} OF ${LIVE_BRAIN_IDS.length})`
+  + ' MAKES ATTACK RUNS');
 check('...and the file stem is in the note instead, not the value',
-  (brainNote('pirate-pack-r4-selectonly') ?? '').includes('PIRATE-PACK-R4-SELECTONLY'));
+  (brainNote('scripted') ?? '').includes('SCRIPTED'));
 eq('...and is the selection the game would fly',
-  JSON.stringify(liveSelectionOf(d)), '{"pack":true}');
+  JSON.stringify(liveSelectionOf(d)), '{"scripted":true}');
 check('...and the fenced note says it outlives the exercise',
-  /LIVE BRAINS: THE WHOLE GALAXY FLIES HOLDS OFF \(PIRATE-PACK-R4-SELECTONLY\)/
+  /LIVE BRAINS: THE WHOLE GALAXY FLIES MAKES ATTACK RUNS \(SCRIPTED\)/
     .test(careerNote(d).text));
 eq('...as a warning this time, painted apart from the calm case',
   careerNote(d).warning, true);
@@ -276,9 +274,9 @@ const hint = setupCells(d)
 // this could pass on the formatting; `cell.brain` is the thing the note and the
 // spec are both built from, which is what the claim was always about.
 check('a group left on "same as outside" names the LIVE brain, not the shipped one',
-  !!hint && hint.brain === 'pirate-pack-r4-selectonly');
+  !!hint && hint.brain === 'scripted');
 eq('...and that is the brain the spec carries',
-  specFrom(d, 1).custom![0].brain, 'pirate-pack-r4-selectonly');
+  specFrom(d, 1).custom![0].brain, 'scripted');
 
 // a console-set combination the picker cannot name is SAID, not guessed — and
 // so is a flag a save carries from before TODO 57 deleted the policy behind it
@@ -306,32 +304,18 @@ console.log('\nbrain selection');
   // a clear() after every block — which worked, and only by hand.
   {
     // WHAT SHIPS IS THE SCRIPTED ATTACK RUN, for pirates of every tier and for
-    // organised gangs alike — `null` is the answer that means "fly it". Chris
-    // played every policy the trainer offers and asked for this one; see
-    // SHIPPED_SOLO in brain-names.ts for the account.
-    //
-    // `null` and not "some brain" matters more than it looks: `pirateBrainFor`
-    // falls back to the shipped solo weights for a name it cannot load, so a
-    // policy that is deliberately not a file has to be answered before that
-    // fallback or it silently flies the brain it replaced.
-    check('an opportunist flies the scripted attack run', pirateBrainFor(0, false) === null);
-    check('...and so does a professional', pirateBrainFor(1, false) === null);
-    check('...and so does an organised gang', pirateBrainFor(2, true) === null);
+    // organised gangs alike — and since 2026-08-05 there is nothing else a
+    // pirate COULD fly: the trained weights left the bundle, so the name rule
+    // answers 'scripted' for every tier, and brains.ts has no pirate loader
+    // for a stale path to fall back to.
+    check('an opportunist flies the scripted attack run',
+      pirateBrainNameFor(0, false) === 'scripted');
+    check('...and so does a professional', pirateBrainNameFor(1, false) === 'scripted');
+    check('...and so does an organised gang', pirateBrainNameFor(2, true) === 'scripted');
   }
   {
-    // The trained policies did not go anywhere: every one is still selectable,
-    // still loads, and still hands back to the scripted run at the same guard.
-    // This is the assertion that keeps "we changed the default" from quietly
-    // becoming "we deleted the alternative".
-    const packed = pirateBrainFor(2, true, { pack: true })!;
-    check('the pack policy is still there when selected', !!packed && packed.pack);
-    check('...and still hands back at the tight guard', packed.guard === 150);
-    // docs/TODO/91: the target-speed input is DELETED — no floor, no fake 300,
-    // no correction the trainer does not apply. The choice carries nothing but
-    // the brain, the pack flag and the guard now, and the acceptance's grep is
-    // a check: no speed clamp survives anywhere in src/ or train/.
-    check('...and carries no target-speed correction at all',
-      !('targetSpeed' in packed));
+    // docs/TODO/91's acceptance, kept after the pirate policies were deleted:
+    // no correction the trainer does not apply survives anywhere.
     // ...and not just on this object: docs/TODO/91's acceptance is that
     // NEITHER side applies a correction the other does not, proven by scan.
     const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
@@ -347,14 +331,8 @@ console.log('\nbrain selection');
       offenders.length === 0, offenders.join(', '));
   }
   {
-    check('brains.scripted turns every brain off',
-      pirateBrainFor(0, false, { scripted: true }) === null
-      && pirateBrainFor(2, true, { scripted: true }) === null
-      && defenceBrain({ scripted: true }) === null);
-  }
-  {
-    check('brains.pack forces the pack policy onto everyone',
-      pirateBrainFor(0, false, { pack: true })?.pack === true);
+    check('brains.scripted turns the one loaded brain off',
+      defenceBrain({ scripted: true }) === null && defenceBrain() !== null);
   }
   {
     // A SAVE FROM BEFORE TODO 57 OR TODO 61 still loads, and flies the shipped
@@ -375,16 +353,16 @@ console.log('\nbrain selection');
     // something other than the scripted run.
     const stale = { legacy: 'pro', t29: true } as unknown as BrainSelection;
     const deletedCandidate = { passes: true } as unknown as BrainSelection;
+    // ...and the two 2026-08-05 deletions join the list: `pack` and `trained`
+    // selected the trained pirate policies whose weights left the bundle.
+    const deletedPirates = { pack: true, trained: true } as unknown as BrainSelection;
     for (const [what, sel] of [['a deleted A/B flag', stale],
-      ['the deleted candidate flag', deletedCandidate]] as const) {
-      check(`a save carrying ${what} still loads`,
-        pirateBrainFor(1, false, sel) === pirateBrainFor(1, false)
-        && pirateBrainFor(0, false, sel) === pirateBrainFor(0, false));
-      check('...and flies what ships, because nothing reads the flag',
+      ['the deleted candidate flag', deletedCandidate],
+      ['the deleted pirate-policy flags', deletedPirates]] as const) {
+      check(`a save carrying ${what} still loads and flies what ships`,
         pirateBrainNameFor(1, false, sel) === pirateBrainNameFor(1, false)
+        && pirateBrainNameFor(2, true, sel) === pirateBrainNameFor(2, true)
         && defenceBrain(sel) === defenceBrain());
-      check('...including its gang, which is the one thing a flag could still move',
-        pirateBrainFor(2, true, sel) === pirateBrainFor(2, true));
       check('...and the picker says it cannot name the selection, rather than throwing',
         liveBrainId(sel) === null);
     }
@@ -395,13 +373,15 @@ console.log('\nbrain selection');
     check('the shipped default carries no overrides',
       Object.keys(SHIPPED_BRAINS).length === 0 && Object.isFrozen(SHIPPED_BRAINS));
     check('an unspecified selection flies what the live game flies',
-      pirateBrainFor(1, false) === pirateBrainFor(1, false, {}));
-    // The default changed; the alternatives must not have vanished with it.
-    // Without this, "ship the scripted run" and "delete the trained policies"
-    // look identical from the outside.
-    check('the trained gang policy is still selectable and still different',
-      pirateBrainNameFor(2, true, { pack: true }) !== pirateBrainNameFor(2, true)
-      && pirateBrainFor(2, true, { pack: true })?.pack === true);
+      pirateBrainNameFor(1, false) === pirateBrainNameFor(1, false, {})
+      && defenceBrain() === defenceBrain({}));
+    // On 2026-08-05 "ship the scripted run" DID become "delete the trained
+    // pirate policies" — by decision, not drift. The assertion flips: no
+    // selection can summon a pirate brain any more.
+    check('no selection can put a trained policy on a pirate',
+      pirateBrainNameFor(2, true, { scripted: true }) === 'scripted'
+      && (Object.keys(BRAINS) as BrainName[])
+        .every((n) => n === 'scripted' || n === 'jameson-defend-g2'));
   }
   check('the defence brain is fitted', defenceBrain() !== null);
 }

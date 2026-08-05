@@ -30,7 +30,7 @@ import {
 import { observeFor, shipView, type ShipView } from '../src/ai-training/observation.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
-import { BRAINS, SHIPPED_PIRATE, jameson, shippedPirate } from './fixtures.ts';
+import { BRAINS, jameson } from './fixtures.ts';
 import {
   Episode, EPISODE_SCHEMA, type EpisodeReport,
 } from '../src/ai-training/scenario.ts';
@@ -181,13 +181,17 @@ import { defenceBrain } from '../src/game/brains.ts';
     eq('no 11-head genome can ever press the E.C.M. (200 random ones)', pressed, 0);
   }
 
-  // 6. ...AND THE TWO PIRATE BRAINS ARE UNTOUCHED. Not "we did not mean to
-  //    change them": the files on disk still declare the shapes they were
-  //    trained at, which is the claim the whole encoder decision rests on.
-  for (const [name, obs] of [[SHIPPED_PIRATE, 14], ['pirate-pack-r4-selectonly', 18]] as const) {
-    const f = JSON.parse(readFileSync(`${BRAINS}${name}.json`, 'utf8')) as BrainFile;
-    check(`${name} is still ${obs} inputs and 11 heads`,
-      (f.meta.obsSize ?? 14) === obs && (f.meta.outSize ?? 11) === 11);
+  // 6. ...AND THE SHIPPED FILE STILL DECLARES THE SHAPE IT WAS TRAINED AT.
+  //    Not "we did not mean to change it": the incumbent predates docs/TODO/91
+  //    and says so on disk — 17 inputs, 13 heads — which is exactly what the
+  //    head-count dispatch above exists to route honestly until stage 3
+  //    promotes its replacement. (The two pirate files this loop used to check
+  //    left the bundle with their policies on 2026-08-05.)
+  {
+    const f = JSON.parse(
+      readFileSync(`${BRAINS}jameson-defend-g2.json`, 'utf8')) as BrainFile;
+    check('jameson-defend-g2 still declares 17 inputs and 13 heads',
+      (f.meta.obsSize ?? 14) === 17 && (f.meta.outSize ?? 11) === 13);
   }
 }
 

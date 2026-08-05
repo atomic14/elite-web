@@ -91,11 +91,13 @@ touching before you touch it — `brain-names.ts` is where the rule lives.
   organised gang, flies the hand-written three-phase attack run — close, pass,
   extend. No neural net is involved. This is what ships, so a fix here is a fix
   to the fight.
-- **Trained flies your side.** One policy, `jameson-defend-g2`, is both the armed
-  trader's pilot and the combat computer the player buys.
-- The two trained pirate policies in the bundle fly only under an A/B override or
-  in the combat trainer. Changing them does not change what a player meets, and
-  saying "the pirate brain" without saying which is how that gets confused.
+- **Trained flies your side, and ONLY your side.** One policy — the
+  `jameson-defend` line — is both the armed trader's pilot and the combat
+  computer the player buys, and since 2026-08-05 it is the only trained policy
+  in the bundle: the two trained pirate policies were deleted outright
+  (scripted is the opposition everywhere, the trainer's rows included), so
+  "the pirate brain" no longer names anything and an encoder change costs one
+  retrain, not three.
 
 **Threat is not fun**, and the split above is the scar it left. A well-optimised
 pirate is a turret that hangs in space and snipes; evolution found it twice, won

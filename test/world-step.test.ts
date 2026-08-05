@@ -814,7 +814,7 @@ console.log('\nheadless world step');
     // stopped being the run it came from.
     {
       const t = arrival(31_337);
-      t.state.brains = { pack: true };
+      t.state.brains = { scripted: true };
       const wirePack = JSON.stringify(
         new Persistence(t.state, t.ordnance, new CombatComputer(), stubHost(t.state, []))
           .capture());
@@ -823,7 +823,7 @@ console.log('\nheadless world step');
         stubHost(back.state, []))
         .restore(JSON.parse(wirePack) as WorldSnapshot);
       check('an A/B brain selection survives the save',
-        JSON.stringify(back.state.brains) === '{"pack":true}');
+        JSON.stringify(back.state.brains) === '{"scripted":true}');
       check('...as a copy the step can move, not the snapshot\'s own object',
         back.state.brains !== (JSON.parse(wirePack) as WorldSnapshot).brains);
 

@@ -111,18 +111,12 @@ export const SHIPPED_DEFENCE_BRAIN: BrainId = defenceBrainNameFor(SHIPPED_BRAINS
  * the whole career, which is the one thing a scoped A/B must not touch.
  */
 export const SIM_BRAINS: readonly BrainId[] = [
-  // NAMED, not derived from what ships — and that is the correction rather than
-  // a style choice. This list used to be built from `SHIPPED_SOLO_BRAIN` and
-  // `SHIPPED_PACK_BRAIN`, on the reasoning that promoting a candidate should
-  // move the picker without an edit here. It does the opposite when the thing
-  // promoted is `scripted`: both constants resolve to the same word, the list
-  // collapses to two entries, and the trained policies disappear from the only
-  // surface that can fly them. "We changed the default" silently became "we
-  // deleted the alternative", which is the one outcome a comparison tool must
-  // never produce. A policy is offered here because it EXISTS, and
-  // `SHIPPED_*_BRAIN` still says which of them the game currently flies.
-  'pirate-attack-g3',
-  'pirate-pack-r4-selectonly',
+  // Two entries, and the shortness IS the record: the two trained pirate
+  // policies were rows here until 2026-08-05, when Chris deleted their weights
+  // from the bundle — scripted is the only opposition anywhere, so a picker
+  // offering "fight the trained pirate" would be offering a fight the game
+  // cannot load. `jameson-defend-g2` stays because an exercise can put an
+  // ARMED TRADER in the sky, and that is the policy it turns and fights with.
   'jameson-defend-g2',
   'scripted',
 ];

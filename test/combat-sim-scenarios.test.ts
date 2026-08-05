@@ -456,10 +456,10 @@ console.log('\ncombat trainer scenarios');
     // the A/B rig: same fight, other brain — the question CLAUDE.md says the
     // numbers cannot answer
     const ab = nextOpposition(session({
-      spec: spec({ scenario: 'thargoids', brain: 'pirate-attack-g3' }),
+      spec: spec({ scenario: 'thargoids', brain: 'jameson-defend-g2' }),
     }))!;
     check('one brain override reaches every opponent',
-      ab.length > 1 && ab.every((o) => o.brain === 'pirate-attack-g3'));
+      ab.length > 1 && ab.every((o) => o.brain === 'jameson-defend-g2'));
 
     // the custom picker: a hull off the roster, and the fit
     const custom: Opposition = {

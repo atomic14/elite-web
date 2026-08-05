@@ -16,10 +16,8 @@ import { check, eq } from './harness.ts';
 import {
   DT,
   BRAINS,
-  SHIPPED_PIRATE,
   SHIPPED_DEFEND,
   brainsSrc,
-  shippedPirate,
   jameson,
 } from './fixtures.ts';
 
@@ -75,32 +73,28 @@ function poolShare(makeEp: (seed: number) => Episode): number {
   return taken / N;
 }
 
-const shippedPirateHurt = poolShare((seed) => new Episode({
-  seed, pirates: [{ kind: 'policy', brain: shippedPirate }], trader: { kind: 'scripted' },
+const scriptedRunHurt = poolShare((seed) => new Episode({
+  seed, pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },
 }));
 const randomPirateHurt = poolShare((seed) => new Episode({
   seed, pirates: [{ kind: 'policy', brain: randomBrain(makeRng(seed)) }], trader: { kind: 'scripted' },
 }));
-// Bounds measured at N=60 over the seeds above, against the brains the game
-// actually flies and the source-scale pools they now shoot at.
-//
-// It is a floor on COMPETENCE, not on killing. Generation 3 is the first brain
-// aimed at how the game feels rather than at how lethal it is — CLAUDE.md:
-// "Lethality is a proxy for threat, and threat is not fun" — so what has to
-// hold is that it hurts the commander several times as much as a policy that
-// has learnt nothing, not that it wins.
-check(`shipped pirate ${SHIPPED_PIRATE} hurts the commander`
-  + ` (${(shippedPirateHurt * 100).toFixed(1)}% of her pools)`,
-shippedPirateHurt >= 0.07);
+// Bounds measured at N=60 over the seeds above. THE ATTACKER IS THE SCRIPTED
+// RUN, which since 2026-08-05 is the only pirate pilot there is — the trained
+// policies left the bundle, so the competence floor guards the run the player
+// actually meets against a policy that has learnt nothing.
+check(`the scripted run hurts the commander`
+  + ` (${(scriptedRunHurt * 100).toFixed(1)}% of her pools)`,
+scriptedRunHurt >= 0.07);
 check(`untrained policy barely scratches her (${(randomPirateHurt * 100).toFixed(1)}%)`,
   randomPirateHurt <= 0.05);
-check('shipped pirate beats the untrained baseline by a factor of three',
-  shippedPirateHurt > randomPirateHurt * 3);
+check('the scripted run beats the untrained baseline by a factor of three',
+  scriptedRunHurt > randomPirateHurt * 3);
 
 // two of whatever the game actually sends at you
 const twoPirates = () => [
-  { kind: 'policy' as const, brain: shippedPirate },
-  { kind: 'policy' as const, brain: shippedPirate },
+  { kind: 'scripted' as const },
+  { kind: 'scripted' as const },
 ];
 const jamesonHurt = poolShare((seed) => new Episode({
   seed, pirates: twoPirates(), trader: { kind: 'policy', brain: jameson }, traderArmed: true,

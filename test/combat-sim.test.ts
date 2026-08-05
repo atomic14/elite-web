@@ -326,13 +326,13 @@ console.log('\ncombat simulator — the brain override');
   // with the picker.
   const mixed = freshDraft(newCommander());
   mixed.groups.push(defaultGroup(1), defaultGroup(1));
-  mixed.groups[0].brain = 'pirate-attack-g3';
+  mixed.groups[0].brain = 'jameson-defend-g2';
   mixed.groups[1].brain = 'scripted';
   eq('two groups asking for two brains cannot both fly', brainOverride(mixed), null);
   check('...and the panel says why',
     draftNotes(mixed).some((n) => /MIXED BRAINS CANNOT FLY/.test(n)));
-  mixed.groups[1].brain = 'pirate-attack-g3';
-  eq('...where two groups that agree do fly it', brainOverride(mixed), 'pirate-attack-g3');
+  mixed.groups[1].brain = 'jameson-defend-g2';
+  eq('...where two groups that agree do fly it', brainOverride(mixed), 'jameson-defend-g2');
   check('...and the complaint goes away',
     !draftNotes(mixed).some((n) => /MIXED BRAINS/.test(n)));
 

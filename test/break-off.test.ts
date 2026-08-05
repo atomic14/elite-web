@@ -124,7 +124,9 @@ console.log('\nNPC break-off');
     readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const ONE_HOME = [
-    ['constants/attack-run.ts', BREAK_OFF_RANGE, ['game/npc.ts', 'game/brains.ts']],
+    // brains.ts left the consumer list on 2026-08-05: the guard went with
+    // pirateBrainFor when the trained pirate policies were deleted.
+    ['constants/attack-run.ts', BREAK_OFF_RANGE, ['game/npc.ts']],
     ['constants/player-interest.ts', PLAYER_INTEREST_RANGE,
       ['game/npc.ts', 'game/npc-targeting.ts', 'hud/hud-model.ts']],
   ] as const;

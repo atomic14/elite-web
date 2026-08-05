@@ -78,7 +78,10 @@ const fly = (npc: NpcShip, brains: BrainSelection, frames: number): NpcShip => {
 
 console.log('\nship clocks: under fire is a decay, not a latch');
 {
-  const brain = brainByName('pirate-attack-g3');
+  // The defence policy: the one brain in the bundle since 2026-08-05, and
+  // `brainFly` is brain-agnostic — the decay under test is the ship's, not any
+  // particular genome's.
+  const brain = brainByName('jameson-defend-g2');
   check('the fixture has a trained policy to fly', brain !== null);
 
   /**
@@ -139,14 +142,10 @@ console.log('\nship clocks: through the live update()');
     return npc;
   };
 
-  seedWorld(77_101);
-  const ab = new NpcShip('pirate', new THREE.Vector3(0, 0, 2500), 77_101);
-  ab.state.threatTier = 1;
-  fly(hit(ab), { trained: true }, LAST);
-  check('an A/B trained pirate is brain-flown', ab.state.flownBy === 'brain');
-  check(`...and is done evading ${UNDER_FIRE_SECONDS}s after the hit`,
-    ab.state.underFire === 0 && flown(ab) === 'own policy',
-    `got ${ab.state.underFire} / ${flown(ab)}`);
+  // There is no A/B trained pirate any more (the weights left the bundle,
+  // 2026-08-05): the one ship that reaches `brainFly` in a shipped build is
+  // the armed trader below, and the direct-drive block above covers the
+  // brain path for any genome.
 
   // The armed trader on `jameson-defend-g2` reaches `brainFly` down the
   // `fleeing` branch and never runs `attack()` at ALL, so nothing was ever going

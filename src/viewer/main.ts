@@ -30,8 +30,8 @@ import { Episode, type ShotEvent, type EpisodeShip } from '../ai-training/scenar
 import { randomBrain, type Brain } from '../ai-training/policy.ts';
 import { makeRng } from '../game/rng.ts';
 import { FIXED_DT } from '../constants/world-clock.ts';
-import { defenceBrain, pirateBrainFor } from '../game/brains.ts';
-import { defenceBrainNameFor, pirateBrainNameFor } from '../game/brain-names.ts';
+import { defenceBrain } from '../game/brains.ts';
+import { defenceBrainNameFor } from '../game/brain-names.ts';
 
 /** The two hulls the combat scenarios fly, resolved through the registry. */
 const COBRA_MK3 = requireShipDef(shipDesignIdOf(10));
@@ -45,18 +45,16 @@ const SIDEWINDER = requireShipDef(shipDesignIdOf(17));
  * is showing the shipped brains fly, it is the whole point failing, and saying
  * so beats drawing a fight nobody can interpret.
  */
-function shipped(what: 'solo' | 'gang' | 'defence'): { brain: Brain; name: string } {
-  const brain = what === 'defence'
-    ? defenceBrain()
-    : pirateBrainFor(0, what === 'gang')?.brain ?? null;
-  const name = what === 'defence' ? defenceBrainNameFor() : pirateBrainNameFor(0, what === 'gang');
-  if (!brain) throw new Error(`viewer: the shipped ${what} brain (${name}) did not load`);
+function shipped(): { brain: Brain; name: string } {
+  const brain = defenceBrain();
+  const name = defenceBrainNameFor();
+  if (!brain) throw new Error(`viewer: the shipped defence brain (${name}) did not load`);
   return { brain, name };
 }
 
-const SOLO = shipped('solo');
-const GANG = shipped('gang');
-const DEFENCE = shipped('defence');
+// The one policy in the bundle. The trained pirate rows went with their
+// weights on 2026-08-05 — scripted is the only opposition anywhere.
+const DEFENCE = shipped();
 
 interface ViewerScenario {
   id: string;
@@ -67,10 +65,6 @@ interface ViewerScenario {
   build(seed: number): Episode;
 }
 
-/** Three of the same policy, which is how a pack scenario is built. */
-const three = (brain: Brain): { kind: 'policy'; brain: Brain }[] =>
-  [0, 1, 2].map(() => ({ kind: 'policy' as const, brain }));
-
 /**
  * Every fight the page offers. Four fly a shipped policy and two are controls
  * that say so — the pre-neuroevolution AI, and an untrained random policy, which
@@ -78,17 +72,9 @@ const three = (brain: Brain): { kind: 'policy'; brain: Brain }[] =>
  */
 const SCENARIOS: readonly ViewerScenario[] = [
   {
-    id: 'shipped-vs-trader',
-    label: 'Shipped pirate vs trader',
-    flying: SOLO.name,
-    build: (seed) => new Episode({
-      seed, pirates: [{ kind: 'policy', brain: SOLO.brain }], trader: { kind: 'scripted' },
-    }),
-  },
-  {
     id: 'scripted-vs-trader',
     label: 'Scripted pirate vs trader',
-    flying: 'the pre-neuroevolution AI — a control',
+    flying: 'the scripted attack run — what ships',
     build: (seed) => new Episode({
       seed, pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },
     }),
@@ -105,32 +91,20 @@ const SCENARIOS: readonly ViewerScenario[] = [
   },
   {
     id: 'gang-vs-armed',
-    label: 'Shipped gang of 3 vs armed trader',
-    flying: GANG.name,
+    label: 'Scripted gang of 3 vs armed trader',
+    flying: 'the scripted attack run — what ships',
     build: (seed) => new Episode({
-      seed, pirates: three(GANG.brain), trader: { kind: 'scripted' },
-      traderArmed: true, maxTime: 60,
-    }),
-  },
-  {
-    id: 'solo-trio-vs-armed',
-    label: 'Three shipped SOLO pirates vs armed trader',
-    flying: SOLO.name,
-    build: (seed) => new Episode({
-      seed, pirates: three(SOLO.brain), trader: { kind: 'scripted' },
-      traderArmed: true, maxTime: 60,
+      seed, pirates: [{ kind: 'scripted' }, { kind: 'scripted' }, { kind: 'scripted' }],
+      trader: { kind: 'scripted' }, traderArmed: true, maxTime: 60,
     }),
   },
   {
     id: 'jameson-vs-pirates',
-    label: 'Armed trader vs 2 shipped pirates',
+    label: 'Armed trader vs 2 scripted pirates',
     flying: DEFENCE.name,
     build: (seed) => new Episode({
       seed,
-      pirates: [
-        { kind: 'policy', brain: SOLO.brain },
-        { kind: 'policy', brain: SOLO.brain },
-      ],
+      pirates: [{ kind: 'scripted' }, { kind: 'scripted' }],
       trader: { kind: 'policy', brain: DEFENCE.brain },
       traderArmed: true,
     }),
@@ -302,9 +276,9 @@ function renderHud(): void {
       // The rack, because a fight can now turn on it: 250 pool points a round.
       `  msl ${pi.missilesFired}/${pi.missilesCarried}${pi.alive ? '' : '  ✝'}`);
   });
-  // The three the game ships, asked for rather than typed out — the same rule
-  // the rows above fly under.
-  lines.push('', `SHIPPED    solo ${SOLO.name} · gang ${GANG.name} · defence ${DEFENCE.name}`);
+  // What ships, asked for rather than typed out — the same rule the rows
+  // above fly under: scripted opposition, one trained defence.
+  lines.push('', `SHIPPED    opposition scripted · defence ${DEFENCE.name}`);
   if (p) lines.push(`FITNESS    ${episode.fitnessAttack(0).toFixed(2)} (attack metric, pirate 1)`);
   hud.textContent = lines.join('\n');
 }

@@ -45,8 +45,6 @@
  * it, and `npm test` reads brains.ts to check that every name here does.
  */
 export type BrainName =
-  | 'pirate-attack-g3'
-  | 'pirate-pack-r4-selectonly'
   | 'jameson-defend-g2'
   | 'scripted';
 
@@ -100,20 +98,6 @@ export interface BrainProfile {
  * rest of the panel's prose in `screens/combat-sim-notes.ts`.
  */
 export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
-  // probe: speed 216, range 85/234/964, 0.20 rams · tournament: 12.0% of her
-  // pools against a hauler, 5.3% against a commander who fights back
-  'pirate-attack-g3': {
-    name: 'CLOSES IN',
-    character: 'CLOSES AND STAYS THERE — SPEED 216, MEDIAN RANGE 234, 0.20 COLLISIONS AN EPISODE. '
-      + 'THE FIGHT THE GAME SHIPS.',
-  },
-  // probe: speed 144, range 393/1447/2905, 0.83 passes · tournament: a gang of
-  // three takes 23.7% of her pools and kills her in 0% of episodes
-  'pirate-pack-r4-selectonly': {
-    name: 'HOLDS OFF',
-    character: 'A GANG THAT WATCHES ITS FLEET AND HOLDS OFF — MEDIAN RANGE 1447 AT SPEED 144. '
-      + 'THREE OF THEM TAKE 23.7% OF YOUR POOLS AND KILL NOBODY.',
-  },
   // defence probe, 800 held-out fights against the scripted attack run (1-4 of
   // them, three hulls, beam or military): 41.6% of her attackers destroyed,
   // 98.3% of her pools left, 0 deaths, and 0.00 warheads landed on her out of
@@ -205,63 +189,36 @@ export function isNamedBrain(brain: string): brain is BrainName {
  * that.
  */
 export interface BrainSelection {
-  /** fly NO brains — the pre-neuroevolution scripted AI, i.e. the A/B control */
-  scripted?: boolean;
-  /** force the pack policy onto solo pirates as well as gangs */
-  pack?: boolean;
   /**
-   * Fly the trained solo policy instead of the scripted attack run.
+   * Fly NO brains at all — the A/B control that turns the DEFENCE policy off
+   * too, so an armed trader falls back to running.
    *
-   * Needed the moment `SHIPPED_SOLO` became `scripted`: selections are OVERRIDES
-   * on the default, so `pirate-attack-g3` was reachable as `{}` only while it
-   * WAS the default — and the instant it stopped, the trainer could list it,
-   * name it and describe it while flying something else.
+   * The only flag left. `pack` and `trained` selected the two trained pirate
+   * policies, and Chris deleted those from the bundle on 2026-08-05: scripted
+   * flies the opposition everywhere — the sky AND the trainer's rows — so a
+   * flag whose policy is not in the bundle has nothing to select. An old save
+   * carrying either rides along unread, exactly as `passes` and the six
+   * TODO 57 flags do; the trainer's LIVE BRAINS row reports a selection it
+   * cannot name and offers to take it back.
    */
-  trained?: boolean;
+  scripted?: boolean;
 }
 
 /**
- * The solo policy a pirate flies with no overrides.
+ * THE OPPOSITION IS SCRIPTED — everywhere, and that is now the whole rule.
  *
- * `scripted`, by decision. Chris flew every option in the trainer — "the
- * scripted one is actually better" — and then, once it had an attack run, a
- * throttle rule, a randomised turn-back and wingman avoidance: "I think we
- * should now make the old aimbot the main npc AI."
- *
- * It is not the AI that name describes. What ships closes, goes THROUGH the
- * pass, extends to a range it rolls per run, throttles back to turn, keeps off
- * its wingmen and spends a missile only in trouble. What earned it the name
- * "aimbot" was `dist < 220` and a reversal.
- *
- * The neuroevolution is neither deleted nor wasted (docs/TRAINING-LOG.md): it
- * produced the finding this flight model is built on — that stopping is the
- * optimal way to hold a firing line, hence `MIN_CRUISE_FRACTION`. Every policy
- * is still one row away in the trainer.
+ * Chris flew every option in the trainer — "the scripted one is actually
+ * better" — and d563e3d made the three-phase attack run what ships for solo
+ * pirates and organised gangs alike. On 2026-08-05 he went the rest of the
+ * way: the two trained pirate policies (`pirate-attack-g3`,
+ * `pirate-pack-r4-selectonly`) came OUT of the bundle entirely, TODO 57's
+ * ship-only-what-ships applied to the rows that only ever existed to compare
+ * against them. The neuroevolution is neither deleted nor wasted
+ * (docs/TRAINING-LOG.md keeps every figure): it produced the finding the
+ * flight model is built on — that stopping is the optimal way to hold a
+ * firing line, hence `MIN_CRUISE_FRACTION` — and train/evolve.ts can still
+ * breed a pirate for research; the game just never loads one.
  */
-const SHIPPED_SOLO: BrainName = 'scripted';
-
-/**
- * The policy an organised gang flies with no overrides.
- *
- * `scripted` too, on evidence rather than symmetry. The row Chris played all
- * session — CHANGE THE DEFAULT ENEMY AI → scripted — sets `scripted: true`,
- * which turns off EVERY brain including this one. So the gangs he reported on
- * ("groups seem to use the old aimbot fine and play well") were flying the run,
- * not the pack policy; shipping solo-scripted with trained gangs would have
- * shipped a combination nobody has flown. What the pack policy was fitted to
- * coordinate, the run now does structurally — `packOffset` on the approach,
- * separation.ts at the merge.
- */
-const SHIPPED_PACK: BrainName = 'scripted';
-/**
- * The trained gang policy itself, as a name — separate from `SHIPPED_PACK` since
- * that became `scripted`. The split is why the A/B still works: the two were one
- * constant, so pointing the default at the run took the alternative with it and
- * `state.brains.pack` selected the thing it was meant to compare against.
- */
-const PACK_POLICY: BrainName = 'pirate-pack-r4-selectonly';
-/** The trained solo policy — the pair to `PACK_POLICY`, split for the same reason. */
-const TRAINED_SOLO: BrainName = 'pirate-attack-g3';
 /**
  * The policy an armed trader turns and fights with, with no overrides.
  *
@@ -278,6 +235,12 @@ const TRAINED_SOLO: BrainName = 'pirate-attack-g3';
  * policy fitted for it.
  */
 const SHIPPED_DEFENCE: BrainName = 'jameson-defend-g2';
+/**
+ * ...and it stays trained, the one policy in the bundle. The scripted run is
+ * what ATTACKS you; anything flying on your behalf — the armed trader turning
+ * to fight, the combat computer flying YOUR ship — keeps the policy fitted
+ * for it, because there is no scripted equivalent for defence.
+ */
 
 /**
  * No overrides: what the live game flies. Frozen, because it is a shared default
@@ -293,42 +256,20 @@ const SHIPPED_DEFENCE: BrainName = 'jameson-defend-g2';
  */
 export const SHIPPED_BRAINS: BrainSelection = Object.freeze({});
 
-/** The pack policies — the ones that observe their fleet, not just a target. */
-export const PACK_BRAINS: readonly BrainName[] = ['pirate-pack-r4-selectonly'];
-
-export function isPackBrain(name: BrainName): boolean {
-  return PACK_BRAINS.includes(name);
-}
-
 /**
- * Which policy a pirate of this tier flies, BY NAME.
+ * Which policy a pirate of this tier flies, BY NAME: `scripted`, always.
  *
- * The shipped answer is `scripted` for every pirate a player meets — solo and
- * organised gang alike, since `d563e3d` made the three-phase attack run what
- * ships. Everything `sel` does on top of that is an A/B override for
- * playtesting, which is the ONLY way a trained pirate policy gets flown outside
- * the combat trainer.
- *
- * The two branches below still split solo from organised even though both
- * constants read `scripted` today. They are kept apart because they are two
- * decisions that happen to agree, not one decision: giving a gang its own
- * pilot again is a change to `SHIPPED_PACK` and nothing else.
- *
- * `tier` no longer changes the answer, and the parameter stays because the
- * QUESTION still has a tier in it: the six flags that split by tier were the
- * unshipped experiments, and a caller asking "what does a professional fly"
- * should not have to know that today the answer is the same as an opportunist's.
+ * The function survives the answer becoming constant because it is the named
+ * home of the rule CLAUDE.md points at — scripted flies the opposition — and
+ * because the QUESTION still has a tier and an organisation in it: a caller
+ * asking "what does an organised gang fly" should not have to know that today
+ * every answer is the same. The parameters are kept so the rule can change
+ * shape again without every call site moving.
  */
 export function pirateBrainNameFor(
-  _tier: number, organised: boolean, sel: BrainSelection = SHIPPED_BRAINS,
+  _tier: number, _organised: boolean, _sel: BrainSelection = SHIPPED_BRAINS,
 ): BrainName {
-  if (sel.scripted) return 'scripted';
-  // The A/B is asked FIRST and names the policy outright: it exists to fly the
-  // trained gang brain, which is no longer what a gang ships with.
-  if (sel.pack) return PACK_POLICY;
-  if (sel.trained) return TRAINED_SOLO;
-  if (organised) return SHIPPED_PACK;
-  return SHIPPED_SOLO;
+  return 'scripted';
 }
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
@@ -352,8 +293,6 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
  * record — and it was wider only because six experiments were in the bundle.
  */
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
-  'pirate-attack-g3': { trained: true },
-  'pirate-pack-r4-selectonly': { pack: true },
   'jameson-defend-g2': {},
   scripted: { scripted: true },
 };

@@ -14,7 +14,7 @@ import { spawnOpposition, type OppositionUnit } from '../src/game/spawning.ts';
 import { arenaCentre } from '../src/game/combat-sim-opening.ts';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
-import { pirateBrainFor } from '../src/game/brains.ts';
+import { pirateBrainNameFor } from '../src/game/brain-names.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer, NpcShip } from '../src/game/npc.ts';
 import { npcMaxEnergy } from '../src/game/npc-energy.ts';
@@ -120,15 +120,14 @@ console.log('\ncombat arena');
     check('...with the tiers it was given',
       ships.map((n) => n.state.threatTier).join() === '2,1,1,1');
     // `organised` is still the flag that says "these hunt as a gang" — it is
-    // what the pack POLICY keys off when it is selected. What ships for a gang
-    // is now the scripted attack run (`null`), so the assertion is that the
-    // flag is set and that it routes to what the game actually flies.
+    // what the attack run's pack behaviours key off. What ships for a gang is
+    // the scripted attack run, and since 2026-08-05 that is the only pirate
+    // pilot there IS: the trained alternatives left the bundle with their
+    // weights (brain-names.ts), so the assertion is the name-level rule.
     check('...marked organised, and flying what an organised gang ships with',
       ships.every((n) => n.state.organised)
-      && ships.every((n) => pirateBrainFor(n.state.threatTier, n.state.organised) === null));
-    check('...and selecting the pack policy still puts every one of them on it',
-      ships.every((n) => pirateBrainFor(
-        n.state.threatTier, n.state.organised, { pack: true })?.pack === true));
+      && ships.every((n) => pirateBrainNameFor(n.state.threatTier, n.state.organised)
+        === 'scripted'));
 
     // hulls come from the roster for that tier and nowhere else. The sample is
     // the whole tier, not the first four seeds: the tiers are derived from the

@@ -285,33 +285,27 @@ console.log('\ncollision rates');
     return total / episodes;
   };
 
-  // BOTH MATCHUPS ARE THE SHIPPED BRAINS NOW. They used to be `pirate-attack-r2`
-  // against `trader-evade-r2` — two policies the game did not fly, and whose
-  // weights went with the other 29 in TODO 57 — so a ceiling that was meant to
-  // stop a player meeting a kamikaze was measuring a brain no player could meet.
-  // A pirate flying the shipped policy at a trader flying the shipped defence
-  // policy is a fight the game contains.
-  const shipped = load('pirate-attack-g3');
+  // BOTH MATCHUPS ARE WHAT SHIPS. The attacker is the scripted run — since
+  // 2026-08-05 the only pirate pilot there is — and the defender is the one
+  // policy in the bundle. A ceiling that measured a brain no player could meet
+  // is the failure this block replaced once already (TODO 57), and deleting
+  // the pirate policies is the same correction finishing.
   const evader = load(SHIPPED_DEFEND);
   {
     const vScripted = rams(() => ({
-      pirates: [{ kind: 'policy', brain: shipped }], trader: { kind: 'scripted' },
+      pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },
     }), 40);
-    // Measured 0.00 over these 40 episodes, against r2's 0.40 on the same
-    // fixture. The bound is a CEILING on today's behaviour with headroom for a
-    // retrain, not a target.
-    check(`pirate vs scripted trader rarely collides (${vScripted.toFixed(2)}/episode)`,
-      vScripted < 0.3);
+    check(`the scripted run vs a scripted trader rarely collides `
+      + `(${vScripted.toFixed(2)}/episode)`, vScripted < 0.3);
   }
   {
     // The known-bad matchup: a trader that FLIES rather than one that holds a
-    // line. Both brains were trained before collisions existed and they used to
-    // ram each other in more than half of all fights; the shipped pair measures
-    // 0.20 rams an episode, and the pirate destroys itself in 7.5% of them.
+    // line — the shipped attack run against the shipped defence policy, which
+    // is a fight the game contains every time an armed trader turns.
     const vEvader = rams(() => ({
-      pirates: [{ kind: 'policy', brain: shipped }], trader: { kind: 'policy', brain: evader },
+      pirates: [{ kind: 'scripted' }], trader: { kind: 'policy', brain: evader },
     }), 40);
-    check(`shipped pirate vs a trader flying a policy rarely collides `
+    check(`the scripted run vs a trader flying the defence policy rarely collides `
       + `(${vEvader.toFixed(2)}/episode)`, vEvader < 0.5);
   }
 }

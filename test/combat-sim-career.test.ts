@@ -739,14 +739,14 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     ab.state.brains = { scripted: true };
     ab.sim.begin({
       mode: 'sparring', scenario: 'single-pirate', tier: 2, seed: 4_242,
-      brain: 'pirate-pack-r4-selectonly',
+      brain: 'jameson-defend-g2',
     });
     check('an exercise flies the brain IT asked for, not the career\'s',
-      ab.state.brains.pack === true && ab.state.brains.scripted === undefined);
+      ab.state.brains.scripted === undefined);
     beat(ab, 120, demand);
     ab.sim.quit();
     check('...and the career\'s own selection is back when the exercise ends',
-      ab.state.brains.scripted === true && !ab.state.brains.pack);
+      ab.state.brains.scripted === true);
   }
 
   if (hadStorage) globals.localStorage = previousStorage;

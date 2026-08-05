@@ -196,7 +196,7 @@ const OUTSIDE: readonly Group[] = [
       + ' may not import. The one tunable number the file held, the target-speed floor,'
       + ' is constants/brain-flight.ts now',
     files: {
-      'game/brains.ts': ['PIRATE_BRAIN', 'PACK_BRAIN', 'DEFEND_BRAIN', 'LOADED'],
+      'game/brains.ts': ['DEFEND_BRAIN', 'LOADED'],
     },
   },
 
@@ -211,9 +211,8 @@ const OUTSIDE: readonly Group[] = [
       + ' Moving any of it would split the one file the rule lives in across two homes',
     files: {
       'game/brain-names.ts': [
-        'AS_SHIPPED', 'AS_THE_GAME_FLIES', 'BRAINS', 'SENTINEL_NAMES', 'SHIPPED_SOLO',
-        'SHIPPED_PACK', 'PACK_POLICY', 'TRAINED_SOLO', 'SHIPPED_DEFENCE',
-        'SHIPPED_BRAINS', 'PACK_BRAINS', 'SELECTIONS', 'LIVE_BRAIN_IDS',
+        'AS_SHIPPED', 'AS_THE_GAME_FLIES', 'BRAINS', 'SENTINEL_NAMES',
+        'SHIPPED_DEFENCE', 'SHIPPED_BRAINS', 'SELECTIONS', 'LIVE_BRAIN_IDS',
       ],
     },
   },
@@ -354,7 +353,7 @@ const OUTSIDE: readonly Group[] = [
       + ' (`SCALES`, `VIEWS`) and pure drawing — grid geometry, three colours (one of'
       + ' them the phosphor, which docs/TODO/93 owns) and two fixed axes',
     files: {
-      'viewer/main.ts': ['COBRA_MK3', 'SIDEWINDER', 'SOLO', 'GANG', 'DEFENCE', 'SCENARIOS'],
+      'viewer/main.ts': ['COBRA_MK3', 'SIDEWINDER', 'DEFENCE', 'SCENARIOS'],
       'viewer/gallery.ts': [
         'COLUMNS', 'CELL', 'HULL_COLOUR', 'RADIUS_COLOUR', 'LABEL_COLOUR',
         'UP', 'RIGHT', 'GRID_CENTRE',
