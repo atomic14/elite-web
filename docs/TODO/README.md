@@ -525,6 +525,7 @@ real change to what the game does, and each lands on its own.
 - [ ] 92 — [The lead marker assumes every target is a freighter](92-the-lead-marker-assumes-a-freighter.md) — combat bug/UI · medium · small
 - [ ] 93 — [One home for the phosphor](93-one-home-for-the-phosphor.md) — architecture/UI · medium · medium
 - [x] 94 — [Parse a save at the door, and refuse it whole](94-parse-a-save-at-the-door.md) — correctness/saves · medium · medium
+- [ ] 95 — [Save only at stations, and re-roll the sky on restore](95-save-only-at-stations.md) — architecture/saves · high · large
 
 94 is done, in the shape Chris decided. `parseSnapshot(unknown): WorldSnapshot`
 lives beside the interface it is the one door to, checking what has invariants
