@@ -115,3 +115,22 @@ function flyToward(target: THREE.Vector3, frames: number): { end: number; lock: 
   const cmd = bankToTurn(new THREE.Quaternion(), new THREE.Vector3(0, 0, 0), mem);
   check('a zero direction asks for nothing', cmd.pitch === 0 && cmd.roll === 0);
 }
+
+// --- the null band holds steady when the target is already on the nose ------
+//
+// The seasickness fix (Chris flew it): a target inside the gun cone is ON the
+// nose, and steering to centre it exactly chatters the roll axis for a
+// correction the gun does not need — worst when the target is large up close
+// and the cone is wide. Inside the band the controller asks for nothing; a hair
+// outside it, it still steers.
+{
+  const mem = freshSteerMemory();
+  // a target 3 degrees off the nose, off to one side so the old law would roll
+  const off = new THREE.Vector3(Math.sin(0.052), 0, -Math.cos(0.052));
+  const inside = bankToTurn(new THREE.Quaternion(), off, mem, 0.09); // 5 deg cone
+  check('inside the null band it holds steady', inside.pitch === 0 && inside.roll === 0);
+  const outside = bankToTurn(new THREE.Quaternion(), off, mem, 0.02); // 1 deg cone
+  check('...but outside it, it still steers',
+    outside.pitch !== 0 || outside.roll !== 0);
+}
+

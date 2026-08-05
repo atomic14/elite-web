@@ -114,6 +114,10 @@ export class ScriptedCoPilot {
     }
     const targetPos = threat.object.position;
     const dist = targetPos.distanceTo(player.position);
+    // the angle the target fills — the gun's hit cone, WIDE up close. Both the
+    // trigger and the roll-fade read it: you may fire anywhere in it, and you
+    // need not bank to centre a target already inside it.
+    const cone = hitCone(threat.radius, dist);
 
     // PURE PURSUIT: bank-to-turn straight at where the target IS. The gun is
     // hitscan, so there is nothing to lead — and aiming at the target rather
@@ -121,7 +125,7 @@ export class ScriptedCoPilot {
     // and runs. Ramped through the commander's own envelope (PLAYER_FLIGHT), so
     // the co-pilot flies your ship as your hands would.
     const cmd = bankToTurn(player.quaternion,
-      this.toThreat.copy(targetPos).sub(player.position), this.steerMem);
+      this.toThreat.copy(targetPos).sub(player.position), this.steerMem, cone);
     this.pitchRate = rampFlightRate(
       this.pitchRate, cmd.pitch * PLAYER_FLIGHT.maxPitch, cmd.pitch !== 0, dt);
     this.rollRate = rampFlightRate(
@@ -142,7 +146,7 @@ export class ScriptedCoPilot {
         // the trigger only when the shot would count: the player gun's own cone
         // and range (gunnery.ts) — the laser's heat and cooldown pace it from
         // there, which is what makes this a marksman rather than a sprayer
-        fire: dist <= LASER_RANGE && facing < hitCone(threat.radius, dist),
+        fire: dist <= LASER_RANGE && facing < cone,
       },
       // a warhead is always answered; whether one is coming is the world's
       // fact, and the gate is the same one every E.C.M. press goes through

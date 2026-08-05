@@ -78,9 +78,21 @@ function wrap(a: number): number {
  * to begin with, flipped only when the other becomes shorter by a clear margin.
  * A target near the horizontal plane is otherwise a coin-toss that lands
  * differently every frame, and the sticks chatter instead of turning.
+ *
+ * `nullBand` is the angle (radians) inside which the nose counts as ON the
+ * target — the caller's gun cone, which is WIDE up close because a near target
+ * subtends a wide angle. Inside it the controller asks for NOTHING. This is the
+ * seasickness fix: a target already filling the gun still has a bearing that
+ * swings as it drifts a hair off centre, and banking to chase that centring
+ * chatters the roll axis for a correction the gun does not need. A sweep of the
+ * whole control law showed every attempt to damp the chatter in the GEOMETRY
+ * (softer roll, decoupled axes) broke convergence — the aggressive bank is what
+ * gets the nose onto hard targets — while this deadzone leaves convergence from
+ * all 475 sphere directions intact and cuts roll amplitude by an order of
+ * magnitude. Pass 0 to steer all the way to dead centre.
  */
 export function bankToTurn(
-  quat: THREE.Quaternion, dir: THREE.Vector3, mem: SteerMemory,
+  quat: THREE.Quaternion, dir: THREE.Vector3, mem: SteerMemory, nullBand = 0,
 ): StickCommand {
   if (dir.lengthSq() < 1e-12) return { pitch: 0, roll: 0 };
   dirNorm.copy(dir).normalize();
@@ -95,7 +107,8 @@ export function bankToTurn(
 
   const offPlane = Math.hypot(localX, localY);
   const theta = Math.atan2(offPlane, localZ); // off-nose angle, 0..pi
-  if (theta < 1e-6) return { pitch: 0, roll: 0 }; // already on it
+  // On the target already — inside the gun cone — so hold steady (see nullBand).
+  if (theta < Math.max(1e-6, nullBand)) return { pitch: 0, roll: 0 };
 
   // The roll to bank the target onto each vertical. A frame roll of r about
   // local +Z shifts the target's X-Y bearing (`alpha`, from "right") by −r, so
