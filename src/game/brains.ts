@@ -61,7 +61,9 @@ const DEFEND_CANDIDATE: Brain | null = (() => {
 const LOADED: Record<BrainName, Brain | null> = {
   'jameson-defend-g2': DEFEND_BRAIN,
   'jameson-defend-t91': DEFEND_CANDIDATE,
-  // the pre-neuroevolution AI is code, not weights
+  // the two code pilots — the attack run and the pre-neuroevolution AI —
+  // are code, not weights
+  'attack-run': null,
   scripted: null,
 };
 
@@ -96,8 +98,19 @@ export function policyKit(): Record<string, unknown> {
 // (brain-names.ts has the decision). What is left here is the one policy the
 // game loads — the defence brain, for armed traders and the combat computer.
 
-/** An armed trader or a player-assist ship flies the defence policy. */
+/**
+ * An armed trader or a player-assist ship flies the defence policy — or
+ * nothing loadable, when the selection names a CODE pilot: `scripted` (no
+ * defence at all) and `attack-run` (the scripted run; npc.ts and the Game
+ * fly it directly) both return null here, because null means "no weights",
+ * and which code path replaces them is the caller's question, asked of
+ * `defenceBrainNameFor`.
+ */
 export function defenceBrain(sel: BrainSelection = SHIPPED_BRAINS): Brain | null {
   const name = defenceBrainNameFor(sel);
-  return name === 'scripted' ? null : (LOADED[name] ?? DEFEND_BRAIN);
+  // the code pilots BY NAME, not by their null entry — a weights file that
+  // failed to parse is also null in LOADED, and that one still falls back to
+  // the shipped brain rather than grounding the trader
+  if (name === 'scripted' || name === 'attack-run') return null;
+  return LOADED[name] ?? DEFEND_BRAIN;
 }

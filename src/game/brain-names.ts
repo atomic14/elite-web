@@ -47,6 +47,7 @@
 export type BrainName =
   | 'jameson-defend-g2'
   | 'jameson-defend-t91'
+  | 'attack-run'
   | 'scripted';
 
 /**
@@ -125,6 +126,18 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
     character: 'TURNS ON THE SPOT AND SHOOTS BACK — IN 800 TEST FIGHTS IT NEVER DIED AND '
       + 'DESTROYED 13% OF ITS ATTACKERS. IT USED TO DO BETTER: A RECENT SENSOR CHANGE '
       + 'DEGRADED IT, AND A REPLACEMENT IS IN TRAINING.',
+  },
+  // The pirates' own three-phase run flying the DEFENCE slots — the
+  // commander's co-pilot, and an armed trader turning to fight. Its measured
+  // figures are the scripted row's below (the same code path, tournament: 58%
+  // accuracy, ~5 attack runs a minute); its own trigger is the player gun's
+  // hit cone, so it shoots only what it can hit. Added 2026-08-05 after runs
+  // 20-21 walled the trained line three ways (docs/TRAINING-LOG.md).
+  'attack-run': {
+    name: 'FLIES ATTACK RUNS',
+    character: 'YOUR SHIP FLIES THE SAME ATTACK RUN THE PIRATES FLY: CLOSE, FIRE THROUGH '
+      + 'THE PASS, SWING OUT AND COME ROUND AGAIN — ABOUT 5 RUNS A MINUTE, SHOOTING ONLY '
+      + 'WHEN LINED UP.',
   },
   // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
   // ships an episode to a commander who fights back
@@ -226,6 +239,14 @@ export interface BrainSelection {
    * rather than judged from the probe table alone.
    */
   defendCandidate?: boolean;
+  /**
+   * The defence slots fly the SCRIPTED ATTACK RUN — the combat computer makes
+   * attack runs on your threats, and an armed trader turns and makes them on
+   * its attacker — instead of a trained policy. Wins over `defendCandidate`
+   * when both are set, because it is the later experiment and the row can
+   * only mean one thing at a time.
+   */
+  attackRun?: boolean;
 }
 
 /**
@@ -299,6 +320,7 @@ export function pirateBrainNameFor(
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
 export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): BrainName {
   if (sel.scripted) return 'scripted';
+  if (sel.attackRun) return 'attack-run';
   return sel.defendCandidate ? 'jameson-defend-t91' : SHIPPED_DEFENCE;
 }
 
@@ -320,6 +342,7 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
   'jameson-defend-g2': {},
   'jameson-defend-t91': { defendCandidate: true },
+  'attack-run': { attackRun: true },
   scripted: { scripted: true },
 };
 

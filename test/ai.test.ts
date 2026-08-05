@@ -159,7 +159,11 @@ const ON_DISK = readdirSync(BRAINS).filter((f) => f.endsWith('.json'))
 // `LIVE_BRAIN_IDS` is the picker's own list, so this cannot drift from what the
 // panel offers.
 const FLOWN = [...new Set(
-  LIVE_BRAIN_IDS.filter(isNamedBrain).filter((n) => n !== 'scripted'),
+  // the two CODE pilots fly with no weights file behind them: `scripted` (the
+  // opposition, and 'no co-pilot' on a defence row) and `attack-run` (the
+  // same run flying the defence slots, 2026-08-05)
+  LIVE_BRAIN_IDS.filter(isNamedBrain)
+    .filter((n) => n !== 'scripted' && n !== 'attack-run'),
 )].sort();
 
 // ...and brains.ts is the ONLY way in. This is the other half of the claim, and

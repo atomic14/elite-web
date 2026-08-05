@@ -25,6 +25,7 @@ import type { Brain } from '../ai-training/policy.ts';
 import type { V3 } from '../ai-training/observation.ts';
 import { hostilesNear } from './npc.ts';
 import type { CombatComputer } from './combat-computer.ts';
+import { ScriptedCoPilot } from './scripted-co-pilot.ts';
 import type { SoundEvent } from './sounds.ts';
 import type { GameState } from './state.ts';
 import { DOCK_COMPUTER_RANGE } from '../constants/docking-computer.ts';
@@ -58,13 +59,32 @@ export interface AutopilotDemand {
   events: AutopilotEvent[];
 }
 
+/** What the SCRIPTED combat computer decided this frame — see combatSteer. */
+export interface AutopilotSteer {
+  /** where to slew, how fast to fly, whether to pull the trigger — or null
+   * when the pilot has just handed the ship back */
+  steer: { point: import('three').Vector3 | null; speed: number; fire: boolean } | null;
+  ecm: boolean;
+  events: AutopilotEvent[];
+}
+
 export class Autopilot {
   private readonly state: GameState;
   private readonly computer: CombatComputer;
+  private readonly scripted: ScriptedCoPilot;
 
-  constructor(state: GameState, computer: CombatComputer) {
+  constructor(
+    state: GameState, computer: CombatComputer,
+    scripted: ScriptedCoPilot = new ScriptedCoPilot(),
+  ) {
     this.state = state;
     this.computer = computer;
+    this.scripted = scripted;
+  }
+
+  /** The commander took a hit — the scripted co-pilot's only way to feel it. */
+  noteUnderFire(): void {
+    this.scripted.noteHit();
   }
 
   /**
@@ -150,5 +170,31 @@ export class Autopilot {
       };
     }
     return { demand: step.demand, ecm: step.ecm, events: [] };
+  }
+
+  /**
+   * The SCRIPTED combat computer — the pirates' attack run flying your ship
+   * (scripted-co-pilot.ts decides; the Game slews and shoots). The same
+   * engage key, the same manual override, the same disengage words as the
+   * brain co-pilot: which of the two flies is the LIVE BRAINS selection,
+   * asked by game.ts through `defenceBrainNameFor`.
+   */
+  combatSteer(dt: number, handsOn: boolean, missilePos: V3 | null): AutopilotSteer {
+    const s = this.state;
+    const step = this.scripted.step(
+      dt, s.player, s.world.npcs, s.commander.legalStatus, handsOn, missilePos);
+    if (step.kind === 'disengage') {
+      s.session.ccEngaged = false;
+      return {
+        steer: null,
+        ecm: false,
+        events: [say(step.reason, step.reason === 'MANUAL OVERRIDE' ? 2 : 3)],
+      };
+    }
+    return {
+      steer: { point: step.point, speed: step.speed, fire: step.fire },
+      ecm: step.ecm,
+      events: [],
+    };
   }
 }

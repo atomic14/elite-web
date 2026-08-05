@@ -16,6 +16,7 @@ import {
   observeFor, shipView, writeView, type ObservableMate, type ThreatsView,
 } from '../ai-training/observation.ts';
 import { defenceBrain } from './brains.ts';
+import { defenceBrainNameFor } from './brain-names.ts';
 import { type AttackPhase } from './break-off.ts';
 import { attackRunSteer, attackRunSpeed } from './attack-run.ts';
 import {
@@ -676,7 +677,22 @@ export class NpcShip {
     }
 
     if (this.state.fleeing) {
-      // armed traders turn and fight with the trained Jameson defence brain
+      // Armed traders turn and fight. WHICH pilot is brain-names.ts's answer:
+      // the trained defence policy, or — since 2026-08-05 — the same scripted
+      // attack run every pirate flies, pointed back at whoever is hunting it.
+      if (this.armed && defenceBrainNameFor(brains) === 'attack-run') {
+        if (this.state.provokedByPlayer && distPlayer < 6000) {
+          const shot = this.attack(dt, player.position, distPlayer, true, undefined,
+            fleet, this.velocityOf(player.quaternion, player.speed));
+          return this.chooseWeapon(shot, distPlayer, player.position, view.missileInbound);
+        }
+        const attacker = this.nearestAttacker(dt);
+        if (attacker) {
+          const d = attacker.object.position.distanceTo(this.object.position);
+          return this.attack(dt, attacker.object.position, d, false, attacker, view.fleet,
+            this.velocityOf(attacker.object.quaternion, attacker.state.speed));
+        }
+      }
       const defence = this.armed ? defenceBrain(brains) : null;
       if (defence) {
         const live = this.attackers.filter((a) => a.state.alive);
@@ -1421,7 +1437,7 @@ export class NpcShip {
   }
 }
 
-function approach(current: number, target: number, step: number): number {
+export function approach(current: number, target: number, step: number): number {
   if (current < target) return Math.min(target, current + step);
   return Math.max(target, current - step);
 }
