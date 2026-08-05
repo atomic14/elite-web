@@ -33,7 +33,7 @@ const MODE_BLURB: Record<SimMode, string> = {
 };
 
 const MIXED_BRAINS = 'MIXED BRAINS CANNOT FLY: THE GAME LOADS ONE POLICY PER ROLE, '
-  + 'SO THE LIVE BRAINS WILL. SET THE LIVE BRAINS (THIS FIGHT) ROW INSTEAD.';
+  + 'SO THE COMBAT COMPUTER WILL. SET COMBAT COMPUTER BRAIN (THIS FIGHT) INSTEAD.';
 
 /**
  * What the waves mode escalates, and where it stops — DERIVED from the ramp.
@@ -176,8 +176,8 @@ export function brainNoteReserve(): string {
 
 // --- the one note that is not about this exercise ---------------------------
 
-const FROM_THE_CONSOLE = 'LIVE BRAINS WERE SET FROM THE CONSOLE TO SOMETHING THIS PICKER '
-  + 'CANNOT NAME — ARROW THIS ROW TO TAKE IT BACK.';
+const FROM_THE_CONSOLE = 'THE COMBAT COMPUTER WAS SET FROM THE CONSOLE TO SOMETHING THIS '
+  + 'PICKER CANNOT NAME — ARROW THIS ROW TO TAKE IT BACK.';
 
 /**
  * The career warning, worded so it cannot be read as more contextual help.
@@ -188,7 +188,8 @@ const FROM_THE_CONSOLE = 'LIVE BRAINS WERE SET FROM THE CONSOLE TO SOMETHING THI
  * than what it does.
  */
 const galaxyFlies = (id: LiveBrainId): string =>
-  `LIVE BRAINS: THE WHOLE GALAXY FLIES ${brainName(id)} (${id.toUpperCase()}) — IN YOUR `
+  `COMBAT COMPUTER: YOUR CO-PILOT AND EVERY ARMED TRADER NOW ${id === 'scripted'
+    ? 'FLIES NOTHING' : `FLIES ${brainName(id)} (${id.toUpperCase()})`} — IN YOUR `
   + 'GAME, OUT THERE, AND SAVED WITH THE COMMANDER. SET THIS ROW BACK TO THE ORIGINAL TO UNDO IT.';
 
 /**

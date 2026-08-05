@@ -236,6 +236,15 @@ const position = (at: number, len: number): string => `(${at + 1} OF ${len})`;
  * nobody has to read past it.
  */
 const flies = (id: BrainChoice | LiveBrainId): string => brainName(id) ?? id.toUpperCase();
+/**
+ * The same value on a COMBAT COMPUTER row. One difference, and it is the
+ * pilot's: `scripted` on an opposition row means "the attack run" and reads
+ * as its behaviour, but on these two rows it means the co-pilot and every
+ * armed trader fly NOTHING — so saying "MAKES ATTACK RUNS" there was
+ * gibberish. The value says what the pilot gets.
+ */
+const coPilotFlies = (id: BrainChoice | LiveBrainId): string =>
+  (id === 'scripted' ? 'NONE — FLY IT YOURSELF' : flies(id));
 
 /**
  * A draft to start from: a single professional pirate, in the ship you own.
@@ -459,9 +468,9 @@ export function setupCells(d: SimDraft): SetupCell[] {
       // writes moves the DEFENCE — every armed trader in the fight and YOUR
       // combat computer — or turns it off (the scripted control). The label
       // says brains because that is what it changes.
-      label: 'THE LIVE BRAINS (THIS FIGHT)',
+      label: 'COMBAT COMPUTER BRAIN (THIS FIGHT)',
       value: `${position(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length)} `
-        + flies(d.brain),
+        + coPilotFlies(d.brain),
       brain: d.brain,
       change: (n) => { d.brain = step(BRAIN_CHOICES, d.brain, n); },
       jump: (n) => { d.brain = endOf(BRAIN_CHOICES, n); },
@@ -588,12 +597,12 @@ export function setupCells(d: SimDraft): SetupCell[] {
   cells.push({
     heading: 'THIS ONE STAYS SET AFTER YOU UNDOCK',
     fenced: true,
-    label: 'CHANGE THE LIVE BRAINS',
+    label: 'COMBAT COMPUTER BRAINS',
     // No position on the console case, because there is no position: a selection
     // the picker cannot name is not one of the eleven it offers.
     value: d.live === null ? 'SET FROM THE CONSOLE'
       : `${position(LIVE_BRAIN_IDS.indexOf(d.live), LIVE_BRAIN_IDS.length)} `
-        + flies(d.live),
+        + coPilotFlies(d.live),
     brain: d.live ?? undefined,
     change: (n) => {
       const at = d.live === null ? -1 : LIVE_BRAIN_IDS.indexOf(d.live);

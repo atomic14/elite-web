@@ -49,7 +49,7 @@ console.log('\ncombat simulator — a brain row says what it does');
   const named = cells.filter((c) => c.brain !== undefined).map((c) => c.label.trim());
   eq('the three brain rows carry a brain, and nothing else does',
     named.map((l) => l.replace(/&nbsp;/g, '')).join(' / '),
-    'THE LIVE BRAINS (THIS FIGHT) / THIS GROUP FLIES / CHANGE THE LIVE BRAINS');
+    'COMBAT COMPUTER BRAIN (THIS FIGHT) / THIS GROUP FLIES / COMBAT COMPUTER BRAINS');
   check('...and each of them has something to say about it',
     cells.filter((c) => c.brain !== undefined).every((c) => !!brainNote(c.brain)));
 

@@ -218,7 +218,7 @@ console.log('\nthe trainer names what the game flies');
 console.log('\ncombat simulator — the live brain row');
 {
 const d = freshDraft(newCommander());
-const row = () => setupCells(d).find((c) => c.label === 'CHANGE THE LIVE BRAINS')!;
+const row = () => setupCells(d).find((c) => c.label === 'COMBAT COMPUTER BRAINS')!;
 eq('the panel offers it, and it starts at the shipped set',
   row().value, `(1 OF ${LIVE_BRAIN_IDS.length}) THE ORIGINAL`);
 eq('...so the draft asks for no override', JSON.stringify(liveSelectionOf(d)), '{}');
@@ -237,7 +237,7 @@ check('the row is fenced off from the exercise settings', row().fenced === true)
 check('...under a heading that says it leaves the room',
   /STAYS SET AFTER YOU UNDOCK/.test(row().heading ?? ''));
 eq('...and it is the last row on the panel',
-  setupCells(d).at(-1)!.label, 'CHANGE THE LIVE BRAINS');
+  setupCells(d).at(-1)!.label, 'COMBAT COMPUTER BRAINS');
 check('...so no exercise setting sits below it',
   setupCells(d).filter((c) => c.fenced).length === 1);
 
@@ -246,15 +246,18 @@ check('...so no exercise setting sits below it',
 // that changes anything is the scripted A/B control, which also turns the
 // armed traders' defence policy off.
 d.live = 'scripted';
-eq('a picked value reads back on the row as how it flies', row().value,
+// On a combat-computer row, `scripted` means the co-pilot flies NOTHING —
+// showing the attack run's behaviour there was gibberish for a pilot, so the
+// row says what you actually get.
+eq('a picked value reads back on the row as what the co-pilot does', row().value,
   `(${LIVE_BRAIN_IDS.indexOf('scripted') + 1} OF ${LIVE_BRAIN_IDS.length})`
-  + ' MAKES ATTACK RUNS');
+  + ' NONE — FLY IT YOURSELF');
 check('...and the file stem is in the note instead, not the value',
   (brainNote('scripted') ?? '').includes('SCRIPTED'));
 eq('...and is the selection the game would fly',
   JSON.stringify(liveSelectionOf(d)), '{"scripted":true}');
 check('...and the fenced note says it outlives the exercise',
-  /LIVE BRAINS: THE WHOLE GALAXY FLIES MAKES ATTACK RUNS \(SCRIPTED\)/
+  /COMBAT COMPUTER: YOUR CO-PILOT AND EVERY ARMED TRADER NOW FLIES NOTHING/
     .test(careerNote(d).text));
 eq('...as a warning this time, painted apart from the calm case',
   careerNote(d).warning, true);

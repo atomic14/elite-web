@@ -107,28 +107,32 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
   // flew); docs/TRAINING-LOG.md run 20 says why the numbers alone reject it.
   'jameson-defend-t91': {
     name: 'SITS TIGHT',
-    character: 'THE RETRAIN CANDIDATE ON THE NEW ENCODER — KEEPS 98.2% OF HER POOLS AND '
-      + 'NEVER DIES, BUT BREAKS ONLY 11.4% OF THE ATTACKING FORCE WHERE THE STALE '
-      + 'INCUMBENT STILL BREAKS 26.6%. FLY IT BEFORE JUDGING IT.',
+    character: 'AN EXPERIMENTAL NEW BRAIN — VERY HARD TO KILL, SLOW TO SHOOT BACK. IN 800 '
+      + 'TEST FIGHTS IT NEVER DIED AND DESTROYED 7% OF ITS ATTACKERS. TRY IT AND SAY '
+      + 'HOW IT FEELS.',
   },
   // defence probe, 800 held-out fights against the scripted attack run (1-4 of
   // them, three hulls, beam or military): 41.6% of her attackers destroyed,
   // 98.3% of her pools left, 0 deaths, and 0.00 warheads landed on her out of
   // 0.80 launched an episode. The incumbent it replaced killed 4.8%, kept 89.2%
   // and died 30 times in the same 800 (docs/TRAINING-LOG.md).
+  // Its glory-days figures (destroyed 41.6% of attackers) predate docs/TODO/91's
+  // sensor change, which it has not been retrained for — the line quotes what it
+  // does TODAY, because a row that flatters a degraded brain is a lie on the
+  // panel. Current figures: defence probe, 800 held-out fights, 2026-08-05.
   'jameson-defend-g2': {
     name: 'TURNS AND KILLS',
-    character: 'AN ARMED TRADER THAT TURNS ON THE SPOT AND SHOOTS BACK — DESTROYS 41.6% OF '
-      + 'HER ATTACKERS AND E.C.M.s EVERY MISSILE SENT AT HER, DYING 0 TIMES IN 800 FIGHTS '
-      + 'WHERE THE POLICY BEFORE IT DIED 30.',
+    character: 'TURNS ON THE SPOT AND SHOOTS BACK — IN 800 TEST FIGHTS IT NEVER DIED AND '
+      + 'DESTROYED 13% OF ITS ATTACKERS. IT USED TO DO BETTER: A RECENT SENSOR CHANGE '
+      + 'DEGRADED IT, AND A REPLACEMENT IS IN TRAINING.',
   },
   // tournament: 58% accuracy and 31.8s on a hauler's six, and it loses 0.93
   // ships an episode to a commander who fights back
   scripted: {
     name: 'MAKES ATTACK RUNS',
-    character: 'WHAT SHIPS. CLOSES, FLIES THROUGH THE PASS AND COMES ROUND AGAIN — 5.2 '
-      + 'ATTACK RUNS AN EPISODE AGAINST 0.0 FOR THE TRAINED BRAINS, AND 2.2 POINTS OF '
-      + 'CONTACT DAMAGE WHERE AIMING AT THE TARGET INSTEAD OF PAST IT COST 104.',
+    character: 'THE HAND-WRITTEN ATTACK RUN EVERY PIRATE FLIES: CLOSES, FIRES THROUGH THE '
+      + 'PASS AND COMES ROUND AGAIN — ABOUT 5 RUNS A MINUTE. ON A COMBAT COMPUTER ROW '
+      + 'THIS MEANS NO CO-PILOT AT ALL.',
   },
 });
 
