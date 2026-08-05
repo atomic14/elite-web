@@ -45,6 +45,7 @@ import type { NpcEnergyPoints } from './damage-units.ts';
 import { rampToward } from '../player.ts';
 import { random, randomDirection, randomQuaternion } from './rng.ts';
 import { planDocking, makeDockPlan, type DockPlan } from './docking.ts';
+import { ThreatLock } from './threat-lock.ts';
 
 /**
  * Everything about a ship that can CHANGE.
@@ -687,7 +688,7 @@ export class NpcShip {
           return this.brainFly(defence, dt,
             player.position, player.quaternion, 300, distPlayer, 'player');
         }
-        const attacker = this.nearestAttacker();
+        const attacker = this.nearestAttacker(dt);
         if (attacker) {
           const d = attacker.object.position.distanceTo(this.object.position);
           return this.brainFly(defence, dt,
@@ -824,9 +825,19 @@ export class NpcShip {
   /** Is `a` on our list? The read that replaces reaching into the array. */
   hasAttacker(a: NpcShip): boolean { return this.attackers.includes(a); }
 
-  private nearestAttacker(): NpcShip | null {
-    // whoever is hunting us — see addAttacker; the game keeps the list current
-    return this.attackers.find((a) => a.state.alive) ?? null;
+  /** the attacker being fought — see game/threat-lock.ts for the rule */
+  private readonly attackerLock = new ThreatLock<NpcShip>();
+
+  private nearestAttacker(dt: number): NpcShip | null {
+    // Locked, not first-registered: the old rule took the FIRST living entry,
+    // so which attacker an armed trader fought depended on registration order
+    // rather than on the fight — and a bare distance rule teleports the
+    // brain's target instead (game/threat-lock.ts has the measurements).
+    return this.attackerLock.pick(
+      dt,
+      this.attackers.filter((a) => a.state.alive),
+      (a) => a.object.position.distanceTo(this.object.position),
+    );
   }
 
   /**

@@ -27,6 +27,7 @@ import {
 import {
   CC_ACCEL, CC_MAX_PITCH, CC_MAX_ROLL, CC_MAX_SPEED, THREAT_RANGE,
 } from '../constants/combat-computer.ts';
+import { ThreatLock } from './threat-lock.ts';
 
 export type AutopilotStep =
   /** hands off — the reason is for the player */
@@ -136,6 +137,9 @@ export class CombatComputer {
    * decides whether to answer a warhead, and whether there is one to answer is
    * not the policy's business (`autopilotEcm`).
    */
+  /** the threat being fought — see game/threat-lock.ts for the rule */
+  private readonly threatLock = new ThreatLock<NpcShip>();
+
   step(
     dt: number,
     player: AutopilotShip,
@@ -148,14 +152,18 @@ export class CombatComputer {
   ): AutopilotStep {
     if (manualInput) return { kind: 'disengage', reason: 'MANUAL OVERRIDE' };
 
-    let threat: NpcShip | null = null;
-    let bestD = THREAT_RANGE;
-    for (const npc of npcs) {
-      if (!isHostileToPlayer(npc, legalStatus)) continue;
-      const d = npc.object.position.distanceTo(player.position);
-      if (d < bestD) { bestD = d; threat = npc; }
-    }
+    // COMMITTED, not merely nearest: a fresh-every-frame pick flipped the
+    // fought ship up to 26.8 times a minute and the brain's bearing slots
+    // jumped ~90 degrees each flip — the rule and the measurements are
+    // game/threat-lock.ts's, shared with the armed trader and the trainer.
+    const threat = this.threatLock.pick(
+      dt,
+      npcs.filter((npc) => isHostileToPlayer(npc, legalStatus)
+        && npc.object.position.distanceTo(player.position) < THREAT_RANGE),
+      (npc) => npc.object.position.distanceTo(player.position),
+    );
     if (!threat || !brain) {
+      this.threatLock.clear();
       return { kind: 'disengage', reason: 'AREA CLEAR — COMBAT COMPUTER OFF' };
     }
 

@@ -34,6 +34,7 @@ import './trade.test.ts';
 import './world.test.ts';
 import './docking.test.ts';
 import './observation.test.ts';
+import './threat-lock.test.ts';
 import './spawning.test.ts';
 import './world-step.test.ts';
 import './station.test.ts';

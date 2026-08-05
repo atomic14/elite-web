@@ -57,6 +57,7 @@ import {
 } from '../game/ordnance.ts';
 import { resolveNpcFire, type FireWorld } from '../game/fire-resolution.ts';
 import { hitFromAhead } from '../game/shield-face.ts';
+import { ThreatLock } from '../game/threat-lock.ts';
 import { SPECS, shipAccel, type NpcSpec } from '../game/ship-specs.ts';
 import { TURN } from '../constants/hull-motion.ts';
 import { shipDisplayName, shipTargetRadius } from '../ships/registry.ts';
@@ -854,6 +855,8 @@ export class Episode {
   private readonly traderVel = new THREE.Vector3();
   private readonly traderWaypoint = new THREE.Vector3();
   private traderWaypointTimer = 0;
+  /** the pirate the trader's policy is fighting — game/threat-lock.ts's rule */
+  private readonly threatLock = new ThreatLock<PirateShip>();
   private traderFireCooldown = 1.5;
 
   constructor(opts: EpisodeOptions) {
@@ -1002,8 +1005,17 @@ export class Episode {
     if (this.trader.alive) {
       const tCtrl = this.opts.trader;
       let policyWantsFire = false;
+      let policyThreat: PirateShip | null = null;
       if (tCtrl.kind === 'policy') {
-        const threat = this.nearestPirate() ?? this.pirates[0];
+        // Locked, exactly as the game holds it (game/threat-lock.ts): the
+        // trainer flying a fresh-nearest while the game flies a locked threat
+        // would be a second world on the one input geometry feeds.
+        policyThreat = this.threatLock.pick(
+          dt,
+          this.pirates.filter((p) => p.alive),
+          (p) => p.pos.distanceTo(this.trader.pos),
+        );
+        const threat = policyThreat ?? this.pirates[0];
         const c = act(
           tCtrl.brain, this.observeTrader(threat, tCtrl.brain, missileInbound), this.scratch);
         policyWantsFire = c.fire && !!this.opts.traderArmed; // armed policies may shoot
@@ -1027,13 +1039,17 @@ export class Episode {
       }
 
       if (this.opts.traderArmed) {
-        const threat = this.nearestPirate();
         if (tCtrl.kind === 'policy') {
-          if (policyWantsFire && threat) {
-            const e = this.fireTraderGun(threat);
+          // The gun fires at the ship the brain was OBSERVING when it pulled
+          // the trigger. It used to fire at a fresh nearestPirate(), so on the
+          // frames where the two disagreed the policy aimed at one ship and
+          // shot at another — and was scored on the result.
+          if (policyWantsFire && policyThreat) {
+            const e = this.fireTraderGun(policyThreat);
             if (e) events.push(e);
           }
         } else {
+          const threat = this.nearestPirate();
           // A scripted trader's trigger discipline: a slow, deliberate shot
           // when it is properly lined up, on top of whatever its gun allows.
           this.traderFireCooldown -= dt;
