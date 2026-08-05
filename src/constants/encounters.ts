@@ -152,16 +152,7 @@ export const MAX_THARGONS = 4;
  * the source does.
  */
 export const THARGON_REDEPLOY = 5;
-
-/**
- * ...except in witch-space, where the first drone comes a second sooner.
- *
- * A DIVERGENCE, RECORDED RATHER THAN RESOLVED. `game.ts`'s `enterWitchspace`
- * sets the same timer to 4 and nothing anywhere says why. Two readings survive:
- * a mis-jump ambush is meant to open harder than an ordinary Thargoid encounter,
- * or somebody wrote 4 where they meant 5. They want different answers — one
- * keeps a separate constant, the other deletes this line — and choosing costs a
- * second of the opening of every mis-jump, so it is a decision rather than a
- * refactor. It is on docs/TODO/90-constants-cleanup.md's Open list.
- */
-export const THARGON_AMBUSH_DELAY = 4;
+// The witch-space ambush used to set this same timer to 4 through a second
+// constant (THARGON_AMBUSH_DELAY), a divergence with no recorded reason.
+// Chris resolved it 2026-08-05: one timer, and every mis-jump's first drone
+// now comes at the same 5 seconds the mothership always redeployed at.

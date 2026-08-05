@@ -109,7 +109,7 @@ import {
 import { AIM_ASSIST, LASER_RANGE } from '../constants/player-gun.ts';
 import { hitCone } from './gunnery.ts';
 import { freshTimers } from './encounters.ts';
-import { THARGON_AMBUSH_DELAY } from '../constants/encounters.ts';
+import { THARGON_REDEPLOY } from '../constants/encounters.ts';
 import {
   THARGOID_AMBUSH_EXTRA_CHANCE, THARGOID_AMBUSH_MIN, THARGOID_AMBUSH_RANGE,
   THARGOID_AMBUSH_RANGE_SPAN, WITCHSPACE_ENTRY_SPEED,
@@ -659,7 +659,7 @@ export class Game {
         randomDirection(new THREE.Vector3())
           .multiplyScalar(THARGOID_AMBUSH_RANGE + random() * THARGOID_AMBUSH_RANGE_SPAN), i);
     }
-    this.state.encounterTimers.thargon = THARGON_AMBUSH_DELAY;
+    this.state.encounterTimers.thargon = THARGON_REDEPLOY;
     sfx.hyperspace();
     this.tunnel.start(1.1);
     this.showMessage('WITCH-SPACE — THARGOID AMBUSH', 6);

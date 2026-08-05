@@ -452,7 +452,11 @@ a drift nobody noticed is recorded beside the constants;
 the two lists — either way — moves what every wreck in the game drops, so it
 is a decision, not a refactor.
 
-### The thargon timer is 5 in one file and 4 in another
+### The thargon timer is 5 in one file and 4 in another — DECIDED 2026-08-05: one timer
+
+Chris unified on 5: `THARGON_AMBUSH_DELAY` is deleted, `game.ts` reads
+`THARGON_REDEPLOY`, and every mis-jump's first drone comes one second later
+than it used to. The finding as it stood:
 
 `constants/encounters.ts`'s `THARGON_REDEPLOY` is 5 and `THARGON_AMBUSH_DELAY`
 is 4, and the second exists only because `game.ts`'s `enterWitchspace` sets the
