@@ -21,8 +21,9 @@ import {
 import { describeContract, type MarketEstimate } from '../game/contracts.ts';
 import type { ChartState } from '../game/chart-state.ts';
 import {
-  PASS_CLOSE, PASS_FAR, type CombatSimReport, type OpeningGeometry, type WaveEscalation,
+  type CombatSimReport, type OpeningGeometry, type WaveEscalation,
 } from '../game/combat-sim-report.ts';
+import { PASS_CLOSE, PASS_FAR } from '../constants/combat-record.ts';
 import type {
   CompareGroup, SimComparePanel,
 } from '../game/combat-sim-compare.ts';

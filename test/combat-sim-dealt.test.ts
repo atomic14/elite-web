@@ -21,6 +21,7 @@
 // — and it is the same thing the laser path measures, which is why the four
 // buckets can be summed at the end.
 
+import { ENTRY_THROTTLE } from '../src/constants/exercise.ts';
 import * as THREE from 'three';
 
 import { Game } from '../src/game/game.ts';
@@ -101,6 +102,11 @@ function theFight(): Flown {
     const foes = [...s.world.npcs];
     check('...against three opponents and nothing else', foes.length === 3
       && foes.every((n) => n.role === 'pirate'));
+    // the exercise's own entry speed, solved back out of the real start —
+    // constants/exercise.ts's ENTRY_THROTTLE, pinned where it is spent
+    check(`...moving at ENTRY_THROTTLE of the ship's top speed `
+      + `(${(s.player.speed / s.player.maxSpeed).toFixed(3)})`,
+    Math.abs(s.player.speed / s.player.maxSpeed - ENTRY_THROTTLE) < 1e-9);
 
     let t = 0;
     const beat = (frames: number, until?: () => boolean) => {

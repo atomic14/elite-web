@@ -103,27 +103,11 @@ import { selectionForBrain } from './brain-names.ts';
 import type { WorldSnapshot } from './snapshot.ts';
 import { spawnOpposition, type OppositionUnit } from './spawning.ts';
 import { freshSession, type GameState } from './state.ts';
+import { ENTRY_THROTTLE, NO_AMBIENT_TRAFFIC } from '../constants/exercise.ts';
 import { breachLoss, freshSystems } from './systems.ts';
 import { type PilotInput, type StepEvent, type StepHost, WorldStep } from './world-step.ts';
 import type { SoundEvent } from './sounds.ts';
 import { shipDisplayName } from '../ships/registry.ts';
-
-/**
- * How far out the encounter timers are pushed while an exercise runs.
- *
- * Without this `stepEncounters` keeps doing its job — traders warp in, and a
- * lawless system throws a pirate wave at you — and the arena fills up with
- * ships the scenario never asked for. `test/gang-trial.js` hit exactly this and
- * reported "4 of 3 alive".
- *
- * A big finite number rather than `Infinity`, because the timers are in
- * `GameState` and therefore in the SAVE, and `JSON.stringify(Infinity)` is
- * `null`. Thirty-one years of exercise is enough.
- */
-const NO_AMBIENT_TRAFFIC = 1e9;
-
-/** Where the exercise starts you, as a fraction of the ship's top speed. */
-const ENTRY_THROTTLE = 0.25;
 
 const ZERO = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);

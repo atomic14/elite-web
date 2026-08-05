@@ -18,9 +18,10 @@
 
 import { readFileSync } from 'node:fs';
 import {
-  CombatSimRecorder, countPasses, PASS_CLOSE, PASS_FAR,
+  CombatSimRecorder, countPasses,
   type ContactSample, type ExerciseSetup, type FrameSample,
 } from '../src/game/combat-sim-report.ts';
+import { PASS_CLOSE, PASS_FAR } from '../src/constants/combat-record.ts';
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { check, eq } from './harness.ts';
 
@@ -155,8 +156,8 @@ console.log('\ncombat simulator report — how they flew');
 {
   const probeSrc = readFileSync(
     new URL('../train/flight-probe.ts', import.meta.url), 'utf8');
-  check('flight-probe.ts reads the pass thresholds from combat-sim-report.ts',
-    /import\s*{[^}]*PASS_CLOSE[^}]*}\s*from\s*'\.\.\/src\/game\/combat-sim-report\.ts'/s
+  check('flight-probe.ts reads the pass thresholds from constants/combat-record.ts',
+    /import\s*{[^}]*PASS_CLOSE[^}]*}\s*from\s*'\.\.\/src\/constants\/combat-record\.ts'/s
       .test(probeSrc));
   check('...and counts its passes with the game\'s own recorder',
     probeSrc.includes('new CombatSimRecorder')
@@ -165,4 +166,12 @@ console.log('\ncombat simulator report — how they flew');
     !/const\s+(CLOSE|FAR|PASS_CLOSE|PASS_FAR)\s*=/.test(probeSrc));
   check('...and no second quantile to disagree with the report\'s',
     !/const\s+quantile\s*=|function\s+quantile\s*\(/.test(probeSrc));
+
+  // The values themselves, pinned as the decisions they are: the sweep table
+  // beside PASS_FAR argues 600 (92% of merges counted over the shipped
+  // 500-850 band) and PASS_CLOSE has never moved. A drifted threshold is a
+  // different MEASUREMENT — archived rows stop being comparable — so moving
+  // either is a re-decision, not a tune (docs/TODO/67).
+  eq('PASS_CLOSE is the 400 every archived record was measured at', PASS_CLOSE, 400);
+  eq('PASS_FAR is the 600 the sweep table argues', PASS_FAR, 600);
 }

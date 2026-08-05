@@ -95,6 +95,7 @@ const OUTSIDE: readonly Group[] = [
       'player.ts': ['AXIS_X', 'AXIS_Z'],
       'game/world-step.ts': ['ZERO'],
       'game/game.ts': ['ZERO', 'UP'],
+      'game/combat-sim.ts': ['ZERO', 'UP'],
     },
   },
 
@@ -300,19 +301,53 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'the docked combat trainer: who it sends at you, where they start and what it'
-      + ' records',
+    why: 'MOVED, apart from what is typed, versioned or prose: the record\'s rules are'
+      + ' constants/combat-record.ts, the exercise\'s opening and clocks are'
+      + ' constants/exercise.ts, the wave ramp\'s rates are constants/waves.ts and the'
+      + ' tier ladder\'s top is constants/threat.ts. What stays: `COMBAT_SIM_SCHEMA` is'
+      + ' a format version welded to its record; `CADENCE_EPSILON` is float slack, not'
+      + ' a rule; `UNKNOWN`/`SOURCES` are a bucket label and its closed list;'
+      + ' `ARENA_RADII` is the decided same-number-different-rule exception'
+      + ' (docs/TODO/90-constants-cleanup.md); `AHEAD`/`OPENINGS`/`CUSTOM_OPENING`/'
+      + '`NO_OPENING` are tables keyed on `ScenarioId` and `DEG` is a unit conversion;'
+      + ' the scenario file\'s remainder is typed tables (`SCENARIOS`, `WAVE_STEPS`,'
+      + ' `MODES`, `OPPOSITION_ROLES`, `SIM_BRAINS`), brain-name reads, a derivation'
+      + ' over a table (`WAVE_SATURATION`) and the custom picker\'s private seed'
+      + ' stride; the notes are prose; the setup rows are typed lists',
     files: {
-      'game/combat-sim.ts': ALL,
-      'game/combat-sim-compare.ts': ALL,
-      'game/combat-sim-opening.ts': ALL,
-      'game/combat-sim-report.ts': ALL,
-      'game/combat-sim-scenarios.ts': ALL,
-      'game/screens/combat-sim-notes.ts': ALL,
-      'game/screens/combat-sim-setup.ts': ALL,
-      'viewer/main.ts': ALL,
-      'viewer/gallery.ts': ALL,
-      'viewer/gallery-main.ts': ALL,
+      'game/combat-sim-compare.ts': ['IDENTITY', 'PER_OPPONENT', 'GROUPS'],
+      'game/combat-sim-opening.ts': [
+        'ARENA_RADII', 'AHEAD', 'OPENINGS', 'CUSTOM_OPENING', 'NO_OPENING', 'DEG',
+      ],
+      'game/combat-sim-report.ts': [
+        'COMBAT_SIM_SCHEMA', 'CADENCE_EPSILON', 'UNKNOWN', 'SOURCES',
+      ],
+      'game/combat-sim-scenarios.ts': [
+        'OPPOSITION_ROLES', 'SHIPPED_SOLO_BRAIN', 'SHIPPED_PACK_BRAIN',
+        'SHIPPED_DEFENCE_BRAIN', 'SIM_BRAINS', 'SHIP_SEED_STRIDE', 'SCENARIOS',
+        'WAVE_STEPS', 'WAVE_SATURATION', 'MODES',
+      ],
+      'game/screens/combat-sim-notes.ts': [
+        'MODE_BLURB', 'MIXED_BRAINS', 'NO_OVERRIDE', 'FROM_THE_CONSOLE',
+        'AS_SHIPPED_NOTE',
+      ],
+      'game/screens/combat-sim-setup.ts': ['MODES', 'TIERS', 'LASERS', 'BRAIN_CHOICES'],
+    },
+  },
+
+  {
+    why: 'STAYS: the combat viewer and the gallery are development pages, and their'
+      + ' constants are catalogue reads (`COBRA_MK3`, `SIDEWINDER`), brain-name reads'
+      + ' (`SOLO`, `GANG`, `DEFENCE`), a scenario table, typed mode lists'
+      + ' (`SCALES`, `VIEWS`) and pure drawing — grid geometry, three colours (one of'
+      + ' them the phosphor, which docs/TODO/93 owns) and two fixed axes',
+    files: {
+      'viewer/main.ts': ['COBRA_MK3', 'SIDEWINDER', 'SOLO', 'GANG', 'DEFENCE', 'SCENARIOS'],
+      'viewer/gallery.ts': [
+        'COLUMNS', 'CELL', 'HULL_COLOUR', 'RADIUS_COLOUR', 'LABEL_COLOUR',
+        'UP', 'RIGHT', 'GRID_CENTRE',
+      ],
+      'viewer/gallery-main.ts': ['SCALES', 'VIEWS'],
     },
   },
 

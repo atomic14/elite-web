@@ -30,7 +30,10 @@
 
 import * as THREE from 'three';
 
-import { PASS_FAR, aimAngle, type OpeningGeometry } from './combat-sim-report.ts';
+import { aimAngle, type OpeningGeometry } from './combat-sim-report.ts';
+import {
+  OPENING_RANGE, AMBUSH_RANGE, OPENING_CONE_DEG, AMBUSH_CONE_DEG, IN_VIEW_DEG,
+} from '../constants/exercise.ts';
 import type { ExerciseSpec, ScenarioId } from './combat-sim-scenarios.ts';
 import type { OppositionPlacement } from './spawning.ts';
 import type { World } from './world.ts';
@@ -112,75 +115,6 @@ export interface OpeningPlan {
    */
   coneDeg: number;
 }
-
-/**
- * The opening range for a fight you are meant to see coming, and every term of
- * it is load-bearing:
- *
- *  * **Outside their gun.** `NPC_LASER_RANGE` is 3,500 and a spawned ship is
- *    already pointed at you, so anything closer than 3,500 / 0.85 = 4,118 lets
- *    the nearest of them open fire on the first frame. That is the bug: being
- *    shot before you have found what is shooting.
- *  * **Inside their interest.** `PLAYER_INTEREST_RANGE` is 9,000 — an NPC does not
- *    care about you at all beyond it — so a longer opening would buy a stare
- *    rather than an approach.
- *  * **Clear of the attack-run thresholds.** TODO 34 counts a pass as closing
- *    inside `PASS_CLOSE` (400) and opening back out past `PASS_FAR` (900), so
- *    where a fight STARTS decides whether the first run is counted honestly:
- *    start inside 400 and `countPasses` begins the fight already "inside" and
- *    scores a free pass the first time anybody leaves; start in the 400-900 dead
- *    band and the first approach is half-measured. The nearest ship here starts
- *    at 0.85 x 4,500 = 3,825, which is four times PASS_FAR, so every run in the
- *    record is a run somebody actually flew.
- *
- * At a quarter throttle (`ENTRY_THROTTLE`) against a pirate's own speed this is
- * ten seconds of approach — the ten seconds the trainer exists to show.
- */
-export const OPENING_RANGE = 4500;
-
-/**
- * An ambush opens INSIDE their gun, because that is what an ambush is.
- *
- * Still well clear of `PASS_FAR`: 0.85 x 2,400 = 2,040, so even the fight that
- * starts behind you counts its attack runs from a clean standing start.
- */
-export const AMBUSH_RANGE = 2400;
-
-/**
- * No opening may be closer than this.
- *
- * Twice `PASS_FAR`, which after the spawner's -15% scatter still leaves the
- * nearest ship well outside it. Stated as a rule rather than checked by eye
- * because the coupling is invisible: a range picked for how a fight FEELS would
- * silently change what the attack-run count MEANS, and `npm test` holds every
- * plan to it.
- */
-export const MIN_OPENING_RANGE = 2 * PASS_FAR;
-
-/**
- * The cone a visible opening is scattered through, half-angle in degrees.
- *
- * 8, so the widest a ship can land is 1.45 x 8 = 11.6 degrees off the nose and
- * the nearest 4.4 — inside the canopy with room to spare, and off-centre enough
- * that a gang is a spread rather than a stack. Dead ahead would be free target
- * practice; the old 0.5-radian cone reached 41 degrees, which is off-screen.
- */
-export const OPENING_CONE_DEG = 8;
-
-/** An ambush spreads wide behind you: 16 to 43 degrees off your tail. */
-export const AMBUSH_CONE_DEG = 30;
-
-/**
- * How far off the nose still counts as "the pilot can see it".
- *
- * The trainer's own number, like `SIX_CONE` and the pass thresholds, and for the
- * same reason: the game has no notion of the canopy, only a camera. That camera
- * is a 60-degree vertical field of view (`engine/render-stack.ts`), so half of it
- * is 30 degrees and the console eats the bottom of that — 20 is the arc a
- * contact is genuinely IN, rather than technically on screen at the corner of it,
- * which is the state the pilot reported as "off-screen".
- */
-export const IN_VIEW_DEG = 20;
 
 const AHEAD: OpeningPlan = {
   arc: 'ahead', range: OPENING_RANGE, coneDeg: OPENING_CONE_DEG,

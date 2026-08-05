@@ -23,11 +23,13 @@ import { Combat } from '../src/game/combat.ts';
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { Persistence, type PersistenceHost } from '../src/game/persistence.ts';
 import { CombatSim, type SimHost } from '../src/game/combat-sim.ts';
+import { makeSimLog, type CombatSimReport } from '../src/game/combat-sim-report.ts';
+import { PASS_CLOSE, PASS_FAR } from '../src/constants/combat-record.ts';
 import {
-  PASS_CLOSE, PASS_FAR, makeSimLog, type CombatSimReport,
-} from '../src/game/combat-sim-report.ts';
+  IN_VIEW_DEG, MIN_OPENING_RANGE, OPENING_RANGE,
+} from '../src/constants/exercise.ts';
 import {
-  CUSTOM_OPENING, IN_VIEW_DEG, MIN_OPENING_RANGE, NO_OPENING, OPENING_RANGE,
+  CUSTOM_OPENING, NO_OPENING,
   measureOpening, openingFor, openingPlacement, openingPlans,
 } from '../src/game/combat-sim-opening.ts';
 import { SCENARIOS, type ExerciseSpec, type ScenarioId } from '../src/game/combat-sim-scenarios.ts';
@@ -113,6 +115,21 @@ console.log('\ncombat simulator — the opening each scenario asks for');
 
   eq('a record nobody placed says so, rather than inventing a geometry',
     `${NO_OPENING.range}/${NO_OPENING.nearest}/${NO_OPENING.inView}`, '0/null/false');
+
+  // The IN VIEW verdict flips at exactly IN_VIEW_DEG, measured through the real
+  // measureOpening — a bearing just inside reads in view and just outside does
+  // not, so a re-inlined 25 in the verdict goes red however the constant moves.
+  {
+    const quat = new THREE.Quaternion();
+    const from = new THREE.Vector3();
+    const at = (deg: number) => [new THREE.Vector3(
+      Math.sin((deg * Math.PI) / 180) * 4000, 0, -Math.cos((deg * Math.PI) / 180) * 4000)];
+    const plan = { arc: 'ahead' as const, range: 4500, coneDeg: 8 };
+    check(`a ship ${IN_VIEW_DEG - 0.6}° off the nose is IN VIEW`,
+      measureOpening(plan, from, quat, at(IN_VIEW_DEG - 0.6)).inView);
+    check(`...and one at ${IN_VIEW_DEG + 0.6}° is not`,
+      !measureOpening(plan, from, quat, at(IN_VIEW_DEG + 0.6)).inView);
+  }
 }
 
 // --- what the pilot sees at t=0 ---------------------------------------------

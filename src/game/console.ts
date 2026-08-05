@@ -25,7 +25,8 @@
 // growing back one convenience at a time.
 
 import { policyKit } from './brains.ts';
-import { makeSimLog, SIM_LOG_LIMIT, type SimLog } from './combat-sim-report.ts';
+import { makeSimLog, type SimLog } from './combat-sim-report.ts';
+import { SIM_LOG_LIMIT } from '../constants/combat-record.ts';
 
 /**
  * Publish a debug handle for a console session or an automated agent.

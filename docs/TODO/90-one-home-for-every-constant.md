@@ -1458,6 +1458,82 @@ equivalence harness itself (above).
 **Still to do**: the console and the combat trainer, then the CLAUDE.md
 instruction below, which only the last slice may add.
 
+**Slice 13 — the combat trainer — landed.** Three new files plus one name
+landing in `constants/threat.ts`, and the count went from 267 home / 221+22
+out across 69 files to **288 home / 221 out across 69**. The whole trainer
+group left the pending list: every one of its ten files is a named entry now
+— what the record measures is `constants/combat-record.ts`, the exercise's
+opening, clocks and entry are `constants/exercise.ts`, the wave ramp's rates
+are `constants/waves.ts`, and what stays is typed tables, format versions,
+prose and drawing, each with its reason.
+
+| moved | file |
+| --- | --- |
+| the record's rules — the sampling clock, the six cone, both pass thresholds and the buffer's bounds | `constants/combat-record.ts` |
+| the exercise — where it opens, the in-view arc, the entry throttle, the timeout and the traffic sentinel | `constants/exercise.ts` |
+| the wave ramp's rates and its count ceiling | `constants/waves.ts` |
+| `MAX_TIER`, the tier ladder's own top rung | `constants/threat.ts` |
+
+**The tier count had three spellings and has one.** The trainer's `MAX_TIER`
+restated a fact the threat ladder owns, and `ai-training/scenario.ts`'s
+`seed % 3` was a third spelling of the same rung count; both read
+`constants/threat.ts` now, and breaking the constant to 3 fails four checks.
+`MIN_OPENING_RANGE = 2 * PASS_FAR` survives as an expression inside the home
+(one internal import, which the leaf rule allows), and
+`WAVE_COUNT_SATURATION` moved as the derivation it already was.
+
+**Two stale transcriptions died in the opening's own evidence.** The
+`OPENING_RANGE` argument quoted `PASS_FAR` as "(900)" and the margin as
+"four times" — both from before docs/TODO/67 moved the threshold to 600, a
+comment that had already gone quietly wrong beside a correct constant. The
+paragraph names the constants now and records its own correction. The
+viewer's `SIM_DT = FIXED_DT` alias — a second name for the world clock —
+was deleted outright; the loop reads `FIXED_DT`.
+
+**Breaking the rules found three that were not protected, which is the
+slice's real yield.** A diverged `PASS_FAR` at 650 failed nothing — the
+break-off coupling is deliberately an inequality — so both thresholds are
+now pinned as the decisions they are, with the sweep table as the reason. A
+drifted `waveTier` at /4 passed every monotonic-and-saturates property, so
+the documented ramp table (1/0 1/0 2/0 2/1 … 6/2) is asserted wave by wave.
+And nothing observed the exercise's entry speed or the IN VIEW verdict's
+edge: `ENTRY_THROTTLE` is solved back out of a real `startExercise` and
+`IN_VIEW_DEG` flips a measured opening at ±0.6 degrees. One break is
+deliberately allowed to pass: a diverged `OPENING_RANGE` at 4600 stays
+green, because the test asserts the RULE (outside their gun via the
+scatter's own `OPPOSITION_RING_NEAR`, inside their interest, clear of the
+pass thresholds) and the choice inside those bounds is free — probing the
+number itself would pin decoration.
+
+Byte-identical, verified against a worktree at HEAD: **403 compared, 0
+changed** — every name in `src/constants/` then against now, all 17 old
+exports against their new homes, the four private literals read out of
+HEAD's source, the whole ramp (`waveCount`/`waveTier`/`waveEscalation`/
+`waveFit` over forty waves, `clampTier` over its range), the tables, every
+opening plan placed and measured against a fixed sky, `countPasses` over 40
+synthetic traces, and five seeded episodes through both trees across the
+tier-spelling change. The harness was broken twice and restored: `PASS_FAR`
+600 → 650 reported 26 changes and `WAVE_TIER_EVERY` 3 → 4 reported 4.
+
+The four gates: `npm run build` passes; `npm run campaign` byte-identical —
+zero diff lines against the worktree's own run; `npm run elite-a` 490
+passed, 0 failed; `npm run portability` 0 contaminated. The suite reads
+**3203 from 3197**, all six new. Both console harnesses name nothing this
+slice touched.
+
+Eleven breaks, all confirmed red and restored with targeted edits: the
+gate's stray `SOME_RULE` (1 failure) and a side-effect import into the home
+(1); a re-inlined `PASS_CLOSE` at 410 in the recorder (1), a diverged
+`PASS_FAR` at 650 (1, zero until the pin), a re-inlined `waveTier` at /4
+(1, zero until the ramp table), a re-inlined `waveCount` cap at 7 (1), a
+diverged `MAX_TIER` at 3 (4), a re-inlined `SCENARIO_TIMEOUT` at 130 (2), a
+re-inlined `ENTRY_THROTTLE` at 0.3 (1, new check) and a re-inlined
+`IN_VIEW_DEG` at 25 (1, new check); plus the deliberate pass above.
+
+**Still to do**: the console — the last group — then the CLAUDE.md
+instruction below and the docs/ARCHITECTURE.md entry, which only the last
+slice may add.
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give

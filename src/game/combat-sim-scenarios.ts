@@ -33,6 +33,13 @@ import { hasShipDef, shipDisplayName } from '../ships/registry.ts';
 // no runtime edge and no cycle.
 import type { WaveEscalation } from './combat-sim-report.ts';
 import { random } from './rng.ts';
+import { MAX_TIER } from '../constants/threat.ts';
+import {
+  WAVE_MAX_COUNT, WAVE_COUNT_EVERY, WAVE_TIER_EVERY, WAVE_STEP_EVERY,
+  WAVE_COUNT_SATURATION,
+} from '../constants/waves.ts';
+import { SCENARIO_TIMEOUT } from '../constants/exercise.ts';
+
 
 // --- what an opponent is ----------------------------------------------------
 
@@ -398,9 +405,6 @@ export function scenarioById(id: ScenarioId): Scenario {
   return s;
 }
 
-/** Threat tiers run 0..2, as `PirateThreat.tier` does. */
-export const MAX_TIER = 2;
-
 export function clampTier(tier: number): number {
   return Math.max(0, Math.min(MAX_TIER, Math.round(tier)));
 }
@@ -482,37 +486,10 @@ export function asTheyCome(
 
 /**
  * The wave ramp: the human-flown counterpart to `npm run survivability`, and
- * the answer to "how many can I actually take?".
- *
- * It must RAMP and then SATURATE, never diverge. A ramp that keeps going turns
- * the answer into a number about arithmetic — wave 40 is 40 Fer-de-Lances and
- * nobody learns anything from that — where a ramp that stops means the late
- * waves are all the same fight and surviving three of them is a fact about
- * flying. Both properties are asserted in `npm test`.
- *
- * THE NUMBERS RAMP FIRST, and this half is unchanged:
- *
- *   wave   1  2  3  4  5  6  7  8  9 10 11 12+
- *   count  1  1  2  2  3  3  4  4  5  5  6  6
- *   tier   0  0  0  1  1  1  2  2  2  2  2  2
- *
- * Organised from wave 7, when the tier tops out and there are enough of them to
- * bother forming a gang — the same rule `pirateThreat` uses.
- *
- * From wave 12 the numbers stop and the FIGHT keeps going: `WAVE_STEPS` below.
+ * the answer to "how many can I actually take?". Its rates and its ceiling —
+ * and the argument for saturating at all — are constants/waves.ts; what a
+ * wave ADDS once the numbers stop is `WAVE_STEPS` below.
  */
-export const WAVE_MAX_COUNT = 6;
-const WAVE_COUNT_EVERY = 2;
-const WAVE_TIER_EVERY = 3;
-
-/**
- * From this wave on, count and tier stop growing — six of them, all at the top
- * tier, in a gang. It is NOT where the ramp stops any more; see
- * `WAVE_SATURATION`.
- */
-export const WAVE_COUNT_SATURATION = Math.max(
-  (WAVE_MAX_COUNT - 1) * WAVE_COUNT_EVERY, MAX_TIER * WAVE_TIER_EVERY) + 1;
-
 export function waveCount(n: number): number {
   return Math.min(WAVE_MAX_COUNT, 1 + Math.floor(Math.max(0, n - 1) / WAVE_COUNT_EVERY));
 }
@@ -562,9 +539,6 @@ export interface WaveStep {
   /** ships that join, and take a pirate's place rather than adding to the count */
   joined?: readonly WaveEscort[];
 }
-
-/** One new thing every this many waves — the count ramp's own cadence. */
-export const WAVE_STEP_EVERY = 2;
 
 /**
  * The four steps, in order. Each is argued at its own entry.
@@ -779,7 +753,7 @@ export const MODES: Record<SimMode, ModeRules> = {
 };
 
 /** A fight that has gone this long is a stalemate, not a fight. */
-export const SCENARIO_TIMEOUT = 120;
+
 
 /** Everything the picker chose. Goes into the report verbatim. */
 export interface ExerciseSpec {

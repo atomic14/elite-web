@@ -91,6 +91,15 @@ export const PROFESSIONAL_SCORE = 110;
 export const GANG_SCORE = 160;
 
 /**
+ * The ladder's top rung: threat tiers run 0..MAX_TIER, everywhere a tier is a
+ * number — `PirateThreat.tier`, `memberTier`, the trainer's tier picker and
+ * the wave ramp's climb. It was the combat trainer's own constant restating a
+ * fact this ladder owns, and the training scenario's `% 3` was a third
+ * spelling of the same rung count.
+ */
+export const MAX_TIER = 2;
+
+/**
  * Hulls held at a tier the score alone would not give them, and why.
  *
  * ONE entry, and it has to exist: the builds these two turn up in as PIRATES —

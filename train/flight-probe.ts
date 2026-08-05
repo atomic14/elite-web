@@ -60,9 +60,10 @@ import { readFileSync } from 'node:fs';
 import { Episode, type Controller, type TargetHullId } from '../src/ai-training/scenario.ts';
 import { brainFromFile, type Brain, type BrainFile } from '../src/ai-training/policy.ts';
 import {
-  CombatSimRecorder, aimAngle, mean, quantile, PASS_CLOSE, PASS_FAR,
+  CombatSimRecorder, aimAngle, mean, quantile,
   type CombatSimReport, type FrameSample, type SimOutcome,
 } from '../src/game/combat-sim-report.ts';
+import { PASS_CLOSE, PASS_FAR } from '../src/constants/combat-record.ts';
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { IMPACT } from '../src/constants/impact.ts';
 import { FIXED_DT } from '../src/constants/world-clock.ts';

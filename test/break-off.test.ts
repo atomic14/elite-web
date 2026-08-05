@@ -30,7 +30,7 @@ import { TACTIC_IDS } from '../src/constants/tactics.ts';
 import { PLAYER_INTEREST_RANGE } from '../src/constants/player-interest.ts';
 import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import type { NpcRole } from '../src/game/ship-roles.ts';
-import { PASS_FAR } from '../src/game/combat-sim-report.ts';
+import { PASS_FAR } from '../src/constants/combat-record.ts';
 import { check } from './harness.ts';
 
 

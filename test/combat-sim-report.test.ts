@@ -18,14 +18,13 @@ import {
   quantile,
   mean,
   COMBAT_SIM_SCHEMA,
-  SIX_CONE,
-  MAX_SAMPLES,
   type ContactSample,
   type FrameSample,
   type ExerciseSetup,
   type PlayerLoadout,
   type CombatSimReport,
 } from '../src/game/combat-sim-report.ts';
+import { SIX_CONE, MAX_SAMPLES } from '../src/constants/combat-record.ts';
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import { installSimLog } from '../src/game/console.ts';
 import { check, eq } from './harness.ts';

@@ -696,6 +696,10 @@ still resolve. **`test/playtest.js` did hold a sixth home for the escape cost**
 `WITCHSPACE_ESCAPE_COST` out of `constants/jump.ts` now, alongside the
 `PLAYER_FLIGHT` import it already had.
 
+Slice 13 did it for the trainer's twenty-two moved names and the functions
+whose files changed (`countPasses`, `waveTier`, `waveCount`, `waveEscalation`,
+`openingFor`, `measureOpening`, `startExercise`): zero hits in either harness.
+
 Slice 12 did it for `OBS_SPEED_SCALE`, the policy seam's sixteen STAYS names
 and the encoder functions: both harnesses reach the seam only through
 `kit.observeFor`, which is unchanged and still exported. (The trial

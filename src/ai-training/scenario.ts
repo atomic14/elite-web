@@ -75,6 +75,7 @@ import {
 } from '../game/ship-identity.ts';
 import { npcLaserDamageToPlayer } from '../game/gunnery.ts';
 import { memberTier } from '../game/threat.ts';
+import { MAX_TIER } from '../constants/threat.ts';
 import type { LaserType } from '../game/commander.ts';
 import { pirateSpecForTier } from '../game/ship-specs.ts';
 import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
@@ -313,7 +314,8 @@ const TARGET_HULLS: Record<TargetHullId, () => TargetHull> = {
  * the world the brains saw.
  */
 function pirateSpecFor(seed: number, index: number, count: number): NpcSpec {
-  const tier = seed % 3;
+  // one rung count, not a third spelling of it: tiers run 0..MAX_TIER
+  const tier = seed % (MAX_TIER + 1);
   return pirateSpecForTier(memberTier(tier, index), (seed >>> 2) + index * 7 + count);
 }
 

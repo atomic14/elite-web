@@ -342,7 +342,6 @@ camBtn.addEventListener('click', () => {
 
 // --- main loop ---------------------------------------------------------------
 
-const SIM_DT = FIXED_DT;
 let simAccumulator = 0;
 let doneTimer = 0;
 let last = performance.now();
@@ -358,9 +357,9 @@ function frame(now: number): void {
     if (!episode.done) {
       simAccumulator += dt * speed;
       const events: ShotEvent[] = [];
-      while (simAccumulator >= SIM_DT) {
-        simAccumulator -= SIM_DT;
-        events.push(...episode.step(SIM_DT));
+      while (simAccumulator >= FIXED_DT) {
+        simAccumulator -= FIXED_DT;
+        events.push(...episode.step(FIXED_DT));
       }
       syncViews(events);
     } else {

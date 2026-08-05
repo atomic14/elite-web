@@ -30,9 +30,10 @@ import {
 } from '../src/game/combat-sim-report.ts';
 import { NO_OPENING } from '../src/game/combat-sim-opening.ts';
 import {
-  MODES, SCENARIO_TIMEOUT, WAVE_SATURATION, exerciseTimeout, waveEscalation,
+  MODES, WAVE_SATURATION, exerciseTimeout, waveEscalation,
   type ExerciseSpec,
 } from '../src/game/combat-sim-scenarios.ts';
+import { SCENARIO_TIMEOUT } from '../src/constants/exercise.ts';
 import { exerciseStrip, type ExerciseStrip } from '../src/game/combat-sim-strip.ts';
 import type { FlightDemand } from '../src/player.ts';
 import { readFileSync } from 'node:fs';

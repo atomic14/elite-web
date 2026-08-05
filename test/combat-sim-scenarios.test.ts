@@ -12,13 +12,8 @@ import { npcMaxEnergy } from '../src/game/npc-energy.ts';
 import {
   SCENARIOS,
   MODES,
-  SCENARIO_TIMEOUT,
-  MAX_TIER,
-  WAVE_MAX_COUNT,
-  WAVE_COUNT_SATURATION,
   WAVE_SATURATION,
   WAVE_STEPS,
-  WAVE_STEP_EVERY,
   SHIPPED_SOLO_BRAIN,
   SHIPPED_PACK_BRAIN,
   SHIPPED_DEFENCE_BRAIN,
@@ -47,6 +42,11 @@ import {
   type ExerciseSession,
   type ThreatContext,
 } from '../src/game/combat-sim-scenarios.ts';
+import { SCENARIO_TIMEOUT } from '../src/constants/exercise.ts';
+import { MAX_TIER } from '../src/constants/threat.ts';
+import {
+  WAVE_MAX_COUNT, WAVE_COUNT_SATURATION, WAVE_STEP_EVERY,
+} from '../src/constants/waves.ts';
 import { pirateThreat, markOf, memberTier } from '../src/game/threat.ts';
 import { selectionForBrain } from '../src/game/brain-names.ts';
 import { makeRng } from '../src/game/rng.ts';
@@ -325,6 +325,12 @@ console.log('\ncombat trainer scenarios');
       counts.every((c) => c <= WAVE_MAX_COUNT) && tiers.every((t) => t <= MAX_TIER)
         && counts[WAVE_COUNT_SATURATION - 1] === WAVE_MAX_COUNT
         && tiers[WAVE_COUNT_SATURATION - 1] === MAX_TIER);
+      // The table constants/waves.ts documents, pinned wave by wave — the
+      // monotonic-and-saturates properties above held under a drifted cadence
+      // (waveTier at /4 passed every one), so the CADENCE is asserted too.
+      eq('the first twelve waves are the documented ramp',
+        ns.slice(0, 12).map((n) => `${waveCount(n)}/${waveTier(n)}`).join(' '),
+        '1/0 1/0 2/0 2/1 3/1 3/1 4/2 4/2 5/2 5/2 6/2 6/2');
       // ...and a wave is never MORE ships than the count ramp said, which is the
       // ceiling the new axes are forbidden to raise: the escort takes a pirate's
       // place rather than joining it.
