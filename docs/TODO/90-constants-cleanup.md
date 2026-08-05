@@ -113,11 +113,12 @@ is fought. Its old comment said it was not imported because game.ts cannot be
 loaded without a browser; that reason expired in slice 5 and the honest one is
 written there now.
 
-**The step's docking-computer gains stay for the station slice.** `world-step.ts`
-steers the autopilot at `1.2 * dt` and closes the throttle gap at
-`Math.min(1, dt * 1.5)`. They are the docking computer's numbers, not the
-clock's, and the rest of that subject is `docking.ts`, `station.ts` and
-`autopilot.ts`.
+**The step's docking-computer gains — CLOSED by slice 10, exactly as
+scheduled.** `world-step.ts`'s `1.2 * dt` steer and `Math.min(1, dt * 1.5)`
+throttle are `DC_TURN_RATE` and `DC_THROTTLE_GAIN` in
+`constants/docking-computer.ts`, and `test/docking.test.ts` solves both back
+out of one real `WorldStep` frame — so a re-inlined literal in the step goes
+red even though `planDocking` never sees either.
 
 **The station's Viper stack went to the SPAWNING slice, not the station's.**
 `STATION_DEFENCE_MIN`, `_SPAN`, `_STANDOFF`, `_STACK` and `_JITTER` are in
@@ -347,7 +348,7 @@ For each: is the value right and the prose wrong, or the other way round? A
 one-unit move on the first, ten on the second, 1.2 on the third — small, but
 each is a real change to how a ship flies.
 
-### Two of the six transcribed-number comments are still out there
+### One of the six transcribed-number comments is still out there
 
 The survey listed six places where reasoning cites another file's value by
 writing the number out: `save-file.ts:36`, `input.ts:53`, `player.ts:52-56`,
@@ -357,7 +358,9 @@ writing the number out: `save-file.ts:36`, `input.ts:53`, `player.ts:52-56`,
 same multiplier" while threat.ts wrote `* 4` as a bare literal, and both now
 import `VALUE_PER_TONNE` from `constants/jettison.ts`, with
 `test/economy.test.ts` solving the multiplier back out of the real `markOf`.
-That leaves `save-file.ts` (the saves slice) and `docking.ts` (the station's).
+**Slice 10 did `docking.ts`'s** — the header's "spinning at 0.26 rad/s" names
+`STATION_SPIN` now, and the rate is solved back out of the real scene in
+`test/world.test.ts`. That leaves `save-file.ts` (the saves slice).
 
 `starfield.ts` is the one worth copying: its two fade thresholds were justified
 by "max ship speed is 400" and "8 x 400 = 3200", two numbers the file could not
@@ -460,6 +463,30 @@ in which case `THARGON_AMBUSH_DELAY` is deleted and `game.ts` reads the
 redeploy. **It costs a second of the opening of every mis-jump either way**, so
 it is a decision rather than a refactor.
 
+### NPCs fly through the Dodo's hull — the cube is 40 against a measured 50
+
+The survey's live divergence, NAMED by slice 10 and deliberately not fixed.
+`NPC_HULL_BOX_MARGIN = 40` sits beside the player's `HULL_BOX_MARGIN = 50` in
+`constants/docking.ts` with the argument written out: 50 was measured (the
+Dodo's tallest vertices reach 243 against a 196 slot plane; 196 + 40 = 236
+misses them), so NPC traffic threads a Dodo's hull and is reported clear,
+while the Coriolis covers at either value — which is why nobody has seen it.
+`test/docking.test.ts` bisects the cube out of the real `WorldStep`, so the
+fix is one edit and one red test. **Fixing it is a behaviour change**: NPC
+traffic near a Dodo starts bouncing where it did not, in every tech 10+
+system. A decision for Chris, not a lookup.
+
+### "Just outside the slot" is 420, 450 and 900
+
+Named by slice 10 and kept adjacent in `constants/station.ts`:
+`BOUNCE_STANDOFF = 420` (a fluffed docking), `LAUNCH_STANDOFF = 450` (the
+bay), `DOCKED_BACKDROP_DISTANCE = 900` (where the docked menu parks you, whose
+old comment claimed to be the launch point). Three different events, so three
+constants — but the ORDER of the first two is the open question: the bounce
+leaves you nearer the hull than the bay ever does, and nothing says whether
+that is deliberate menace or drift. Choosing moves where every failed docking
+puts the player, so the values stand until Chris picks a reading.
+
 ### The station's Vipers can launch inside each other
 
 `spawnPlacement`'s stack is 120 units along the slot normal with an 80-unit
@@ -496,7 +523,7 @@ and every one of these is a literal in the middle of a function.
 | left inline | where | whose |
 | --- | --- | --- |
 | `npcTargetTimer = 2` — how often the sky re-decides who is hunting whom | `world-step.ts` | the rest of the fight; `npc-targeting.ts` owns the rule and has no constants file yet |
-| `stationDockZ + 40` — the NPC bounding cube | `world-step.ts` | the station. **This is the survey's live divergence**: `docking.ts`'s `HULL_BOX_MARGIN` is 50 for the player, measured, and 40 lets an NPC through a Dodo's hull. Naming it is free; fixing it is a behaviour change |
+| ~~`stationDockZ + 40` — the NPC bounding cube~~ | `world-step.ts` | **taken by slice 10**: it is `NPC_HULL_BOX_MARGIN` in `constants/docking.ts`, and the divergence it names has its own Open entry below |
 | the hermit's 900 / 320 / speed 40, and the generation ship's 6,000 | `world-step.ts` | encounters. **And the hermit's message says "SLOW TO 20" while the gate is `speed < 40`** — either the line is stale or the tolerance is deliberate, and nothing says which |
 | `strandedHintTimer = 8` | `world-step.ts` | the survey's "2 the first time and 8 thereafter" pair with `state.ts:142`, which is the saves slice's file |
 | `energyLowTimer = 1.2` and every message duration | `world-step.ts` | nobody: these are how long a line stays on the console, and the console's own slice can decide whether they are rules |
@@ -559,6 +586,14 @@ literal — the same span as the encyclopaedia's new `CHART_SPAN_X`
 chart. It is the console slice's file (`ui/screens.ts`'s group), not the
 galaxy's, so it was left rather than moved; when that slice lands it can read
 `CHART_SPAN_X` instead of the digit.
+
+### What slice 10 left behind, and for whom
+
+| left | where | whose |
+| --- | --- | --- |
+| `planDocking`'s approach-speed shape — the 110 run-in cap, the 0.7/0.55 throttle fractions, the 0.45 slope, the 25 floor, and the 1.5/0.95/1.15/2 phase factors | `game/docking.ts` | nobody: the shape of one function, out of scope by the item's own local-to-one-function rule; the two anchors it turns on (`GATE_HALF_WIDTHS`, `LINED_UP_LATERAL`) are the constants and both are pinned |
+| the hermit's trade range at 900 | `world-step.ts` | encounters (already in slice 5's table). The same number as `DOCKED_BACKDROP_DISTANCE` and a different rule — how near a rock offers trade has nothing to do with where a menu parks a ship |
+| `spawnPosition`, the field name | `world/system-scene.ts`, `world.ts` | nobody, unless it grates: the value is the docked BACKDROP and the comments now say so, but the name still suggests spawning. Renaming is an API touch across four files for no behaviour |
 
 ### The README is a prose home for the torus multiplier
 
@@ -657,6 +692,15 @@ still resolve. **`test/playtest.js` did hold a sixth home for the escape cost**
 — `if (g.commander.fuel < 10) break; // no fuel to jump clear` — and it takes
 `WITCHSPACE_ESCAPE_COST` out of `constants/jump.ts` now, alongside the
 `PLAYER_FLIGHT` import it already had.
+
+Slice 10 did it for all seventeen names it moved or created, the two it
+retired (`GATE`, `LINED_UP`), `REFUSED`, `STATION_PRESENTATION_SCALE` and the
+functions whose files changed (`planDocking`, `dockingOutcome`,
+`inSlotChannel`, `rollAlignedWithSlot`, `slotRollOffset`, `makeDockPlan`,
+`toggleDocking`, `buildStation`, `stationDockZ`, `buildSystemScene`): the one
+hit is a playtest.js comment naming `rollAlignedWithSlot`, which is still
+exported from `game/docking.ts`, and both harnesses fly docking through
+`g.world.station` and the game's own methods rather than any constant.
 
 Slice 9 did it for `CHART_SPAN_X`, `CHART_SPAN_Y`, `TECH_MIN` and `TECH_MAX`
 plus the functions whose files changed (`Chart`, `emptyFilter`, `matches`,

@@ -10,15 +10,17 @@ were completed through commit `09278b7`.
 
 ## Picking this up cold
 
-**Work in progress: [90](90-one-home-for-every-constant.md), six slices of
-roughly eleven done.** If you are starting a fresh session and want to continue
-it, read that file's **"Running a slice"** section — it is a self-contained
-recipe, including the traps that have already cost real work. The plan itself
-is not prose: `test/constants.test.ts`'s `OUTSIDE` array is the list of what is
-still owed, grouped by the slice that will take it, and the gate prints how
-much is left every time it runs. At the last commit that was **175 constants
-home, 317 still out across 83 files**, and `MAX_TRADERS` — the pair the item is
-named after — has one home at last.
+**Work in progress: [90](90-one-home-for-every-constant.md), ten slices done,
+four groups left (the console, the combat trainer, saves, the policy seam),
+then the CLAUDE.md instruction that only the last slice may add.** If you are
+starting a fresh session and want to continue it, read that file's
+**"Running a slice"** section — it is a self-contained recipe, including the
+traps that have already cost real work. The plan itself is not prose:
+`test/constants.test.ts`'s `OUTSIDE` array is the list of what is still owed,
+grouped by the slice that will take it, and the gate prints how much is left
+every time it runs. At the last commit that was **260 constants home, 247
+still out across 70 files**, and `MAX_TRADERS` — the pair the item is named
+after — has one home at last.
 
 Nothing else is half-finished. Every other open item below is a self-contained
 file, as the paragraph above says.

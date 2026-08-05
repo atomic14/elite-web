@@ -245,13 +245,36 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'the station: its slot, the approach, and being pushed back out of it',
+    why: 'MOVED, apart from one derivation and one table: the slot and its cube are'
+      + ' constants/docking.ts, the computer\'s hand is constants/docking-computer.ts and'
+      + ' the station as a place is constants/station.ts. `STATION_PRESENTATION_SCALE`'
+      + ' is an EXPRESSION now — `SOURCE_UNITS_PER_WORLD_UNIT`, the relationship its own'
+      + ' comment always claimed — and cannot follow, because its meaning is a product'
+      + ' over the ships\' geometry anchor, which this directory may not import: the'
+      + ' `WORLD_SPEED_PER_SOURCE_SPEED` shape. `STATION_DESIGNS` is a pair of design'
+      + ' ids resolved through `shipDesignIdOf` — the `MISSILE_HULL` shape',
     files: {
-      'game/docking.ts': ALL,
-      'game/station.ts': ALL,
-      'game/autopilot.ts': ALL,
-      'hud/tunnel.ts': ALL,
-      'ships/station-hulls.ts': ALL,
+      'ships/station-hulls.ts': ['STATION_PRESENTATION_SCALE', 'STATION_DESIGNS'],
+    },
+  },
+
+  {
+    why: 'STAYS: not a number at all — the refusal noise as a ready-made'
+      + ' `AutopilotEvent`, a union typed over `SoundEvent`, which this directory may'
+      + ' not import. The one tunable the file held, the computer\'s range, is'
+      + ' constants/docking-computer.ts now',
+    files: {
+      'game/autopilot.ts': ['REFUSED'],
+    },
+  },
+
+  {
+    why: 'STAYS: how the launch/docking tunnel effect LOOKS — the ellipse squash that'
+      + ' reads as a bay mouth, and two fractions of the effect\'s own timeline. Pure'
+      + ' drawing under the item\'s is-it-the-game-or-how-it-looks test: nothing outside'
+      + ' the overlay canvas can observe any of them',
+    files: {
+      'hud/tunnel.ts': ['SQUASH', 'OPEN_AT', 'BAY_FADE_FROM'],
     },
   },
 

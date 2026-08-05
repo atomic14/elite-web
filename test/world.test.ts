@@ -5,10 +5,16 @@
 // is test/spawning.test.ts, which flies the real spawner.
 
 import * as THREE from 'three';
-import { dockingOutcome, ROLL_TOLERANCE } from '../src/game/docking.ts';
+import { dockingOutcome } from '../src/game/docking.ts';
+import { ROLL_TOLERANCE } from '../src/constants/docking.ts';
 import { freshTimers, stepEncounters } from '../src/game/encounters.ts';
 import { planPopulation, policeFor } from '../src/game/population.ts';
 import { World } from '../src/game/world.ts';
+import { buildSystemScene } from '../src/world/system-scene.ts';
+import { slotNormal } from '../src/world/slot.ts';
+import {
+  STATION_SPIN, DODO_TECH_LEVEL, DOCKED_BACKDROP_DISTANCE,
+} from '../src/constants/station.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import { MAX_TRADERS, MIN_TRADERS } from '../src/constants/population.ts';
@@ -257,4 +263,43 @@ console.log('\nhunting links survive a reload');
   check('the police still chase the pirate', c2.npcTarget === p2);
   check('...but do NOT register as its attackers, as in a live run',
     !p2.hasAttacker(c2));
+}
+
+// --- the station in the sky ---------------------------------------------------
+
+// Which hull a system gets, how fast it turns, and where the docked menu parks
+// you — constants/station.ts, held to the real scene rather than restated. The
+// spin is solved back out of one update; the Dodo rule is asked at every shown
+// tech level around the threshold, so a re-inlined 10 in system-scene.ts goes
+// red however DODO_TECH_LEVEL moves.
+
+console.log('\nthe station in the sky');
+{
+  // buildSystemScene reads exactly these three fields (see the function)
+  const sysAt = (techLevel: number) => ({
+    seed: [0x5a4a, 0x0248, 0xb753], radius: 5000, techLevel,
+  }) as unknown as Parameters<typeof buildSystemScene>[0];
+
+  for (let shown = DODO_TECH_LEVEL - 2; shown <= DODO_TECH_LEVEL + 1; shown++) {
+    const scene = buildSystemScene(sysAt(shown - 1));
+    const isDodo = scene.stationDockZ > 180;   // Dodo 196, Coriolis 160
+    check(`shown tech ${shown} gets the ${shown >= DODO_TECH_LEVEL ? 'Dodo' : 'Coriolis'}`
+      + ` (dockZ ${scene.stationDockZ.toFixed(0)})`,
+    isDodo === (shown >= DODO_TECH_LEVEL));
+    scene.dispose();
+  }
+
+  const scene = buildSystemScene(sysAt(9));
+  const q0 = scene.station.quaternion.clone();
+  scene.update(0.5, 0.5);
+  const rate = q0.angleTo(scene.station.quaternion) / 0.5;
+  check(`the slot turns at STATION_SPIN (${rate.toFixed(6)} rad/s)`,
+    Math.abs(rate - STATION_SPIN) < 1e-6);
+
+  const off = scene.spawnPosition.clone().sub(scene.station.position);
+  check(`the docked backdrop parks DOCKED_BACKDROP_DISTANCE out (${off.length().toFixed(3)})`,
+    Math.abs(off.length() - DOCKED_BACKDROP_DISTANCE) < 1e-6);
+  check('...straight out along the slot normal, where the menu can see the slot',
+    off.normalize().dot(slotNormal(scene.station)) > 0.999999);
+  scene.dispose();
 }

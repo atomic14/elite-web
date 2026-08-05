@@ -26,14 +26,7 @@ import { hostilesNear } from './npc.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { SoundEvent } from './sounds.ts';
 import type { GameState } from './state.ts';
-
-/**
- * How close to the station the docking computer will take the job.
- *
- * Far enough to be useful from the end of the torus run, near enough that it is
- * an approach aid rather than a taxi across the system.
- */
-export const DOCK_COMPUTER_RANGE = 3500;
+import { DOCK_COMPUTER_RANGE } from '../constants/docking-computer.ts';
 
 /** What an autopilot reports for the orchestrator to say and play. */
 export type AutopilotEvent =

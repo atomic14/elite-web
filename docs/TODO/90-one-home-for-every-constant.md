@@ -1177,6 +1177,112 @@ the console, the combat trainer, saves, and the policy seam. Plus one thing
 no slice has touched: CLAUDE.md does not yet carry the
 read-it-do-not-grep-it instruction below.
 
+**Slice 10 — the station — landed.** Three new files, and the count went from
+243 home / 257 out across 72 files to **260 home / 247 out across 70**. The
+whole station group left the pending list: `game/docking.ts` and
+`game/station.ts` declare no constants at all and came off entirely, and
+`game/autopilot.ts`, `hud/tunnel.ts` and `ships/station-hulls.ts` are named
+STAYS entries with their reasons.
+
+| moved | file |
+| --- | --- |
+| threading the slot — the letterbox, the roll tolerance, the approach gate, and both bounding cubes | `constants/docking.ts` |
+| the docking computer — where it takes the job, and the hand it flies with | `constants/docking-computer.ts` |
+| the station as a place — the spin, the Dodo rule, and the "just outside the slot" trio | `constants/station.ts` |
+
+**Seven inline literals got names**, which is why the home grew by 17 while
+the outstanding count only fell by 10: the docking computer's steer rate and
+throttle gain in `world-step.ts` (`1.2 * dt` and `dt * 1.5`, the two numbers
+the cleanup list held for this slice), the NPC bounding cube's bare `+ 40`,
+the fluffed-dock bounce's 420, the station spin's 0.26, the Dodo threshold's
+10 and the docked backdrop's 900.
+
+**The survey's live divergence is NAMED and deliberately not fixed.**
+`NPC_HULL_BOX_MARGIN` is 40 where the player's measured `HULL_BOX_MARGIN` is
+50, so 196 + 40 = 236 against Dodo vertices at 243 — NPC traffic flies
+through the Dodo's hull and is reported clear. The argument is written beside
+the constant, `test/docking.test.ts` bisects the cube out of the real
+`WorldStep` so that FIXING it is one edit and one red test, and the decision
+is on the cleanup list's Open section: correcting it makes NPC traffic near a
+Dodo start bouncing where it did not.
+
+**The "just outside the slot" trio is recorded rather than resolved.** The
+survey's 420/450/900 are three different events — the bounce, the launch, the
+docked backdrop — kept adjacent in `constants/station.ts` with the oddity
+stated: the bounce leaves you NEARER the hull than the bay ever does, and
+nothing says whether that is menace or drift. Choosing moves where every
+failed docking puts the player, so it went to the cleanup Open list, the
+`THARGON_REDEPLOY` precedent exactly.
+
+**`STATION_PRESENTATION_SCALE` is an expression, closing a survey R-finding.**
+Its own comment said "4 is exactly the factor that cancels the conversion" in
+English while a second literal 4 enforced nothing; it is
+`SOURCE_UNITS_PER_WORLD_UNIT` now, so a station stays 1:1 with its source
+units — the 160 every docking distance is built on — whatever the ship
+conversion becomes. It cannot follow to the home (its meaning is a product
+over the ships' geometry anchor, the `WORLD_SPEED_PER_SOURCE_SPEED` shape),
+so it is a named entry on the gate with the reason.
+
+**Two stale pieces of prose died on the way through.** `system-scene.ts`'s
+"Launch/respawn point" comment described a rule (`LAUNCH_STANDOFF`) that had
+moved out from under it — the 900 is the docked backdrop and now says so —
+and `station.ts` carried the survey's dangling doc comment (station.ts:50-56),
+a full JSDoc for `slotNormal` with no declaration under it, orphaned when the
+function moved to `world/slot.ts`; deleted, since the real home carries its
+own. `docking.ts`'s transcribed "0.26 rad/s" header — one of the survey's six
+transcribed-number comments — names `STATION_SPIN` instead of writing the
+number, which leaves only `save-file.ts`'s for the saves slice.
+
+**Every moved number is pinned in the measured shape**, in a new
+`test/docking.test.ts` plus three checks in `test/station.test.ts` and seven
+in `test/world.test.ts` — the suite reads **3182 from 3155**. Each slot edge
+is BISECTED out of the real `dockingOutcome`/`planDocking` (probing at
+`CONSTANT ± 1` moves with the constant, the slice-5 lesson); the gate
+distance is SOLVED back out of the approach heading; the computer's two gains
+are solved out of one real `WorldStep` frame, so a re-inlined 1.2 in
+world-step.ts goes red even though `planDocking` never sees it; the bounce,
+the NPC cube, the launch standoff, the spin, the backdrop and the Dodo
+threshold are all measured through the real step, the real `Station` and the
+real scene. The Dodo rule is asked at every shown tech level around the
+threshold, so it fails however `DODO_TECH_LEVEL` moves.
+
+Byte-identical, verified against a worktree at HEAD: **114,709 compared, 0
+changed** — every name in `src/constants/` then against now, the ten declared
+constants that moved and the seven newly-named inline literals read out of
+HEAD's source, `dockingOutcome` over a 100k-point grid of positions and rolls
+at both station sizes, `planDocking` over a position grid in both phases,
+`inSlotChannel`/`slotRollOffset`/`rollAlignedWithSlot` swept, a 600-frame
+docking-computer approach through the real `WorldStep` traced every ten
+frames, the bounce and the NPC cube at nine distances spanning the edge,
+`buildSystemScene` at all fifteen tech levels (hull choice, spin, backdrop,
+station position), a full `Station.dock`/`launch` with events, market and
+board compared, and both built stations. The harness was broken twice and
+restored: `ROLL_TOLERANCE` 0.65 → 0.66 reported 1 change (no grid point lies
+between the two, which is what the second break is for) and
+`HULL_BOX_MARGIN` 50 → 70 reported **9,493**.
+
+The four gates: `npm run build` passes; `npm run campaign` byte-identical —
+zero diff lines against the worktree's own run; `npm run elite-a` 490 passed,
+0 failed; `npm run portability` 0 contaminated. Both console harnesses were
+grepped for every name this slice moved, created or left behind plus the
+functions whose files changed: their one hit is a comment naming
+`rollAlignedWithSlot`, which is still exported from `game/docking.ts`.
+
+Eighteen breaks, all confirmed red and restored with targeted edits: the
+gate's stray `SOME_RULE` (1 failure) and a side-effect import into the home
+(1); re-inlined literals for the arrival lateral (1), the channel width (1),
+the hull cube (1), the slot depth (1), the roll tolerance (1), the gate
+distance (1), the computer's turn rate (1) and throttle gain (1), the bounce
+(1), the NPC cube at the player's 50 (1), the launch standoff (1) and speed
+(1), the spin (1), the Dodo threshold (1) and the backdrop (1); and a
+diverged presentation scale at `SOURCE_UNITS_PER_WORLD_UNIT + 1` (3, in
+`test/ship-roles.test.ts`).
+
+**Still to do**, in the groups the gate's list already names: the console,
+the combat trainer, saves, and the policy seam. Plus one thing no slice has
+touched: CLAUDE.md does not yet carry the read-it-do-not-grep-it instruction
+below.
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give

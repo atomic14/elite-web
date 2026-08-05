@@ -14,11 +14,8 @@ import {
   globalCommands, BINDINGS, GLOBAL_BINDINGS, type ControlMode,
 } from '../src/game/controls.ts';
 import { renderDockedMenu } from '../src/ui/screens.ts';
-import {
-  Autopilot,
-  DOCK_COMPUTER_RANGE,
-  type AutopilotEvent,
-} from '../src/game/autopilot.ts';
+import { Autopilot, type AutopilotEvent } from '../src/game/autopilot.ts';
+import { DOCK_COMPUTER_RANGE } from '../src/constants/docking-computer.ts';
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { CC_MAX_SPEED } from '../src/constants/combat-computer.ts';
 import { check, eq, cmds, eqc, keys } from './harness.ts';

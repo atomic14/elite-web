@@ -9,25 +9,22 @@
 //
 // Why roll is the crux: `NpcShip.steerToward` builds orientation from
 // `lookAt(dir, WORLD_UP)`, so roll is whatever falls out of pointing at a
-// target. The station's slot is a letterbox on a hull spinning at 0.26 rad/s,
-// so a ship that cannot choose its roll cannot fit through it. The fix is to
-// take the up-hint from the STATION rather than the world, which matches the
-// slot's rotation for free as it turns.
+// target. The station's slot is a letterbox on a hull spinning at
+// `STATION_SPIN`, so a ship that cannot choose its roll cannot fit through it.
+// The fix is to take the up-hint from the STATION rather than the world, which
+// matches the slot's rotation for free as it turns.
 //
-// WHICH WAY UP THE LETTERBOX IS. Both released stations put their slot on the
-// front face as a rectangle that is TALLER THAN IT IS WIDE in station-local
-// coordinates — 20x60 on the Coriolis, 32x64 on the Dodo — so the long axis a
-// ship's wings must line up with is the station's local Y. Harmless drew a
-// horizontal 96x20 for years and this file was written the other way round; the
-// exact hulls arrived with TODO 25 and the axes swapped with them.
-//
-// What did NOT change is how precisely you have to fly. The channel below is
-// the same rectangle it always was, turned a quarter turn with the slot, so the
-// approach is the one that has always worked and the roll you have to hold is
-// still a quarter turn's worth of tolerance either side. `test/world.test.ts`
-// pins both.
+// The letterbox itself — which way up it stands, how wide the channel is, and
+// the roll tolerance — is constants/docking.ts, with the released slot
+// measurements beside the values. `test/world.test.ts` and
+// `test/docking.test.ts` pin the geometry.
 
 import * as THREE from 'three';
+
+import {
+  GATE_HALF_WIDTHS, LINED_UP_LATERAL, HULL_BOX_MARGIN,
+  SLOT_HALF_ACROSS, SLOT_HALF_ALONG, SLOT_DEPTH, ROLL_TOLERANCE,
+} from '../constants/docking.ts';
 
 export type DockPhase =
   /** off the axis or too far out — fly to the gate, a point straight out from the slot */
@@ -48,11 +45,6 @@ export interface DockPlan {
   /** distance off the slot axis, for HUD and tests */
   lateral: number;
 }
-
-/** How far out the approach gate sits, in multiples of the station half-width. */
-const GATE = 5;
-/** Off-axis error we insist on before committing to the run in. */
-const LINED_UP = 45;
 
 const _rel = new THREE.Vector3();
 const _slotN = new THREE.Vector3();
@@ -87,7 +79,7 @@ export function planDocking(
   // it the Y put every trader through the letterbox side-on.
   out.up.set(1, 0, 0).applyQuaternion(station.quaternion);
 
-  const gateDist = dockZ * GATE;
+  const gateDist = dockZ * GATE_HALF_WIDTHS;
   // Commit to the run only when actually on the axis. Skipping the lateral
   // test is the obvious mistake: a ship that reaches the gate 150 units
   // off-axis and then flies straight carries that error into the hull instead
@@ -98,8 +90,9 @@ export function planDocking(
   // ship runs in, `along` shrinks past any outside-the-hull guard, the test
   // flips back to 'gate', and it turns round and flies out again — an
   // oscillation that never docks, which is exactly what the first version did.
-  const committed = out.phase === 'run' && along > 0 && lateral < LINED_UP * 2;
-  const linedUp = committed || (lateral < LINED_UP && along > dockZ && along < gateDist * 1.5);
+  const committed = out.phase === 'run' && along > 0 && lateral < LINED_UP_LATERAL * 2;
+  const linedUp = committed ||
+    (lateral < LINED_UP_LATERAL && along > dockZ && along < gateDist * 1.5);
 
   if (linedUp) {
     out.phase = 'run';
@@ -126,7 +119,7 @@ export function planDocking(
   }
 
   // inside the slot mouth and still on the axis
-  out.arrived = along < dockZ && lateral < LINED_UP;
+  out.arrived = along < dockZ && lateral < LINED_UP_LATERAL;
   return out;
 }
 
@@ -152,32 +145,6 @@ export function makeDockPlan(): DockPlan {
 //
 // One rule, one home. The consequence — bounce, damage, message, or actually
 // docking — stays with the Game, because that is what it costs.
-
-/**
- * Bounding cube around the station, a little larger than the hull.
- *
- * Measured against the widest point of both released hulls at the scene's
- * station scale: the Coriolis reaches 160 on every axis against a 160 slot
- * plane, and the Dodo's five tallest vertices reach 243 against a 196 one. 50
- * clears both, which is what "a little larger than the hull" has to mean if a
- * ship is not to slip past a vertex and be reported clear.
- */
-const HULL_BOX_MARGIN = 50;
-/**
- * The channel, as half-extents ACROSS the slot and ALONG it.
- *
- * The released slots are 20x60 (Coriolis) and 32x64 (Dodo), long axis vertical
- * in station-local coordinates. These are the same 52x124 tolerance Harmless
- * has always allowed, turned to match — not a re-tuning. Sized from the
- * narrower of the two so one rule covers both stations, and a ship that
- * threads the Coriolis threads the Dodo.
- */
-const SLOT_HALF_ACROSS = 26;
-const SLOT_HALF_ALONG = 62;
-/** How far into the -Z face counts as being in the channel. */
-const SLOT_DEPTH = 60;
-/** Wings vs the slot's long axis, in radians. */
-export const ROLL_TOLERANCE = 0.65;
 
 /**
  * Is a point in the slot channel? `x` and `y` are station-LOCAL.

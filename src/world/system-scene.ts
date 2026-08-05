@@ -4,6 +4,9 @@ import type { StarSystem } from '../galaxy/galaxy.ts';
 import { createSun, type Sun } from './sun.ts';
 import { createPlanet, type Planet } from './planet.ts';
 import { buildStation, STATION_DESIGNS } from '../ships/station-hulls.ts';
+import {
+  STATION_SPIN, DODO_TECH_LEVEL, DOCKED_BACKDROP_DISTANCE,
+} from '../constants/station.ts';
 
 // Assembles the static in-system world deterministically from the system
 // seed: sun, planet, station. Ships and rocks are NPCs, owned by the game.
@@ -52,9 +55,11 @@ export function buildSystemScene(sys: StarSystem): SystemScene {
     .lerp(sunDir, 0.35)
     .normalize();
   // High-tech systems get the dodecahedral "Dodo" station. Both hulls are the
-  // released tables at the station scale — see ships/station-hulls.ts.
+  // released tables at the station scale — see ships/station-hulls.ts. The +1
+  // converts the raw techLevel to the shown units the threshold is stated in.
   const built = buildStation(
-    sys.techLevel + 1 >= 10 ? STATION_DESIGNS.dodo : STATION_DESIGNS.coriolis, 0xd8ffe0);
+    sys.techLevel + 1 >= DODO_TECH_LEVEL ? STATION_DESIGNS.dodo : STATION_DESIGNS.coriolis,
+    0xd8ffe0);
   const station: THREE.Object3D = built.object;
   const stationDockZ = built.dockZ;
   station.position.copy(stationDir).multiplyScalar(planetRadius * 2.4);
@@ -64,11 +69,12 @@ export function buildSystemScene(sys: StarSystem): SystemScene {
   station.rotateY(Math.PI);
   root.add(station);
 
-  // Launch/respawn point: just outside the slot face (planet side).
+  // Where the docked menu parks the ship, so the station fills the backdrop.
+  // NOT the launch point — that is LAUNCH_STANDOFF, in Station.launch().
   const slot = slotNormal(station);
   const spawnPosition = station.position
     .clone()
-    .add(slot.multiplyScalar(900));
+    .add(slot.multiplyScalar(DOCKED_BACKDROP_DISTANCE));
 
   return {
     root,
@@ -80,7 +86,7 @@ export function buildSystemScene(sys: StarSystem): SystemScene {
     spawnPosition,
     update(dt, elapsed) {
       sun.update(elapsed);
-      station.rotateZ(dt * 0.26);
+      station.rotateZ(dt * STATION_SPIN);
     },
     dispose() {
       root.traverse((obj) => {

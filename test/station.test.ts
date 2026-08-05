@@ -7,6 +7,8 @@ import {
   Station, type StationEvent, type StationHost,
 } from '../src/game/station.ts';
 import { freshState } from '../src/game/state.ts';
+import { LAUNCH_STANDOFF, LAUNCH_SPEED } from '../src/constants/station.ts';
+import { slotNormal } from '../src/world/slot.ts';
 import { random, seedWorld } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
 
@@ -91,6 +93,16 @@ function setup() {
     ].join('|'));
   check('launch population remains a synchronous seeded host operation',
     x.populated() === 1 && x.mode() === 'flight');
+  // Where the bay puts you — constants/station.ts, measured off the real slot
+  // normal rather than restated. 450 and 120, and the trio it belongs to
+  // (bounce 420, backdrop 900) is pinned in docking.test.ts and world.test.ts.
+  const away = x.state.player.position.clone().sub(x.state.world.station.position);
+  check(`launch stands you LAUNCH_STANDOFF off the slot (${away.length().toFixed(3)})`,
+    Math.abs(away.length() - LAUNCH_STANDOFF) < 1e-6);
+  check('...straight out along the slot normal',
+    away.normalize().dot(slotNormal(x.state.world.station)) > 0.999999);
+  check(`...moving at LAUNCH_SPEED (${x.state.player.speed})`,
+    x.state.player.speed === LAUNCH_SPEED);
   // Decision 1: the docked checkpoint is written on docking AND immediately
   // before launch, and the second one is a CALL rather than an event precisely
   // so that it observes the station rather than the first second of the flight.

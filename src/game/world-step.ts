@@ -49,6 +49,9 @@ import {
   TRADER_ARRIVAL_RANGE,
 } from '../constants/spawn-placement.ts';
 import { planDocking, dockingOutcome } from './docking.ts';
+import { NPC_HULL_BOX_MARGIN } from '../constants/docking.ts';
+import { DC_TURN_RATE, DC_THROTTLE_GAIN } from '../constants/docking-computer.ts';
+import { BOUNCE_STANDOFF } from '../constants/station.ts';
 import { regenerate, updateCabinTemp, scoopFuel, energyLow } from './systems.ts';
 import { SUN_KILL_DIST } from '../constants/sun.ts';
 import { PLANET_CRASH_ALTITUDE } from '../constants/planet.ts';
@@ -321,8 +324,8 @@ export class WorldStep {
       player.position, station, world.stationDockZ, player.maxSpeed, this.state.dockPlan);
     this.tmpM.lookAt(ZERO, plan.heading, plan.up);
     this.tmpQ.setFromRotationMatrix(this.tmpM);
-    player.quaternion.rotateTowards(this.tmpQ, 1.2 * dt);
-    player.speed += (plan.speed - player.speed) * Math.min(1, dt * 1.5);
+    player.quaternion.rotateTowards(this.tmpQ, DC_TURN_RATE * dt);
+    player.speed += (plan.speed - player.speed) * Math.min(1, dt * DC_THROTTLE_GAIN);
   }
 
   /** Everyone else: decisions, despawns, collisions, and who else turns up. */
@@ -405,7 +408,10 @@ export class WorldStep {
     // wreckNpc, NOT destroyNpc — see npcVsNpcs
     for (const n of wrecked) this.host.wreckNpc(n);
 
-    npcsVsStation(world.npcs, world.station, world.stationDockZ + 40, this.scratch);
+    // The NPCs' cube is 40 where the player's is 50 — a recorded divergence,
+    // not a choice; see NPC_HULL_BOX_MARGIN.
+    npcsVsStation(
+      world.npcs, world.station, world.stationDockZ + NPC_HULL_BOX_MARGIN, this.scratch);
 
     // What turns up, and when: rules in encounters.ts, spawning here.
     const here = this.system();
@@ -644,7 +650,7 @@ export class WorldStep {
     }
     // hit the hull, or fluffed the slot
     const away = this.tmp2.copy(player.position).sub(station.position).normalize();
-    player.position.copy(station.position).addScaledVector(away, 420);
+    player.position.copy(station.position).addScaledVector(away, BOUNCE_STANDOFF);
     player.speed = 0;
     this.host.applyPlayerDamage(
       playerImpactDamage(IMPACT.stationScrape), station.position, 'station');

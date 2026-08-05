@@ -36,25 +36,13 @@ import type { StarSystem } from '../galaxy/galaxy.ts';
 import { formatCredits } from './commander.ts';
 import { fineFor } from './law.ts';
 import { CLEAN } from '../constants/law.ts';
+import { LAUNCH_STANDOFF, LAUNCH_SPEED } from '../constants/station.ts';
 import { generateContractOffers, makeLocalMarket, describeContract } from './contracts.ts';
 import { stepMissionAtDock, missionHeadline, constrictorWarning } from './missions.ts';
 import type { Ordnance } from './ordnance.ts';
 import { repairAtStation } from './systems.ts';
 import type { GameState } from './state.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
-
-/** How far off the slot you sit when the bay spits you out. */
-const LAUNCH_STANDOFF = 450;
-/** ...and how fast. */
-const LAUNCH_SPEED = 120;
-
-/**
- * World-space outward normal of the station's slot face.
- *
- * One home for it: launching pushes you along it, and the station's Vipers
- * scramble along it. Both used to compute it themselves.
- */
-
 
 /**
  * How the ship came to be on the pad. Three ways in, and they differ.

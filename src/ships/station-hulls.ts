@@ -16,9 +16,8 @@
 // slot channel is a tolerance in world units. Shrinking the station fourfold
 // would move all of them at once and turn a 900-unit approach into a 225-unit
 // one, which is a docking change and not a geometry one. So the SHAPE is the
-// released table and the SIZE is the scene's, and 4 is exactly the factor that
-// cancels the conversion — a station is drawn at one world unit per source
-// unit, which is where the familiar 160 comes from.
+// released table and the SIZE is the scene's: a station is drawn at one world
+// unit per source unit, which is where the familiar 160 comes from.
 //
 // Nothing else may reach for this. A hull that looks wrong at the ship scale is
 // wrong in the source or wrong in the scene; this is not a knob, it is one
@@ -29,9 +28,21 @@ import * as THREE from 'three';
 import { shipDesignIdOf, type ShipDesignId } from '../game/ship-identity.ts';
 import { buildShip, type ShipDef } from './geometry.ts';
 import { requireShipDef, shipDisplayName } from './registry.ts';
+import { SOURCE_UNITS_PER_WORLD_UNIT } from './elite-a-hulls.ts';
 
-/** How much larger than the one geometry conversion a station is drawn. */
-export const STATION_PRESENTATION_SCALE = 4;
+/**
+ * How much larger than the one geometry conversion a station is drawn.
+ *
+ * AN EXPRESSION, not a coincidence: it was a second `4` whose comment said "4
+ * is exactly the factor that cancels the conversion" in English while nothing
+ * enforced it. Written this way, a station is 1:1 with its source units — 160
+ * for the Coriolis, 196 for the Dodo — whatever the ship conversion becomes,
+ * which is what every absolute docking distance above is built on. It cannot
+ * live in src/constants/ because its meaning IS this product over the ships'
+ * own anchor, which that directory may not import — the
+ * `WORLD_SPEED_PER_SOURCE_SPEED` shape (docs/TODO/90-constants-cleanup.md).
+ */
+export const STATION_PRESENTATION_SCALE = SOURCE_UNITS_PER_WORLD_UNIT;
 
 /** The two released stations, by design id. */
 export const STATION_DESIGNS = {
