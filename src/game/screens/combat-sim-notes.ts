@@ -33,7 +33,7 @@ const MODE_BLURB: Record<SimMode, string> = {
 };
 
 const MIXED_BRAINS = 'MIXED BRAINS CANNOT FLY: THE GAME LOADS ONE POLICY PER ROLE, '
-  + 'SO THE LIVE BRAINS WILL. SET THE OPPOSITION FLIES (THIS FIGHT) ROW INSTEAD.';
+  + 'SO THE LIVE BRAINS WILL. SET THE LIVE BRAINS (THIS FIGHT) ROW INSTEAD.';
 
 /**
  * What the waves mode escalates, and where it stops — DERIVED from the ramp.

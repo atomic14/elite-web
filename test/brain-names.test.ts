@@ -218,7 +218,7 @@ console.log('\nthe trainer names what the game flies');
 console.log('\ncombat simulator — the live brain row');
 {
 const d = freshDraft(newCommander());
-const row = () => setupCells(d).find((c) => c.label === 'CHANGE THE DEFAULT ENEMY AI')!;
+const row = () => setupCells(d).find((c) => c.label === 'CHANGE THE LIVE BRAINS')!;
 eq('the panel offers it, and it starts at the shipped set',
   row().value, `(1 OF ${LIVE_BRAIN_IDS.length}) THE ORIGINAL`);
 eq('...so the draft asks for no override', JSON.stringify(liveSelectionOf(d)), '{}');
@@ -237,7 +237,7 @@ check('the row is fenced off from the exercise settings', row().fenced === true)
 check('...under a heading that says it leaves the room',
   /STAYS SET AFTER YOU UNDOCK/.test(row().heading ?? ''));
 eq('...and it is the last row on the panel',
-  setupCells(d).at(-1)!.label, 'CHANGE THE DEFAULT ENEMY AI');
+  setupCells(d).at(-1)!.label, 'CHANGE THE LIVE BRAINS');
 check('...so no exercise setting sits below it',
   setupCells(d).filter((c) => c.fenced).length === 1);
 

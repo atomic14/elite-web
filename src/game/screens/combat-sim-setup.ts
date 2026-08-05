@@ -452,11 +452,14 @@ export function setupCells(d: SimDraft): SetupCell[] {
     },
     {
       heading: 'WHO FLIES WHAT',
-      // What the row DECIDES, in a pilot's words, finishing the heading's
-      // sentence — and it says WHICH FIGHT, because the row at the foot of the
-      // panel decides the same thing for the career and the two were told apart
-      // only by a fence.
-      label: 'THE OPPOSITION FLIES (THIS FIGHT)',
+      // What the row DECIDES, and it says WHICH FIGHT, because the row at the
+      // foot of the panel decides the same thing for the career and the two
+      // were told apart only by a fence. It used to say OPPOSITION: since the
+      // trained pirate policies left the bundle (2026-08-05) the selection it
+      // writes moves the DEFENCE — every armed trader in the fight and YOUR
+      // combat computer — or turns it off (the scripted control). The label
+      // says brains because that is what it changes.
+      label: 'THE LIVE BRAINS (THIS FIGHT)',
       value: `${position(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length)} `
         + flies(d.brain),
       brain: d.brain,
@@ -585,7 +588,7 @@ export function setupCells(d: SimDraft): SetupCell[] {
   cells.push({
     heading: 'THIS ONE STAYS SET AFTER YOU UNDOCK',
     fenced: true,
-    label: 'CHANGE THE DEFAULT ENEMY AI',
+    label: 'CHANGE THE LIVE BRAINS',
     // No position on the console case, because there is no position: a selection
     // the picker cannot name is not one of the eleven it offers.
     value: d.live === null ? 'SET FROM THE CONSOLE'

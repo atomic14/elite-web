@@ -54,7 +54,7 @@ console.log('\ncombat simulator — the panel has a shape');
   // named our concept, and read beside the fenced career row it was one of two
   // rows about brains with nothing saying which fight either one changed.
   eq('...who flies what opens on the row that says who the opposition flies like',
-    opens('WHO FLIES WHAT'), 'THE OPPOSITION FLIES (THIS FIGHT)');
+    opens('WHO FLIES WHAT'), 'THE LIVE BRAINS (THIS FIGHT)');
   eq('...and your ship on the laser', opens('YOUR SHIP'), 'YOUR LASER');
 
   // The order inside a group is unchanged, so muscle memory survives.
@@ -63,7 +63,7 @@ console.log('\ncombat simulator — the panel has a shape');
     'MODE,FIGHT,THREAT TIER,SEED');
   eq('...and the exercise brain is followed by the opposition, as it was',
     setupCells(d).map((c) => c.label).join(',')
-      .includes('THE OPPOSITION FLIES (THIS FIGHT),OPPOSITION'), true);
+      .includes('THE LIVE BRAINS (THIS FIGHT),OPPOSITION'), true);
 
   // A heading is not a row. Every entry in the list is something the cursor can
   // land on and change — which is what makes `this.row` and `data-row` the same
@@ -78,7 +78,7 @@ console.log('\ncombat simulator — the panel has a shape');
     headings().join(' / '),
     'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE STAYS SET AFTER YOU UNDOCK');
   eq('...and the fenced row stays last',
-    setupCells(d).at(-1)!.label, 'CHANGE THE DEFAULT ENEMY AI');
+    setupCells(d).at(-1)!.label, 'CHANGE THE LIVE BRAINS');
 }
 
 // --- and it does not change height while you use it -------------------------
@@ -155,8 +155,8 @@ console.log('\ncombat simulator — a long list is navigable');
   const cell = (label: string) =>
     setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
 
-  const rows = ['THE OPPOSITION FLIES (THIS FIGHT)', 'THIS GROUP FLIES',
-    'GROUP 1 HULL', 'CHANGE THE DEFAULT ENEMY AI'];
+  const rows = ['THE LIVE BRAINS (THIS FIGHT)', 'THIS GROUP FLIES',
+    'GROUP 1 HULL', 'CHANGE THE LIVE BRAINS'];
   for (const label of rows) {
     check(`${label} says where in the list it is`,
       /^\(\d+ OF \d+\) /.test(cell(label).value));
