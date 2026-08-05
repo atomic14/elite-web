@@ -83,3 +83,42 @@ console.log('\nthe threat lock');
   eq('after clear(), the next pick locks the nearest afresh',
     lock4.pick(0, [a, b], dist), b);
 }
+
+// --- the `committed` veto: don't drop a ship you are on the attack against ---
+//
+// The scripted co-pilot passes this: while it is ENGAGED (target roughly on the
+// nose) no rival takes the lock however near, because a pilot lined up on a ship
+// does not abandon the kill because another drifted closer (Chris, flying it).
+// The veto only holds while engaged; a target that runs wide lets the ordinary
+// distance rule hand over.
+{
+  type T = { d: number };
+  const a: T = { d: 100 };
+  const b: T = { d: 10 };
+  const dist = (t: T) => t.d;
+
+  // engaged: `committed` true for the held threat. Even past the hold and with a
+  // rival ten times nearer, the lock holds. The veto is passed every frame, as
+  // the co-pilot passes it.
+  const onA = (t: T) => t === a;
+  const engaged = new ThreatLock<T>();
+  engaged.pick(0, [a], dist, onA); // lock a
+  engaged.pick(THREAT_MIN_HOLD + 1, [a, b], dist, onA); // hold satisfied, b far nearer
+  eq('an engaged co-pilot keeps its target through an overtake',
+    engaged.pick(0.1, [a, b], dist, onA), a);
+
+  // not engaged: same geometry, but `committed` false — the distance rule wins,
+  // so it is the veto and not the hold doing the work above.
+  const loose = new ThreatLock<T>();
+  loose.pick(0, [a], dist);
+  loose.pick(THREAT_MIN_HOLD + 1, [a, b], dist);
+  eq('...but a target it is NOT engaged with is handed over on the overtake',
+    loose.pick(0.1, [a, b], dist, () => false), b);
+
+  // a committed target that DIES is still replaced at once — the veto only
+  // guards the switch, never the "gone" replacement.
+  const died = new ThreatLock<T>();
+  died.pick(0, [a], dist, () => true);
+  eq('a committed target that leaves the sky is still replaced',
+    died.pick(0.1, [b], dist, () => true), b);
+}

@@ -42,7 +42,7 @@ import { LASER_RANGE } from '../constants/player-gun.ts';
 import { UNDER_FIRE_SECONDS } from '../constants/attack-run.ts';
 import {
   THREAT_RANGE, PURSUIT_RANGE, PURSUIT_CLOSE_GAIN, PURSUIT_TURN_FLOOR,
-  PURSUIT_SPEED_DEADBAND,
+  PURSUIT_SPEED_DEADBAND, ENGAGED_CONE,
 } from '../constants/combat-computer.ts';
 import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
 import type { V3 } from '../ai-training/observation.ts';
@@ -107,6 +107,14 @@ export class ScriptedCoPilot {
       npcs.filter((npc) => isHostileToPlayer(npc, legalStatus)
         && npc.object.position.distanceTo(player.position) < THREAT_RANGE),
       (npc) => npc.object.position.distanceTo(player.position),
+      // ENGAGED means don't switch: the target is in front and roughly on the
+      // nose, so we are making the kill, not merely nearest to it. A pilot does
+      // not drop a ship it is lined up on because another drifted closer
+      // (Chris). Only when NOT engaged — the current target has run wide or
+      // behind — does the lock's distance rule get to hand us a better one.
+      (npc) => this.nose.set(0, 0, -1).applyQuaternion(player.quaternion)
+        .angleTo(this.toThreat.copy(npc.object.position).sub(player.position))
+        < ENGAGED_CONE,
     );
     if (!threat) {
       this.reset();

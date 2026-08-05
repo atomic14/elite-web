@@ -31,6 +31,14 @@ import {
  * least `THREAT_MIN_HOLD` seconds AND a rival is nearer than its distance
  * divided by `THREAT_SWITCH_MARGIN`: an overtake, not a tie-break.
  *
+ * `committed` is an optional veto: when it returns true for the held threat,
+ * no rival can take the lock however near, because the caller is EFFECTIVELY
+ * ENGAGED — on it and making progress — and a pilot does not abandon a ship it
+ * is about to kill because another drifted closer (Chris, flying it). The
+ * distance rule above still governs everything else; the veto only fires while
+ * the caller says it is engaged, and a threat that dies or leaves is still
+ * replaced at once. Callers that pass nothing keep the pure distance rule.
+ *
  * The lock is NOT saved state. After a restore the first `pick` locks the
  * nearest hostile and commits to it — a defensible opening move from cold,
  * made once per reload; what the snapshot must never lose is the flight the
@@ -40,7 +48,10 @@ export class ThreatLock<T> {
   private held: T | null = null;
   private heldFor = 0;
 
-  pick(dt: number, candidates: Iterable<T>, distOf: (t: T) => number): T | null {
+  pick(
+    dt: number, candidates: Iterable<T>, distOf: (t: T) => number,
+    committed?: (t: T) => boolean,
+  ): T | null {
     let nearest: T | null = null;
     let nearestD = Infinity;
     let stillThere = false;
@@ -57,7 +68,8 @@ export class ThreatLock<T> {
     this.heldFor += dt;
     if (nearest !== this.held && this.held !== null
         && this.heldFor >= THREAT_MIN_HOLD
-        && nearestD < distOf(this.held) / THREAT_SWITCH_MARGIN) {
+        && nearestD < distOf(this.held) / THREAT_SWITCH_MARGIN
+        && !committed?.(this.held)) {
       this.held = nearest;
       this.heldFor = 0;
     }

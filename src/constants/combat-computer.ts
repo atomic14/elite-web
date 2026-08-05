@@ -103,3 +103,16 @@ export const PURSUIT_TURN_FLOOR = 0.15;
  * band is a few units so holding station reads as a steady throttle.
  */
 export const PURSUIT_SPEED_DEADBAND = 6;
+
+/**
+ * The nose-to-target angle, in radians, within which the co-pilot counts itself
+ * ENGAGED and will not switch targets — it vetoes `ThreatLock`'s distance-based
+ * switch (`game/threat-lock.ts`). A pilot lined up on a ship does not drop it
+ * because another drifted nearer; it switches only once the current target has
+ * run wide or behind (outside this cone) AND the lock's overtake rule fires.
+ *
+ * 0.6 rad (~34 degrees) is generous on purpose: "engaged" means on the attack,
+ * not pinpoint on the crosshair, so a target still being tracked through a turn
+ * keeps the lock. Feel, not fit.
+ */
+export const ENGAGED_CONE = 0.6;
