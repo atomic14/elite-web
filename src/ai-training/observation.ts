@@ -30,7 +30,7 @@
 // Erasable-TypeScript only — runs in Node via --experimental-strip-types.
 
 import {
-  DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain,
+  DEFEND_OBS_SIZE, DEFEND_OUT_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain,
 } from './policy.ts';
 import { TURN } from '../constants/hull-motion.ts';
 import { OBS_SPEED_SCALE } from '../constants/brain-flight.ts';
@@ -84,13 +84,13 @@ export interface ShipView {
   cls: { maxSpeed: number; turnRate: number; hp: number };
   /**
    * Everything this ship has left, over everything it can hold — read by
-   * `observePackWide` (slot 25) and `observeDefend` (slot 14), which is
+   * `observePackWide` (slot 24) and `observeDefend` (slot 13), which is
    * deliberately the SAME expression in both: two encoders disagreeing about
    * what "our own health" means is exactly the drift invariant 5 exists against.
    */
   hp: number;
   /**
-   * The ENERGY BANK alone, over its own maximum — `observeDefend` slot 15.
+   * The ENERGY BANK alone, over its own maximum — `observeDefend` slot 14.
    *
    * Separate from `hp` because the two say different things and the defender
    * needs both: `hp` is how hurt she is, the bank is what she DIES at (zero
@@ -104,7 +104,7 @@ export interface ShipView {
   energy: number;
   /**
    * A hostile warhead is in the air, homing on this ship — `observeDefend`
-   * slot 16, and the only reason to press the button on the head below.
+   * slot 15, and the only reason to press the button on the head below.
    *
    * The world's answer, read once a frame, never the ship's guess: `Ordnance`
    * caps a gang at one in the air precisely so one press stays a complete
@@ -170,7 +170,17 @@ const logDistance = (d: number): number =>
  * position/orientation invariant:
  *  0 speed/max  1 laserTemp  2 canFire  3-5 dir-to-target (ship frame)
  *  6 log distance  7 closing speed  8 target-facing-us dot
- *  9 angle-to-target/pi  10 target speed  11 pitchRate  12 rollRate  13 bias
+ *  9 angle-to-target/pi  10 pitchRate  11 rollRate  12 bias
+ *
+ * THERE IS NO TARGET-SPEED SLOT (docs/TODO/91). The old slot 10 was
+ * `target.speed / OBS_SPEED_SCALE`, the input brains.ts said the policy had
+ * latched onto — the game clamped it (`TARGET_SPEED_FLOOR`) and the trainer
+ * did not, so every genome was fitted on values the live game never produced.
+ * Chris chose deletion over closing the divergence: a bare speed scalar
+ * carries no direction and nothing the geometry does not already say, and a
+ * policy that needs its input clamped to stay in distribution was fitted on a
+ * slot it could not use honestly. The target's speed still reaches the
+ * network through slot 7's closing rate — honestly, on both sides.
  */
 export function observe(me: ShipView, target: ShipView, out: Float32Array): Float32Array {
   const rel = vSub(target.pos, me.pos);
@@ -193,13 +203,12 @@ export function observe(me: ShipView, target: ShipView, out: Float32Array): Floa
   out[7] = Math.max(-1, Math.min(1, closing / OBS_SPEED_SCALE));
   out[8] = vDot(targetFwd, vNorm(vSub(me.pos, target.pos))); // +1 → target faces us
   out[9] = Math.acos(Math.max(-1, Math.min(1, vDot(myFwd, relDir)))) / Math.PI;
-  out[10] = target.speed / OBS_SPEED_SCALE;
   // The ship's own pitch and roll caps are `turnRate * TURN.*` — ship-specs.ts
   // records that TURN moved OUT of ai-training/ precisely so the two could not
   // disagree, and these two literals were the residue.
-  out[11] = me.pitchRate / (me.cls.turnRate * TURN.pitch);
-  out[12] = me.rollRate / (me.cls.turnRate * TURN.roll);
-  out[13] = 1;
+  out[10] = me.pitchRate / (me.cls.turnRate * TURN.pitch);
+  out[11] = me.rollRate / (me.cls.turnRate * TURN.roll);
+  out[12] = 1;
   return out;
 }
 
@@ -207,13 +216,13 @@ export function observe(me: ShipView, target: ShipView, out: Float32Array): Floa
  * DEFENCE observation: the solo 14, plus the three things a ship being shot at
  * needs and a ship doing the shooting does not.
  *
- *   14  everything we have left, over everything we can hold — press or break
- *       off. The same expression as `observePackWide`'s slot 25, on purpose.
- *   15  the energy bank alone. Zero energy is destruction, the shields do not
+ *   13  everything we have left, over everything we can hold — press or break
+ *       off. The same expression as `observePackWide`'s slot 24, on purpose.
+ *   14  the energy bank alone. Zero energy is destruction, the shields do not
  *       come back until it is out of its last quarter, and the E.C.M. spends a
  *       quarter of it — three rules, one number, and none of them is visible in
- *       slot 14 because a full shield hides an empty bank.
- *   16  a hostile warhead is in the air. 1 or 0; there is at most one, because
+ *       slot 13 because a full shield hides an empty bank.
+ *   15  a hostile warhead is in the air. 1 or 0; there is at most one, because
  *       `Ordnance` caps the sky at one hostile missile so that one press is a
  *       complete answer.
  *
@@ -243,9 +252,9 @@ export function observe(me: ShipView, target: ShipView, out: Float32Array): Floa
  */
 export function observeDefend(me: ShipView, target: ShipView, out: Float32Array): Float32Array {
   observe(me, target, out);
-  out[14] = Math.max(0, Math.min(1, me.hp / me.cls.hp));
-  out[15] = Math.max(0, Math.min(1, me.energy));
-  out[16] = me.missileInbound ? 1 : 0;
+  out[13] = Math.max(0, Math.min(1, me.hp / me.cls.hp));
+  out[14] = Math.max(0, Math.min(1, me.energy));
+  out[15] = me.missileInbound ? 1 : 0;
   return out;
 }
 
@@ -273,12 +282,12 @@ export function observePack(
   if (best) {
     const inv = { x: -me.quat.x, y: -me.quat.y, z: -me.quat.z, w: me.quat.w };
     const local = qRotate(inv, vNorm(vSub(best.pos, me.pos)));
-    out[14] = local.x;
-    out[15] = local.y;
-    out[16] = local.z;
-    out[17] = logDistance(bestD);
+    out[13] = local.x;
+    out[14] = local.y;
+    out[15] = local.z;
+    out[16] = logDistance(bestD);
   } else {
-    out[14] = 0; out[15] = 0; out[16] = 0; out[17] = 1;
+    out[13] = 0; out[14] = 0; out[15] = 0; out[16] = 1;
   }
   return out;
 }
@@ -311,14 +320,14 @@ export interface ObservableMate {
  * Wide pack observation (round 4): the 18 of `observePack`, plus enough about
  * the nearest mate to coordinate with it rather than merely avoid it —
  *
- *   18  mate health fraction
- *   19  mate's distance to the target (log) — is it engaged, or off chasing?
- *   20  mate's aim alignment on the target — is it attacking *now*?
- *   21..23  direction from the target to the mate, in **our** ship frame:
+ *   17  mate health fraction
+ *   18  mate's distance to the target (log) — is it engaged, or off chasing?
+ *   19  mate's aim alignment on the target — is it attacking *now*?
+ *   20..22  direction from the target to the mate, in **our** ship frame:
  *           the flanking signal. Approach opposite this and the target
  *           cannot face both of us.
- *   24  how many mates are still alive (÷3)
- *   25  our own health fraction — press or break off
+ *   23  how many mates are still alive (÷3)
+ *   24  our own health fraction — press or break off
  */
 export function observePackWide(
   me: ShipView,
@@ -346,18 +355,18 @@ export function observePackWide(
     const inv = { x: -me.quat.x, y: -me.quat.y, z: -me.quat.z, w: me.quat.w };
     // where the mate sits relative to the target, expressed in our frame
     const flank = qRotate(inv, vNorm(vSub(best.pos, target.pos)));
-    out[18] = Math.max(0, Math.min(1, best.hp / best.cls.hp));
-    out[19] = logDistance(mateDist);
-    out[20] = vDot(mateFwd, vNorm(mateToTarget));
-    out[21] = flank.x;
-    out[22] = flank.y;
-    out[23] = flank.z;
+    out[17] = Math.max(0, Math.min(1, best.hp / best.cls.hp));
+    out[18] = logDistance(mateDist);
+    out[19] = vDot(mateFwd, vNorm(mateToTarget));
+    out[20] = flank.x;
+    out[21] = flank.y;
+    out[22] = flank.z;
   } else {
-    out[18] = 0; out[19] = 1; out[20] = 0;
-    out[21] = 0; out[22] = 0; out[23] = 0;
+    out[17] = 0; out[18] = 1; out[19] = 0;
+    out[20] = 0; out[21] = 0; out[22] = 0;
   }
-  out[24] = Math.min(1, living / 3);
-  out[25] = Math.max(0, Math.min(1, me.hp / me.cls.hp));
+  out[23] = Math.min(1, living / 3);
+  out[24] = Math.max(0, Math.min(1, me.hp / me.cls.hp));
   return out;
 }
 
@@ -388,12 +397,20 @@ export function observeFor(
   mates: readonly ObservableMate[] | null,
   out: Float32Array,
 ): Float32Array {
-  // The defence encoder is asked for FIRST and asked by size alone, because it
-  // is the one that is not a rung on the pack ladder: a defender has no fleet,
-  // so `mates` is null and every test below it would fall through to the solo
-  // 14 and leave slots 14-16 holding whatever the caller last put there. This
-  // is the case `observeFor`'s own comment warned about, arriving.
-  if (brain.obsSize === DEFEND_OBS_SIZE) return observeDefend(me, target, out);
+  // The defence encoder is asked for FIRST and asked by its HEAD count, not
+  // its input count. Two reasons. It is the one encoder that is not a rung on
+  // the pack ladder: a defender has no fleet, so `mates` is null and every
+  // test below would fall through to the solo block and leave the defence tail
+  // holding whatever the caller last put there. And since docs/TODO/91 removed
+  // the target-speed slot, the NEW pack size (17) is the OLD defence size —
+  // dispatching a stale `jameson-defend` file by input count would silently
+  // encode it as a pack brain. The E.C.M. head is the defence family's alone
+  // (`DEFEND_OUT_SIZE`, docs/TODO/72), so the head count cannot collide, and a
+  // stale defence file still reaches its own encoder — out of distribution
+  // until its retrain, which is expected, never mis-encoded.
+  if (brain.outSize === DEFEND_OUT_SIZE || brain.obsSize === DEFEND_OBS_SIZE) {
+    return observeDefend(me, target, out);
+  }
   if (!mates || brain.obsSize < PACK_OBS_SIZE) return observe(me, target, out);
   if (brain.obsSize >= PACK_WIDE_OBS_SIZE) return observePackWide(me, target, mates, out);
   return observePack(me, target, mates, out);

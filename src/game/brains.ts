@@ -12,7 +12,7 @@
 // The RULE — which name flies for whom, given a `BrainSelection` — is one file
 // over in brain-names.ts, because the combat trainer needs to answer it too and
 // must not import a megabyte of weights to do it. What is here is the weights,
-// the name-to-policy lookup, and the two numbers (`guard`, `targetSpeed`) that
+// the name-to-policy lookup, and the number (`guard`) that
 // are facts about a policy rather than about a name.
 //
 // Loading is defensive on purpose: a brain whose shape does not match the
@@ -34,7 +34,6 @@ import {
 // it was a constant here and a literal there, and only one of them ever got
 // fixed. See constants/attack-run.ts.
 import { BRAIN_HANDOVER_RANGE } from '../constants/attack-run.ts';
-import { TARGET_SPEED_FLOOR } from '../constants/brain-flight.ts';
 import pirateBrainFile from '../ai-training/brains/pirate-attack-g3.json' with { type: 'json' };
 import packBrainFile from '../ai-training/brains/pirate-pack-r4-selectonly.json' with { type: 'json' };
 import defendBrainFile from '../ai-training/brains/jameson-defend-g2.json' with { type: 'json' };
@@ -161,20 +160,6 @@ export interface BrainChoice {
    * break-off — the FLYING only. `attack()` keeps the gun (break-off.ts).
    */
   guard: number;
-  /**
-   * What the brain is told the target's speed is: real where the brain is
-   * competent, floored where it is not.
-   *
-   * It was hardcoded to 300 for years because observe() feeds
-   * `target.speed/400` to the network and the brains had only seen a freighter
-   * near 220; passing the real speed alone made pirates go inert against a
-   * commander who stops to fight. The input is the problem, not the fit: a
-   * bare speed scalar carries no direction, tells a pirate almost nothing it
-   * cannot see from the geometry, and the policy has latched onto it anyway.
-   * The floor, its measurements and the trainer divergence it carries are
-   * `TARGET_SPEED_FLOOR` in constants/brain-flight.ts.
-   */
-  targetSpeed: (actual: number) => number;
 }
 
 /**
@@ -215,7 +200,6 @@ export function pirateBrainFor(
     // and the branch went with it rather than sitting here unreachable. Neither
     // handover has ever given up the GUN — see break-off.ts.
     guard: BRAIN_HANDOVER_RANGE,
-    targetSpeed: (a) => Math.max(TARGET_SPEED_FLOOR, a),
   };
 }
 

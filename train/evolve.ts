@@ -523,7 +523,11 @@ function flies(genome: Brain): { forward: number; degenerate: boolean } {
     v.pos.z = z;
     return v;
   };
-  // a spread of geometries and target speeds, not one canned setup
+  // A spread of geometries and target speeds, not one canned setup. Since
+  // docs/TODO/91 a genome cannot SEE the target's speed directly — the slot is
+  // gone — but the speed still reaches slot 7 as the closing rate, so the
+  // sweep stays: it asks whether the emitted controls vary across closures,
+  // which is precisely the degeneracy this gate exists to catch.
   for (const targetSpeed of [0, 90, 220, 400]) {
     // the freighter and the commander: the two hulls the pool trains against
     for (const [maxSpeed, turnRate] of [[220, 0.5], [400, 1.036]] as const) {

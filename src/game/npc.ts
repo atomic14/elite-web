@@ -662,9 +662,13 @@ export class NpcShip {
       const choice = this.role === 'pirate'
         ? pirateBrainFor(this.state.threatTier, this.state.organised, brains) : null;
       const shot = choice && distPlayer >= choice.guard
+        // The RAW speed: the clamp the game used to apply here
+        // (TARGET_SPEED_FLOOR) died with the target-speed slot it protected
+        // (docs/TODO/91) — the encoder reads speed only through the closing
+        // rate now, which the trainer always fed honestly.
         ? this.brainFly(choice.brain, dt,
           player.position, player.quaternion,
-          choice.targetSpeed(player.speed),
+          player.speed,
           distPlayer, 'player',
           choice.pack ? fleet : null)
         // Inside knife range the scripted break-off takes over the FLYING — and

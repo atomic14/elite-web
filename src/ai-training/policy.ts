@@ -30,26 +30,31 @@ export interface Control {
   ecm: boolean;
 }
 
-export const OBS_SIZE = 14; // solo observation
+// The solo observation. It was 14 until docs/TODO/91 deleted the
+// target-speed slot — the input the game clamped and the trainer did not, so
+// every genome was fitted on values the live game never produced.
+export const OBS_SIZE = 13;
 /**
- * The DEFENDER's observation: the solo 14, plus the three things a ship being
+ * The DEFENDER's observation: the solo 13, plus the three things a ship being
  * shot at needs and a ship doing the shooting does not — see `observeDefend`.
  *
- * 17 rather than 18 is not an accident and not a spare slot: **the input count
- * is what picks the encoder** (`observeFor`), so the four sizes have to be
- * distinct, and 18 is already `observePack`'s. What was dropped to make room is
- * written down in `observeDefend` — the fore/aft shield SPLIT, which is a
- * different question from "how hurt am I" and can be added as sizes 19/20 by
- * whoever wants to answer it.
+ * The pack sizes must stay distinct because `observeFor` picks the pack
+ * encoders by input count — and since docs/TODO/91 shrank every size by one,
+ * TODAY'S pack size (17) is YESTERDAY'S defence size. That collision is why
+ * the defence encoder is dispatched by its HEAD count instead (`observeFor`):
+ * a stale 17-input defence file must reach its own encoder, out of
+ * distribution until its retrain, never silently pack-encoded. What was once
+ * dropped to keep the sizes apart is written down in `observeDefend` — the
+ * fore/aft shield SPLIT, addable as sizes 18/19 by whoever wants to answer it.
  */
-export const DEFEND_OBS_SIZE = 17;
-export const PACK_OBS_SIZE = 18; // solo + nearest-packmate dir (3) + distance (1)
+export const DEFEND_OBS_SIZE = 16;
+export const PACK_OBS_SIZE = 17; // solo + nearest-packmate dir (3) + distance (1)
 // Round 4: the r2/r3 pack brains could see *where* a mate was but not what it
 // was doing, and runs 4 and 6 both concluded the missing signal was
 // coordination, not reward. This adds the mate's health, whether it is
 // actually engaging the target, and which side of the target it is coming
 // from — the minimum needed to choose a complementary attack line.
-export const PACK_WIDE_OBS_SIZE = 26;
+export const PACK_WIDE_OBS_SIZE = 25;
 export const HIDDEN = 32;
 // output heads: pitch(3) roll(3) throttle(3) fire(2)
 export const OUT_SIZE = 11;

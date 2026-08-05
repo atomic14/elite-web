@@ -8,6 +8,7 @@
 // g2. This file is what stops that coming back: the same selection is taken to
 // the name rule and to the loader, and the two must land on the same policy.
 
+import { readdirSync, readFileSync } from 'node:fs';
 import {
   pirateBrainFor, defenceBrain, brainByName,
 } from '../src/game/brains.ts';
@@ -325,8 +326,25 @@ console.log('\nbrain selection');
     const packed = pirateBrainFor(2, true, { pack: true })!;
     check('the pack policy is still there when selected', !!packed && packed.pack);
     check('...and still hands back at the tight guard', packed.guard === 150);
-    check('...and is told a floored target speed, not a fake 300',
-      packed.targetSpeed(0) === 150 && packed.targetSpeed(400) === 400);
+    // docs/TODO/91: the target-speed input is DELETED — no floor, no fake 300,
+    // no correction the trainer does not apply. The choice carries nothing but
+    // the brain, the pack flag and the guard now, and the acceptance's grep is
+    // a check: no speed clamp survives anywhere in src/ or train/.
+    check('...and carries no target-speed correction at all',
+      !('targetSpeed' in packed));
+    // ...and not just on this object: docs/TODO/91's acceptance is that
+    // NEITHER side applies a correction the other does not, proven by scan.
+    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
+      .flatMap((e: import('node:fs').Dirent) => (e.isDirectory() ? walk(`${dir}/${e.name}`)
+        : /\.(ts|js)$/.test(e.name) ? [`${dir}/${e.name}`] : []));
+    const offenders = [...walk(new URL('../src', import.meta.url).pathname),
+      ...walk(new URL('../train', import.meta.url).pathname)]
+      .filter((p) => {
+        const src = readFileSync(p, 'utf8').replace(/^\s*(\/\/|\*|\/\*).*$/gm, '');
+        return src.includes('TARGET_SPEED_FLOOR') || /Math\.max\(150,/.test(src);
+      });
+    check('no file in src/ or train/ clamps a target speed any more',
+      offenders.length === 0, offenders.join(', '));
   }
   {
     check('brains.scripted turns every brain off',

@@ -73,11 +73,11 @@ import { defenceBrain } from '../src/game/brains.ts';
     const defender = randomBrain(rng, DEFEND_OBS_SIZE, HIDDEN, 0.5, DEFEND_OUT_SIZE);
     observeFor(defender, me, tgt, null, buf);
     check('a defence brain with no fleet still gets the defence encoder',
-      Math.abs(buf[14] - 0.4) < 1e-6 && Math.abs(buf[15] - 0.2) < 1e-6 && buf[16] === 1);
+      Math.abs(buf[13] - 0.4) < 1e-6 && Math.abs(buf[14] - 0.2) < 1e-6 && buf[15] === 1);
     const solo = randomBrain(rng, OBS_SIZE);
     buf.fill(-9);
     observeFor(solo, me, tgt, null, buf);
-    check('...and a 14-input brain never reaches those slots', buf[14] === -9);
+    check('...and a solo-input brain never reaches those slots', buf[13] === -9);
   }
 
   // 3. THE ACCEPTANCE TEST, both ways round. One genome, one geometry, two
@@ -100,16 +100,17 @@ import { defenceBrain } from '../src/game/brains.ts';
   };
   {
     // A genome that reads its own pools and nothing else: hidden unit 0 is
-    // `sign(pools - 0.5)`, wired off slot 14 against slot 13 (the encoder's
-    // constant bias), and the pitch head is wired off unit 0. So "whole" and
-    // "hurt" are two different pilots and every other input is ignored.
-    // Hand-built rather than trained, so the assertion is about the ENCODER
-    // and not about a run.
+    // `sign(pools - 0.5)`, wired off slot 13 against slot 12 (the encoder's
+    // constant bias — one slot down since docs/TODO/91 deleted the raw-speed
+    // input), and the pitch head is wired off unit 0. So "whole" and "hurt"
+    // are two different pilots and every other input is ignored. Hand-built
+    // rather than trained, so the assertion is about the ENCODER and not
+    // about a run.
     const H = 8;
     const w = new Float32Array(genomeSize(DEFEND_OBS_SIZE, H, DEFEND_OUT_SIZE));
     const GAIN = 24;
-    w[0 * DEFEND_OBS_SIZE + 14] = GAIN;        // + our own pools
-    w[0 * DEFEND_OBS_SIZE + 13] = -GAIN / 2;   // ...less a half, so the sign flips
+    w[0 * DEFEND_OBS_SIZE + 13] = GAIN;        // + our own pools
+    w[0 * DEFEND_OBS_SIZE + 12] = -GAIN / 2;   // ...less a half, so the sign flips
     const l2 = DEFEND_OBS_SIZE * H + H;
     w[l2 + 0 * H + 0] = GAIN;                  // passed through, saturated
     const head = l2 + H * H + H;
@@ -146,7 +147,13 @@ import { defenceBrain } from '../src/game/brains.ts';
   //    because it is the 14-input/11-head policy still in the tree; the
   //    property is the widening's, not any one brain's.
   {
-    const narrow = shippedPirate;
+    // A CURRENT-shape solo genome, not the shipped pirate: the shipped file
+    // still declares the pre-docs/TODO/91 14 inputs (section 6 asserts
+    // exactly that), so widening IT would seed from a brain the new encoder
+    // already under-feeds. The property is the widening's, and it is stated
+    // for the shapes a retrain would actually cross today: solo 13 to
+    // defence 16/13-heads.
+    const narrow = randomBrain(rng, OBS_SIZE);
     const wide = widenBrain(narrow, DEFEND_OBS_SIZE, DEFEND_OUT_SIZE);
     eq('a widened brain declares the new shape', `${wide.obsSize}/${wide.outSize}`,
       `${DEFEND_OBS_SIZE}/${DEFEND_OUT_SIZE}`);
