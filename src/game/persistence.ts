@@ -33,12 +33,11 @@ import type { Contract } from './commander.ts';
 import type { PirateThreat } from './threat.ts';
 import { CONSTRICTOR_SPEC, pirateSpecForTier, specForDesign } from './ship-specs.ts';
 import type { NpcRole } from './ship-roles.ts';
-import { requirePlayerHullId } from './ship-identity.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { Ordnance } from './ordnance.ts';
 import { rngState, restoreRng } from './rng.ts';
 import {
-  SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState,
+  SNAPSHOT_VERSION, v3, q4, serialiseState, restoreState, parseSnapshot,
   type WorldSnapshot,
 } from './snapshot.ts';
 import type { GameState } from './state.ts';
@@ -173,19 +172,21 @@ export class Persistence {
    * was about to use.
    */
   restore(snap: WorldSnapshot): void {
-    if (snap.version !== SNAPSHOT_VERSION) {
-      throw new Error(`snapshot version ${snap.version}, expected ${SNAPSHOT_VERSION}`);
-    }
+    // THE DOOR (docs/TODO/94). Everything with an invariant — the version, the
+    // branded ids, the fleet indexes, the bounds the rebuild would hang on —
+    // is checked HERE, before a single field of the live session moves, so a
+    // refusal costs nothing. It used to be a version check here, a hull check
+    // after the commander was already replaced, and a fleet-identity throw
+    // eight steps in — a refused restore left a session that was neither the
+    // world it had nor the one it was asked for, and only `resume()`'s catch
+    // hid it. `restoreSnapshot` (the console-harness and combat-trainer entry)
+    // has no catch, on purpose: a harness handing over junk sees the throw,
+    // and the session it interrupted is untouched. Trusted callers pay the
+    // same toll — `capture()`'s own output parses by construction, and
+    // `test/snapshot-parse.test.ts` holds that both ways.
+    snap = parseSnapshot(snap);
     const s = this.state;
     s.commander = structuredClone(snap.commander);
-    // A commander must say what it is flying. Same rule as the station save
-    // (storage.ts), asked again because this is the other way a snapshot
-    // arrives: `restoreSnapshot` takes one straight from a console harness or
-    // the combat simulator, which never went past `readSave`. One home for the
-    // rule — `requirePlayerHullId` — asked at both boundaries. Missing or
-    // unresolvable used to migrate to the Cobra Mk III; it throws now, and
-    // `resume()` below turns that into a normal boot.
-    s.commander.shipId = requirePlayerHullId(s.commander.shipId);
     // `s.career` IS NOT TOUCHED HERE, and that is the fix in docs/TODO/43.
     // Restoring a world does not change whose autosave group this session
     // writes: that was decided at boot by `bootCareer()` from the record the
@@ -348,7 +349,8 @@ export class Persistence {
     const snap = this.host.bootWorld();
     if (!snap) return false;
     try {
-      if (snap.version !== SNAPSHOT_VERSION) return false;
+      // No version pre-check: `restore`'s parse boundary IS the version rule's
+      // one home now, and the catch below already answers a refusal.
       this.restore(snap);
       if (snap.mode === 'flight') this.host.message('RESUMING FLIGHT', 3);
       return true;

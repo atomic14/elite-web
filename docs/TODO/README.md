@@ -524,7 +524,24 @@ real change to what the game does, and each lands on its own.
 - [ ] 91 — [Delete the target-speed input, and retrain](91-delete-the-target-speed-input.md) — training fidelity/AI · high · large
 - [ ] 92 — [The lead marker assumes every target is a freighter](92-the-lead-marker-assumes-a-freighter.md) — combat bug/UI · medium · small
 - [ ] 93 — [One home for the phosphor](93-one-home-for-the-phosphor.md) — architecture/UI · medium · medium
-- [ ] 94 — [Parse a save at the door, and refuse it whole](94-parse-a-save-at-the-door.md) — correctness/saves · medium · medium
+- [x] 94 — [Parse a save at the door, and refuse it whole](94-parse-a-save-at-the-door.md) — correctness/saves · medium · medium
+
+94 is done, in the shape Chris decided. `parseSnapshot(unknown): WorldSnapshot`
+lives beside the interface it is the one door to, checking what has invariants
+— the version, the branded ids, every fleet index, the galaxy and system
+bounds the rebuild would hang on, arities and finiteness — and passing the
+deliberately-opaque halves through on presence and container shape alone.
+`Persistence.restore` parses at its own first line, so a refused restore
+modifies nothing: capture-before and capture-after are byte-identical where
+the commander used to be replaced seven steps before the throw. `resume()`
+still answers a refusal with false (its version pre-check went — the parse is
+the rule's one home), and `restoreSnapshot` throws to the harness that handed
+it junk, with the session untouched. The gate is `test/snapshot-parse.test.ts`
+and it cannot rot: it deletes and corrupts every key of a REAL captured
+snapshot, walked off the object rather than a list. A parser that accepts
+everything fails 15 of its checks; removing the parse from `restore` fails
+the untouched-session assertion; the round-trip identity and seeded-fleet
+properties held throughout.
 
 The three findings worth knowing without opening the survey. **The HUD leads
 every locked target at 220**, a freighter's cruise, so it under-leads a

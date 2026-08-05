@@ -40,6 +40,7 @@ import './station.test.ts';
 import './game.test.ts';
 import './state.test.ts';
 import './snapshot.test.ts';
+import './snapshot-parse.test.ts';
 import './persistence.test.ts';
 import './saves.test.ts';
 import './save-screens.test.ts';

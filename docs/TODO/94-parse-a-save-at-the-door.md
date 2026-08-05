@@ -157,3 +157,25 @@ carries no `designId`, capture the live commander, call `Persistence.restore`
 inside a `try`, and compare the commander after the throw with the one before.
 They differ — `s.commander` was replaced on the function's first line and the
 throw happened seven steps later.
+
+## Done — 2026-08-05
+
+Landed in the decided shape. `parseSnapshot` is in `snapshot.ts` beside the
+interface (the single declaration; the parser is the only place `unknown`
+becomes one), `Persistence.restore` parses on its first line, `resume()` lost
+its duplicate version pre-check, and `restoreSnapshot` throws to a harness
+with the session untouched — stated in `restore`'s own comment. Two bounds
+the item did not list were added because the rebuild would hang or crash past
+the door without them: `commander.galaxy` 1..8 (the seed loop runs `galaxy`
+twists) and `commander.systemIndex` 0..255 (the scene indexes it).
+
+The gate is `test/snapshot-parse.test.ts`, written first and watched failing:
+the deletion and corruption sweeps walk a real captured snapshot's own keys
+(26 at landing), `galaxyState` is the one stated corruption exemption
+(deliberately opaque — `LivingGalaxy.load` defaults everything), and the
+acceptance property is asserted directly — a poisoned restore refuses AND
+leaves `capture()` byte-identical. Four breaks confirmed red: a parser that
+returns its input (15 failures), the fleet-identity check deleted (2), the
+galaxy bound deleted (1), and the parse removed from `restore` (1 — the
+untouched-session assertion, which is the whole item). Suite 3209 → 3227;
+build, campaign, elite-a 490 and portability 0 all green.
