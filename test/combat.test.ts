@@ -13,7 +13,7 @@ import {
   OPPORTUNIST_FLOOR, GANG_FLOOR, VALUE_PER_TONNE,
 } from '../src/constants/jettison.ts';
 import { markOf } from '../src/game/threat.ts';
-import { ORDINARY_GOODS, ORE, WRECK_CARGO } from '../src/constants/commodities.ts';
+import { ORDINARY_GOODS, ORE } from '../src/constants/commodities.ts';
 import { CargoField, canisterMaxEnergy } from '../src/game/cargo.ts';
 import { SCOOP_RANGE } from '../src/constants/scoop.ts';
 import { breachLoss, freshSystems } from '../src/game/systems.ts';
@@ -206,35 +206,26 @@ console.log('\ncombat');
       && world.cargo.items.every((k) => ORE.includes(k.commodity)));
   }
   {
-    // What a wreck spills is the WRECK_CARGO class, flown through the real
-    // wreck path — a re-inlined list in combat.ts goes red here.
+    // What a wreck spills IS the ordinary-goods class, flown through the real
+    // wreck path — a re-inlined list in combat.ts goes red here. It used to be
+    // that class plus Furs, a seventh row nobody had chosen; Chris collapsed
+    // the two lists into one rule on 2026-08-05.
     seedWorld(90_011);
     const { world, combat } = setup();
     for (let i = 0; i < 60; i += 1) combat.wreck(world.spawn('trader', at(-500), 0));
     const spilled = world.cargo.items.filter((k) => k.kind === 'cargo');
-    check(`a wreck spills only WRECK_CARGO (${spilled.length} canisters)`,
-      spilled.length > 40 && spilled.every((k) => WRECK_CARGO.includes(k.commodity)));
+    check(`a wreck spills only ordinary goods (${spilled.length} canisters)`,
+      spilled.length > 40 && spilled.every((k) => ORDINARY_GOODS.includes(k.commodity)));
+    const furs = COMMODITIES.findIndex((k) => k.name === 'Furs');
+    check('...and Furs — found by name — is no longer among them',
+      furs >= 0 && !ORDINARY_GOODS.includes(furs)
+      && !spilled.some((k) => k.commodity === furs));
   }
 
-  // --- the ordinary-goods decision, pinned -----------------------------------
-  //
-  // constants/commodities.ts records it: the consignment list and the
-  // generation ship's shed are ONE rule (`ORDINARY_GOODS`), and a wreck's
-  // spill is that class plus furs — a divergence recorded, not resolved
-  // (docs/TODO/90-constants-cleanup.md, Open). This holds the relationship at
-  // exactly that: drop the Furs row, add another, or let the lists drift and
-  // it goes red. Furs is found by NAME so the check cannot itself hold a
-  // stale index.
+  // --- the ordinary-goods class, pinned ---------------------------------------
   {
-    const furs = COMMODITIES.findIndex((k) => k.name === 'Furs');
-    check('Furs is a commodity the relationship can name', furs >= 0);
-    const wreckSet = new Set(WRECK_CARGO);
-    check('a wreck spills exactly the ordinary goods, plus furs',
-      WRECK_CARGO.length === ORDINARY_GOODS.length + 1
-      && ORDINARY_GOODS.every((i) => wreckSet.has(i))
-      && wreckSet.has(furs));
-    check('...and none of it is contraband',
-      WRECK_CARGO.every((i) => !isContraband(i)) && ORE.every((i) => !isContraband(i)));
+    check('nothing ordinary is contraband',
+      ORDINARY_GOODS.every((i) => !isContraband(i)) && ORE.every((i) => !isContraband(i)));
     // the ore list, by name: minerals in the majority, then the two metals
     const named = (name: string) => COMMODITIES.findIndex((k) => k.name === name);
     check('the ore list is minerals and metals, minerals in the majority',

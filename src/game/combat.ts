@@ -38,7 +38,7 @@ import { constrictorDestroyed } from './missions.ts';
 import { random, randomInt } from './rng.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { ESCAPE_CHANCE, MINING_YIELD_MIN, MINING_YIELD_SPAN } from '../constants/wreck.ts';
-import { ORE, WRECK_CARGO } from '../constants/commodities.ts';
+import { ORE, ORDINARY_GOODS } from '../constants/commodities.ts';
 
 /** Seconds the cockpit beams stay lit after a shot. */
 export const BEAM_FLASH = 0.12;
@@ -269,7 +269,7 @@ export class Combat {
     }
     if (npc.cargoDrop > 0) {
       this.world.cargo.spawn(npc.object.position,
-        Math.floor(random() * (npc.cargoDrop + 1)), WRECK_CARGO);
+        Math.floor(random() * (npc.cargoDrop + 1)), ORDINARY_GOODS);
     }
     // the drones go dead when the last mothership does
     if (npc.role === 'thargoid'

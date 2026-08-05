@@ -441,7 +441,11 @@ pairs in (68, 70] that would become offerable — so **it is a decision with a
 campaign run attached, not a refactor.** `test/contracts.test.ts` pins the
 shipped 68 from both sides until it is taken.
 
-### A wreck spills the ordinary goods plus Furs, and nobody knows if the Furs are deliberate
+### A wreck spills the ordinary goods plus Furs — DECIDED 2026-08-05: collapsed
+
+Chris chose one rule: `WRECK_CARGO` is deleted and `Combat.wreck` spills
+`ORDINARY_GOODS` — wrecks stop dropping Furs, and the three lists the survey
+found are finally one class. The finding as it stood:
 
 The ordinary-goods unification (slice 8, `constants/commodities.ts`) found
 the three lists are TWO rules: the contract consignment and the generation
