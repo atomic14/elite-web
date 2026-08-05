@@ -467,18 +467,14 @@ in which case `THARGON_AMBUSH_DELAY` is deleted and `game.ts` reads the
 redeploy. **It costs a second of the opening of every mis-jump either way**, so
 it is a decision rather than a refactor.
 
-### NPCs fly through the Dodo's hull — the cube is 40 against a measured 50
+### NPCs fly through the Dodo's hull — FIXED 2026-08-05, both cubes read 50
 
-The survey's live divergence, NAMED by slice 10 and deliberately not fixed.
-`NPC_HULL_BOX_MARGIN = 40` sits beside the player's `HULL_BOX_MARGIN = 50` in
-`constants/docking.ts` with the argument written out: 50 was measured (the
-Dodo's tallest vertices reach 243 against a 196 slot plane; 196 + 40 = 236
-misses them), so NPC traffic threads a Dodo's hull and is reported clear,
-while the Coriolis covers at either value — which is why nobody has seen it.
-`test/docking.test.ts` bisects the cube out of the real `WorldStep`, so the
-fix is one edit and one red test. **Fixing it is a behaviour change**: NPC
-traffic near a Dodo starts bouncing where it did not, in every tech 10+
-system. A decision for Chris, not a lookup.
+The survey's live divergence, named by slice 10 and resolved by Chris:
+`NPC_HULL_BOX_MARGIN = HULL_BOX_MARGIN` now, one rule at the only measured
+value. The Dodo's cube face moved 236 → 246 (its tallest vertices are 243,
+now covered) and the Coriolis's 200 → 210; NPC traffic near a Dodo bounces
+where it silently clipped. `test/docking.test.ts`'s bisect follows the
+constant and the campaign is unmoved — its trade legs never fly the sky.
 
 ### "Just outside the slot" is 420, 450 and 900 — DECIDED 2026-08-05
 

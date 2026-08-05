@@ -52,20 +52,19 @@ export const LINED_UP_LATERAL = 45;
 export const HULL_BOX_MARGIN = 50;
 
 /**
- * The same cube for every NPC — and it is 40 where the player's is 50, which
- * is a DIVERGENCE, recorded here rather than resolved (docs/TODO/90's rule:
- * fixing one is a behaviour change and must not ride in a refactor).
+ * The same cube for every NPC — and it is the SAME RULE as the player's now,
+ * by decision rather than luck (Chris, 2026-08-05).
  *
- * It was a bare `+ 40` in `world-step.ts` with no comment, against the
- * player's measured 50 above. 196 + 40 = 236, and the Dodo's tallest vertices
- * are at 243 — so NPC traffic flies through the Dodo's hull and is reported
- * clear. The Coriolis is unaffected (160 + 40 = 200 covers 160), which is why
- * nobody has seen it: the Dodo only appears at `DODO_TECH_LEVEL`. 50 is right
- * by the only measurement anyone took; correcting this makes NPC traffic near
- * a Dodo start bouncing where it did not, so it is a decision for Chris on
- * the cleanup list, not a lookup.
+ * It shipped as a bare `+ 40` in `world-step.ts` with no comment, against the
+ * player's measured 50 above: 196 + 40 = 236 while the Dodo's tallest
+ * vertices are at 243, so NPC traffic flew through the Dodo's hull and was
+ * reported clear. The Coriolis was covered either way (160 + 40 = 200), which
+ * is why nobody had seen it — the Dodo only appears at `DODO_TECH_LEVEL`. 50
+ * is the only measured value, so both cubes read it: the Dodo's face moved
+ * 236 → 246 and the Coriolis's 200 → 210, and NPC traffic near a Dodo now
+ * bounces where it silently clipped.
  */
-export const NPC_HULL_BOX_MARGIN = 40;
+export const NPC_HULL_BOX_MARGIN = HULL_BOX_MARGIN;
 
 /**
  * The slot channel, as half-extents ACROSS the slot and ALONG it, in

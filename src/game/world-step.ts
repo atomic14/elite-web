@@ -410,8 +410,6 @@ export class WorldStep {
     // wreckNpc, NOT destroyNpc — see npcVsNpcs
     for (const n of wrecked) this.host.wreckNpc(n);
 
-    // The NPCs' cube is 40 where the player's is 50 — a recorded divergence,
-    // not a choice; see NPC_HULL_BOX_MARGIN.
     npcsVsStation(
       world.npcs, world.station, world.stationDockZ + NPC_HULL_BOX_MARGIN, this.scratch);
 
