@@ -2850,3 +2850,67 @@ single ram and now reads 0.600, 0.000, 0.000, 0.000. A pirate under the `trained
 A/B flag goes from `evading` at every one of those marks to `own policy` from
 1.2s on. A pirate hit at long range and left to amble was latched at 1.200
 forever and now cools off on schedule.
+
+## Run 20 — TODO 91: the target-speed input is deleted, and three candidates that must not ship unflown
+
+**EVERY FIGURE ABOVE THIS ENTRY IS INCOMPARABLE WITH EVERY FIGURE BELOW IT.**
+The encoder changed shape: docs/TODO/91 deleted the raw target-speed slot (the
+input the game clamped at `TARGET_SPEED_FLOOR` and the trainer never did), so
+the solo/defend/pack/wide observations are 13/16/17/25 now and a target's
+speed reaches a policy only through the closing rate, honestly on both sides.
+The three shipped policies were fitted on the old shape and fly it OUT OF
+DISTRIBUTION until their replacements are promoted; their rows in the tables
+below are that degraded reading, not their historical quality.
+
+```sh
+npm run train -- attack --pool --validate-select --out pirate-attack-t91 --gens 400 --pop 48 --eps 8
+npm run train -- pack --validate-select --select-kills --out pirate-pack-t91 --gens 400 --pop 48 --eps 6
+npm run train -- defend --gens 300 --pop 48 --eps 3 --validate-select --out jameson-defend-t91
+```
+
+The budgets are runs 9, 7 and the TODO 65/71 defend shape, unchanged, so the
+comparison is like-for-like on search effort. Validation selection picked the
+champions (attack rejected 281 of 335 generation champions for constant
+throttle; defend 145 of 277).
+
+### Held-out probes, new champion vs incumbent-on-the-new-encoder
+
+`npm run defence-probe -- 400` (800 episodes each, bases 8675309/1234577):
+
+| brain | pools | died | broke | killed |
+| --- | --- | --- | --- | --- |
+| jameson-defend-g2 (incumbent, OOD) | 98.1% | 0/800 | 26.6% | 13.4% |
+| jameson-defend-t91 | 98.2% | 0/800 | **11.4%** | 6.8% |
+
+**The defend candidate LOSES.** Equal survival, and it breaks less than half
+the attacking force the out-of-distribution incumbent still breaks. Not
+promotable by the item's own criterion; a bigger budget or a seeded start
+(`widenBrain` cannot narrow, so seeding from g2 needs a narrowing pass nobody
+has written) is the next move.
+
+`flight-probe` at 200 episodes, target stops and turns to fight:
+
+| brain | speed | range p10/med/p90 | closest | passes | rams | hurt |
+| --- | --- | --- | --- | --- | --- | --- |
+| scripted (ships) | 236 | 178/546/902 | 87 | 4.46 | 0.00 | 13.5% |
+| pirate-attack-g3 (OOD) | 157 | 83/142/1359 | 33 | 0.00 | 1.21 | 21.5% |
+| pirate-attack-t91 | 230 | 119/238/972 | 35 | 0.04 | **0.56** | 13.2% |
+| pirate-pack-r4-selectonly (OOD) | 120 | 191/893/1934 | 33 | 0.75 | 0.49 | 8.7% |
+| pirate-pack-t91 | 158 | 88/300/1680 | 33 | 0.01 | **2.33** | 41.9% |
+
+**The attack candidate reads healthier than the degraded incumbent** — near
+the scripted run's speed, half the rams, comparable damage — and still makes
+no passes, because docs/TODO/73's missing handover is unchanged and no brain
+can complete one. **The pack candidate is a rammer**: 41.9% of her pools an
+episode is ferocious, and 2.33 rams a minute of it is exactly the shape
+CLAUDE.md warns wins measurements and loses the game. It needs flying before
+anyone believes it, and probably a ram-penalty rerun after that.
+
+### The state of the branch
+
+`todo-91-target-speed` holds the encoder change (stage 1) and these three
+candidates (stage 2). Four tests are deliberately red: the three shipped-brain
+quality gates (the OOD reading above) and the only-what-ships weights gate,
+which correctly refuses the unpromoted candidates. Stage 3 — promotion — is a
+decision per phase, made at the stick: nothing merges to main until the
+replacement pirates have been flown from `T` and chosen over what ships.
