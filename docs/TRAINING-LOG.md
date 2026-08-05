@@ -2967,3 +2967,50 @@ second-threat bearing and count, missile bearing, the fore/aft split
 (~16 → 28, HIDDEN 64), plus a hysteresis latch on target selection that
 serves any brain. Both t91 candidates stay unpromoted; nothing merges
 before it is flown.
+
+## Run 21 — 2026-08-05: the v2 world (lock, cadence, 29 inputs, miss cost) — and the champion is a pacifist
+
+Everything Chris's diagnosis asked for went in before this run, each with its
+own measurement in the git log:
+
+- **The threat lock** (`game/threat-lock.ts`): 5s minimum hold + 2x overtake,
+  one home for all three call sites. Churn at gang 4: 26.8 → 9.1 switches/min.
+- **The 10Hz trader cadence**: the episode's policy trader now decides at
+  `DECISION_INTERVAL` and holds the control between, as the game does. It
+  decided every physics frame before — fitted at a reaction speed the game
+  never gives.
+- **The gun fires at the observed threat**: it fired at a fresh
+  `nearestPirate()` while the brain aimed at the held one.
+- **Encoder v2** (`observeDefend`, 16 → 29): threat velocity in ship frame,
+  second-threat bearing + distance, hostile count, warhead bearing, fore/aft
+  shield split. `DEFEND_HIDDEN = 64`.
+- **A real fire price**: −0.05 per MISS (one landed hit is worth a measured
+  mean 0.32 through `dealt`; break-even ~14% accuracy). The old −0.02 per
+  shot let Chris's recorded champion spray 796 shots for 5 hits nearly free.
+
+**The first run's selection was an instrument failure, not a result.**
+`flies()` probed genomes through a 25-float buffer; a 29-input genome read
+`undefined` past the end, went NaN, and emitted constant −1 on every head —
+all 880 champions "rejected for constant throttle", after which the fallback
+silently saved the raw luckiest genome under the candidate's name. Fixed
+three ways: `makeObs()` is the one home for buffer width, a fully-rejected
+run refuses to save, and the bogus file was deleted unflown.
+
+**The rerun (same seed, byte-identical evolution) selected a pacifist.**
+Champion: validation kept 86.2%, died 0/24, broke 0.0%. The 1600-episode
+probe agrees on every axis: pools 98.5%, died 0/1600, **broke 0.0%**, killed
+2.4% (collisions, not gunnery). With a real miss price, the search found
+that never firing dominates: the selection outcome (0.6 × kept + 0.4 ×
+broke) would happily have ranked a fighter above this — 85% kept + 30%
+broke beats 99% kept + 0% — but no fighting genome survived to be ranked.
+The wall is the search, not the selector, and this is the third defend
+retrain in a row to hit it from a different side (turret, then sprayer, now
+pacifist).
+
+**The weights are deleted, unshipped, per the TODO 57 rule** — this file and
+`train/logs/jameson-defend-v2-1785949120913.jsonl` are the record. The
+consequence Chris had already called from the first two walls: the co-pilot's
+main line is now the SCRIPTED attack run — the pilot that already aims, paced
+by the player's own laser — flying the commander's ship through the same
+`attack-run.ts` composition every pirate flies. The trained line stays a
+research track, not the product.
