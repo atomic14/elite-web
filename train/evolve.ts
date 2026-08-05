@@ -27,7 +27,7 @@ import {
 import {
   randomBrain, mutate, brainFromFile, widenBrain, act, makeScratch,
   OBS_SIZE, DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
-  OUT_SIZE, DEFEND_OUT_SIZE, HIDDEN,
+  OUT_SIZE, DEFEND_OUT_SIZE, HIDDEN, DEFEND_HIDDEN,
   type Brain, type BrainFile,
 } from '../src/ai-training/policy.ts';
 import { observeFor, shipView, type ShipView } from '../src/ai-training/observation.ts';
@@ -192,6 +192,8 @@ const VALIDATE_SELECT = args.includes('--validate-select');
  */
 const OBS = phase === 'pack' ? (WIDE ? PACK_WIDE_OBS_SIZE : PACK_OBS_SIZE)
   : phase === 'defend' ? DEFEND_OBS_SIZE : OBS_SIZE;
+// the defence phase gets the wide hidden layer — the reasoning is DEFEND_HIDDEN's
+const H = phase === 'defend' ? DEFEND_HIDDEN : HIDDEN;
 const OUT = phase === 'defend' ? DEFEND_OUT_SIZE : OUT_SIZE;
 
 interface PoolEntry {
@@ -435,7 +437,7 @@ if (seedName) {
   population = [seedBrain, ...Array.from({ length: POP - 1 }, (_, i) =>
     mutate(seedBrain, rng, i % 2 === 0 ? 0.05 : 0.12))];
 } else {
-  population = Array.from({ length: POP }, () => randomBrain(rng, OBS, HIDDEN, 0.5, OUT));
+  population = Array.from({ length: POP }, () => randomBrain(rng, OBS, H, 0.5, OUT));
 }
 
 const logPath = `${LOGS_DIR}${OUT_NAME}-${Date.now()}.jsonl`;

@@ -10,10 +10,10 @@ import type {
   NpcCombatProfileId, ShipDesignId, ShipIdentity,
 } from './ship-identity.ts';
 import {
-  act, makeScratch, PACK_WIDE_OBS_SIZE, type Brain,
+  act, makeScratch, MAX_OBS_SIZE, type Brain,
 } from '../ai-training/policy.ts';
 import {
-  observeFor, shipView, writeView, type ObservableMate,
+  observeFor, shipView, writeView, type ObservableMate, type ThreatsView,
 } from '../ai-training/observation.ts';
 import { defenceBrain } from './brains.ts';
 import {
@@ -417,8 +417,8 @@ export class NpcShip {
   private readonly tmpMat = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
 
-  // sized for PACK_WIDE_OBS_SIZE (26); solo brains read the first 14 slots
-  private static readonly obsBuf = new Float32Array(PACK_WIDE_OBS_SIZE);
+  // sized for the WIDEST encoder; narrower brains read their own prefix
+  private static readonly obsBuf = new Float32Array(MAX_OBS_SIZE);
   /** scratch packmate list, reused so the 10 Hz decision stays allocation-light */
   private static readonly mateView: ObservableMate[] = [];
   /** …backed by a pool that is never truncated, so growth allocates once */
@@ -684,15 +684,26 @@ export class NpcShip {
       // armed traders turn and fight with the trained Jameson defence brain
       const defence = this.armed ? defenceBrain(brains) : null;
       if (defence) {
+        const live = this.attackers.filter((a) => a.state.alive);
         if (this.state.provokedByPlayer && distPlayer < 6000) {
+          // fighting the commander; every NPC attacker is 'the rest of the sky'
           return this.brainFly(defence, dt,
-            player.position, player.quaternion, 300, distPlayer, 'player');
+            player.position, player.quaternion, 300, distPlayer, 'player', null, {
+              others: live.map((a) => ({ pos: a.object.position })),
+              count: live.length + 1,
+              missilePos: null,
+            });
         }
         const attacker = this.nearestAttacker(dt);
         if (attacker) {
           const d = attacker.object.position.distanceTo(this.object.position);
           return this.brainFly(defence, dt,
-            attacker.object.position, attacker.object.quaternion, 260, d, attacker);
+            attacker.object.position, attacker.object.quaternion, 260, d, attacker, null, {
+              others: live.filter((a) => a !== attacker)
+                .map((a) => ({ pos: a.object.position })),
+              count: live.length,
+              missilePos: null,
+            });
         }
       }
       this.steerToward(
@@ -905,6 +916,12 @@ export class NpcShip {
      * whenever it exists — `observeFor` decides whether this brain can read it.
      */
     fleet: readonly NpcShip[] | null = null,
+    /**
+     * The rest of the sky, for a DEFENCE brain — the attackers beyond the one
+     * being fought (`ThreatsView`). Null for the attack phases, whose encoders
+     * never read it; the defence-path callers below build it from `attackers`.
+     */
+    threats: ThreatsView | null = null,
   ): FireEvent | null {
     this.state.flownBy = 'brain';
     this.state.brainTimer -= dt;
@@ -933,6 +950,10 @@ export class NpcShip {
       // here at all — the button belongs to the ship that has one to press
       // (docs/TODO/72).
       me.missileInbound = false;
+      // One pool, not two faces: whichever side a hit lands, this is what it
+      // spends — so the split a defence brain reads is the pool, twice.
+      me.fore = this.healthFraction;
+      me.aft = this.healthFraction;
       me.pitchRate = this.state.brainPitchRate;
       me.rollRate = this.state.brainRollRate;
       writeView(tv, targetPos, targetQuat);
@@ -942,7 +963,8 @@ export class NpcShip {
       // encoder reads, and nothing if this ship flies alone.
       this.brainControl = act(
         brain,
-        observeFor(brain, me, tv, fleet ? this.packmates(fleet) : null, NpcShip.obsBuf),
+        observeFor(brain, me, tv, fleet ? this.packmates(fleet) : null, NpcShip.obsBuf,
+          threats ?? undefined),
         NpcShip.scratch,
       );
     }

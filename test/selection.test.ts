@@ -203,13 +203,16 @@ check(`the turret CLEARS fights (${fought.cleared}/${EPISODES} against`
 // most of what a passive commander was taking. The pacifist's total fell by a
 // fifth (305 -> 238) while the turret's barely moved. So cumulative damage no
 // longer separates them and the honest statement is the trade: a pilot who
-// stops to shoot is hit harder while it lasts, and it lasts a third as long.
+// stops to shoot is hit harder while it lasts, and it does not last as long.
+// The margin was 0.75 until the 10Hz decision cadence reached the trainer
+// (2026-08-05) and stretched the turret's fights to 34.2s against 45.0s —
+// still clearly shorter, no longer a third shorter.
 check(`...trading a higher damage RATE for a fight that ends`
   + ` (${(fought.taken / fought.seconds).toFixed(1)}/s over ${fought.seconds.toFixed(1)}s`
   + ` against ${(fled.taken / fled.seconds).toFixed(1)}/s over ${fled.seconds.toFixed(1)}s,`
   + ` totals ${fought.taken.toFixed(0)} and ${fled.taken.toFixed(0)})`,
 fought.taken / fought.seconds > fled.taken / fled.seconds
-  && fought.seconds < fled.seconds * 0.75);
+  && fought.seconds < fled.seconds * 0.85);
 
 // THE TRAP THE OLD OUTCOME FELL INTO, measured on the pair: winning the fight
 // early means healing for less of the clock, so the pilot that is hit LESS ends

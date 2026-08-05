@@ -325,6 +325,18 @@ export class Ordnance {
     return this.missiles.some((m) => m.target === null);
   }
 
+  /**
+   * WHERE the hostile warhead is, or null when the sky is clear — the same
+   * `target === null` test as `missileInbound`, returning the missile instead
+   * of the fact of it. The defence policy observes its bearing
+   * (`observeDefend` slots 24-26); the cap of one hostile missile in the air
+   * is what lets a single position be the whole answer.
+   */
+  get hostileMissilePos(): THREE.Vector3 | null {
+    const m = this.missiles.find((m) => m.target === null);
+    return m ? m.object.position : null;
+  }
+
   /** Everything within range, gone. @returns the reply, and what it caught. */
   detonateEnergyBomb(
     commander: CommanderData, playerPos: THREE.Vector3,

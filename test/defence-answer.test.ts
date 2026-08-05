@@ -24,7 +24,8 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import {
   randomBrain, widenBrain, genomeSize, act, makeScratch,
-  OBS_SIZE, DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, DEFEND_OUT_SIZE, HIDDEN,
+  OBS_SIZE, DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, DEFEND_OUT_SIZE,
+  HIDDEN, MAX_OBS_SIZE,
   type Brain, type BrainFile,
 } from '../src/ai-training/policy.ts';
 import { observeFor, shipView, type ShipView } from '../src/ai-training/observation.ts';
@@ -69,7 +70,7 @@ import { defenceBrain } from '../src/game/brains.ts';
   {
     const [me, tgt] = geometry(1500, 200);
     me.hp = 0.4; me.energy = 0.2; me.missileInbound = true;
-    const buf = new Float32Array(PACK_WIDE_OBS_SIZE).fill(-9);
+    const buf = new Float32Array(MAX_OBS_SIZE).fill(-9);
     const defender = randomBrain(rng, DEFEND_OBS_SIZE, HIDDEN, 0.5, DEFEND_OUT_SIZE);
     observeFor(defender, me, tgt, null, buf);
     check('a defence brain with no fleet still gets the defence encoder',
@@ -85,7 +86,7 @@ import { defenceBrain } from '../src/game/brains.ts';
   //    move for the fourteen-input family, which is the defect being fixed.
   const controlsAcross = (brain: Brain, hp: number): string => {
     const scratch = makeScratch();
-    const buf = new Float32Array(PACK_WIDE_OBS_SIZE);
+    const buf = new Float32Array(MAX_OBS_SIZE);
     const out: string[] = [];
     for (const targetSpeed of [0, 220, 400]) {
       for (const z of [400, 900, 1800, 2600]) {
@@ -152,7 +153,7 @@ import { defenceBrain } from '../src/game/brains.ts';
     // exactly that), so widening IT would seed from a brain the new encoder
     // already under-feeds. The property is the widening's, and it is stated
     // for the shapes a retrain would actually cross today: solo 13 to
-    // defence 16/13-heads.
+    // the defence shape.
     const narrow = randomBrain(rng, OBS_SIZE);
     const wide = widenBrain(narrow, DEFEND_OBS_SIZE, DEFEND_OUT_SIZE);
     eq('a widened brain declares the new shape', `${wide.obsSize}/${wide.outSize}`,
@@ -170,7 +171,7 @@ import { defenceBrain } from '../src/game/brains.ts';
   //    being invalidated by a control they can never use.
   {
     const scratch = makeScratch();
-    const buf = new Float32Array(PACK_WIDE_OBS_SIZE);
+    const buf = new Float32Array(MAX_OBS_SIZE);
     const [me, tgt] = geometry(900, 220);
     me.missileInbound = true;
     let pressed = 0;
@@ -221,8 +222,11 @@ console.log('\nmissiles: the target answers one');
   // and in nothing else.
   const presser = jameson;
 
-  // One pirate, one warhead, on a held-out defence seed.
-  const SEED = 8_722_823;
+  // One pirate, one warhead, on a held-out defence seed — re-searched
+  // 2026-08-05 when the threat lock and the 10Hz trader cadence changed how
+  // the shipped policy flies the fight: the property needs a seed where the
+  // two runs stay identical outside the warhead itself.
+  const SEED = 8_738_342;
   const run = (brain: typeof presser, ecm: boolean): EpisodeReport => {
     const { count, hull, laser, energyUnit } = defenceFight(SEED);
     const ep = new Episode({
@@ -304,17 +308,18 @@ console.log('\ncombat computer: the E.C.M.');
   // Two rules make a co-pilot with a button safe: a policy with no E.C.M. head
   // can never ask for one, and a policy that always asks only gets it when
   // something is actually coming.
+  const warheadAt = new THREE.Vector3(0, 0, 900);
   check('a policy with no E.C.M. head never reaches for one',
-    !auto.combatDemand(1 / 60, false, noButton, true).ecm);
+    !auto.combatDemand(1 / 60, false, noButton, warheadAt).ecm);
   state.session.ccEngaged = true;
   // The shipped defender WILL press — it was trained to — but never on an empty
   // sky, because `autopilotEcm` gates it on there being a warhead to answer.
   check('...and the shipped one presses nothing on an empty sky',
-    !auto.combatDemand(1 / 60, false, defenceBrain(), false).ecm);
+    !auto.combatDemand(1 / 60, false, defenceBrain(), null).ecm);
   state.session.ccEngaged = true;
   // 0.2s, so this is a FRESH decision rather than the one cached a frame ago
   check('...but answers a warhead in the air',
-    auto.combatDemand(0.2, false, defenceBrain(), true).ecm);
+    auto.combatDemand(0.2, false, defenceBrain(), warheadAt).ecm);
 }
 
 // --- the combat computer's cached decision, including the new button ---------

@@ -1409,7 +1409,7 @@ export class Game {
     if (this.input.mouseFlight) this.input.decayMouse(dt);
     if (!this.state.session.ccEngaged) return hands;
     const auto = this.autopilot.combatDemand(
-      dt, this.handsOn(), DEFEND_BRAIN, this.ordnance.missileInbound);
+      dt, this.handsOn(), DEFEND_BRAIN, this.ordnance.hostileMissilePos);
     this.applyAutopilot(auto.events);
     // A co-pilot that can answer a warhead — the same button, the same price
     // and the same messages as the player's own E.C.M. key (docs/TODO/72). It

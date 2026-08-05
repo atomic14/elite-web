@@ -4,11 +4,12 @@
 // One question per encoder, and every answer is in the OBSERVER'S ship frame,
 // so a policy is position- and orientation-invariant:
 //
-//   observe          14  a lone fighter and its target
-//   observeDefend    17  ...plus how hurt we are and whether a warhead is
-//                        coming (docs/TODO/71, /72)
-//   observePack      18  ...plus where the nearest wingman is
-//   observePackWide  26  ...plus what that wingman is DOING
+//   observe          13  a lone fighter and its target
+//   observeDefend    29  ...plus how hurt we are, the warhead, the threat's
+//                        velocity, the SECOND threat and the shield split
+//                        (docs/TODO/71, /72, /91)
+//   observePack      17  ...plus where the nearest wingman is
+//   observePackWide  25  ...plus what that wingman is DOING
 //
 // A separate file from `policy.ts` since docs/TODO/71 and /72 put a third
 // encoder and a fourth output head in. That file is the NETWORK and the GENOME
@@ -30,7 +31,7 @@
 // Erasable-TypeScript only — runs in Node via --experimental-strip-types.
 
 import {
-  DEFEND_OBS_SIZE, DEFEND_OUT_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain,
+  DEFEND_OUT_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain,
 } from './policy.ts';
 import { TURN } from '../constants/hull-motion.ts';
 import { OBS_SPEED_SCALE } from '../constants/brain-flight.ts';
@@ -112,6 +113,15 @@ export interface ShipView {
    * per-frame would be playing a different game from the one the cap describes.
    */
   missileInbound: boolean;
+  /**
+   * Each shield FACE alone, 0..1 — `observeDefend` slots 27/28, from
+   * `systems.ts`'s own `foreShieldLeft`/`aftShieldLeft` so the trainer and
+   * the game cannot compute them differently. A ship with one pool rather
+   * than two faces (any NPC) writes its health fraction to both: its whole
+   * pool is the face it spends, whichever side the hit lands.
+   */
+  fore: number;
+  aft: number;
   laserTemp: number;
   laserCooldown: number;
   pitchRate: number;
@@ -135,7 +145,7 @@ export function shipView(maxSpeed = OBS_SPEED_SCALE, turnRate = 1, speed = 0): S
     speed, cls: { maxSpeed, turnRate, hp: 1 }, hp: 1,
     // Undamaged, and nothing coming: the values a caller that fills neither is
     // asking for, and the ones every 14- and 18-input brain was fitted at.
-    energy: 1, missileInbound: false,
+    energy: 1, missileInbound: false, fore: 1, aft: 1,
     laserTemp: 0, laserCooldown: 0, pitchRate: 0, rollRate: 0,
   };
 }
@@ -213,48 +223,104 @@ export function observe(me: ShipView, target: ShipView, out: Float32Array): Floa
 }
 
 /**
- * DEFENCE observation: the solo 14, plus the three things a ship being shot at
- * needs and a ship doing the shooting does not.
+ * What a defender can see of the sky BEYOND the ship it is fighting.
  *
- *   13  everything we have left, over everything we can hold — press or break
- *       off. The same expression as `observePackWide`'s slot 24, on purpose.
- *   14  the energy bank alone. Zero energy is destruction, the shields do not
- *       come back until it is out of its last quarter, and the E.C.M. spends a
- *       quarter of it — three rules, one number, and none of them is visible in
- *       slot 13 because a full shield hides an empty bank.
- *   15  a hostile warhead is in the air. 1 or 0; there is at most one, because
- *       `Ordnance` caps the sky at one hostile missile so that one press is a
- *       complete answer.
- *
- * ## Why a separate encoder rather than two more slots on `observe()`
- *
- * `observePack` and `observePackWide` both CALL `observe()` first, so appending
- * a slot there moves the input layout of every brain in the project — one line,
- * three invalidated policies, three retrains (invariant 5). None of the three
- * numbers above means anything to a pirate: it has one pool rather than three,
- * nothing ever launches a warhead at it in an episode, and its E.C.M. is rolled
- * at spawn and applied by `ordnance.ts` without the ship deciding anything. So
- * the phase that needs the inputs is the phase that pays for them, and
- * `pirate-attack-g3` and `pirate-pack-r4-selectonly` are untouched — byte for
- * byte, which is a thing a test can assert rather than a thing to hope.
- *
- * ## What was left out
- *
- * The FORE/AFT SHIELD SPLIT. It is real — an attacker on your six spends a
- * different face from one head-on (`shield-face.ts` `hitFromAhead`), and the
- * encoder already carries the bearing to the target in slots 3-5, so
- * "keep the good face toward him" is expressible from two more slots. It is
- * left out because it answers a DIFFERENT question from the two docs/TODO/71
- * and /72 are about ("how hurt am I", "is there a warhead"), and every input is
- * search space a fixed generation budget has to cover. Slots 14 and 15 between
- * them give the total and the bank, so the shields' SUM is already derivable;
- * only the split is missing, and it is one size (19) away for whoever wants it.
+ * The threat lock (game/threat-lock.ts) holds the fought target steady, and
+ * this is the other half of that bargain: the policy is deliberately not
+ * chasing the second attacker, so it must at least SEE it. Filled by the
+ * combat computer from the hostiles list, by an armed trader from its
+ * attackers, and by the training episode from its pirates — the same three
+ * callers as the lock, feeding the same encoder.
  */
-export function observeDefend(me: ShipView, target: ShipView, out: Float32Array): Float32Array {
+export interface ThreatsView {
+  /** every OTHER live hostile — the fought target is slots 3-6's business */
+  others: readonly { pos: V3 }[];
+  /** live hostiles in total, the fought target included */
+  count: number;
+  /** the hostile warhead in the air, or null when the sky is clear */
+  missilePos: V3 | null;
+}
+
+/** One target and nothing else — a harness, or a caller with no sky to report. */
+export const NO_OTHER_THREATS: ThreatsView = { others: [], count: 1, missilePos: null };
+
+/**
+ * DEFENCE observation (v2): the solo 13, plus everything a ship being shot at
+ * by a gang needs and a lone hunter does not.
+ *
+ *   13     everything we have left, over everything we can hold — press or
+ *          break off. The same expression as `observePackWide`'s slot 24.
+ *   14     the energy bank alone. Zero energy is destruction, the shields do
+ *          not come back until it is out of its last quarter, and the E.C.M.
+ *          spends a quarter of it — none of that is visible in slot 13,
+ *          because a full pair of shields hides an empty bank.
+ *   15     a hostile warhead is in the air (1/0). At most one, because
+ *          `Ordnance` caps the sky so one E.C.M. press is a complete answer.
+ *   16-18  the fought threat's VELOCITY, in our ship frame, over
+ *          `OBS_SPEED_SCALE` — where it is going, not just where it is.
+ *          The v1 encoder gave bearing and closing speed only, so "lead the
+ *          target" and "it is crossing left" were unrepresentable; a
+ *          memoryless network cannot differentiate its own inputs.
+ *   19-21  bearing to the SECOND-nearest hostile, our frame (zeros if none).
+ *   22     ...and its log distance (1 — "far" — if none), `logDistance`.
+ *   23     live hostiles over 4, the biggest gang `defenceFight` spawns.
+ *   24-26  bearing to the inbound warhead, our frame (zeros when slot 15 is
+ *          0). Whether to press the E.C.M. is slot 15's fact; where to point
+ *          the nose while it closes is this one's.
+ *   27-28  fore and aft shield faces, each over its own maximum — an attacker
+ *          on your six spends a different face from one head-on
+ *          (`shield-face.ts`), so "keep the good face toward him" is flyable
+ *          only if the split is visible. Their SUM is already in slot 13.
+ *
+ * ## Why a separate encoder rather than slots on `observe()`
+ *
+ * `observePack` and `observePackWide` both CALL `observe()` first, so
+ * appending a slot there moves the input layout of every brain in the project
+ * (invariant 5). None of these numbers means anything to a pirate — the phase
+ * that needs the inputs is the phase that pays for them.
+ */
+export function observeDefend(
+  me: ShipView, target: ShipView, threats: ThreatsView, out: Float32Array,
+): Float32Array {
   observe(me, target, out);
   out[13] = Math.max(0, Math.min(1, me.hp / me.cls.hp));
   out[14] = Math.max(0, Math.min(1, me.energy));
   out[15] = me.missileInbound ? 1 : 0;
+  const inv = { x: -me.quat.x, y: -me.quat.y, z: -me.quat.z, w: me.quat.w };
+  // the fought threat's velocity vector, expressed in our frame — its nose
+  // direction times its speed, which is exactly how every ship in this game
+  // moves (`advance`: no drift, no sideslip)
+  const tFwd = qRotate(inv, fwdOf(target));
+  const tSpeed = Math.min(1, target.speed / OBS_SPEED_SCALE);
+  out[16] = tFwd.x * tSpeed;
+  out[17] = tFwd.y * tSpeed;
+  out[18] = tFwd.z * tSpeed;
+  let second: { pos: V3 } | null = null;
+  let secondD = Infinity;
+  for (const o of threats.others) {
+    const d = vLen(vSub(o.pos, me.pos));
+    if (d < secondD) { secondD = d; second = o; }
+  }
+  if (second) {
+    const dir = qRotate(inv, vNorm(vSub(second.pos, me.pos)));
+    out[19] = dir.x;
+    out[20] = dir.y;
+    out[21] = dir.z;
+    out[22] = logDistance(secondD);
+  } else {
+    out[19] = 0; out[20] = 0; out[21] = 0; out[22] = 1;
+  }
+  out[23] = Math.min(1, threats.count / 4);
+  if (threats.missilePos) {
+    const dir = qRotate(inv, vNorm(vSub(threats.missilePos, me.pos)));
+    out[24] = dir.x;
+    out[25] = dir.y;
+    out[26] = dir.z;
+  } else {
+    out[24] = 0; out[25] = 0; out[26] = 0;
+  }
+  out[27] = Math.max(0, Math.min(1, me.fore));
+  out[28] = Math.max(0, Math.min(1, me.aft));
   return out;
 }
 
@@ -396,20 +462,22 @@ export function observeFor(
   target: ShipView,
   mates: readonly ObservableMate[] | null,
   out: Float32Array,
+  /** the rest of the sky, for the defence encoder — see `ThreatsView` */
+  threats: ThreatsView = NO_OTHER_THREATS,
 ): Float32Array {
   // The defence encoder is asked for FIRST and asked by its HEAD count, not
   // its input count. Two reasons. It is the one encoder that is not a rung on
   // the pack ladder: a defender has no fleet, so `mates` is null and every
   // test below would fall through to the solo block and leave the defence tail
-  // holding whatever the caller last put there. And since docs/TODO/91 removed
-  // the target-speed slot, the NEW pack size (17) is the OLD defence size —
-  // dispatching a stale `jameson-defend` file by input count would silently
-  // encode it as a pack brain. The E.C.M. head is the defence family's alone
-  // (`DEFEND_OUT_SIZE`, docs/TODO/72), so the head count cannot collide, and a
-  // stale defence file still reaches its own encoder — out of distribution
-  // until its retrain, which is expected, never mis-encoded.
-  if (brain.outSize === DEFEND_OUT_SIZE || brain.obsSize === DEFEND_OBS_SIZE) {
-    return observeDefend(me, target, out);
+  // holding whatever the caller last put there. And input counts COLLIDE
+  // across generations — docs/TODO/91's shuffle left the old defence width
+  // equal to the new pack width — where the E.C.M. head is the defence
+  // family's alone (`DEFEND_OUT_SIZE`, docs/TODO/72) and every defence file
+  // ever saved has it. A stale narrow file still reaches its own encoder —
+  // out of distribution until its retrain, which is expected, never
+  // mis-encoded.
+  if (brain.outSize === DEFEND_OUT_SIZE) {
+    return observeDefend(me, target, threats, out);
   }
   if (!mates || brain.obsSize < PACK_OBS_SIZE) return observe(me, target, out);
   if (brain.obsSize >= PACK_WIDE_OBS_SIZE) return observePackWide(me, target, mates, out);

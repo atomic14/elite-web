@@ -8,10 +8,12 @@
 // spell it out separately.
 
 import {
-  observe, observeDefend, observeFor, observePackWide, shipView, writeView,
-  type ObservableMate,
+  NO_OTHER_THREATS, observe, observeDefend, observeFor, observePackWide,
+  shipView, writeView, type ObservableMate,
 } from '../src/ai-training/observation.ts';
-import { OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain } from '../src/ai-training/policy.ts';
+import {
+  MAX_OBS_SIZE, OBS_SIZE, PACK_WIDE_OBS_SIZE, type Brain,
+} from '../src/ai-training/policy.ts';
 import { OBS_SPEED_SCALE } from '../src/constants/brain-flight.ts';
 import { TURN } from '../src/constants/hull-motion.ts';
 import { check } from './harness.ts';
@@ -98,18 +100,58 @@ console.log('\nobservation encoders');
     return at(10) === at(50) && at(51) > at(50);
   })());
 
-  // --- the defence tail reads the same rule the solo head does ---------------
+  // --- the defence tail reads the same rules the solo head does --------------
   writeView(target, { x: 0, y: 0, z: -1000 }, { x: 0, y: 0, z: 0, w: 1 });
+  target.speed = 200;
   me.hp = 0.6;
   me.energy = 0.25;
   me.missileInbound = true;
-  observeDefend(me, target, out);
+  me.fore = 0.8;
+  me.aft = 0.3;
+  const def = new Float32Array(MAX_OBS_SIZE);
+  observeDefend(me, target, NO_OTHER_THREATS, def);
   const solo = new Float32Array(PACK_WIDE_OBS_SIZE);
   observe(me, target, solo);
-  check('observeDefend is the solo block plus its three tail slots',
-    Array.from(out.subarray(0, OBS_SIZE)).every((v, i) => v === solo[i])
-    && Math.abs(out[13] - 0.6) < 1e-6 && Math.abs(out[14] - 0.25) < 1e-6
-    && out[15] === 1);
+  check('observeDefend is the solo block plus its own tail',
+    Array.from(def.subarray(0, OBS_SIZE)).every((v, i) => v === solo[i])
+    && Math.abs(def[13] - 0.6) < 1e-6 && Math.abs(def[14] - 0.25) < 1e-6
+    && def[15] === 1);
+  // the fought threat's velocity, in our frame: both ships face -z, target at
+  // 200 over the 400 scale, so the vector is (0, 0, -0.5)
+  check('slots 16-18 carry the threat velocity over OBS_SPEED_SCALE',
+    Math.abs(def[16]) < 1e-6 && Math.abs(def[17]) < 1e-6
+    && Math.abs(def[18] - (-200 / OBS_SPEED_SCALE)) < 1e-6);
+  check('with no second threat, slots 19-22 read nobody-and-far',
+    def[19] === 0 && def[20] === 0 && def[21] === 0 && def[22] === 1);
+  check('with a clear sky, the warhead bearing is zeros', def[24] === 0
+    && def[25] === 0 && def[26] === 0);
+  check('slot 23 is the hostile count over the biggest gang',
+    Math.abs(def[23] - 1 / 4) < 1e-6);
+  check('slots 27-28 carry the shield split',
+    Math.abs(def[27] - 0.8) < 1e-6 && Math.abs(def[28] - 0.3) < 1e-6);
+  // ...and a populated sky: a second hostile abeam to starboard at 2,000, a
+  // warhead dead above, four hostiles in all
+  observeDefend(me, target, {
+    others: [{ pos: { x: 2000, y: 0, z: 0 } }, { pos: { x: 3000, y: 0, z: 0 } }],
+    count: 4,
+    missilePos: { x: 0, y: 500, z: 0 },
+  }, def);
+  check('the NEAREST other hostile fills slots 19-22, in our frame',
+    Math.abs(def[19] - 1) < 1e-6 && Math.abs(def[20]) < 1e-6
+    && Math.abs(def[21]) < 1e-6
+    && Math.abs(def[22] - Math.log10(2000 / 100) / 2) < 1e-6);
+  check('...the log distance being slot 6\'s own rule',
+    def[22] === (() => {
+      const probe = new Float32Array(MAX_OBS_SIZE);
+      writeView(target, { x: 0, y: 0, z: -2000 }, { x: 0, y: 0, z: 0, w: 1 });
+      observe(me, target, probe);
+      writeView(target, { x: 0, y: 0, z: -1000 }, { x: 0, y: 0, z: 0, w: 1 });
+      return probe[6];
+    })());
+  check('the warhead bearing is in our frame too',
+    Math.abs(def[24]) < 1e-6 && Math.abs(def[25] - 1) < 1e-6
+    && Math.abs(def[26]) < 1e-6);
+  check('a full gang reads 1', Math.abs(def[23] - 1) < 1e-6);
 }
 
 // --- the stale-file collision is unreachable (docs/TODO/91) -------------------
@@ -135,7 +177,7 @@ console.log('\nobservation encoders');
   const stale: Brain = {
     weights: new Float32Array(0), obsSize: 17, hidden: 32, outSize: 13,
   };
-  const buf = new Float32Array(PACK_WIDE_OBS_SIZE).fill(-9);
+  const buf = new Float32Array(MAX_OBS_SIZE).fill(-9);
   observeFor(stale, me, target, [mate], buf);
   check('a stale 17-input defence file reaches the defence encoder, with a pack present',
     Math.abs(buf[14] - 0.25) < 1e-6 && buf[15] === 1);

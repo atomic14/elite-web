@@ -400,8 +400,12 @@ const OUTSIDE: readonly Group[] = [
     files: {
       'ai-training/policy.ts': [
         'OBS_SIZE', 'DEFEND_OBS_SIZE', 'PACK_OBS_SIZE', 'PACK_WIDE_OBS_SIZE',
-        'HIDDEN', 'OUT_SIZE', 'DEFEND_OUT_SIZE', 'MAX_OUT_SIZE',
+        'HIDDEN', 'DEFEND_HIDDEN', 'OUT_SIZE', 'DEFEND_OUT_SIZE',
+        'MAX_OBS_SIZE', 'MAX_HIDDEN', 'MAX_OUT_SIZE',
       ],
+      // ...and the empty-sky ThreatsView the defence encoder defaults to — a
+      // sentinel value of observation.ts's own parameter, not a tunable
+      'ai-training/observation.ts': ['NO_OTHER_THREATS'],
     },
   },
 

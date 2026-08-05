@@ -22,6 +22,7 @@
 
 import type { FlightDemand } from '../player.ts';
 import type { Brain } from '../ai-training/policy.ts';
+import type { V3 } from '../ai-training/observation.ts';
 import { hostilesNear } from './npc.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import type { SoundEvent } from './sounds.ts';
@@ -129,14 +130,17 @@ export class Autopilot {
    *
    * @param handsOn the pilot is touching the controls — always hands back.
    * @param brain the defence policy, or null if the weights failed to load.
+   * @param missilePos the hostile warhead's position, or null for a clear sky
+   * — `Ordnance.hostileMissilePos`, passed through to the policy's eyes.
    */
   combatDemand(
-    dt: number, handsOn: boolean, brain: Brain | null, missileInbound = false,
+    dt: number, handsOn: boolean, brain: Brain | null,
+    missilePos: V3 | null = null,
   ): AutopilotDemand {
     const s = this.state;
     const step = this.computer.step(
       dt, s.player, s.sys, s.world.npcs, s.commander.legalStatus, handsOn, brain,
-      missileInbound);
+      missilePos);
     if (step.kind === 'disengage') {
       s.session.ccEngaged = false;
       return {

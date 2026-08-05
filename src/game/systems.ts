@@ -173,6 +173,24 @@ export function energyLeft(sys: ShipSystems): number {
   return sys.energy / MAX_ENERGY;
 }
 
+/**
+ * Each shield FACE alone, 0..1 — `observeDefend` slots 27 and 28, and the same
+ * one-home argument as the two above: the trainer's target and the game's
+ * combat computer both observe these, and written out twice they drift once.
+ *
+ * The pair exists because `poolsLeft` hides the split: an attacker on your six
+ * spends a different face from one head-on (`applyDamage`, `hitFromAhead`),
+ * so "keep the good face toward him" is flyable only if the policy can see
+ * which face is the good one.
+ */
+export function foreShieldLeft(sys: ShipSystems): number {
+  return sys.foreShield / MAX_SHIELD;
+}
+
+export function aftShieldLeft(sys: ShipSystems): number {
+  return sys.aftShield / MAX_SHIELD;
+}
+
 export interface DamageResult {
   /** the hit got past the shields to the hull */
   reachedHull: boolean;

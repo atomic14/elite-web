@@ -51,7 +51,9 @@ import * as THREE from 'three';
 import { PlayerShip, rampToward, type FlightDemand } from '../player.ts';
 import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
 import { NpcShip, steerQuatToward, type FireEvent } from '../game/npc.ts';
-import { BRAIN_RATE_DECAY, BRAIN_RATE_RAMP } from '../constants/brain-flight.ts';
+import {
+  BRAIN_RATE_DECAY, BRAIN_RATE_RAMP, DECISION_INTERVAL,
+} from '../constants/brain-flight.ts';
 import {
   Ordnance, autopilotEcm, fireEcm, type Missile, type OrdnanceWorld,
 } from '../game/ordnance.ts';
@@ -82,12 +84,12 @@ import { pirateSpecForTier } from '../game/ship-specs.ts';
 import { npcVsNpcs, playerVsNpcs } from '../game/collisions.ts';
 import { MAX_ENERGY, MAX_SHIELD } from '../constants/pools.ts';
 import {
-  applyDamage, durability, energyLeft, freshSystems,
-  poolsLeft, regenerate, type RegenOptions, type ShipSystems,
+  aftShieldLeft, applyDamage, durability, energyLeft, foreShieldLeft,
+  freshSystems, poolsLeft, regenerate, type RegenOptions, type ShipSystems,
 } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
-  act, makeScratch, PACK_WIDE_OBS_SIZE, type Brain, type Control,
+  act, makeScratch, MAX_OBS_SIZE, type Brain, type Control,
 } from './policy.ts';
 import { observeFor, shipView, writeView } from './observation.ts';
 
@@ -842,7 +844,7 @@ export class Episode {
    * not in this file any more.
    */
   private readonly fire: FireWorld;
-  private readonly obs = new Float32Array(PACK_WIDE_OBS_SIZE);
+  private readonly obs = new Float32Array(MAX_OBS_SIZE);
   private readonly scratch = makeScratch();
   private readonly meView = shipView();
   private readonly threatView = shipView();
@@ -857,6 +859,15 @@ export class Episode {
   private traderWaypointTimer = 0;
   /** the pirate the trader's policy is fighting — game/threat-lock.ts's rule */
   private readonly threatLock = new ThreatLock<PirateShip>();
+  /**
+   * The policy trader's decision clock and held control — `DECISION_INTERVAL`,
+   * the SAME 10Hz the combat computer and an armed trader decide at in the
+   * game. She used to decide every physics step (60Hz): fitted at a reaction
+   * speed the game never gives, which is precisely the kind of second world
+   * the trainer exists to not be.
+   */
+  private traderControl: Control | null = null;
+  private traderDecisionTimer = 0;
   private traderFireCooldown = 1.5;
 
   constructor(opts: EpisodeOptions) {
@@ -1015,9 +1026,14 @@ export class Episode {
           this.pirates.filter((p) => p.alive),
           (p) => p.pos.distanceTo(this.trader.pos),
         );
-        const threat = policyThreat ?? this.pirates[0];
-        const c = act(
-          tCtrl.brain, this.observeTrader(threat, tCtrl.brain, missileInbound), this.scratch);
+        this.traderDecisionTimer -= dt;
+        if (!this.traderControl || this.traderDecisionTimer <= 0) {
+          this.traderDecisionTimer = DECISION_INTERVAL;
+          const threat = policyThreat ?? this.pirates[0];
+          this.traderControl = act(
+            tCtrl.brain, this.observeTrader(threat, tCtrl.brain, missileInbound), this.scratch);
+        }
+        const c = this.traderControl;
         policyWantsFire = c.fire && !!this.opts.traderArmed; // armed policies may shoot
         // SHE ANSWERS THE WARHEAD — `ordnance.ts`'s own rule and its own price,
         // through the same `fireEcm` the player's key and the combat computer
@@ -1374,11 +1390,20 @@ export class Episode {
     me.cls.hp = 1;
     me.energy = energyLeft(this.trader.sys);
     me.missileInbound = missileInbound;
+    me.fore = foreShieldLeft(this.trader.sys);
+    me.aft = aftShieldLeft(this.trader.sys);
     me.pitchRate = this.trader.pitchRate;
     me.rollRate = this.trader.rollRate;
     writeView(t, threat.pos, threat.quat);
     t.speed = threat.speed;
-    return observeFor(brain, me, t, null, this.obs);
+    // The rest of the sky, exactly as the combat computer reports it: every
+    // live pirate but the fought one, and the warhead if one is homing.
+    const live = this.pirates.filter((p) => p.alive);
+    return observeFor(brain, me, t, null, this.obs, {
+      others: live.filter((p) => p !== threat).map((p) => ({ pos: p.pos })),
+      count: live.length,
+      missilePos: this.ordnance.hostileMissilePos,
+    });
   }
 
   // --- geometry ----------------------------------------------------------------
@@ -1599,12 +1624,25 @@ export class Episode {
     const bank = this.pirates.reduce((sum, p) => sum + p.npc.maxEnergy, 0)
       / Math.max(1, this.pirates.length);
     const dealt = this.trader.damageDealt / Math.max(1, bank);
+    // MISSES cost, not shots — a landed shot is already paid for by `dealt`.
+    // The old term was -0.02 per SHOT: Chris flew against a champion fitted
+    // under it and watched it hold the trigger down for the whole fight (796
+    // shots, 5 hits, 90 degrees mean aim error), and the arithmetic agrees —
+    // spraying a full 60s episode cost ~3.6 against the ~12 that surviving it
+    // with shields earned. The price of a miss is set against the measured
+    // worth of a hit: one landed hit earns a mean 0.32 through `dealt`
+    // (range 0.06-0.88 across the hulls and lasers `defenceFight` spawns,
+    // measured 2026-08-05), so at -0.05 a shot pays for itself above ~14%
+    // accuracy, a full-episode spray costs ~9 — more than the survival term —
+    // and the trigger stays worth learning, which -0.1 (break-even ~24%)
+    // risked killing outright.
+    const misses = this.trader.shotsFired - this.trader.shotsHit;
     return (
       (this.t / this.maxTime) * 8 +
       this.trader.hp * 4 +
       4 * dealt +
       3 * killedPirates -
-      0.02 * this.trader.shotsFired
+      0.05 * misses
     );
   }
 

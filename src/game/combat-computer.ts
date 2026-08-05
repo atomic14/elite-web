@@ -15,12 +15,16 @@
 import type * as THREE from 'three';
 import { rampToward, type FlightDemand } from '../player.ts';
 import {
-  act, makeScratch, PACK_WIDE_OBS_SIZE, type Brain,
+  act, makeScratch, MAX_OBS_SIZE, type Brain,
 } from '../ai-training/policy.ts';
-import { observeFor, shipView, writeView } from '../ai-training/observation.ts';
+import {
+  observeFor, shipView, writeView, type ThreatsView, type V3,
+} from '../ai-training/observation.ts';
 import { isHostileToPlayer, type NpcShip } from './npc.ts';
 import { autopilotEcm } from './ordnance.ts';
-import { energyLeft, poolsLeft, type ShipSystems } from './systems.ts';
+import {
+  aftShieldLeft, energyLeft, foreShieldLeft, poolsLeft, type ShipSystems,
+} from './systems.ts';
 import {
   BRAIN_RATE_DECAY, BRAIN_RATE_RAMP, DECISION_INTERVAL,
 } from '../constants/brain-flight.ts';
@@ -92,12 +96,13 @@ export function freshAutopilot(): AutopilotState {
 export class CombatComputer {
   /** @see AutopilotState — public so the snapshot can walk it */
   readonly state: AutopilotState = freshAutopilot();
-  // Wide enough for the WIDEST encoder, as npc.ts's buffer is, and for the same
-  // reason: which encoder runs is `observeFor`'s decision from the brain's own
-  // input count, so a buffer sized to today's shipped brain is a buffer that
-  // reads past its end the day a wider one is promoted. It was 18 and the
-  // defence policy is 17 now (docs/TODO/71); it costs 32 bytes to stop caring.
-  private readonly obs = new Float32Array(PACK_WIDE_OBS_SIZE);
+  // Wide enough for the WIDEST encoder, as npc.ts's buffer is, and for the
+  // same reason: which encoder runs is `observeFor`'s decision from the
+  // brain's own shape, so a buffer sized to today's shipped brain is a buffer
+  // that reads past its end the day a wider one is promoted. It has happened
+  // twice now (docs/TODO/71, /91); `MAX_OBS_SIZE` is policy.ts saying it
+  // cannot happen again.
+  private readonly obs = new Float32Array(MAX_OBS_SIZE);
   private readonly scratch = makeScratch();
   private readonly me = shipView(CC_MAX_SPEED, 0.5, 0);
   /**
@@ -130,12 +135,11 @@ export class CombatComputer {
    * @param brain the defence policy, or null if the weights failed to load.
    */
   /**
-   * @param missileInbound is a hostile warhead in the sky? The world's answer,
-   * read once a frame by the step that calls this — the same fact
-   * `WorldView.missileInbound` gives an NPC and a training episode reads off
-   * its own `Ordnance`. It is an OBSERVATION here and a gate below: the policy
-   * decides whether to answer a warhead, and whether there is one to answer is
-   * not the policy's business (`autopilotEcm`).
+   * @param missilePos where the hostile warhead in the sky is, or null when
+   * there is none — `Ordnance.hostileMissilePos`, the world's answer, read
+   * once a frame by the step that calls this. Its EXISTENCE is slot 15 and
+   * the E.C.M. gate (`autopilotEcm` — the policy decides whether to answer a
+   * warhead, not whether there is one); its BEARING is slots 24-26.
    */
   /** the threat being fought — see game/threat-lock.ts for the rule */
   private readonly threatLock = new ThreatLock<NpcShip>();
@@ -148,7 +152,7 @@ export class CombatComputer {
     legalStatus: number,
     manualInput: boolean,
     brain: Brain | null,
-    missileInbound = false,
+    missilePos: V3 | null = null,
   ): AutopilotStep {
     if (manualInput) return { kind: 'disengage', reason: 'MANUAL OVERRIDE' };
 
@@ -156,11 +160,10 @@ export class CombatComputer {
     // fought ship up to 26.8 times a minute and the brain's bearing slots
     // jumped ~90 degrees each flip — the rule and the measurements are
     // game/threat-lock.ts's, shared with the armed trader and the trainer.
+    const hostiles = npcs.filter((npc) => isHostileToPlayer(npc, legalStatus)
+      && npc.object.position.distanceTo(player.position) < THREAT_RANGE);
     const threat = this.threatLock.pick(
-      dt,
-      npcs.filter((npc) => isHostileToPlayer(npc, legalStatus)
-        && npc.object.position.distanceTo(player.position) < THREAT_RANGE),
-      (npc) => npc.object.position.distanceTo(player.position),
+      dt, hostiles, (npc) => npc.object.position.distanceTo(player.position),
     );
     if (!threat || !brain) {
       this.threatLock.clear();
@@ -180,7 +183,9 @@ export class CombatComputer {
       // A 14-input brain never reads them; `observeFor` decides.
       this.me.hp = poolsLeft(sys);
       this.me.energy = energyLeft(sys);
-      this.me.missileInbound = missileInbound;
+      this.me.missileInbound = missilePos !== null;
+      this.me.fore = foreShieldLeft(sys);
+      this.me.aft = aftShieldLeft(sys);
       this.me.pitchRate = this.state.pitch;
       this.me.rollRate = this.state.roll;
       writeView(this.target, threat.object.position, threat.object.quaternion);
@@ -190,8 +195,16 @@ export class CombatComputer {
       // Which encoder this brain wants is policy.ts's question, asked the same
       // way npc.ts asks it. It was `observe()` outright, which was correct for
       // exactly as long as every defence policy had 14 inputs.
+      const threats: ThreatsView = {
+        others: hostiles.filter((npc) => npc !== threat)
+          .map((npc) => ({ pos: npc.object.position })),
+        count: hostiles.length,
+        missilePos,
+      };
       this.state.control = act(
-        brain, observeFor(brain, this.me, this.target, null, this.obs), this.scratch);
+        brain,
+        observeFor(brain, this.me, this.target, null, this.obs, threats),
+        this.scratch);
     }
 
     const c = this.state.control;
@@ -199,7 +212,7 @@ export class CombatComputer {
     this.state.roll = ccRamp(this.state.roll, c.roll * CC_MAX_ROLL, c.roll !== 0, dt);
     return {
       kind: 'fly',
-      ecm: autopilotEcm(c.ecm, missileInbound),
+      ecm: autopilotEcm(c.ecm, missilePos !== null),
       demand: {
         pitchRate: this.state.pitch,
         rollRate: this.state.roll,

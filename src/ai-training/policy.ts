@@ -35,19 +35,18 @@ export interface Control {
 // every genome was fitted on values the live game never produced.
 export const OBS_SIZE = 13;
 /**
- * The DEFENDER's observation: the solo 13, plus the three things a ship being
- * shot at needs and a ship doing the shooting does not — see `observeDefend`.
+ * The DEFENDER's observation: the solo 13, plus everything a ship being shot
+ * at by a gang needs and a lone hunter does not — how hurt she is, the
+ * warhead, the fought threat's velocity, the SECOND threat, and the shield
+ * split. The layout and the reasoning are `observeDefend`'s.
  *
- * The pack sizes must stay distinct because `observeFor` picks the pack
- * encoders by input count — and since docs/TODO/91 shrank every size by one,
- * TODAY'S pack size (17) is YESTERDAY'S defence size. That collision is why
- * the defence encoder is dispatched by its HEAD count instead (`observeFor`):
- * a stale 17-input defence file must reach its own encoder, out of
- * distribution until its retrain, never silently pack-encoded. What was once
- * dropped to keep the sizes apart is written down in `observeDefend` — the
- * fore/aft shield SPLIT, addable as sizes 18/19 by whoever wants to answer it.
+ * The defence encoder is dispatched by its HEAD count, not this number
+ * (`observeFor`): after docs/TODO/91 shrank the solo sizes, the old defence
+ * size collided with the new pack size, and the E.C.M. head is the defence
+ * family's alone — so a stale defence file reaches its own encoder whatever
+ * its width says.
  */
-export const DEFEND_OBS_SIZE = 16;
+export const DEFEND_OBS_SIZE = 29;
 export const PACK_OBS_SIZE = 17; // solo + nearest-packmate dir (3) + distance (1)
 // Round 4: the r2/r3 pack brains could see *where* a mate was but not what it
 // was doing, and runs 4 and 6 both concluded the missing signal was
@@ -55,7 +54,20 @@ export const PACK_OBS_SIZE = 17; // solo + nearest-packmate dir (3) + distance (
 // actually engaging the target, and which side of the target it is coming
 // from — the minimum needed to choose a complementary attack line.
 export const PACK_WIDE_OBS_SIZE = 25;
+/** The widest observation any encoder writes — what an obs buffer must hold. */
+export const MAX_OBS_SIZE = DEFEND_OBS_SIZE;
 export const HIDDEN = 32;
+/**
+ * The defence policy's hidden width. Twice `HIDDEN`, because docs/TODO/91's
+ * diagnosis was as much capacity as inputs: a 29-input world with a second
+ * threat and a warhead in it is asking a 32-unit network to represent more
+ * situations than the lone-hunter phases ever faced, and parameters are cheap
+ * at 10Hz (~7k weights at 64 vs ~2k at 32). The pirate phases keep 32 — their
+ * genomes are shipped history and their world did not grow.
+ */
+export const DEFEND_HIDDEN = 64;
+/** The widest hidden layer, which is the other thing `makeScratch` must fit. */
+export const MAX_HIDDEN = DEFEND_HIDDEN;
 // output heads: pitch(3) roll(3) throttle(3) fire(2)
 export const OUT_SIZE = 11;
 /**
@@ -164,11 +176,12 @@ export function act(brain: Brain, obs: Float32Array, scratch: Float32Array): Con
 }
 
 /**
- * The forward pass's working memory. Sized for the WIDEST head, so one scratch
- * serves an attack brain and a defence brain — two floats, against a caller
- * having to know which policy it is about to run.
+ * The forward pass's working memory. Sized for the WIDEST head and the WIDEST
+ * hidden layer, so one scratch serves an attack brain and a defence brain —
+ * a few floats, against a caller having to know which policy it is about to
+ * run.
  */
-export function makeScratch(hidden = HIDDEN): Float32Array {
+export function makeScratch(hidden = MAX_HIDDEN): Float32Array {
   return new Float32Array(hidden * 2 + MAX_OUT_SIZE);
 }
 
