@@ -106,7 +106,7 @@ console.log('\ncombat simulator — the notes hold their own height');
       for (const groups of [0, 1, 2]) {
         d.groups = Array.from({ length: groups }, () => defaultGroup(1));
         if (groups === 2) {
-          d.groups[0].brain = 'jameson-defend-g2';
+          d.groups[0].brain = 'attack-run';
           d.groups[1].brain = 'scripted';
         }
         const notes = draftNotes(d);

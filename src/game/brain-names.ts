@@ -45,8 +45,6 @@
  * it, and `npm test` reads brains.ts to check that every name here does.
  */
 export type BrainName =
-  | 'jameson-defend-g2'
-  | 'jameson-defend-t91'
   | 'attack-run'
   | 'scripted';
 
@@ -100,39 +98,21 @@ export interface BrainProfile {
  * rest of the panel's prose in `screens/combat-sim-notes.ts`.
  */
 export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
-  // defence probe, 800 held-out fights on the docs/TODO/91 encoder: pools
-  // 98.2%, died 0/800, broke 11.4% of the attacking force, killed 6.8% —
-  // against the stale incumbent's 26.6%/13.4% flying out of distribution on
-  // the same seeds. The first candidate fitted to the new encoder, offered so
-  // it can be FLOWN before being judged (CLAUDE.md: prefer a fight a human
-  // flew); docs/TRAINING-LOG.md run 20 says why the numbers alone reject it.
-  'jameson-defend-t91': {
-    name: 'SITS TIGHT',
-    character: 'AN EXPERIMENTAL NEW BRAIN — VERY HARD TO KILL, SLOW TO SHOOT BACK. IN 800 '
-      + 'TEST FIGHTS IT NEVER DIED AND DESTROYED 7% OF ITS ATTACKERS. TRY IT AND SAY '
-      + 'HOW IT FEELS.',
-  },
-  // defence probe, 800 held-out fights against the scripted attack run (1-4 of
-  // them, three hulls, beam or military): 41.6% of her attackers destroyed,
-  // 98.3% of her pools left, 0 deaths, and 0.00 warheads landed on her out of
-  // 0.80 launched an episode. The incumbent it replaced killed 4.8%, kept 89.2%
-  // and died 30 times in the same 800 (docs/TRAINING-LOG.md).
-  // Its glory-days figures (destroyed 41.6% of attackers) predate docs/TODO/91's
-  // sensor change, which it has not been retrained for — the line quotes what it
-  // does TODAY, because a row that flatters a degraded brain is a lie on the
-  // panel. Current figures: defence probe, 800 held-out fights, 2026-08-05.
-  'jameson-defend-g2': {
-    name: 'TURNS AND KILLS',
-    character: 'TURNS ON THE SPOT AND SHOOTS BACK — IN 800 TEST FIGHTS IT NEVER DIED AND '
-      + 'DESTROYED 13% OF ITS ATTACKERS. IT USED TO DO BETTER: A RECENT SENSOR CHANGE '
-      + 'DEGRADED IT, AND A REPLACEMENT IS IN TRAINING.',
-  },
-  // The pirates' own three-phase run flying the DEFENCE slots — the
-  // commander's co-pilot, and an armed trader turning to fight. Its measured
-  // figures are the scripted row's below (the same code path, tournament: 58%
-  // accuracy, ~5 attack runs a minute); its own trigger is the player gun's
-  // hit cone, so it shoots only what it can hit. Added 2026-08-05 after runs
-  // 20-21 walled the trained line three ways (docs/TRAINING-LOG.md).
+  // TWO entries, both code, and the shortness IS the record. The trained
+  // defence line (`jameson-defend-*`) left the bundle on 2026-08-05, the same
+  // day the trained pirates did and for the sharper reason: three retrains in
+  // a row optimised their way out of fighting (a turret, a sprayer, a
+  // pacifist — docs/TRAINING-LOG.md runs 20-21), and Chris judged the lot "no
+  // good" against the run below. Every figure they ever measured is in the
+  // log; train/evolve.ts can still breed one for research, and a future
+  // candidate re-enters by having its weights imported in brains.ts and its
+  // name added here — one row, both pickers.
+  //
+  // The attack run flying the DEFENCE slots: the commander's co-pilot, and an
+  // armed trader turning to fight. Its measured figures are the scripted
+  // row's below (the same code path — tournament: 58% accuracy, ~5 attack
+  // runs a minute); its own trigger is the player gun's hit cone, so it
+  // shoots only what it can hit.
   'attack-run': {
     name: 'FLIES ATTACK RUNS',
     character: 'YOUR SHIP FLIES THE SAME ATTACK RUN THE PIRATES FLY: CLOSE, FIRE THROUGH '
@@ -232,21 +212,6 @@ export interface BrainSelection {
    * cannot name and offers to take it back.
    */
   scripted?: boolean;
-  /**
-   * Fly the TODO 91 defence candidate (`jameson-defend-t91`) instead of the
-   * incumbent — everywhere the defence flies: armed traders and the combat
-   * computer alike. The stage-3 A/B, here so it can be felt from the stick
-   * rather than judged from the probe table alone.
-   */
-  defendCandidate?: boolean;
-  /**
-   * The defence slots fly the SCRIPTED ATTACK RUN — the combat computer makes
-   * attack runs on your threats, and an armed trader turns and makes them on
-   * its attacker — instead of a trained policy. Wins over `defendCandidate`
-   * when both are set, because it is the later experiment and the row can
-   * only mean one thing at a time.
-   */
-  attackRun?: boolean;
 }
 
 /**
@@ -265,27 +230,17 @@ export interface BrainSelection {
  * breed a pirate for research; the game just never loads one.
  */
 /**
- * The policy an armed trader turns and fights with, with no overrides.
+ * The pilot an armed trader turns and fights with, and the combat computer
+ * you buy, with no overrides: the SAME attack run the pirates fly, pointed
+ * the other way (scripted-co-pilot.ts, and npc.ts's defence path).
  *
- * STAYS TRAINED, and it is the one of the three that must. Chris asked for the
- * default to be what he flew, and the row he flew (`scripted: true`) does turn
- * this off as well — so making it `scripted` looked like the faithful reading.
- * It is not: `defenceBrain` flies the COMBAT COMPUTER too, which is the
- * player's own assist, and there is no scripted equivalent for flying YOUR
- * ship. `attack()` is how a hostile flies at the commander. Pointing this at it
- * left the combat computer unable to produce a flight demand at all.
- *
- * So the rule that came out of it: the scripted run is what ATTACKS you.
- * Anything flying on your behalf, or evading rather than attacking, keeps the
- * policy fitted for it.
+ * It was `jameson-defend-g2`, the last trained policy in the bundle, under a
+ * long-standing rule that "there is no scripted equivalent for flying YOUR
+ * ship". attack-run.ts made that rule false on 2026-08-05 — the run's
+ * composition is shipless now — and the trained line's third consecutive
+ * wall (docs/TRAINING-LOG.md runs 20-21) made the change worth making.
  */
-const SHIPPED_DEFENCE: BrainName = 'jameson-defend-g2';
-/**
- * ...and it stays trained, the one policy in the bundle. The scripted run is
- * what ATTACKS you; anything flying on your behalf — the armed trader turning
- * to fight, the combat computer flying YOUR ship — keeps the policy fitted
- * for it, because there is no scripted equivalent for defence.
- */
+const SHIPPED_DEFENCE: BrainName = 'attack-run';
 
 /**
  * No overrides: what the live game flies. Frozen, because it is a shared default
@@ -319,9 +274,7 @@ export function pirateBrainNameFor(
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
 export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): BrainName {
-  if (sel.scripted) return 'scripted';
-  if (sel.attackRun) return 'attack-run';
-  return sel.defendCandidate ? 'jameson-defend-t91' : SHIPPED_DEFENCE;
+  return sel.scripted ? 'scripted' : SHIPPED_DEFENCE;
 }
 
 /**
@@ -340,9 +293,7 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
  * record — and it was wider only because six experiments were in the bundle.
  */
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
-  'jameson-defend-g2': {},
-  'jameson-defend-t91': { defendCandidate: true },
-  'attack-run': { attackRun: true },
+  'attack-run': {},
   scripted: { scripted: true },
 };
 

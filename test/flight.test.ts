@@ -5,7 +5,7 @@
 // it had four homes, and it is the reason the world stepped at a fixed slice.
 
 import * as THREE from 'three';
-import { defenceBrain } from '../src/game/brains.ts';
+import { defendShaped } from './fixtures.ts';
 import { CLEAN } from '../src/constants/law.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
@@ -314,7 +314,9 @@ console.log('\nflight demands');
   {
     seedWorld(20_260_729);
     const cc = new CombatComputer();
-    const brain = defenceBrain();
+    // the machinery under test, on the fixture genome — there are no shipped
+    // defence weights since 2026-08-05
+    const brain = defendShaped;
     const player = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), speed: 200 };
     const sys = freshSystems();
     const pirate = new NpcShip('pirate', new THREE.Vector3(0, 0, -900), 5);

@@ -228,7 +228,7 @@ console.log('\nwingman separation in the attack run');
     // the AIM POINT, so a gang picks different lines in.
     { phase: 'closing', range: 700, gap: 90, lateral: 0, frames: 100 },
     // Past the target, each curving back across the other's run-out.
-    { phase: 'extending', range: 400, gap: 140, lateral: 60, frames: 60 },
+    { phase: 'extending', range: 400, gap: 90, lateral: 60, frames: 60 },
   ];
 
   /**

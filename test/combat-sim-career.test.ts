@@ -739,7 +739,7 @@ console.log('\ncombat simulator: nothing leaves the exercise');
     ab.state.brains = { scripted: true };
     ab.sim.begin({
       mode: 'sparring', scenario: 'single-pirate', tier: 2, seed: 4_242,
-      brain: 'jameson-defend-g2',
+      brain: 'attack-run',
     });
     check('an exercise flies the brain IT asked for, not the career\'s',
       ab.state.brains.scripted === undefined);

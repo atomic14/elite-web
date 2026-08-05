@@ -21,17 +21,16 @@
 // ways, that last clause is the one nobody would be able to read.
 
 import * as THREE from 'three';
-import { readFileSync } from 'node:fs';
 import {
   randomBrain, widenBrain, genomeSize, act, makeScratch,
   OBS_SIZE, DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE, DEFEND_OUT_SIZE,
   HIDDEN, MAX_OBS_SIZE,
-  type Brain, type BrainFile,
+  type Brain,
 } from '../src/ai-training/policy.ts';
 import { observeFor, shipView, type ShipView } from '../src/ai-training/observation.ts';
 import { makeRng } from '../src/game/rng.ts';
 import { check, eq } from './harness.ts';
-import { BRAINS, jameson } from './fixtures.ts';
+import { ecmPresser } from './fixtures.ts';
 import {
   Episode, EPISODE_SCHEMA, type EpisodeReport,
 } from '../src/ai-training/scenario.ts';
@@ -134,10 +133,11 @@ import { defenceBrain } from '../src/game/brains.ts';
       if (controlsAcross(blind, 1) !== controlsAcross(blind, 0.05)) moved += 1;
     }
     eq('no 14-input genome can — this is docs/TODO/71 (100 of them)', moved, 0);
-    // ...and the SHIPPED defender is no longer one of them, which is the point
-    // of the whole change.
-    check('the shipped defence policy does fly differently when hurt',
-      controlsAcross(jameson, 1) !== controlsAcross(jameson, 0.05));
+    // There is no "and the shipped defender does" companion any more: the
+    // trained defence line left the bundle on 2026-08-05 (the shipped defence
+    // is the scripted attack run, which has no encoder at all). The hand-built
+    // genome above is the whole claim — it is about the ENCODER, and it
+    // outlives every particular set of weights.
   }
 
   // 4. THE WIDENED SEED IS THE SAME PILOT. `--seed-brain jameson-defend-g1` is
@@ -182,18 +182,10 @@ import { defenceBrain } from '../src/game/brains.ts';
     eq('no 11-head genome can ever press the E.C.M. (200 random ones)', pressed, 0);
   }
 
-  // 6. ...AND THE SHIPPED FILE STILL DECLARES THE SHAPE IT WAS TRAINED AT.
-  //    Not "we did not mean to change it": the incumbent predates docs/TODO/91
-  //    and says so on disk — 17 inputs, 13 heads — which is exactly what the
-  //    head-count dispatch above exists to route honestly until stage 3
-  //    promotes its replacement. (The two pirate files this loop used to check
-  //    left the bundle with their policies on 2026-08-05.)
-  {
-    const f = JSON.parse(
-      readFileSync(`${BRAINS}jameson-defend-g2.json`, 'utf8')) as BrainFile;
-    check('jameson-defend-g2 still declares 17 inputs and 13 heads',
-      (f.meta.obsSize ?? 14) === 17 && (f.meta.outSize ?? 11) === 13);
-  }
+  // (Section 6 checked that the shipped weights file still declared the shape
+  // it was trained at. The bundle holds no weights since 2026-08-05 — the
+  // trained defence line was discarded — so the shape-honesty claim lives on
+  // only in brainFromFile's defaults, asserted through the loader tests.)
 }
 
 // --- and now she can answer one ----------------------------------------------
@@ -217,10 +209,12 @@ const noButton = randomBrain(makeRng(0xecab), OBS_SIZE);
 
 console.log('\nmissiles: the target answers one');
 {
-  // THE SHIPPED DEFENDER ITSELF, which is the honest test now that it has a
-  // button and has learned to use it. The two runs below differ in the fit-out
-  // and in nothing else.
-  const presser = jameson;
+  // A PRESSER BY CONSTRUCTION — `ecmPresser`, the fixture genome whose
+  // thirteenth head always asks. It stood on the shipped defender when there
+  // was one; what this block pins is the MECHANISM (the head reaches
+  // `fireEcm`, the gate needs a warhead, the press costs a quarter of the
+  // bank), which must not depend on any training run's luck.
+  const presser = ecmPresser;
 
   // One pirate, one warhead, on a held-out defence seed — re-searched
   // 2026-08-05 when the threat lock and the 10Hz trader cadence changed how

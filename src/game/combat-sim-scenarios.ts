@@ -111,14 +111,12 @@ export const SHIPPED_DEFENCE_BRAIN: BrainId = defenceBrainNameFor(SHIPPED_BRAINS
  * the whole career, which is the one thing a scoped A/B must not touch.
  */
 export const SIM_BRAINS: readonly BrainId[] = [
-  // Two entries, and the shortness IS the record: the two trained pirate
-  // policies were rows here until 2026-08-05, when Chris deleted their weights
-  // from the bundle — scripted is the only opposition anywhere, so a picker
-  // offering "fight the trained pirate" would be offering a fight the game
-  // cannot load. `jameson-defend-g2` stays because an exercise can put an
-  // ARMED TRADER in the sky, and that is the policy it turns and fights with.
-  'jameson-defend-g2',
-  'jameson-defend-t91',
+  // Two entries, both code, and the shortness IS the record: the trained
+  // pirate policies left the bundle on 2026-08-05, and the trained defence
+  // line followed the same day (docs/TRAINING-LOG.md runs 20-21) — so every
+  // row is a pilot the game can actually load. `attack-run` is the shipped
+  // defence: the co-pilot, and what an armed trader turns and fights with.
+  'attack-run',
   'scripted',
 ];
 

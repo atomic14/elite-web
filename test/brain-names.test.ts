@@ -35,11 +35,14 @@ import { check, eq } from './harness.ts';
 
 console.log('\nwhich brain flies, by name');
 {
-  const NAMED: BrainName[] = ['jameson-defend-g2'];
-  const missing = NAMED.filter((n) => brainByName(n) === null);
-  check(`every name the rule can return has weights behind it (${NAMED.length})`,
-    missing.length === 0, missing.join(', '));
-  check('...and the scripted AI deliberately has none', brainByName('scripted') === null);
+  // Since 2026-08-05 EVERY name is a code pilot — the trained defence line
+  // followed the trained pirates out of the bundle the same day
+  // (docs/TRAINING-LOG.md runs 20-21) — so the old check inverts: no name has
+  // weights behind it, deliberately.
+  const withWeights = (Object.keys(BRAINS) as BrainName[])
+    .filter((n) => brainByName(n) !== null);
+  check(`no name has weights behind it — both pilots are code (${withWeights.join(', ') || 'none'})`,
+    withWeights.length === 0);
 
   // THE pairing. For every selection the game can be put in, the policy
   // `NpcShip.update` would fly IS the policy the report names.
@@ -63,14 +66,14 @@ console.log('\nwhich brain flies, by name');
   check(`the named brain is the flown brain, for every selection (${LIVE_BRAIN_IDS.length})`,
     disagreed.length === 0, disagreed.join(', '));
 
-  // ...and the table that turns a name back into a selection round-trips, which
-  // is what makes "fly the same fight against t29" mean what it says.
-  const badTrip = NAMED.filter((n) => {
+  // ...and the table that turns a name back into a selection round-trips,
+  // which is what makes "fly the same fight against X" mean what it says.
+  // Every name is a defence-side pilot now; the pirate side is scripted
+  // whatever the selection says.
+  const badTrip = (Object.keys(BRAINS) as BrainName[]).filter((n) => {
     const sel = selectionForBrain(n);
     if (!sel) return true;
-    const pack = n.startsWith('pirate-pack');
-    if (n.startsWith('jameson')) return defenceBrainNameFor(sel) !== n;
-    return pirateBrainNameFor(1, pack, sel) !== n;
+    return defenceBrainNameFor(sel) !== n;
   });
   check('every named brain is reachable through its own selection',
     badTrip.length === 0, badTrip.join(', '));
@@ -83,8 +86,8 @@ console.log('\nwhich brain flies, by name');
   check('a pirate flies the scripted attack run, alone or in a gang',
     pirateBrainNameFor(1, false) === 'scripted'
     && pirateBrainNameFor(1, true) === 'scripted');
-  check('...and an armed trader still turns and fights with the defence policy',
-    defenceBrainNameFor() === 'jameson-defend-g2');
+  check('...and an armed trader turns and fights with the attack run now',
+    defenceBrainNameFor() === 'attack-run');
   // There are no trained pirate alternatives to select any more: the weights
   // left the bundle on 2026-08-05 (scripted is the only opposition anywhere),
   // and the A/B control that remains is the one that turns the DEFENCE off.
@@ -103,16 +106,16 @@ console.log('\nwhich brain flies, by name');
   // (docs/TODO/87). Asserted as the exact SET of failures, because `every(...)
   // || exempt` widens silently and a list of exact failures does not.
   //
-  // The real exception is `jameson-defend-g2`: its selection is `{}`, the same
-  // empty object AS_SHIPPED means, so the picker reads it back as "as shipped".
-  // The collision is the defect and it is docs/TODO/81's; the round trip is
-  // only where it shows.
+  // The real exception is the SHIPPED defence (`attack-run` today): its
+  // selection is `{}`, the same empty object AS_SHIPPED means, so the picker
+  // reads it back as "as shipped". The collision is the defect and it is
+  // docs/TODO/81's; the round trip is only where it shows.
   const noTrip = LIVE_BRAIN_IDS.filter((id) => liveBrainId(liveBrainSelection(id)) !== id);
   check(`a picked name reads back as itself, for every id but one (${noTrip.join(', ') || 'none'})`,
-    noTrip.length === 1 && noTrip[0] === 'jameson-defend-g2');
+    noTrip.length === 1 && noTrip[0] === 'attack-run');
   check('...and that one only because its selection IS the empty as-shipped one',
-    Object.keys(liveBrainSelection('jameson-defend-g2')).length === 0
-    && liveBrainId(liveBrainSelection('jameson-defend-g2')) === AS_SHIPPED);
+    Object.keys(liveBrainSelection('attack-run')).length === 0
+    && liveBrainId(liveBrainSelection('attack-run')) === AS_SHIPPED);
   // ...and a selection the picker cannot name says so rather than guessing. A
   // save made before TODO 57 deleted the six A/B flags is exactly this case: it
   // is not migrated, it must not throw, and the row offers to take it back.
@@ -381,11 +384,10 @@ console.log('\nbrain selection');
     // On 2026-08-05 "ship the scripted run" DID become "delete the trained
     // pirate policies" — by decision, not drift. The assertion flips: no
     // selection can summon a pirate brain any more.
-    check('no selection can put a trained policy on a pirate',
+    check('no selection can put a trained policy on anything',
       pirateBrainNameFor(2, true, { scripted: true }) === 'scripted'
       && (Object.keys(BRAINS) as BrainName[])
-        .every((n) => n === 'scripted' || n === 'attack-run'
-          || n.startsWith('jameson-defend')));
+        .every((n) => n === 'scripted' || n === 'attack-run'));
   }
   check('the defence brain is fitted', defenceBrain() !== null);
 }

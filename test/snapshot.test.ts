@@ -22,7 +22,7 @@ import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { SPECS } from '../src/game/ship-specs.ts';
 import { showMessage, tickMessage } from '../src/game/session.ts';
 import { check, keys } from './harness.ts';
-import { g1 } from './fixtures.ts';
+import { defendShaped, g1 } from './fixtures.ts';
 
 // --- the snapshot actually round-trips --------------------------------------
 
@@ -77,9 +77,11 @@ console.log('\nsnapshot round trip');
   // is a cached policy decision and this file exists to prove it survives a
   // save — it was the last field keeping a restored world from replaying its
   // original. Since 2026-08-05 the ONE ship that reaches `brainFly` in a
-  // shipped build is the armed trader on the defence policy (the trained
-  // pirate weights left the bundle), so the fixture is that trader, fleeing
-  // and provoked, under the shipped selection.
+  // shipped build's armed trader flies the scripted attack run now, which
+  // caches no brain decision — so the brain-flown half of the fixture drives
+  // `brainFly` directly with the defence-shaped fixture genome, the same
+  // public call the socket for a future trained candidate would make. What
+  // this file pins is the SNAPSHOT: every field a flight can dirty, saved.
   const fly = (npc: NpcShip, frames: number) => {
     for (let i = 0; i < frames; i++) {
       npc.update(1 / 60, makePlayer(at(0, 0, 0)), {
@@ -96,6 +98,14 @@ console.log('\nsnapshot round trip');
   flown.state.fleeing = true;
   flown.state.provokedByPlayer = true;
   fly(flown, 600);
+  // ...and a cached brain decision on top of the scripted flight's dirt: the
+  // defence socket exercised directly, since no shipped selection reaches it
+  const playerPos = at(0, 0, 0);
+  const playerQuat = new THREE.Quaternion();
+  for (let i = 0; i < 12; i++) {
+    flown.brainFly(defendShaped, 1 / 60, playerPos, playerQuat, 300,
+      flown.state.pos.distanceTo(playerPos), 'player');
+  }
 
   // A round trip over unchanged defaults proves nothing, so insist the state
   // is genuinely dirty first — vectors moved, a decision cached, clocks part

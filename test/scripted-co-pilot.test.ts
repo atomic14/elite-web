@@ -26,14 +26,12 @@ console.log('\nscripted combat computer');
 
 // --- the selection can name it, and it is code rather than weights ----------
 {
-  eq('the attack-run selection flies the attack run',
-    defenceBrainNameFor({ attackRun: true }), 'attack-run');
-  eq('...and it outranks the stage-3 candidate flag, one meaning per row',
-    defenceBrainNameFor({ attackRun: true, defendCandidate: true }), 'attack-run');
-  eq('...but "no brains at all" still means none',
-    defenceBrainNameFor({ scripted: true, attackRun: true }), 'scripted');
+  eq('the attack run IS the shipped defence — no flag needed',
+    defenceBrainNameFor({}), 'attack-run');
+  eq('..."no brains at all" still means none',
+    defenceBrainNameFor({ scripted: true }), 'scripted');
   check('it loads no weights — the pilot is code',
-    defenceBrain({ attackRun: true }) === null);
+    defenceBrain({}) === null);
   check('the live picker offers it', LIVE_BRAIN_IDS.includes('attack-run'));
   check('...under a name that says what it does',
     (brainName('attack-run') ?? '').includes('ATTACK RUNS'));

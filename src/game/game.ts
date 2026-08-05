@@ -54,7 +54,7 @@ import { npcImpactDamage } from './impact-damage.ts';
 import { IMPACT } from '../constants/impact.ts';
 import { dealToNpc } from './damage-dealt.ts';
 import type { PlayerPoolPoints } from './damage-units.ts';
-import { DEFEND_BRAIN } from './brains.ts';
+import { defenceBrain } from './brains.ts';
 import { defenceBrainNameFor, liveBrainId, liveBrainSelection } from './brain-names.ts';
 import { type NpcSpec } from './ship-specs.ts';
 import { type NpcRole } from './ship-roles.ts';
@@ -1428,7 +1428,8 @@ export class Game {
         // than your own stick's one axis does
         steerQuatToward(this.state.player.quaternion,
           this.steerScratch.copy(auto.steer.point).sub(this.state.player.position),
-          PLAYER_FLIGHT.maxPitch * dt);
+          PLAYER_FLIGHT.maxPitch * dt,
+          PLAYER_FLIGHT.maxRoll * dt);
       }
       this.state.player.speed = approach(
         this.state.player.speed, auto.steer.speed, PLAYER_FLIGHT.accel * dt);
@@ -1437,7 +1438,7 @@ export class Game {
       return { pitchRate: 0, rollRate: 0, throttle: 0, fire: auto.steer.fire || hands.fire };
     }
     const auto = this.autopilot.combatDemand(
-      dt, this.handsOn(), DEFEND_BRAIN, this.ordnance.hostileMissilePos);
+      dt, this.handsOn(), defenceBrain(this.state.brains), this.ordnance.hostileMissilePos);
     this.applyAutopilot(auto.events);
     // A co-pilot that can answer a warhead — the same button, the same price
     // and the same messages as the player's own E.C.M. key (docs/TODO/72). It

@@ -6,7 +6,7 @@
 // the suite went on measuring two brains the game did not fly.
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { DEFEND_BRAIN } from '../src/game/brains.ts';
+
 import { LIVE_BRAIN_IDS, isNamedBrain } from '../src/game/brain-names.ts';
 import { handle, installPolicyKit } from '../src/game/console.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
@@ -16,9 +16,7 @@ import { check, eq } from './harness.ts';
 import {
   DT,
   BRAINS,
-  SHIPPED_DEFEND,
   brainsSrc,
-  jameson,
 } from './fixtures.ts';
 
 // --- simulation determinism -------------------------------------------------
@@ -91,36 +89,13 @@ check(`untrained policy barely scratches her (${(randomPirateHurt * 100).toFixed
 check('the scripted run beats the untrained baseline by a factor of three',
   scriptedRunHurt > randomPirateHurt * 3);
 
-// two of whatever the game actually sends at you
-const twoPirates = () => [
-  { kind: 'scripted' as const },
-  { kind: 'scripted' as const },
-];
-const jamesonHurt = poolShare((seed) => new Episode({
-  seed, pirates: twoPirates(), trader: { kind: 'policy', brain: jameson }, traderArmed: true,
-}));
-const scriptedHurt = poolShare((seed) => new Episode({
-  seed, pirates: twoPirates(), trader: { kind: 'scripted' }, traderArmed: true,
-}));
-// Bounds set from measurement, not hope, and on the same pool share for the
-// same reason: two pirates cannot destroy the commander inside 45 seconds, so
-// "dies 48%" has become "dies 0%" for every defender including a scripted one,
-// and the gate would pass for a brain that does nothing. What the defence brain
-// is FOR is keeping their guns off her.
-//
-// INTERIM, until the v2 defence brain is promoted: the shipped policy is
-// currently WORSE than a scripted trader here — 32.9% of her pools against
-// 23.5%, measured 2026-08-05 after the threat lock and the 10Hz trainer
-// cadence changed the world it flies in. That is the measured reason the v2
-// retrain exists (docs/TRAINING-LOG.md), and this gate states it rather than
-// hiding it. When the v2 brain lands, the second check flips back to
-// `scriptedHurt > jamesonHurt` — a shipped defender must beat no defender.
-check(`shipped defence ${SHIPPED_DEFEND} holds 2v1`
-  + ` (they take ${(jamesonHurt * 100).toFixed(1)}% of her pools)`,
-jamesonHurt <= 0.35);
-check(`...but the stale brain is currently WORSE than a scripted trader`
-  + ` (${(scriptedHurt * 100).toFixed(1)}% scripted) — v2's job is to flip this gate`,
-scriptedHurt < jamesonHurt);
+// There is no trained-defender 2v1 gate any more. The block that stood here
+// compared the shipped defence brain against a scripted trader and, in its
+// final form, asserted the brain was WORSE (32.9% of her pools lost against
+// 23.5%) pending a v2 that never earned promotion — the v2 champion was a
+// pacifist (docs/TRAINING-LOG.md run 21), and on 2026-08-05 Chris discarded
+// the trained defence line outright. The shipped defence is the scripted
+// attack run now, and its gates live in test/scripted-co-pilot.test.ts.
 
 // --- we ship what we ship, and only that -------------------------------------
 //
@@ -234,7 +209,8 @@ console.log('\npurity');
   check('the console seam publishes the trained-policy debug handle',
     typeof kit.act === 'function' && typeof kit.observe === 'function'
     && typeof kit.observePack === 'function' && typeof kit.makeScratch === 'function');
-  check('...with the live defender policy', kit.defendBrain === DEFEND_BRAIN);
+  check('...and no shipped defender to publish — the bundle holds no weights',
+    kit.defendBrain === null);
 
   const PURE = [
     'commander.ts', 'shop.ts', 'contracts.ts', 'law.ts', 'jettison.ts',

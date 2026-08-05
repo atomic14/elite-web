@@ -42,7 +42,7 @@ import { COBRA_MK_3_HULL_ID, shipDesignIdOf } from '../src/game/ship-identity.ts
 import { npcMaxEnergy } from '../src/game/npc-energy.ts';
 import { Episode } from '../src/ai-training/scenario.ts';
 import { check } from './harness.ts';
-import { jameson } from './fixtures.ts';
+import { defendShaped as jameson } from './fixtures.ts';
 
 // --- one combat model, and the trainer flies it -----------------------------
 //

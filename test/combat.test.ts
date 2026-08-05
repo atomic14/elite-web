@@ -34,7 +34,7 @@ import {
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { check, eq } from './harness.ts';
-import { DT, load, SHIPPED_DEFEND } from './fixtures.ts';
+import { DT, defendShaped } from './fixtures.ts';
 // --- resolving a hit ---------------------------------------------------------
 //
 // The bounty, the kill credit, the contract tick and the legal offence used to
@@ -290,7 +290,7 @@ console.log('\ncollision rates');
   // policy in the bundle. A ceiling that measured a brain no player could meet
   // is the failure this block replaced once already (TODO 57), and deleting
   // the pirate policies is the same correction finishing.
-  const evader = load(SHIPPED_DEFEND);
+  const evader = defendShaped;
   {
     const vScripted = rams(() => ({
       pirates: [{ kind: 'scripted' }], trader: { kind: 'scripted' },

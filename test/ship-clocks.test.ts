@@ -34,7 +34,7 @@ import { describeFlight } from '../src/game/break-off.ts';
 import { UNDER_FIRE_SECONDS } from '../src/constants/attack-run.ts';
 import { npcImpactDamage } from '../src/game/impact-damage.ts';
 import { IMPACT } from '../src/constants/impact.ts';
-import { brainByName } from '../src/game/brains.ts';
+import { defendShaped } from './fixtures.ts';
 import { SHIPPED_BRAINS, type BrainSelection } from '../src/game/brain-names.ts';
 import { SPECS } from '../src/game/ship-specs.ts';
 import { MISSILE_LAST_STAND_HULL, MISSILE_RELOAD } from '../src/constants/ordnance.ts';
@@ -78,11 +78,10 @@ const fly = (npc: NpcShip, brains: BrainSelection, frames: number): NpcShip => {
 
 console.log('\nship clocks: under fire is a decay, not a latch');
 {
-  // The defence policy: the one brain in the bundle since 2026-08-05, and
-  // `brainFly` is brain-agnostic — the decay under test is the ship's, not any
-  // particular genome's.
-  const brain = brainByName('jameson-defend-g2');
-  check('the fixture has a trained policy to fly', brain !== null);
+  // A defence-shaped genome: `brainFly` is brain-agnostic — the decay under
+  // test is the ship's, not any particular genome's, and since 2026-08-05
+  // there are no shipped weights to borrow (the trained line was discarded).
+  const brain = defendShaped;
 
   /**
    * A pirate hit once and then flown for `frames`, exactly as an orchestrator

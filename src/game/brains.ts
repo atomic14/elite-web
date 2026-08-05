@@ -1,68 +1,40 @@
-// The trained brain, loaded — ONE policy, the defence.
+// The trained brains, loaded — and today there are NONE.
 //
-// It was three until 2026-08-05 (and nine until TODO 57): the two trained
-// pirate policies came out of the bundle when Chris made scripted the only
-// opposition anywhere — the sky and the trainer's rows alike — so the game
-// loads exactly the policy that flies on the player's side: the armed
-// trader's pilot, which is also the combat computer. docs/TRAINING-LOG.md
-// keeps every figure the deleted weights ever measured.
+// The bundle held nine weights files once, three after TODO 57, one after the
+// trained pirates left on 2026-08-05 — and zero since later that same day,
+// when the trained defence line followed them out: three consecutive retrains
+// optimised their way out of fighting (docs/TRAINING-LOG.md runs 20-21), and
+// the defence slots fly the scripted attack run now (scripted-co-pilot.ts,
+// brain-names.ts). Every figure the deleted weights ever measured is in the
+// log.
 //
-// The RULE — which name flies for whom, given a `BrainSelection` — is one file
-// over in brain-names.ts, because the combat trainer needs to answer it too and
-// must not import a megabyte of weights to do it. What is here is the weights,
-// the name-to-policy lookup, and the number (`guard`) that
-// are facts about a policy rather than about a name.
+// THE FILE STAYS, EMPTY, AS THE SOCKET. A future candidate re-enters the game
+// by being imported here, named in brain-names.ts, and profiled in BRAINS —
+// one row, both pickers. `npm test` holds the weights directory to exactly
+// what this file imports (nothing, today), so an experiment cannot drift into
+// the bundle and a shipped brain cannot go missing unnoticed — both have
+// happened.
 //
-// Loading is defensive on purpose: a brain whose shape does not match the
-// policy code returns null and the ship falls back to the shipped policy or to
-// the scripted AI, rather than taking the game down.
+// Loading stays defensive when there is something to load: a brain whose
+// shape does not match the policy code must become null and a fallback, never
+// a crash.
 
 import {
-  act, makeScratch, brainFromFile, type Brain, type BrainFile,
+  act, makeScratch, brainFromFile, type Brain,
 } from '../ai-training/policy.ts';
 import {
   observe, observePack, observeDefend, observeFor,
 } from '../ai-training/observation.ts';
 import { energyLeft, poolsLeft } from './systems.ts';
 import {
-  defenceBrainNameFor,
   SHIPPED_BRAINS, type BrainName, type BrainSelection,
 } from './brain-names.ts';
-import defendBrainFile from '../ai-training/brains/jameson-defend-g2.json' with { type: 'json' };
-import defendCandidateFile from '../ai-training/brains/jameson-defend-t91.json' with { type: 'json' };
-
-export const DEFEND_BRAIN: Brain | null = (() => {
-  try {
-    return brainFromFile(defendBrainFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
 
 /**
- * Every policy, by name — the lookup that makes the trainer's report honest.
- *
- * brain-names.ts decides WHICH name flies and cannot know whether the file
- * behind it parsed; this is the other half. `npm test` asserts that every name
- * the rule can return has a non-null entry here, and that the weights directory
- * holds exactly the files imported above — so "the report says the gang policy"
- * and "the ship flies the gang policy" cannot come apart, and a policy nothing
- * ships cannot quietly reappear in the bundle.
+ * Every policy, by name. Both names are CODE pilots — the attack run and the
+ * pre-neuroevolution scripted AI — so nothing here has weights behind it.
  */
-/** The TODO 91 candidate, in the bundle for stage 3's flying and nothing else. */
-const DEFEND_CANDIDATE: Brain | null = (() => {
-  try {
-    return brainFromFile(defendCandidateFile as unknown as BrainFile);
-  } catch {
-    return null;
-  }
-})();
-
 const LOADED: Record<BrainName, Brain | null> = {
-  'jameson-defend-g2': DEFEND_BRAIN,
-  'jameson-defend-t91': DEFEND_CANDIDATE,
-  // the two code pilots — the attack run and the pre-neuroevolution AI —
-  // are code, not weights
   'attack-run': null,
   scripted: null,
 };
@@ -78,39 +50,29 @@ export function brainByName(name: BrainName): Brain | null {
  */
 export function policyKit(): Record<string, unknown> {
   return {
-    act, observe, observePack, makeScratch,
+    act, observe, observePack, makeScratch, brainFromFile,
     // `observeFor` is what a harness should actually call: it picks the encoder
-    // off the brain's own input count, so a console script cannot be left
-    // feeding fourteen numbers to a policy that reads seventeen — which is
-    // silent, and reads as "the defender has no ship left" (docs/TODO/71).
-    // `poolsLeft` and `energyLeft` are here for the same reason: those two
-    // slots must be filled from `systems.ts`'s expressions, not a harness's
-    // arithmetic.
+    // off the brain\'s own input count, so a console script cannot be left
+    // feeding the wrong width to a policy — which is silent, and reads as "the
+    // defender has no ship left" (docs/TODO/71). `poolsLeft` and `energyLeft`
+    // are here for the same reason: those two slots must be filled from
+    // systems.ts\'s expressions, not a harness\'s arithmetic.
     observeDefend, observeFor, poolsLeft, energyLeft,
-    defendBrain: DEFEND_BRAIN,
+    // no shipped defence weights since 2026-08-05 — load a candidate file
+    // with `brainFromFile` above instead
+    defendBrain: null,
   };
 }
 
-
-// There is no `pirateBrainFor` and no `BrainChoice` any more: the pirates a
-// player meets fly the scripted attack run, and since 2026-08-05 there are no
-// trained pirate weights in the bundle for an override to select
-// (brain-names.ts has the decision). What is left here is the one policy the
-// game loads — the defence brain, for armed traders and the combat computer.
-
 /**
- * An armed trader or a player-assist ship flies the defence policy — or
- * nothing loadable, when the selection names a CODE pilot: `scripted` (no
- * defence at all) and `attack-run` (the scripted run; npc.ts and the Game
- * fly it directly) both return null here, because null means "no weights",
- * and which code path replaces them is the caller's question, asked of
+ * The trained defence policy an armed trader or the combat computer would
+ * fly — null since 2026-08-05, when the trained line left the bundle. The
+ * SOCKET stays because npc.ts\'s defence path and game.ts\'s combat computer
+ * still ask, and a future candidate answers by being imported above; which
+ * CODE pilot replaces a null answer is the caller\'s question, asked of
  * `defenceBrainNameFor`.
  */
 export function defenceBrain(sel: BrainSelection = SHIPPED_BRAINS): Brain | null {
-  const name = defenceBrainNameFor(sel);
-  // the code pilots BY NAME, not by their null entry — a weights file that
-  // failed to parse is also null in LOADED, and that one still falls back to
-  // the shipped brain rather than grounding the trader
-  if (name === 'scripted' || name === 'attack-run') return null;
-  return LOADED[name] ?? DEFEND_BRAIN;
+  void sel;
+  return null;
 }

@@ -9,7 +9,11 @@
 
 import { readFileSync } from 'node:fs';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
-import { brainFromFile, type BrainFile } from '../src/ai-training/policy.ts';
+import {
+  genomeSize, randomBrain,
+  DEFEND_OBS_SIZE, DEFEND_OUT_SIZE, HIDDEN,
+} from '../src/ai-training/policy.ts';
+import { makeRng } from '../src/game/rng.ts';
 import { FIXED_DT } from '../src/constants/world-clock.ts';
 
 /**
@@ -29,32 +33,38 @@ export const g1 = generateGalaxy(1);
 export const DT = FIXED_DT;
 
 export const BRAINS = new URL('../src/ai-training/brains/', import.meta.url).pathname;
-export const load = (n: string): ReturnType<typeof brainFromFile> =>
-  brainFromFile(JSON.parse(readFileSync(`${BRAINS}${n}.json`, 'utf8')) as BrainFile);
 
 /**
- * The brains the GAME actually flies, read out of brains.ts rather than typed
- * here.
- *
- * The baseline checks used to load 'pirate-attack-r2' and 'jameson-defend',
- * neither of which the game flew — so the regression gate that exists to stop a
- * bad brain reaching players was measuring two brains that were not in it.
- * Deriving the names means retraining under a new one cannot silently orphan
- * the check, and since TODO 57 there is nothing else in the directory to get
- * hold of by mistake: `test/ai.test.ts` holds it to exactly these imports.
+ * brains.ts's source, for the gates that hold the weights DIRECTORY to what
+ * the file imports. Since 2026-08-05 that is NOTHING — the trained defence
+ * line followed the trained pirates out of the bundle (docs/TRAINING-LOG.md
+ * runs 20-21) — and the empty directory is itself the asserted claim.
  */
 export const brainsSrc = readFileSync(
   new URL('../src/game/brains.ts', import.meta.url), 'utf8');
 
-export const shippedBrainFile = (which: string): string => {
-  const m = brainsSrc.match(
-    new RegExp(`import ${which}BrainFile from '[^']*brains/([^']+)\\.json'`));
-  if (!m) throw new Error(`brains.ts no longer imports a ${which} brain`);
-  return m[1];
-};
+/**
+ * A defence-SHAPED genome, deterministic, for every test whose subject is the
+ * machinery a defence brain flies through — brainFly's clocks, the snapshot,
+ * the encoder plumbing — none of which cares what the weights say. It stood
+ * on the shipped `jameson-defend-*` weights until the line was discarded;
+ * what those tests were ever pinning was the SHIP's behaviour, so a seeded
+ * random genome of the right shape carries them.
+ */
+export const defendShaped = randomBrain(
+  makeRng(0xdefe4d), DEFEND_OBS_SIZE, HIDDEN, 0.5, DEFEND_OUT_SIZE);
 
-// There is no SHIPPED_PIRATE any more: the trained pirate weights left the
-// bundle on 2026-08-05 (scripted is the only opposition), so the one brain
-// the game imports is the defence.
-export const SHIPPED_DEFEND = shippedBrainFile('defend');
-export const jameson = load(SHIPPED_DEFEND);
+/**
+ * A defence genome that ALWAYS asks for the E.C.M. — the yes/no biases of the
+ * thirteenth head forced apart, everything else `defendShaped`'s own weights.
+ * What the missile tests pin is the mechanism (the head reaches `fireEcm`,
+ * the gate needs a warhead, the press costs a quarter of the bank), and that
+ * must not depend on whether some particular training run learned to press.
+ */
+export const ecmPresser = (() => {
+  const b = randomBrain(makeRng(0xdefe4d), DEFEND_OBS_SIZE, HIDDEN, 0.5, DEFEND_OUT_SIZE);
+  const biasBase = genomeSize(DEFEND_OBS_SIZE, b.hidden, DEFEND_OUT_SIZE) - DEFEND_OUT_SIZE;
+  b.weights[biasBase + 11] = -50; // ecm-no
+  b.weights[biasBase + 12] = 50;  // ecm-yes
+  return b;
+})();

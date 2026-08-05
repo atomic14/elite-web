@@ -24,6 +24,7 @@ import type { FlightDemand } from '../player.ts';
 import type { Brain } from '../ai-training/policy.ts';
 import type { V3 } from '../ai-training/observation.ts';
 import { hostilesNear } from './npc.ts';
+import { defenceBrainNameFor } from './brain-names.ts';
 import type { CombatComputer } from './combat-computer.ts';
 import { ScriptedCoPilot } from './scripted-co-pilot.ts';
 import type { SoundEvent } from './sounds.ts';
@@ -132,6 +133,12 @@ export class Autopilot {
     }
     if (!hostilesNear(s.world.npcs, s.player.position, s.commander.legalStatus)) {
       return [say('NO HOSTILES — COMBAT COMPUTER IDLE', 3), REFUSED];
+    }
+    // The LIVE BRAINS row can set the co-pilot to NONE outright — refusing
+    // here, in the row's own words, beats engaging a pilot that immediately
+    // hands back with a message about an empty sky that is not empty.
+    if (defenceBrainNameFor(s.brains) === 'scripted') {
+      return [say('COMBAT COMPUTER SET TO NONE — SEE THE COMBAT TRAINER', 4), REFUSED];
     }
     s.session.ccEngaged = true;
     s.session.view = 0; // it aims the front laser

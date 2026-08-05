@@ -342,16 +342,76 @@ export type TraderPhase = 'arriving' | 'trading' | 'departing' | 'docking';
  * it is this one. Mutates `quat` in place and allocates nothing.
  */
 export function steerQuatToward(
-  quat: THREE.Quaternion, dir: THREE.Vector3, maxStep: number,
+  quat: THREE.Quaternion,
+  dir: THREE.Vector3,
+  maxPitchStep: number,
+  maxRollStep: number = maxPitchStep * (TURN.roll / TURN.pitch),
 ): void {
-  if (dir.lengthSq() < 1) return;
-  steerMat.lookAt(ZERO, dir, UP); // -Z ends up along dir
-  steerQuat.setFromRotationMatrix(steerMat);
-  quat.rotateTowards(steerQuat, maxStep);
+  if (dir.lengthSq() < 1e-12) return;
+
+  if (maxPitchStep >= Math.PI) {
+    steerMat.lookAt(ZERO, dir, UP);
+    steerQuat.setFromRotationMatrix(steerMat);
+    quat.copy(steerQuat);
+    return;
+  }
+
+  dirNorm.copy(dir).normalize();
+
+  // Current local axes in world space
+  fwd.set(0, 0, -1).applyQuaternion(quat);
+  up.set(0, 1, 0).applyQuaternion(quat);
+  right.set(1, 0, 0).applyQuaternion(quat);
+
+  // Project target direction onto local axes
+  const localX = dirNorm.dot(right);
+  const localY = dirNorm.dot(up);
+  const offAxis = Math.hypot(localX, localY);
+
+  // 1. Roll about Z axis to align target direction into local Y-Z pitch plane.
+  // Math.abs(localY) avoids 180-degree roll inversion jumps.
+  let rollError = 0;
+  if (offAxis > 1e-5) {
+    rollError = Math.atan2(-localX, Math.abs(localY));
+  }
+
+  // Proportional roll control prevents overshooting the pitch plane and spinning
+  const dtApprox = maxPitchStep / TURN.pitch;
+  const desiredRollStep = rollError * 4.0 * dtApprox;
+  const actualRoll = Math.max(-maxRollStep, Math.min(maxRollStep, desiredRollStep));
+
+  if (Math.abs(actualRoll) > 1e-7) {
+    rotQ.setFromAxisAngle(axisZ, actualRoll);
+    quat.multiply(rotQ);
+  }
+
+  // Recalculate local axes after roll for accurate pitch calculation
+  fwd.set(0, 0, -1).applyQuaternion(quat);
+  up.set(0, 1, 0).applyQuaternion(quat);
+
+  const newLocalY = dirNorm.dot(up);
+  const newLocalZ = dirNorm.dot(fwd);
+
+  // 2. Pitch about X axis to bring nose onto target
+  const pitchError = Math.atan2(newLocalY, newLocalZ);
+  const actualPitch = Math.max(-maxPitchStep, Math.min(maxPitchStep, pitchError));
+  if (Math.abs(actualPitch) > 1e-7) {
+    rotQ.setFromAxisAngle(axisX, actualPitch);
+    quat.multiply(rotQ);
+  }
+
+  quat.normalize();
 }
 
 const steerMat = new THREE.Matrix4();
 const steerQuat = new THREE.Quaternion();
+const axisX = new THREE.Vector3(1, 0, 0);
+const axisZ = new THREE.Vector3(0, 0, 1);
+const fwd = new THREE.Vector3();
+const up = new THREE.Vector3();
+const right = new THREE.Vector3();
+const dirNorm = new THREE.Vector3();
+const rotQ = new THREE.Quaternion();
 
 export class NpcShip {
   readonly object: THREE.Object3D;
@@ -678,8 +738,10 @@ export class NpcShip {
 
     if (this.state.fleeing) {
       // Armed traders turn and fight. WHICH pilot is brain-names.ts's answer:
-      // the trained defence policy, or — since 2026-08-05 — the same scripted
-      // attack run every pirate flies, pointed back at whoever is hunting it.
+      // since 2026-08-05 the shipped answer is the same scripted attack run
+      // every pirate flies, pointed back at whoever is hunting it; the
+      // brainFly block below is the socket a future trained candidate
+      // re-enters through (brains.ts), and flies nothing today.
       if (this.armed && defenceBrainNameFor(brains) === 'attack-run') {
         if (this.state.provokedByPlayer && distPlayer < 6000) {
           const shot = this.attack(dt, player.position, distPlayer, true, undefined,
@@ -1322,7 +1384,8 @@ export class NpcShip {
     steerQuatToward(
       this.object.quaternion,
       this.tmpDir.copy(point).sub(this.object.position),
-      this.turnRate * dt);
+      this.turnRate * TURN.pitch * dt,
+      this.turnRate * TURN.roll * dt);
   }
 
   /**
