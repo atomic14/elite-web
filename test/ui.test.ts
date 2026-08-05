@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { freshState } from '../src/game/state.ts';
 import { newCommander } from '../src/game/commander.ts';
-import { defenceBrain } from '../src/game/brains.ts';
+import { defendShaped } from './fixtures.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { ScreenHost, type Screen, type ScreenOutcome } from '../src/ui/screen-host.ts';
 import {
@@ -350,18 +350,22 @@ console.log('\nautopilots');
   }
 
   {
-    // the demand itself: the same FlightDemand a pair of hands produces
+    // The brain co-pilot's demand: the same FlightDemand a pair of hands
+    // produces. There are no shipped defence weights since 2026-08-05, so this
+    // flies a SHAPED fixture genome — the machinery under test is the ship's,
+    // not any particular brain's, and this keeps the socket tested for a future
+    // candidate. The `null`-brain hand-back below is the empty-bundle reality.
     const { state, auto } = rig({ combatComputer: true });
     state.world.spawn('pirate',
       state.player.position.clone().add(new THREE.Vector3(0, 0, -1200)), 1);
     auto.toggleCombat();
-    const flying = auto.combatDemand(1 / 60, false, defenceBrain());
+    const flying = auto.combatDemand(1 / 60, false, defendShaped);
     check('it produces a demand, not a manoeuvre', flying.demand !== null);
     check('...at the cruise limits it was trained in',
       flying.demand?.limits?.maxSpeed === CC_MAX_SPEED);
     check('...and says nothing while it is working', flying.events.length === 0);
 
-    const grabbed = auto.combatDemand(1 / 60, true, defenceBrain());
+    const grabbed = auto.combatDemand(1 / 60, true, defendShaped);
     check('touching the controls takes the ship straight back',
       grabbed.demand === null && !state.session.ccEngaged);
     eq('...and says so', texts(grabbed.events)[0], 'MANUAL OVERRIDE');

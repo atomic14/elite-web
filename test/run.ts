@@ -61,6 +61,7 @@ import './separation.test.ts';
 import './tactics.test.ts';
 import './tactic-choice.test.ts';
 import './scripted-co-pilot.test.ts';
+import './pitch-roll-steer.test.ts';
 import './systems.test.ts';
 import './energy-low.test.ts';
 import './combat.test.ts';

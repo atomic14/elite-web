@@ -49,7 +49,7 @@ import { Hud } from '../hud/hud.ts';
 import { buildHudFrame } from '../hud/hud-binding.ts';
 import { TunnelEffect } from '../hud/tunnel.ts';
 import { sfx } from '../audio.ts';
-import { NpcShip, approach, steerQuatToward } from './npc.ts';
+import { NpcShip } from './npc.ts';
 import { npcImpactDamage } from './impact-damage.ts';
 import { IMPACT } from '../constants/impact.ts';
 import { dealToNpc } from './damage-dealt.ts';
@@ -252,8 +252,6 @@ export class Game {
    * the thing that engages it.
    */
   private readonly autopilot = new Autopilot(this.state, this.combatComputer);
-  /** scratch for the scripted co-pilot's steer — see pilotDemand */
-  private readonly steerScratch = new THREE.Vector3();
   /** missiles, E.C.M. and the energy bomb — see ordnance.ts */
   private readonly ordnance = new Ordnance(this.state.world);
   /**
@@ -1116,8 +1114,9 @@ export class Game {
    */
   private applyPlayerDamage(
     amount: PlayerPoolPoints, from: THREE.Vector3, source: DamageSource): void {
-    // the scripted co-pilot aborts a pass early when the ship is being hit,
-    // exactly as a pirate does (UNDER_FIRE_SECONDS) — this is how it feels it
+    // the co-pilot's own record that the commander is being hit — kept live
+    // end to end so evasive behaviour can read it later; the pursuit does not
+    // change on it yet (scripted-co-pilot.ts).
     this.autopilot.noteUnderFire();
     this.hud.flashDamage();
     this.applyCombat(damagePlayer(this.state, this.combat, amount, from, this.combatScratch));
@@ -1413,32 +1412,15 @@ export class Game {
     // is ours to do, immediately after reading it
     if (this.input.mouseFlight) this.input.decayMouse(dt);
     if (!this.state.session.ccEngaged) return hands;
-    // WHICH co-pilot is the LIVE BRAINS selection's answer: the scripted
-    // attack run steers the ship the way every scripted ship steers (a slewed
-    // quaternion — the docking computer's precedent on this hull), and the
-    // trained policy speaks the FlightDemand it always has.
-    if (defenceBrainNameFor(this.state.brains) === 'attack-run') {
-      const auto = this.autopilot.combatSteer(
-        dt, this.handsOn(), this.ordnance.hostileMissilePos);
-      this.applyAutopilot(auto.events);
-      if (auto.ecm) this.triggerEcm();
-      if (!auto.steer) return hands;
-      if (auto.steer.point) {
-        // the ship's own pitch cap: the co-pilot turns your ship no harder
-        // than your own stick's one axis does
-        steerQuatToward(this.state.player.quaternion,
-          this.steerScratch.copy(auto.steer.point).sub(this.state.player.position),
-          PLAYER_FLIGHT.maxPitch * dt,
-          PLAYER_FLIGHT.maxRoll * dt);
-      }
-      this.state.player.speed = approach(
-        this.state.player.speed, auto.steer.speed, PLAYER_FLIGHT.accel * dt);
-      // zero rates and a held throttle: the quaternion and the speed are
-      // already set, and PlayerShip.update flies exactly this demand onward
-      return { pitchRate: 0, rollRate: 0, throttle: 0, fire: auto.steer.fire || hands.fire };
-    }
-    const auto = this.autopilot.combatDemand(
-      dt, this.handsOn(), defenceBrain(this.state.brains), this.ordnance.hostileMissilePos);
+    // WHICH co-pilot is the LIVE BRAINS selection's answer: the scripted attack
+    // run, or the trained defence policy. BOTH now return a FlightDemand — the
+    // scripted one banks-to-turn through the commander's own envelope
+    // (scripted-co-pilot.ts), the trained one flies at its fitted CC_* caps —
+    // so the Game flies either the same way and the HUD reads both.
+    const auto = defenceBrainNameFor(this.state.brains) === 'attack-run'
+      ? this.autopilot.combatSteer(dt, this.handsOn(), this.ordnance.hostileMissilePos)
+      : this.autopilot.combatDemand(
+        dt, this.handsOn(), defenceBrain(this.state.brains), this.ordnance.hostileMissilePos);
     this.applyAutopilot(auto.events);
     // A co-pilot that can answer a warhead — the same button, the same price
     // and the same messages as the player's own E.C.M. key (docs/TODO/72). It

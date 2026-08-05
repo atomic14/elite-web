@@ -141,24 +141,24 @@ console.log('\nship clocks: through the live update()');
     return npc;
   };
 
-  // There is no A/B trained pirate any more (the weights left the bundle,
-  // 2026-08-05): the one ship that reaches `brainFly` in a shipped build is
-  // the armed trader below, and the direct-drive block above covers the
-  // brain path for any genome.
+  // There is no trained ship any more: the weights left the bundle on
+  // 2026-08-05 and were not replaced (the defence line was not good enough).
+  // The one ship that turns and fights in a shipped build is the armed trader
+  // below, and it flies the SCRIPTED attack run — `defenceBrainNameFor` returns
+  // `attack-run` under `SHIPPED_BRAINS`. The direct-drive block above still
+  // covers the brain path for any genome, for when a candidate returns.
 
-  // The armed trader on `jameson-defend-g2` reaches `brainFly` down the
-  // `fleeing` branch and never runs `attack()` at ALL, so nothing was ever going
-  // to unstick its flag. Its readout says `fleeing` either way — that word
-  // outranks `evading` in `describeFlight` — so the flag itself is the
-  // assertion, and the flag is what `nextAttackPhase` and `tacticSwitchReason`
-  // read the moment this ship does hand over.
+  // The armed trader reaches the scripted `attack()` down the `fleeing` branch
+  // (npc.ts), so `flownBy` is `scripted`. `underFire` is decayed by
+  // `tickClocks`, not by the flight, so it still cools off — the assertion this
+  // block exists for.
   seedWorld(77_102);
   const trader = new NpcShip('trader', new THREE.Vector3(0, 0, 2500), 77_102,
     SPECS.trader.find((s) => s.armed));
   trader.state.fleeing = true;
   trader.state.provokedByPlayer = true;
   fly(hit(trader), SHIPPED_BRAINS, LAST);
-  check('the armed trader flies the defence policy', trader.state.flownBy === 'brain');
+  check('the armed trader flies the scripted attack run', trader.state.flownBy === 'scripted');
   check(`...and its underFire is 0 ${UNDER_FIRE_SECONDS}s after the hit,`
     + ` not latched at ${UNDER_FIRE_SECONDS}`,
   trader.state.underFire === 0, `got ${trader.state.underFire}`);

@@ -1,9 +1,13 @@
-// The combat computer you can buy: what it will engage, and the envelope it
-// flies your ship in. The autopilot itself is `game/combat-computer.ts`.
+// The combat computer you can buy: what it will engage, the envelope it flies
+// your ship in, and how it pursues. The autopilot itself is
+// `game/combat-computer.ts` (the trained brain) and `game/scripted-co-pilot.ts`
+// (the shipped pursuit dogfighter).
 //
-// All five of its numbers are here now. The two turn caps waited for the flight
-// slice, because they are `TURN` multiplied by a roster row and this directory
-// may not reach outside itself; `hull-motion.ts` brought `TURN` in.
+// Two groups live here. The engage range, the cruise envelope and the two turn
+// caps are the TRAINED co-pilot's — the caps are `TURN` times a roster row, and
+// this directory may not reach outside itself, so `hull-motion.ts` brought
+// `TURN` in. The `STEER_*`/`PURSUIT_*` block is the SCRIPTED co-pilot's, and is
+// feel rather than fit: no brain flies through it.
 
 import { TURN } from './hull-motion.ts';
 
@@ -41,3 +45,61 @@ export const CC_ACCEL = 100;
  */
 export const CC_MAX_PITCH = 0.5 * TURN.pitch;
 export const CC_MAX_ROLL = 0.5 * TURN.roll;
+
+/**
+ * The heading error, in radians, at which the SCRIPTED co-pilot asks for full
+ * pitch or roll. Below it the ask is proportional; at or beyond it the stick is
+ * hard over.
+ *
+ * A feel setting for the scripted combat computer's bank-to-turn steering
+ * (`game/pitch-roll-steer.ts`), not a fitted one — no brain flies through it.
+ * 0.35 rad (~20 degrees) was chosen on the sphere-convergence probe: it saturates
+ * soon enough that acquisition is not sluggish (the old roll-then-pitch slew was),
+ * while staying proportional in the last degrees so the ramp settles on the
+ * target instead of overshooting and dithering across it.
+ */
+export const STEER_SATURATION = 0.35;
+
+// --- the scripted co-pilot as a PURSUIT DOGFIGHTER --------------------------
+//
+// It does not fly the pirates' slash-and-fly-through attack run: Chris flew that
+// as the combat computer and it let go of a crossing target the moment it got
+// close (the pass phase steers nowhere on purpose). What a person does instead
+// is get on the opponent's six and shoot it up, throttling back to hold the
+// track. These are the numbers of that pursuit — feel settings, not fitted, and
+// meant to be flown and tuned. See `game/scripted-co-pilot.ts`.
+
+/**
+ * The range the co-pilot tries to hold behind its target — close enough that
+ * the laser cone is generous, well inside `LASER_RANGE` (3500) and outside
+ * `BREAK_OFF_RANGE` (220) so holding station is not ramming. Beyond it the
+ * co-pilot closes; inside it drops back.
+ */
+export const PURSUIT_RANGE = 500;
+
+/**
+ * How fast the co-pilot wants to fly per unit of range error, in speed units
+ * per world unit (i.e. per second). At 1.0 it asks for full speed about a
+ * commander's-top-speed's worth of distance beyond `PURSUIT_RANGE` and for a
+ * dead stop the same distance inside it, matching the target's own speed in
+ * between — which is what holds station on the six.
+ */
+export const PURSUIT_CLOSE_GAIN = 1.0;
+
+/**
+ * The slowest, as a fraction of the speed it would otherwise want, the co-pilot
+ * throttles back to while turning hard onto the target. Unlike a pirate's
+ * `MIN_CRUISE_FRACTION`, this may take the ship near a stop: a person hauls the
+ * throttle right off to swing the nose round and stay on a crossing target, and
+ * the commander's ship (unlike a fighter that would become a turret) is meant
+ * to be able to.
+ */
+export const PURSUIT_TURN_FLOOR = 0.15;
+
+/**
+ * Speed deadband, in world units, inside which the co-pilot coasts rather than
+ * pumping the throttle. `FlightDemand.throttle` is only a sign, so without this
+ * the co-pilot would flip accelerate/brake every frame at its held speed; the
+ * band is a few units so holding station reads as a steady throttle.
+ */
+export const PURSUIT_SPEED_DEADBAND = 6;

@@ -147,6 +147,11 @@ const FLOWN = [...new Set(
 // shipped bundle under labels implying they were the shipped ones. A page that
 // wants the shipped policy asks `brains.ts` for it by role, which is one home
 // and cannot be labelled wrong.
+//
+// Since 2026-08-05 the bundle is empty, so `brains.ts` itself imports zero
+// weights — the claim is therefore "NO file other than `brains.ts` imports a
+// weights file", which still catches a viewer reaching for one directly and
+// holds when a future candidate re-enters through `brains.ts` alone.
 {
   const walk = (dir: URL): URL[] => readdirSync(dir, { withFileTypes: true })
     .flatMap((e) => (e.isDirectory() ? walk(new URL(`${e.name}/`, dir))
@@ -156,8 +161,8 @@ const FLOWN = [...new Set(
     .map((f) => ({ rel: f.pathname.slice(root.length), f }))
     .filter(({ f }) => /from '[^']*ai-training\/brains\//.test(readFileSync(f, 'utf8')))
     .map(({ rel }) => rel);
-  check(`game/brains.ts is the only file in src/ that imports weights (${importers.join(', ')})`,
-    importers.join() === 'game/brains.ts');
+  check(`only game/brains.ts may import weights, and none do today (${importers.join(', ') || 'none'})`,
+    importers.every((rel) => rel === 'game/brains.ts'));
 }
 
 check(`the weights directory is exactly what brains.ts imports (${ON_DISK.length} files)`,

@@ -337,8 +337,14 @@ console.log('\nbrain selection');
       offenders.length === 0, offenders.join(', '));
   }
   {
-    check('brains.scripted turns the one loaded brain off',
-      defenceBrain({ scripted: true }) === null && defenceBrain() !== null);
+    // No loaded defence brain to turn off any more: the trained line left the
+    // bundle on 2026-08-05, so `defenceBrain` is null whatever the selection.
+    // The NAME rule carries the choice now.
+    check('the bundle holds no defence weights, whatever the selection',
+      defenceBrain({ scripted: true }) === null && defenceBrain() === null);
+    check('...and the name rule still splits scripted from the shipped run',
+      defenceBrainNameFor({ scripted: true }) === 'scripted'
+      && defenceBrainNameFor() === 'attack-run');
   }
   {
     // A SAVE FROM BEFORE TODO 57 OR TODO 61 still loads, and flies the shipped
@@ -389,5 +395,8 @@ console.log('\nbrain selection');
       && (Object.keys(BRAINS) as BrainName[])
         .every((n) => n === 'scripted' || n === 'attack-run'));
   }
-  check('the defence brain is fitted', defenceBrain() !== null);
+  // No defence weights fitted since 2026-08-05 — the shipped defence is the
+  // scripted attack run, which the name rule returns.
+  check('no defence brain is fitted — the shipped defence is the scripted run',
+    defenceBrain() === null && defenceBrainNameFor() === 'attack-run');
 }

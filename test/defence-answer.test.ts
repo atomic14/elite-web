@@ -48,7 +48,6 @@ import { seedWorld } from '../src/game/rng.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
 import { Autopilot } from '../src/game/autopilot.ts';
 import { CombatComputer, freshAutopilot } from '../src/game/combat-computer.ts';
-import { defenceBrain } from '../src/game/brains.ts';
 {
   console.log('\nthe defence encoder');
   const rng = makeRng(0x5eed);
@@ -217,10 +216,11 @@ console.log('\nmissiles: the target answers one');
   const presser = ecmPresser;
 
   // One pirate, one warhead, on a held-out defence seed — re-searched
-  // 2026-08-05 when the threat lock and the 10Hz trader cadence changed how
-  // the shipped policy flies the fight: the property needs a seed where the
-  // two runs stay identical outside the warhead itself.
-  const SEED = 8_738_342;
+  // 2026-08-05 when the trained defence line was discarded and NPC steering
+  // returned to the arc slew: the property needs a seed where the two runs
+  // stay identical outside the warhead itself, and this is one of several the
+  // current physics gives (delta === one warhead, exactly one missile fired).
+  const SEED = 1_000_037;
   const run = (brain: typeof presser, ecm: boolean): EpisodeReport => {
     const { count, hull, laser, energyUnit } = defenceFight(SEED);
     const ep = new Episode({
@@ -301,19 +301,21 @@ console.log('\ncombat computer: the E.C.M.');
 
   // Two rules make a co-pilot with a button safe: a policy with no E.C.M. head
   // can never ask for one, and a policy that always asks only gets it when
-  // something is actually coming.
+  // something is actually coming. There are no shipped defence weights since
+  // 2026-08-05, so the "always asks" side is the `ecmPresser` fixture — the
+  // gate is `autopilotEcm`'s, not any particular brain's.
   const warheadAt = new THREE.Vector3(0, 0, 900);
   check('a policy with no E.C.M. head never reaches for one',
     !auto.combatDemand(1 / 60, false, noButton, warheadAt).ecm);
   state.session.ccEngaged = true;
-  // The shipped defender WILL press — it was trained to — but never on an empty
-  // sky, because `autopilotEcm` gates it on there being a warhead to answer.
-  check('...and the shipped one presses nothing on an empty sky',
-    !auto.combatDemand(1 / 60, false, defenceBrain(), null).ecm);
+  // A presser WILL press — its head always asks — but never on an empty sky,
+  // because `autopilotEcm` gates it on there being a warhead to answer.
+  check('...and a pressing policy presses nothing on an empty sky',
+    !auto.combatDemand(1 / 60, false, ecmPresser, null).ecm);
   state.session.ccEngaged = true;
   // 0.2s, so this is a FRESH decision rather than the one cached a frame ago
   check('...but answers a warhead in the air',
-    auto.combatDemand(0.2, false, defenceBrain(), warheadAt).ecm);
+    auto.combatDemand(0.2, false, ecmPresser, warheadAt).ecm);
 }
 
 // --- the combat computer's cached decision, including the new button ---------

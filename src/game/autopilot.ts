@@ -60,15 +60,6 @@ export interface AutopilotDemand {
   events: AutopilotEvent[];
 }
 
-/** What the SCRIPTED combat computer decided this frame — see combatSteer. */
-export interface AutopilotSteer {
-  /** where to slew, how fast to fly, whether to pull the trigger — or null
-   * when the pilot has just handed the ship back */
-  steer: { point: import('three').Vector3 | null; speed: number; fire: boolean } | null;
-  ecm: boolean;
-  events: AutopilotEvent[];
-}
-
 export class Autopilot {
   private readonly state: GameState;
   private readonly computer: CombatComputer;
@@ -181,27 +172,25 @@ export class Autopilot {
 
   /**
    * The SCRIPTED combat computer — the pirates' attack run flying your ship
-   * (scripted-co-pilot.ts decides; the Game slews and shoots). The same
-   * engage key, the same manual override, the same disengage words as the
-   * brain co-pilot: which of the two flies is the LIVE BRAINS selection,
-   * asked by game.ts through `defenceBrainNameFor`.
+   * (scripted-co-pilot.ts decides; the Game flies the demand and shoots). The
+   * same engage key, the same manual override, the same disengage words as the
+   * brain co-pilot, and — since it now returns a `FlightDemand` too — the same
+   * `AutopilotDemand` shape, so game.ts flies both the same way. Which of the
+   * two flies is the LIVE BRAINS selection, asked by game.ts through
+   * `defenceBrainNameFor`.
    */
-  combatSteer(dt: number, handsOn: boolean, missilePos: V3 | null): AutopilotSteer {
+  combatSteer(dt: number, handsOn: boolean, missilePos: V3 | null): AutopilotDemand {
     const s = this.state;
     const step = this.scripted.step(
       dt, s.player, s.world.npcs, s.commander.legalStatus, handsOn, missilePos);
     if (step.kind === 'disengage') {
       s.session.ccEngaged = false;
       return {
-        steer: null,
+        demand: null,
         ecm: false,
         events: [say(step.reason, step.reason === 'MANUAL OVERRIDE' ? 2 : 3)],
       };
     }
-    return {
-      steer: { point: step.point, speed: step.speed, fire: step.fire },
-      ecm: step.ecm,
-      events: [],
-    };
+    return { demand: step.demand, ecm: step.ecm, events: [] };
   }
 }

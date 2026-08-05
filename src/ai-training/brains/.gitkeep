@@ -1,0 +1,11 @@
+# This directory is the socket for trained brain weights.
+#
+# It is deliberately EMPTY of weights right now: the trained line was discarded
+# on 2026-08-05 (the defence brains were not good enough — a turret, a sprayer,
+# then a pacifist; docs/TRAINING-LOG.md runs 20-21) and the game flies the
+# scripted attack run everywhere instead. A future candidate re-enters by being
+# imported in src/game/brains.ts, named in brain-names.ts, and dropped here.
+#
+# This .gitkeep exists only so the empty directory is tracked: test/ai.test.ts
+# reads it (`the weights directory is exactly what brains.ts imports`) and would
+# crash on a missing directory rather than see zero .json files.

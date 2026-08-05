@@ -89,7 +89,11 @@ console.log('\ncombat trainer scenarios');
     spec: spec(), round: 0, spawned: 0, alive: 0, roundElapsed: 0,
     playerAlive: true, ...over,
   });
-  const brainFileExists = (id: BrainId) => id === 'scripted'
+  // `scripted` and `attack-run` are CODE PILOTS, not weights files — the
+  // pre-neuroevolution AI and the three-phase attack run. Neither has a
+  // `<id>.json`, and since 2026-08-05 they are the only pilots the game flies.
+  const CODE_PILOTS = new Set(['scripted', 'attack-run']);
+  const brainFileExists = (id: BrainId) => CODE_PILOTS.has(id)
     || existsSync(new URL(`../src/ai-training/brains/${id}.json`, import.meta.url));
 
   // 1 — the table resolves, all seven of it. One check per property rather
@@ -143,12 +147,12 @@ console.log('\ncombat trainer scenarios');
   // worse than no report, and only brains.ts knows the truth.
   {
     const src = readFileSync(new URL('../src/game/brains.ts', import.meta.url), 'utf8');
-    // `scripted` is a CODE PATH, not a file, so there is no weights file for it
-    // to import and the pairing below does not apply. It is the shipped solo and
-    // pack answer since Chris asked for it, and asserting `scripted.json` exists
-    // would fail on a policy working exactly as intended.
+    // `scripted` and `attack-run` are CODE PATHS, not files, so there is no
+    // weights file for them to import and the pairing below does not apply.
+    // They are the shipped answers since the trained line was discarded, and
+    // asserting `<id>.json` exists would fail on pilots working as intended.
     const backedByFile = (id: BrainId): boolean =>
-      id === 'scripted' || src.includes(`${id}.json`);
+      CODE_PILOTS.has(id) || src.includes(`${id}.json`);
     check(`the shipped solo brain is ${SHIPPED_SOLO_BRAIN}`, backedByFile(SHIPPED_SOLO_BRAIN));
     check(`the shipped pack brain is ${SHIPPED_PACK_BRAIN}`, backedByFile(SHIPPED_PACK_BRAIN));
     check(`the shipped defence brain is ${SHIPPED_DEFENCE_BRAIN}`,
