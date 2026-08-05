@@ -1283,6 +1283,94 @@ the combat trainer, saves, and the policy seam. Plus one thing no slice has
 touched: CLAUDE.md does not yet carry the read-it-do-not-grep-it instruction
 below.
 
+**Slice 11 — saves — landed.** One new file plus two names landing in
+`constants/witchspace.ts`, and the count went from 260 home / 247 out across
+70 files to **266 home / 243 out across 69**. The whole saves group left the
+pending list: `game/state.ts` declares no constants at all and came off
+entirely, and `game/save-file.ts`, `game/snapshot.ts` and `game/storage.ts`
+are named STAYS entries with their reasons.
+
+| moved | file |
+| --- | --- |
+| the shelf — the autosave cadence, the flight ring, the named-save cap, the name ceiling | `constants/saves.ts` |
+| the stranded hint's 2/8 cadence, the survey's flagged pair | `constants/witchspace.ts` |
+
+**This slice's honest outcome is half STAYS, and the reasons are
+structural, not tidiness.** `SAVE_RECORD_VERSION` and `SNAPSHOT_VERSION` stay
+beside the interfaces they version — a version bumped in a different file
+from the shape it describes is a divergence waiting to happen, the
+`BrainName` shape from slice 7. `SAVE_ID_PREFIX` stays with the id grammar it
+opens, and reading it turned up that `parseSaveId`'s three regexes RESTATE
+the prefix — one rule, four spellings in one file — held together by
+`test/saves.test.ts`'s round trips: a drifted prefix makes every id
+unparseable, which is a red test, so it is recorded in the gate entry rather
+than re-plumbed. And `storage.ts` keeps `PLAYER_NS`, `HARNESS_NS`,
+`BOOT_KEY` and `NEW_COMMANDER` on the file's own security argument: every
+key is built from module-private mutable `ns` so that after
+`useHarnessSaves()` nothing on the page can compute a player's key, and
+moving the namespaces into a directory everything imports would break that
+structurally — the survey's hard point 4, decided as it predicted.
+
+**The stranded pair is two rules, not a divergence.** The survey's "2 the
+first time and 8 thereafter — probably deliberate; nothing says so" is
+`STRANDED_HINT_FIRST` and `STRANDED_HINT_REPEAT` now, adjacent, with the why
+written down: the first nudge comes quickly because a player who does not
+know the B key is stuck in an empty sky, the repeats come slowly because the
+reminder is for someone busy fighting Thargoids. No decision was owed —
+first-delay and repeat-period are different rules that happen to share a
+sentence.
+
+**The last transcribed-number comment of the survey's six is a check now.**
+`FLIGHT_RING`'s "three, at the 20-second autosave cadence, is the last
+minute of flying" reasoned from a cadence its file could not see; both
+constants live in one file now, the comment names `AUTOSAVE_INTERVAL`, and
+`test/saves.test.ts` pins the product at 60 seconds so neither can move
+without the sentence going red. That closes the set: `save-file.ts` was the
+one left after slice 10.
+
+**Breaking the rules found one that was not protected.** Re-inlining the
+autosave RESET as 21 in `stepShipSystems` failed nothing — the suite pinned
+the fresh session's initial timer and that a save happened, never the
+cadence. `test/world-step.test.ts` now solves the interval out of the save
+times of a real run (first save one interval in, next one an interval
+later), and both the reset and the init re-inlines fail 1 apiece. The
+stranded cadence got the same shape: first hint at `STRANDED_HINT_FIRST`,
+repeats at `STRANDED_HINT_REPEAT`, solved from message times through the
+real step.
+
+Byte-identical, verified against a worktree at HEAD: **342 compared, 0
+changed** — every name in `src/constants/` then against now, the six moved
+values read out of HEAD's source, the whole name/id grammar swept
+(`normaliseSaveName`, `uniqueSaveName`, the three id builders and
+`parseSaveId` over hostile inputs, `describeAge` over its rungs), a full
+shelf drive through both trees' real `storage.ts` under a deterministic
+clock and an in-memory store — dock save, five ring writes, a named-save
+replace, an over-cap refusal, `clearFlightSaves`, boot pointer, career
+resolution, and the final store compared key for key and byte for byte —
+`summariseSave`/`loadCost`/`saveLabel` over the shelf's own rows in all
+three live-run readings, a 20-second stranded run frame by frame, and
+`freshSession` whole. The harness was broken twice and restored:
+`FLIGHT_RING` 3 → 4 reported 12 changes and `STRANDED_HINT_REPEAT` 8 → 9
+reported 2.
+
+The four gates: `npm run build` passes; `npm run campaign` byte-identical —
+zero diff lines against the worktree's own run; `npm run elite-a` 490
+passed, 0 failed; `npm run portability` 0 contaminated. The suite reads
+**3187 from 3182**, all five new. Both console harnesses were grepped for
+every name this slice moved, created or left behind plus `strandedHint`,
+`freshSession` and `autoSaveTimer`: zero hits.
+
+Nine breaks, all confirmed red and restored with targeted edits: the gate's
+stray `SOME_RULE` (1 failure) and a side-effect import into the home (1); a
+re-inlined ring of 4 inside `flightIds` (2), a re-inlined name ceiling of 17
+(1), a diverged `FLIGHT_RING = 4` (2), the autosave reset (1) and init (1)
+at 21, and the stranded first at 3 (2) and repeat at 9 (2).
+
+**Still to do**, in the groups the gate's list already names: the console,
+the combat trainer, and the policy seam. Plus one thing no slice has
+touched: CLAUDE.md does not yet carry the read-it-do-not-grep-it
+instruction below.
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give

@@ -64,3 +64,20 @@ export const THARGOID_AMBUSH_RANGE = 3500;
 
 /** ...and the width of that band, so they do not all arrive at one distance. */
 export const THARGOID_AMBUSH_RANGE_SPAN = 2500;
+
+/**
+ * Seconds before the console first suggests the distress beacon, once you are
+ * stranded — in witch-space with less fuel than `WITCHSPACE_ESCAPE_COST` and
+ * no beacon running.
+ *
+ * Two different numbers for two different rules, not a divergence (the survey
+ * flagged the pair): the FIRST hint comes quickly, because a player who does
+ * not know the B key is stuck in an empty sky with no way out, and every
+ * REPEAT after it comes slowly, because the reminder is for someone busy
+ * fighting Thargoids, not a metronome. The timer starts at the first value in
+ * every fresh session and only counts down while actually stranded.
+ */
+export const STRANDED_HINT_FIRST = 2;
+
+/** ...and seconds between repeats of the same hint thereafter. */
+export const STRANDED_HINT_REPEAT = 8;

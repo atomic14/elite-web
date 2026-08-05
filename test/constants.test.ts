@@ -317,13 +317,28 @@ const OUTSIDE: readonly Group[] = [
   },
 
   {
-    why: 'saves: the versions, the namespaces and the ring — several of these are baked'
-      + ' into keys on a real disk, so the slice that moves them moves nothing else',
+    why: 'MOVED, apart from what is welded in place: the cadence, the ring, the name'
+      + ' ceiling and the named-save cap are constants/saves.ts. `SAVE_RECORD_VERSION`'
+      + ' and `SNAPSHOT_VERSION` stay beside the interfaces they version — a version'
+      + ' bumped in a different file from the shape it describes is a divergence'
+      + ' waiting to happen — and `SAVE_ID_PREFIX` stays with the id grammar it opens,'
+      + ' whose parse side restates it inside three regexes that'
+      + ' `test/saves.test.ts`\'s round trips hold together',
     files: {
-      'game/save-file.ts': ALL,
-      'game/snapshot.ts': ALL,
-      'game/state.ts': ALL,
-      'game/storage.ts': ALL,
+      'game/save-file.ts': ['SAVE_RECORD_VERSION', 'SAVE_ID_PREFIX'],
+      'game/snapshot.ts': ['SNAPSHOT_VERSION'],
+    },
+  },
+
+  {
+    why: 'STAYS, on the file\'s own security argument: the two namespaces and the boot'
+      + ' key are halves of STORAGE KEYS, built from module-private mutable `ns` so'
+      + ' that after `useHarnessSaves()` nothing on the page can compute a player\'s'
+      + ' key. Moving them into a directory everything imports would break that'
+      + ' structurally, not stylistically. `NEW_COMMANDER` is the boot pointer\'s own'
+      + ' encoding, spent entirely within the file',
+    files: {
+      'game/storage.ts': ['PLAYER_NS', 'HARNESS_NS', 'BOOT_KEY', 'NEW_COMMANDER'],
     },
   },
 

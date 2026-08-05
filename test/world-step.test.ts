@@ -41,11 +41,15 @@ import {
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { generateGalaxy } from '../src/galaxy/galaxy.ts';
 import { FIXED_DT } from '../src/constants/world-clock.ts';
+import { AUTOSAVE_INTERVAL } from '../src/constants/saves.ts';
 import {
   TORUS_MULTIPLIER, MASS_LOCK_STATION, MASS_LOCK_PLANET_ALTITUDE, MASS_LOCK_SHIP,
 } from '../src/constants/torus.ts';
 import { PLANET_CRASH_ALTITUDE, WITCHPOINT_RADII } from '../src/constants/planet.ts';
 import { WITCHSPACE_ESCAPE_COST } from '../src/constants/jump.ts';
+import {
+  STRANDED_HINT_FIRST, STRANDED_HINT_REPEAT,
+} from '../src/constants/witchspace.ts';
 import { check } from './harness.ts';
 
 // --- the world builds without a browser --------------------------------------
@@ -188,6 +192,24 @@ console.log('\nheadless world step');
       run.state.world.npcs.some((n, i) => flew[i] && n.object.position.distanceTo(flew[i]) > 10));
     check('...the trigger reached the gun through the host', run.log.shots === 600);
     check('...the autosave asked the host rather than localStorage', run.log.saves >= 1);
+    // The CADENCE, solved out of the save times rather than preset: a fresh
+    // session's first autosave lands one AUTOSAVE_INTERVAL in and every next
+    // one an interval after that, so a re-inlined reset in stepShipSystems
+    // goes red however constants/saves.ts moves.
+    {
+      const cadence = arrival(20_260_730);
+      const at: number[] = [];
+      let seen = 0;
+      for (let i = 0; i < 430 && at.length < 2; i++) {
+        cadence.step.step(0.1, i * 0.1,
+          { demand: { rollRate: 0, pitchRate: 0, throttle: 0, fire: false }, handsOn: false });
+        if (cadence.log.saves > seen) { seen = cadence.log.saves; at.push((i + 1) * 0.1); }
+      }
+      check(`the first autosave lands one AUTOSAVE_INTERVAL in (${at[0]?.toFixed(1)}s)`,
+        at.length === 2 && Math.abs(at[0] - AUTOSAVE_INTERVAL) < 0.2);
+      check(`...and the next one an interval later (${(at[1] - at[0]).toFixed(1)}s)`,
+        Math.abs(at[1] - at[0] - AUTOSAVE_INTERVAL) < 0.2);
+    }
     check('...and nothing it reported is anything but an event',
       events.every((e) => {
         switch (e.kind) {
@@ -652,6 +674,30 @@ console.log('\nheadless world step');
       + ` escape costs (measured ${hi.toFixed(3)})`,
     Math.abs(hi - WITCHSPACE_ESCAPE_COST) < 1e-2
       && stranded(0) && !stranded(WITCHSPACE_ESCAPE_COST * 4));
+  }
+
+  // ...and the hint's CADENCE is the 2/8 pair the survey flagged
+  // (constants/witchspace.ts): the first nudge comes quickly, the repeats
+  // slowly. Solved out of the message times in one stranded run, so a
+  // re-inlined 2 in state.ts or 8 in world-step.ts goes red either way.
+  {
+    const run = arrival(4250);
+    run.state.session.witchspace = true;
+    run.state.commander.fuel = 0;
+    const at: number[] = [];
+    for (let i = 0; i < 60 * 20 && at.length < 3; i++) {
+      const events = run.step.step(1 / 60, i / 60,
+        { demand: { rollRate: 0, pitchRate: 0, throttle: 0, fire: false }, handsOn: false });
+      if (events.some((e) => e.kind === 'message' && e.text.startsWith('NO FUEL TO JUMP'))) {
+        at.push((i + 1) / 60);
+      }
+    }
+    check(`the first stranded hint lands after STRANDED_HINT_FIRST (${at[0]?.toFixed(2)}s)`,
+      at.length === 3 && Math.abs(at[0] - STRANDED_HINT_FIRST) < 2 / 60);
+    check('...and every repeat after STRANDED_HINT_REPEAT '
+      + `(${(at[1] - at[0]).toFixed(2)}s, ${(at[2] - at[1]).toFixed(2)}s)`,
+    Math.abs(at[1] - at[0] - STRANDED_HINT_REPEAT) < 2 / 60
+      && Math.abs(at[2] - at[1] - STRANDED_HINT_REPEAT) < 2 / 60);
   }
 
   // --- ...and it SAVES without a browser -------------------------------------

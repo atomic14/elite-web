@@ -71,7 +71,9 @@ import { Ordnance, ordnanceMessage, type OrdnanceOutcome } from './ordnance.ts';
 import type { NpcShip, FireEvent, WorldView } from './npc.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { random, randomInt, randomDirection } from './rng.ts';
-import { AUTOSAVE_INTERVAL, type GameState } from './state.ts';
+import type { GameState } from './state.ts';
+import { AUTOSAVE_INTERVAL } from '../constants/saves.ts';
+import { STRANDED_HINT_REPEAT } from '../constants/witchspace.ts';
 
 // WHAT A CANISTER ON THE HULL OR A FLUFFED SLOT COSTS IS NOT HERE. They were
 // `0.06` and `0.9` on the pre-parity normalized scale, named here so that TODO
@@ -552,7 +554,7 @@ export class WorldStep {
       && session.beaconTimer < 0) {
       session.strandedHintTimer -= dt;
       if (session.strandedHintTimer <= 0) {
-        session.strandedHintTimer = 8;
+        session.strandedHintTimer = STRANDED_HINT_REPEAT;
         out.push(say('NO FUEL TO JUMP — PRESS B FOR THE DISTRESS BEACON', 5));
       }
     }

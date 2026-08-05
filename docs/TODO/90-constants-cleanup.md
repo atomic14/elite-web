@@ -348,7 +348,7 @@ For each: is the value right and the prose wrong, or the other way round? A
 one-unit move on the first, ten on the second, 1.2 on the third — small, but
 each is a real change to how a ship flies.
 
-### One of the six transcribed-number comments is still out there
+### The six transcribed-number comments are ALL resolved
 
 The survey listed six places where reasoning cites another file's value by
 writing the number out: `save-file.ts:36`, `input.ts:53`, `player.ts:52-56`,
@@ -360,7 +360,10 @@ import `VALUE_PER_TONNE` from `constants/jettison.ts`, with
 `test/economy.test.ts` solving the multiplier back out of the real `markOf`.
 **Slice 10 did `docking.ts`'s** — the header's "spinning at 0.26 rad/s" names
 `STATION_SPIN` now, and the rate is solved back out of the real scene in
-`test/world.test.ts`. That leaves `save-file.ts` (the saves slice).
+`test/world.test.ts`. **And slice 11 did the last, `save-file.ts`'s**, the
+strong way: `FLIGHT_RING` and `AUTOSAVE_INTERVAL` live in one file, the
+"last minute of flying" comment names the cadence instead of writing 20, and
+`test/saves.test.ts` pins the product at 60 seconds.
 
 `starfield.ts` is the one worth copying: its two fade thresholds were justified
 by "max ship speed is 400" and "8 x 400 = 3200", two numbers the file could not
@@ -525,7 +528,7 @@ and every one of these is a literal in the middle of a function.
 | `npcTargetTimer = 2` — how often the sky re-decides who is hunting whom | `world-step.ts` | the rest of the fight; `npc-targeting.ts` owns the rule and has no constants file yet |
 | ~~`stationDockZ + 40` — the NPC bounding cube~~ | `world-step.ts` | **taken by slice 10**: it is `NPC_HULL_BOX_MARGIN` in `constants/docking.ts`, and the divergence it names has its own Open entry below |
 | the hermit's 900 / 320 / speed 40, and the generation ship's 6,000 | `world-step.ts` | encounters. **And the hermit's message says "SLOW TO 20" while the gate is `speed < 40`** — either the line is stale or the tolerance is deliberate, and nothing says which |
-| `strandedHintTimer = 8` | `world-step.ts` | the survey's "2 the first time and 8 thereafter" pair with `state.ts:142`, which is the saves slice's file |
+| ~~`strandedHintTimer = 8`~~ | `world-step.ts` | **taken by slice 11**: `STRANDED_HINT_FIRST`/`STRANDED_HINT_REPEAT` in `constants/witchspace.ts` — two rules, not a divergence, and the why is written beside them |
 | `energyLowTimer = 1.2` and every message duration | `world-step.ts` | nobody: these are how long a line stays on the console, and the console's own slice can decide whether they are rules |
 
 **Slice 6 took two of these.** The pirate wave's `9000 + random() * 4000` is
@@ -692,6 +695,13 @@ still resolve. **`test/playtest.js` did hold a sixth home for the escape cost**
 — `if (g.commander.fuel < 10) break; // no fuel to jump clear` — and it takes
 `WITCHSPACE_ESCAPE_COST` out of `constants/jump.ts` now, alongside the
 `PLAYER_FLIGHT` import it already had.
+
+Slice 11 did it for the six names it moved or created, the STAYS names
+(`SAVE_RECORD_VERSION`, `SNAPSHOT_VERSION`, `SAVE_ID_PREFIX`, the two
+namespaces, `BOOT_KEY`, `NEW_COMMANDER`) and `strandedHint`, `freshSession`
+and `autoSaveTimer`: zero hits in either harness — both take
+`useHarnessSaves`, `clearHarnessSaves` and `saveNamespace` from `storage.ts`
+and nothing else save-shaped, and all three are still exported.
 
 Slice 10 did it for all seventeen names it moved or created, the two it
 retired (`GATE`, `LINED_UP`), `REFUSED`, `STATION_PRESENTATION_SCALE` and the

@@ -9,7 +9,8 @@
 // `window.__` flag is a field that is not in the snapshot (invariant 12).
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { freshState, AUTOSAVE_INTERVAL } from '../src/game/state.ts';
+import { freshState } from '../src/game/state.ts';
+import { AUTOSAVE_INTERVAL } from '../src/constants/saves.ts';
 import { BREED_INTERVAL } from '../src/constants/trumbles.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { seedWorld, random } from '../src/game/rng.ts';

@@ -40,7 +40,8 @@ import { headlessShell } from '../src/engine/shell.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { newCommander } from '../src/game/commander.ts';
 import { DEFAULT_NAME } from '../src/constants/commander.ts';
-import { MAX_NAMED_SAVES, commanderOf, dockId, fileId } from '../src/game/save-file.ts';
+import { commanderOf, dockId, fileId } from '../src/game/save-file.ts';
+import { MAX_NAMED_SAVES } from '../src/constants/saves.ts';
 import {
   bootSave, listSaves, makeRecord, readSave, writeNamedSave,
 } from '../src/game/storage.ts';

@@ -85,7 +85,7 @@ import {
   bootCareer, bootCommander, bootSave, clearFlightSaves, withoutSaving,
   writeDockSave, writeFlightSave, writeNamedSave,
 } from './storage.ts';
-import { MAX_NAMED_SAVES } from './save-file.ts';
+import { MAX_NAMED_SAVES } from '../constants/saves.ts';
 import { type WorldSnapshot } from './snapshot.ts';
 import { showMessage as setMessage, tickBeam, tickMessage } from './session.ts';
 import { Persistence, type PersistenceHost } from './persistence.ts';

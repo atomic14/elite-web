@@ -34,6 +34,8 @@ import { generateGalaxy } from '../galaxy/galaxy.ts';
 import { LivingGalaxy } from '../galaxy/living.ts';
 import { SHIPPED_BRAINS, type BrainSelection } from './brain-names.ts';
 import { BREED_INTERVAL } from '../constants/trumbles.ts';
+import { AUTOSAVE_INTERVAL } from '../constants/saves.ts';
+import { STRANDED_HINT_FIRST } from '../constants/witchspace.ts';
 
 export interface GameState {
   // --- where and who ------------------------------------------------------
@@ -109,9 +111,6 @@ export interface GameState {
   readonly chart: ChartState;
 }
 
-/** Seconds between mid-flight world saves — see Game.autoSave(). */
-export const AUTOSAVE_INTERVAL = 20;
-
 /**
  * A fresh flight: every session flag and timer at the value it starts a leg on.
  *
@@ -141,7 +140,7 @@ export function freshSession(): SessionState {
     // a fresh infestation is one full brood away, the same clock it breeds on
     trumbleTimer: BREED_INTERVAL,
     beaconTimer: -1,
-    strandedHintTimer: 2,
+    strandedHintTimer: STRANDED_HINT_FIRST,
     paused: false,
     view: 0,
     ccEngaged: false,

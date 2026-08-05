@@ -30,9 +30,10 @@
 
 import { newCommander } from '../src/game/commander.ts';
 import {
-  MAX_NAMED_SAVES, SAVE_ID_PREFIX, SAVE_RECORD_VERSION,
+  SAVE_ID_PREFIX, SAVE_RECORD_VERSION,
   commanderOf, dockId, fileId, parseSaveId,
 } from '../src/game/save-file.ts';
+import { MAX_NAMED_SAVES } from '../src/constants/saves.ts';
 import {
   bootSave, listSaves, makeRecord, readSave, saveNamespace, writeDockSave,
   writeNamedSave,

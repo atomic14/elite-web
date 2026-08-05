@@ -24,9 +24,12 @@ import { headlessShell } from '../src/engine/shell.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { newCommander, type CommanderData } from '../src/game/commander.ts';
 import {
-  FLIGHT_RING, MAX_SAVE_NAME, commanderOf, describeAge, dockId, fileId, flightId,
+  commanderOf, describeAge, dockId, fileId, flightId,
   flightIds, normaliseSaveName, parseSaveId, uniqueSaveName,
 } from '../src/game/save-file.ts';
+import {
+  AUTOSAVE_INTERVAL, FLIGHT_RING, MAX_SAVE_NAME,
+} from '../src/constants/saves.ts';
 import {
   bootCommander, bootSave, clearFlightSaves, harnessSaves, listSaves, makeRecord,
   namedSaves, readSave, saveNamespace,
@@ -120,6 +123,11 @@ console.log('\nthe save shelf');
     eq(`the in-flight ring holds exactly ${FLIGHT_RING}`, ring.length, FLIGHT_RING);
     check('...and it kept the newest, evicting the oldest',
       ring.map((r) => commanderOf(r!)!.credits).sort().join() === '102,103,104');
+    // The design claim beside FLIGHT_RING (constants/saves.ts): the ring at
+    // the autosave cadence is THE LAST MINUTE of flying. Neither constant can
+    // move without this saying the sentence over there now lies.
+    eq('the ring at the autosave cadence is the last minute of flying',
+      FLIGHT_RING * AUTOSAVE_INTERVAL, 60);
 
     // --- death drops the ring and leaves the way back ----------------------
     clearFlightSaves('CHRIS');

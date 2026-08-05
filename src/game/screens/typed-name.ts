@@ -9,7 +9,7 @@
 // It lived in `saves.ts` until docs/TODO/55, which is a file about the shelf:
 // the keyboard belongs to whoever is typing, not to the list.
 
-import { MAX_SAVE_NAME } from '../save-file.ts';
+import { MAX_SAVE_NAME } from '../../constants/saves.ts';
 import type { Input } from '../../engine/input.ts';
 
 /**

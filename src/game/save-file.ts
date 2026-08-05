@@ -16,44 +16,10 @@
 import { formatCredits, type CommanderData } from './commander.ts';
 import { rating } from './rating.ts';
 import type { WorldSnapshot } from './snapshot.ts';
+import { FLIGHT_RING, MAX_SAVE_NAME } from '../constants/saves.ts';
 
 /** Bump when the RECORD shape changes. Not the snapshot's version. */
 export const SAVE_RECORD_VERSION = 1;
-
-/**
- * Longest name a player may type.
- *
- * 16, because that is what the list column holds without wrapping and what
- * keeps an id short; the naming screen already refused anything but letters,
- * digits and space, and this is the same alphabet with a stated ceiling.
- */
-export const MAX_SAVE_NAME = 16;
-
-/**
- * How many in-flight autosaves are kept, PER CAREER.
- *
- * Three, at the 20-second autosave cadence, is the last minute of flying: far
- * enough back to step out of the fight you just lost, and no further, because
- * every extra slot buys another twenty seconds of the SAME engagement while
- * costing ~10 kB. The dock checkpoint is the real fallback (decision 3), and it
- * is deliberately not part of this ring (decision 2).
- *
- * Per career and never global: a global ring silently belongs to whoever flew
- * last, so keeping two careers would mean the second one's quiet cruise evicted
- * the first one's only way back.
- */
-export const FLIGHT_RING = 3;
-
-/**
- * How many NAMED saves a player may keep.
- *
- * A snapshot is about 10 kB against a few megabytes of localStorage, so this is
- * nowhere near the real limit — it is a guard rail so a stuck finger cannot
- * fill the store and start failing the AUTOSAVES, which are the saves nobody
- * asked for and everybody relies on. Reaching it refuses the write and says so;
- * nothing is ever deleted to make room.
- */
-export const MAX_NAMED_SAVES = 20;
 
 export type SaveKind = 'file' | 'dock' | 'fly';
 
