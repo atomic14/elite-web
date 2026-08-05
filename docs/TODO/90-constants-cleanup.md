@@ -84,13 +84,11 @@ beside the design ids it is read from.
 inside the leaf. It sits in the gate's per-name allowlist under a heading saying
 it is a decision rather than pending work.
 
-**`NPC_HIT_FALLOFF` stays a literal in `constants/npc-gun.ts`.** It looks like
-the laser's reach and the history says otherwise: `git log -S` puts the
-expression in the initial commit, when the NPC's own firing gate was 2,600 while
-the player's `LASER_RANGE` was 3,500. Two readings survive and they want
-different expressions — `NPC_LASER_RANGE`, or `NPC_LASER_RANGE / 0.75` which is
-4,667 and a balance change. The argument is written beside the constant.
-**Resolving it is a decision for Chris, not a refactor.**
+**`NPC_HIT_FALLOFF` is `NPC_LASER_RANGE` — Chris resolved it, 2026-08-05.**
+The history's doubt (the expression predates the gate matching the reach) is
+kept beside the constant, and the first reading is now asserted: the falloff
+IS the gun's reach, so a retuned reach moves the aim curve with it. Byte
+identical at landing; the `/ 0.75` reading is recorded as the road not taken.
 
 **`SIGHT_Y`'s CSS twin stays duplicated.** docs/TODO/93 owns the phosphor and
 the stylesheets; CSS was ruled out of 90's scope.
@@ -332,11 +330,11 @@ bare-commander branch is put back.
 
 ## Open — a decision or a separate change
 
-### Three derivations whose arithmetic no longer produces the shipped value
+### Three derivations whose arithmetic no longer produces the shipped value — DECIDED 2026-08-05
 
-Each looks like an obvious tidy-up. Each is a behaviour change. They are on the
-survey's land-separately list and they stayed literals through slice 2, with the
-discrepancy recorded in the comment beside them.
+**Chris kept all three shipped values**: the flown value is the rule and the
+prose arithmetic was the approximation, recorded beside each constant. Not
+pending work. The table stays as the record of what was asked:
 
 | constant | shipped | its own stated arithmetic |
 | --- | --- | --- |
@@ -344,9 +342,8 @@ discrepancy recorded in the comment beside them.
 | `CLEAR_RANGE` | 340 | `BREAK_OFF_RANGE` "and half again" = `220 × 1.5` = **330** |
 | `CC_ACCEL` | 100 | the trader Cobra's `220 × ACCEL_FRACTION` = **101.2** |
 
-For each: is the value right and the prose wrong, or the other way round? A
-one-unit move on the first, ten on the second, 1.2 on the third — small, but
-each is a real change to how a ship flies.
+Each would have been a real change to how a ship flies; none was worth
+un-flying the values the game shipped and was tuned at.
 
 ### The six transcribed-number comments are ALL resolved
 
@@ -397,7 +394,11 @@ and the rounded figure would have been off by the wrong sign. `test/arena.test.t
 had a round `Math.cos(1.0)` where it meant the cone the spawner promises, and
 reads `OPPOSITION_CONE * OPPOSITION_CONE_FAR` now.
 
-### `PRIZE_SATURATION`'s value and its own prose disagree by 900 credits
+### `PRIZE_SATURATION` — DECIDED 2026-08-05: 2,500 Cr stands
+
+Chris confirmed the shipped value over the prose's 1,600 Cr; the campaign's 33
+rows are tuned against it and the old comment was the approximation. The
+history below stays as the record of the survey's strongest finding.
 
 The survey's strongest finding, moved to `constants/threat.ts` by slice 7 with
 the value untouched and both readings written beside it. The constant is
@@ -479,7 +480,11 @@ fix is one edit and one red test. **Fixing it is a behaviour change**: NPC
 traffic near a Dodo starts bouncing where it did not, in every tech 10+
 system. A decision for Chris, not a lookup.
 
-### "Just outside the slot" is 420, 450 and 900
+### "Just outside the slot" is 420, 450 and 900 — DECIDED 2026-08-05
+
+The bounce's 420 is MENACE, kept: a failed docking dumps you close to the
+thing you just hit. Recorded beside the trio in `constants/station.ts`; not
+pending work. The finding as it stood:
 
 Named by slice 10 and kept adjacent in `constants/station.ts`:
 `BOUNCE_STANDOFF = 420` (a fluffed docking), `LAUNCH_STANDOFF = 450` (the
@@ -490,7 +495,11 @@ leaves you nearer the hull than the bay ever does, and nothing says whether
 that is deliberate menace or drift. Choosing moves where every failed docking
 puts the player, so the values stand until Chris picks a reading.
 
-### The station's Vipers can launch inside each other
+### The station's Vipers can launch inside each other — DECIDED 2026-08-05: left alone
+
+Never observed in play, both ships move within a frame of launching, and any
+fix moves every seeded Viper launch. The docstring already tells the truth
+about the geometry. The measurement stays below for whoever revisits it:
 
 `spawnPlacement`'s stack is 120 units along the slot normal with an 80-unit
 jitter in an INDEPENDENT direction per ship, so a pair separated by 120 can end

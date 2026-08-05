@@ -59,7 +59,9 @@ export const TACTICS: Record<TacticId, Tactic> = {
   // anything (0.00 contacts an episode against `run`'s 0.33) and a third less
   // lethal for it, which is why a hurt ship is weighted toward it.
   //
-  // 175 is described as 1.6x the standard pass; 1.6 x 110 is 176. 175 is what
+  // 175 is described as 1.6x the standard pass; 1.6 x 110 is 176. Chris kept
+  // 175 (2026-08-05): the flown value is the rule, the prose arithmetic was
+  // the approximation. 175 is what
   // shipped and what the rows above were flown at, so it stays a literal.
   slash: {
     id: 'slash',

@@ -71,11 +71,12 @@ export const NPC_HIT_BASE = 0.9;
  *     a choice. Then the honest expression is `NPC_LASER_RANGE / 0.75`, which
  *     today is 4,667 — a behaviour change, not a refactor.
  *
- * Writing `= NPC_LASER_RANGE` would assert the first and silently overrule the
- * second, and the reviewer who moved these constants could not establish which
- * is true. Settling it is a balance decision with a measurement attached.
+ * CHRIS SETTLED IT, 2026-08-05: the first reading is the rule. The falloff IS
+ * the gun's reach, so a retuned reach moves the aim curve with it — a coupling
+ * chosen deliberately, byte-identical today because both are 3,500. The second
+ * reading (÷ 0.75 = 4,667) is recorded above as the road not taken.
  */
-export const NPC_HIT_FALLOFF = 3500;
+export const NPC_HIT_FALLOFF = NPC_LASER_RANGE;
 export const NPC_HIT_CAP = 0.85;
 export const NPC_HIT_FLOOR = 0.15;
 

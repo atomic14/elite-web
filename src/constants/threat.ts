@@ -55,8 +55,10 @@ export const CHALLENGE_RATE = 0.35;
  * was wrong when it was written — the survey could not establish which from
  * the history. 25,000 is what shipped, what the campaign's 33 rows are tuned
  * against, and what stays; choosing the other reading moves how often every
- * wealthy commander meets a gang, so it is a decision with a measurement
- * attached, not a refactor. See docs/TODO/90-constants-cleanup.md, Open.
+ * wealthy commander meets a gang, so it was a decision with a measurement
+ * attached, not a refactor. CHRIS DECIDED IT, 2026-08-05: 2,500 Cr stands —
+ * it is the value the campaign's 33 rows are tuned against, and the old prose
+ * was the approximation. The 1,600 reading above stays as history.
  */
 export const PRIZE_SATURATION = 25000;
 

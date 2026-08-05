@@ -24,7 +24,8 @@ export const EXTEND_ARC_ANGLE = (60 * Math.PI) / 180;
  * Turning before it has cleared puts it back through the target it just passed.
  * The pass commits at `BREAK_OFF_RANGE` and the hulls are up to 68 units of
  * radius, so this is that range and half again — approximately: 220 x 1.5 is
- * 330, and 340 is what shipped and what the sweep was flown at. It stays a
+ * 330, and 340 is what shipped and what the sweep was flown at — confirmed by
+ * Chris, 2026-08-05: the flown value is the rule. It stays a
  * literal; expressing it would move the ship 10 units.
  *
  * The sweep is flat from 220 to 460 and only starts costing gap at 600.

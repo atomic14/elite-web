@@ -36,10 +36,9 @@ export const DODO_TECH_LEVEL = 10;
 // decision). Three different events, three distances: a fluffed docking
 // bounces you to 420, the bay spits you out at 450, and the docked menu parks
 // you 900 out for the backdrop. The oddity is the ORDER of the first two: the
-// bounce leaves you NEARER the hull than the bay ever does. Whether that is a
-// deliberate bit of menace or a drift nobody chose is not written down
-// anywhere, and choosing moves where every failed docking puts the player —
-// so the values stand and the question is recorded rather than answered.
+// bounce leaves you NEARER the hull than the bay ever does. CHRIS DECIDED IT,
+// 2026-08-05: that is menace, kept — a failed docking SHOULD dump you close
+// to the thing you just hit, shields dented and nose out of line.
 
 /**
  * Where a fluffed docking bounces you to — distance from the station's CENTRE,

@@ -17,7 +17,8 @@ export const THREAT_RANGE = 6500;
  * The trader Cobra's real acceleration is `220 * ACCEL_FRACTION` = 101.2, so
  * `CC_ACCEL` is not the hull it names. 100 is what shipped and what the defence
  * trials were flown at; it stays a literal, because closing the 1.2% is a
- * behaviour change.
+ * behaviour change — and Chris confirmed the flown 100 over the derived 101.2
+ * on 2026-08-05.
  */
 export const CC_MAX_SPEED = 220;
 export const CC_ACCEL = 100;
