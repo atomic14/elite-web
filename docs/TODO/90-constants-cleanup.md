@@ -506,15 +506,12 @@ the normal — moves where every station-launched Viper in the game appears. It 
 presumably never been noticed because both ships are moving within a frame of
 launching, so this is a "is it worth changing" question rather than a bug report.
 
-### CLAUDE.md does not yet carry the instruction
+### CLAUDE.md carries the instruction — CLOSED by slice 14
 
-The read-it-do-not-grep-it wording is written out in
-`docs/TODO/90-one-home-for-every-constant.md` and has not been added to
-CLAUDE.md, because pointing at `src/constants/` before it is finished would send
-an agent to a half-built home. **Add it when the last slice lands**, not before.
-
-The gate catches a second home mechanically, which is stronger than the
-instruction. The instruction is what stops one being written in the first place.
+The read-it-do-not-grep-it wording is in CLAUDE.md's "How we work" section,
+beside the one-home rule it serves, with the reason attached. It waited for
+the last slice exactly as planned: pointing an agent at a half-built home
+would have been worse than pointing it nowhere.
 
 ### What slice 5 left inline in the world step, and for whom
 
@@ -729,14 +726,12 @@ plus the functions whose files changed (`Chart`, `emptyFilter`, `matches`,
 Both reach `COMMODITIES` and `generateMarket` out of `galaxy/galaxy.ts`, which
 this slice left untouched (it is DATA, not a constant), and both still resolve.
 
-### `src/constants/` is not in docs/ARCHITECTURE.md
+### `src/constants/` is in docs/ARCHITECTURE.md — CLOSED by slice 14
 
-Six slices in, the directory holds 175 names in 30 files and the architecture
-doc's tree does not mention it. Nobody has added it because it is half-built and
-its shape still moves each slice. **The last slice should add it**, and the entry
-that goes there is one line per file, which is the same sentence each file's
-header already opens with. Slice 4 corrected the one line that had gone actively
-wrong — `systems.ts` was described as holding "the save migration".
+The tree opens with the directory's entry: what it is, the leaf rule, the
+read-it-whole instruction, and the data-is-not-constants exclusion. Slice 4
+had already corrected the one line that had gone actively wrong —
+`systems.ts` was described as holding "the save migration".
 
 ### `player-interest.ts` and `tactics.ts` were deleted
 

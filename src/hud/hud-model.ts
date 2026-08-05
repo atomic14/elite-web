@@ -17,6 +17,9 @@ import { PLAYER_INTEREST_RANGE } from '../constants/player-interest.ts';
 import {
   inSlotChannel, rollAlignedWithSlot, slotRollOffset,
 } from '../game/docking.ts';
+import {
+  TARGET_BRACKET_RANGE, BOLT_SPEED, ASSUMED_TARGET_SPEED,
+} from '../constants/console.ts';
 
 /** Everything on the scanner: the station, ships, missiles and cargo. */
 export function scannerContacts(
@@ -210,9 +213,3 @@ export function screenTargets(
   return out;
 }
 
-/** Ships further out than this get no bracket — the HUD would be a mess. */
-export const TARGET_BRACKET_RANGE = 5000;
-/** Notional bolt speed, for the lead marker only; real shots are instant. */
-const BOLT_SPEED = 8000;
-/** Assumed target cruise, for the same purpose. */
-const ASSUMED_TARGET_SPEED = 220;

@@ -13,7 +13,7 @@
 
 import * as THREE from 'three';
 import {
-  SCANNER_RANGE, type HudFrame, type HudState,
+  type HudFrame, type HudState,
 } from './hud.ts';
 import {
   scannerContacts, projectMarker, shipIdUnderView, nearestHostile, dockingAid,
@@ -27,11 +27,10 @@ import type { World } from '../game/world.ts';
 import type { Missile } from '../game/ordnance.ts';
 import type { Canister } from '../game/cargo.ts';
 import { MAX_FUEL } from '../constants/commander.ts';
+import {
+  SCANNER_RANGE, SUNSKIM_COMPASS_RANGE, STATION_COMPASS_RADII,
+} from '../constants/console.ts';
 
-/** Closer than this to the sun, the compass switches to it for a sun-skim. */
-export const SUNSKIM_COMPASS_RANGE = 130_000;
-/** The station takes the compass within this many planet radii. */
-export const STATION_COMPASS_RADII = 3;
 
 /** Everything the dashboard reads. All data — nothing here is called back. */
 export interface HudSources {

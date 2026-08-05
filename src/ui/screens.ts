@@ -36,6 +36,7 @@ import { TENTHS_PER_CHART_UNIT, CHART_Y_SQUASH } from '../constants/chart-metric
 // path: `data-key` becomes a keystroke, so a hand-written row could advertise a
 // key nothing was bound to and it looked alive right up to the click.
 import { dockedMenuHtml } from './key-help.ts';
+import { LOCAL_SCALE, LOCAL_CANVAS } from '../constants/chart-metric.ts';
 
 // Full-page overlay screens, rendered as DOM. The Game owns all input and
 // state; these are pure render functions.
@@ -690,17 +691,6 @@ export function drawChart(systems: StarSystem[], c: CommanderData, chart: ChartS
 
 // --- Short range (local) chart ---------------------------------------------
 
-/**
- * Canvas px per chart unit.
- *
- * Bounded by the range circle, not by taste: a full tank is 7.0 LY, drawn at
- * (fuel/4)*LOCAL_SCALE = 17.5*LOCAL_SCALE px. At 15 that is 262px, which fits
- * inside the 560px square with room to spare. Raise one and you must raise
- * the other or the range clips again.
- */
-export const LOCAL_SCALE = 15;
-/** Square, so a light year is the same number of pixels whichever way you go. */
-export const LOCAL_CANVAS = 560;
 
 export function renderLocalChart(
   systems: StarSystem[],

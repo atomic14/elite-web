@@ -35,6 +35,13 @@ can change either without remembering the other. When you find a second home,
 deleting it is the fix — not a comment asking the next person to keep them in
 step.
 
+**Read `src/constants/` before you start.** Read the files, in full. Do not grep
+it, do not search it for the name you have in mind, and do not skim it — the
+whole point is to find the constant you did not know was already there, under a
+name you would not have guessed. Before adding any constant, including one
+derived from another, confirm it does not already exist. A value that exists
+twice is a rule with two homes, and this is the directory that stops that.
+
 **Leave the reasoning where the next person will look.** A constant is worth the
 sentence that says how it was chosen, beside it. A decision worth making is worth
 a line saying what else was considered.

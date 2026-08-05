@@ -20,6 +20,9 @@
 // with no DOM in the process.
 
 import * as THREE from 'three';
+import {
+  CAMERA_FOV, CAMERA_NEAR, CAMERA_FAR, HEADLESS_WIDTH, HEADLESS_HEIGHT,
+} from '../constants/camera.ts';
 
 /**
  * What the Game needs in order to be SEEN.
@@ -89,7 +92,7 @@ function headlessBeams(): THREE.LineSegments {
  * the reliable way (CLAUDE.md: background tabs throttle rAF).
  */
 export function headlessShell(): Shell {
-  const camera = new THREE.PerspectiveCamera(60, 1, 1, 1_000_000);
+  const camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, CAMERA_NEAR, CAMERA_FAR);
   return {
     view: {
       camera,
@@ -105,7 +108,7 @@ export function headlessShell(): Shell {
     setSightLit: () => {},
     toggleHelp: () => {},
     flashBomb: () => {},
-    size: () => ({ width: 1280, height: 720 }),
+    size: () => ({ width: HEADLESS_WIDTH, height: HEADLESS_HEIGHT }),
   };
 }
 

@@ -15,6 +15,8 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { CAMERA_FOV, CAMERA_NEAR, CAMERA_FAR } from '../constants/camera.ts';
+import { SIGHT_Y } from '../constants/console.ts';
 
 /**
  * Where the cockpit beams converge, in camera space.
@@ -27,11 +29,6 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
  */
 export const BEAM_Z = 2.6;
 
-/**
- * The gun axis sits above the canvas centre, because the console eats the
- * bottom of the screen. MUST match `#crosshair` in style.css.
- */
-export const SIGHT_Y = 0.42;
 
 export interface RenderStack {
   renderer: THREE.WebGLRenderer;
@@ -49,7 +46,7 @@ export function createRenderStack(canvas: HTMLCanvasElement, scene: THREE.Scene)
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  const camera = new THREE.PerspectiveCamera(60, 1, 1, 1_000_000);
+  const camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, CAMERA_NEAR, CAMERA_FAR);
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));

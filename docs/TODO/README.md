@@ -10,20 +10,22 @@ were completed through commit `09278b7`.
 
 ## Picking this up cold
 
-**Work in progress: [90](90-one-home-for-every-constant.md), thirteen slices
-done, ONE group left (the console), then the CLAUDE.md instruction that only
-the last slice may add.** If you are
-starting a fresh session and want to continue it, read that file's
-**"Running a slice"** section — it is a self-contained recipe, including the
-traps that have already cost real work. The plan itself is not prose:
-`test/constants.test.ts`'s `OUTSIDE` array is the list of what is still owed,
-grouped by the slice that will take it, and the gate prints how much is left
-every time it runs. At the last commit that was **288 constants home, 221
-still out across 69 files**, and `MAX_TRADERS` — the pair the item is named
-after — has one home at last.
+**[90](90-one-home-for-every-constant.md) is COMPLETE — fourteen slices,
+every one byte-identical on all four gates.** `src/constants/` holds 305
+constants with their reasoning and measured evidence beside them;
+`test/constants.test.ts` is the gate that keeps it true, and every name
+still outside the home is a data table, a typed structure, a format
+version, prose, drawing or a decided exception, named on the gate's list
+with its reason. CLAUDE.md now carries the read-it-do-not-grep-it
+instruction, so read `src/constants/` in full before adding any constant
+anywhere. The item's file keeps the fourteen Progress entries — what moved,
+what stayed and why, and every break that proved a gate — and
+[the cleanup list](90-constants-cleanup.md) still holds the OPEN decisions
+the survey turned up (the Dodo collision box, the contract range, the
+prize-saturation prose, the bounce/launch ordering and the rest): each is a
+behaviour change awaiting a decision, none is a refactor.
 
-Nothing else is half-finished. Every other open item below is a self-contained
-file, as the paragraph above says.
+Nothing is half-finished. Every open item below is a self-contained file.
 
 **Decisions already made, so they are not reopened**: constants move by MEANING
 and never by value (`BRAIN_RATE_RAMP` and the commander's `RATE_RAMP` are both
@@ -518,7 +520,7 @@ and is 93.
 91, 92 and 93 are what the survey turned up that is not a refactor. Each is a
 real change to what the game does, and each lands on its own.
 
-- [ ] 90 — [One home for every constant](90-one-home-for-every-constant.md) — architecture · high · large
+- [x] 90 — [One home for every constant](90-one-home-for-every-constant.md) — architecture · high · large
 - [ ] 91 — [Delete the target-speed input, and retrain](91-delete-the-target-speed-input.md) — training fidelity/AI · high · large
 - [ ] 92 — [The lead marker assumes every target is a freighter](92-the-lead-marker-assumes-a-freighter.md) — combat bug/UI · medium · small
 - [ ] 93 — [One home for the phosphor](93-one-home-for-the-phosphor.md) — architecture/UI · medium · medium

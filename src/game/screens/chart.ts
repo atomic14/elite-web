@@ -18,7 +18,7 @@
 import type { ChartState } from '../chart-state.ts';
 import {
   renderChart, drawChart, renderLocalChart, drawLocalChart, renderMarketEstimate,
-  nearestSystem, chartCoordsFromClick, localCoordsFromClick, LOCAL_SCALE,
+  nearestSystem, chartCoordsFromClick, localCoordsFromClick,
 } from '../../ui/screens.ts';
 import type { Screen, ScreenOutcome, ScreenId } from '../../ui/screen-host.ts';
 import type { CommanderData } from '../commander.ts';
@@ -26,6 +26,7 @@ import type { StarSystem } from '../../galaxy/galaxy.ts';
 import type { Input } from '../../engine/input.ts';
 import { marketEstimate } from '../contracts.ts';
 import { sfx } from '../../audio.ts';
+import { LOCAL_SCALE, CHART_SPAN_X } from '../../constants/chart-metric.ts';
 
 export interface ChartContext {
   readonly commander: CommanderData;
@@ -155,7 +156,7 @@ export class ChartScreen implements Screen {
 
     // snap radius of ~28 screen px on either chart, so clicking a star targets
     // it while clicking empty sky just moves the cursor
-    const pxPerUnit = this.local ? LOCAL_SCALE : target.width / 256;
+    const pxPerUnit = this.local ? LOCAL_SCALE : target.width / CHART_SPAN_X;
     const near = nearestSystem(systems, chart.cursorX, chart.cursorY, 28 / pxPerUnit);
     if (near) {
       chart.cursorX = near.x;

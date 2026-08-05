@@ -1,3 +1,5 @@
+import { HEADLESS_WIDTH, HEADLESS_HEIGHT } from '../constants/camera.ts';
+
 // A DOM element that accepts every write and performs none of them.
 //
 // The painters — hud.ts, tunnel.ts — cache elements in field initializers, so a
@@ -91,6 +93,6 @@ export function fillWith(parent: HTMLElement, tag: string, count: number): HTMLE
  * and `window.innerWidth` type-checks perfectly in a file that can never run.
  */
 export function viewport(): { width: number; height: number } {
-  if (typeof window === 'undefined') return { width: 1280, height: 720 };
+  if (typeof window === 'undefined') return { width: HEADLESS_WIDTH, height: HEADLESS_HEIGHT };
   return { width: window.innerWidth, height: window.innerHeight };
 }

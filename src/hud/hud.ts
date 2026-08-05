@@ -4,12 +4,13 @@ import type { StarSystem } from '../galaxy/galaxy.ts';
 import { describeSystem } from '../galaxy/galaxy.ts';
 import { formatCredits } from '../game/commander.ts';
 import type { ExerciseStrip } from '../game/combat-sim-strip.ts';
+import {
+  SCANNER_RANGE, LASER_GAUGE_WARN, CABIN_GAUGE_WARN,
+} from '../constants/console.ts';
 
 // The classic console: elliptical 3D scanner (dot + vertical stick per
 // contact), station compass, gauge bars, and the message line.
 
-/** Scanner range — also the distance at which the console's 'S' lights. */
-export const SCANNER_RANGE = 6000;
 const GREEN = '#4dff5c';
 const DIM = '#1d6b26';
 const AMBER = '#ffb444';
@@ -224,10 +225,10 @@ export class Hud {
     this.aftEl.style.width = `${frame.aftShield * 100}%`;
     this.fuelEl.style.width = `${frame.fuelFrac * 100}%`;
     this.laserEl.style.width = `${frame.laserTemp * 100}%`;
-    this.laserEl.style.background = frame.laserTemp > 0.8 ? '#ff4d4d' : '';
+    this.laserEl.style.background = frame.laserTemp > LASER_GAUGE_WARN ? '#ff4d4d' : '';
     this.altEl.style.width = `${Math.min(100, frame.altitudeFrac * 100)}%`;
     this.cabinEl.style.width = `${Math.min(100, frame.cabinTemp * 100)}%`;
-    this.cabinEl.style.background = frame.cabinTemp > 0.72 ? '#ff4d4d' : '';
+    this.cabinEl.style.background = frame.cabinTemp > CABIN_GAUGE_WARN ? '#ff4d4d' : '';
     this.viewEl.textContent = frame.assist ? '◆ COMBAT COMPUTER ◆' : (VIEW_NAMES[frame.view] ?? '');
     this.crosshairEl.style.display = frame.hasLaser ? '' : 'none';
     this.shipIdEl.textContent = frame.shipId;

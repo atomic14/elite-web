@@ -10,6 +10,9 @@ import { newCommander } from '../src/game/commander.ts';
 import { buildHudFrame, compassTarget, hasLaserInView } from '../src/hud/hud-binding.ts';
 import { energyLow } from '../src/game/systems.ts';
 import { ENERGY_BANKS, LOW_ENERGY, MAX_ENERGY } from '../src/constants/pools.ts';
+import {
+  SUNSKIM_COMPASS_RANGE, STATION_COMPASS_RADII,
+} from '../src/constants/console.ts';
 import { check } from './harness.ts';
 
 console.log('\nhud binding');
@@ -61,6 +64,34 @@ console.log('\nhud binding');
     // the sun is 130k away here, but witch-space must win over the sun rule
     const s = sources({ witchspace: true, playerPos: V(0, 0, -1e6 + 1000) });
     check('witch-space beats the sun-skim rule', compassTarget(s) !== s.world.sunPos);
+  }
+
+  {
+    // The two compass thresholds, BISECTED out of the real rule and compared
+    // to the constants that claim to say them (constants/console.ts) — the
+    // hand-placed probes above show the rule works; these show WHERE it flips,
+    // so a re-inlined literal in compassTarget goes red however the constant
+    // moves.
+    const bisect = (lo: number, hi: number, inside: (x: number) => boolean): number => {
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (inside(mid)) lo = mid; else hi = mid;
+      }
+      return (lo + hi) / 2;
+    };
+    const sunEdge = bisect(1000, 1e6, (d) => {
+      const s = sources({ playerPos: V(0, 0, -1e6 + d) });
+      return compassTarget(s) === s.world.sunPos;
+    });
+    check(`the sun takes the compass within SUNSKIM_COMPASS_RANGE (${sunEdge.toFixed(0)})`,
+      Math.abs(sunEdge - SUNSKIM_COMPASS_RANGE) < 1);
+    const stationEdge = bisect(100, 1e5, (d) => {
+      const s = sources({ playerPos: V(0, 0, 1e6 - d) });
+      return compassTarget(s) === s.world.station.position;
+    });
+    check('the station takes it within STATION_COMPASS_RADII of the planet'
+      + ` (${(stationEdge / 1000).toFixed(3)} radii)`,
+    Math.abs(stationEdge - STATION_COMPASS_RADII * 1000) < 1);
   }
 
   {

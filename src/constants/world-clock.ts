@@ -53,3 +53,15 @@ export const MAX_FRAME_TIME = 0.25;
  * from a file that could not see it.
  */
 export const MAX_STEPS_PER_FRAME = 5;
+
+/**
+ * Unread taps of one key the input carries across busy frames (docs/TODO/37).
+ *
+ * Three, because that is about the most a hand delivers into a single dropped
+ * frame — and it is well inside `MAX_STEPS_PER_FRAME`, the catch-up budget
+ * above, so a backlog is spent as cursor movement the player asked for rather
+ * than as a burst they did not. That relationship used to be prose written
+ * from a file that could not see the budget; the two sit together now and
+ * `test/input.test.ts` holds the inequality.
+ */
+export const CARRY_LIMIT = 3;

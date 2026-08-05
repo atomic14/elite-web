@@ -1534,6 +1534,88 @@ re-inlined `ENTRY_THROTTLE` at 0.3 (1, new check) and a re-inlined
 instruction below and the docs/ARCHITECTURE.md entry, which only the last
 slice may add.
 
+**Slice 14 — the console — landed, and THE ITEM IS DONE.** Two new files
+plus additions to two existing ones, and the count went from 288 home / 221
+out across 69 files to **305 home / 211 out across 66**. The last pending
+group left the plan: every entry on the gate's OUTSIDE list is now a named
+STAYS or decided entry with its reason — there is no pending work left on
+it, which is what "the list is the plan" was for.
+
+| moved | file |
+| --- | --- |
+| the console's game-facing rules — scanner, compass, aim aid, gauge warnings, the sight | `constants/console.ts` |
+| the one camera, and the pretend viewport a headless run sees | `constants/camera.ts` |
+| the local chart's geometry, joining the 1984 metric | `constants/chart-metric.ts` |
+| the input carry, joining the frame budget it was chosen against | `constants/world-clock.ts` |
+
+**Two of the survey's duplicated pairs closed structurally.** The camera —
+`PerspectiveCamera(60, 1, 1, 1_000_000)` verbatim in `render-stack.ts` and
+`shell.ts`, where the headless shell EXISTS to prove the platform seam and a
+drift would have made the proof false — and the pretend 1280x720 viewport in
+`inert-dom.ts` and `shell.ts`. Both sides of both pairs read
+`constants/camera.ts` now, and `CAMERA_FOV`'s doc records that the trainer's
+`IN_VIEW_DEG` argues from it.
+
+**The decided CSS twin has a gate instead of a hope.** `SIGHT_Y` moved with
+its scope-section mandate; its `#crosshair { top: 42% }` twin cannot import,
+so `test/ui.test.ts` reads the stylesheet and holds the two fractions equal
+— a diverged 0.43 fails. The two gauge warnings were named
+(`LASER_GAUGE_WARN`, `CABIN_GAUGE_WARN`) with the survey's "guess at a rule
+they could read" resolved as deliberate margin, and the warning-precedes-
+the-rule inequalities are checks against `LASER_CUTOUT` and
+`CABIN_TEMP_FATAL`. `ASSUMED_TARGET_SPEED` moved with docs/TODO/92's finding
+attached and its value untouched. `CARRY_LIMIT` sits beside
+`MAX_STEPS_PER_FRAME` at last, the prose relationship now the inequality
+check the cleanup list asked for, and slice 9's leftover — the console
+chart's bare `/ 256` — reads `CHART_SPAN_X`.
+
+**The compass edges are bisected, not probed.** `test/hud-binding.test.ts`
+had hand-placed probes that showed the rules work; it now bisects the
+sun-skim switchover and the station takeover out of the real
+`compassTarget` and compares them to the constants, so a re-inlined 140,000
+goes red however `SUNSKIM_COMPASS_RANGE` moves. The one soft spot is
+recorded: the chart painter itself has no test, so its use of
+`CHART_SPAN_X` is structural rather than gated.
+
+Byte-identical, verified against a worktree at HEAD: **307 compared, 0
+changed** — every name in `src/constants/` then against now, all seventeen
+moved values against HEAD's exports or source, the input carry driven
+through both trees' real `Input` over six frames of backlog, and
+`screenTargets` — brackets and the lead marker — projected through both
+trees over three lock states. The harness was broken
+(`ASSUMED_TARGET_SPEED` 220 → 230) and reported 2 changes — one of them the
+lead marker moving in the projected sweep — before being restored.
+
+The four gates: `npm run build` passes; `npm run campaign` byte-identical —
+zero diff lines against the worktree's own run; `npm run elite-a` 490
+passed, 0 failed; `npm run portability` 0 contaminated. The suite reads
+**3209 from 3203**, all six new. Both console harnesses name nothing this
+slice touched.
+
+Ten breaks, all confirmed red and restored with targeted edits: the gate's
+stray `SOME_RULE` (1 failure) and a side-effect import into the home (1);
+re-inlined drifts for the sun-skim range at 140k (1), the compass radii at
+4 (1) and the carry cap at 4 (1); diverged `CARRY_LIMIT` at 6 (2),
+`SIGHT_Y` at 0.43 (1) and `LASER_GAUGE_WARN` at 0.99 (1); and the harness
+itself (above). One break stays green and is recorded: a re-inlined 257 in
+the untested chart painter.
+
+**And the two things only the last slice may do are done.** CLAUDE.md
+carries the read-it-do-not-grep-it instruction, in the "How we work"
+section beside the one-home rule it serves, with the reason attached; and
+`docs/ARCHITECTURE.md`'s tree opens with `src/constants/` — what it is, the
+leaf rule, and the instruction to read it whole. Every line of the
+Acceptance section below holds: the home exists and is split by subject
+with the evidence beside the values, the gate is in the build and has been
+broken tens of times across fourteen slices, `MAX_TRADERS` has one
+definition, `gunnery.ts`'s three 3500s and the three 6000s are each
+resolved with the answer written down (slice 1's expression and unresolved
+literal; `hunt-ranges.ts` and `constants/console.ts` refusing the 6000
+merge from both sides), and every slice shipped byte-identical on all four
+gates. **305 constants are home; the 211 still outside are all data
+tables, typed structures, format versions, prose, drawing or decided
+exceptions, each named on the gate with its reason.**
+
 ## What to work out
 
 - **The namespace scheme.** Nested frozen objects (`COMBAT.BREAK_OFF_RANGE`) give

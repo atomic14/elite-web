@@ -22,6 +22,7 @@ import { readFileSync } from 'node:fs';
 import { Input } from '../src/engine/input.ts';
 import { commandsFor } from '../src/game/controls.ts';
 import { check, eq } from './harness.ts';
+import { CARRY_LIMIT, MAX_STEPS_PER_FRAME } from '../src/constants/world-clock.ts';
 
 console.log('\nthe keyboard, frame by frame');
 
@@ -172,4 +173,17 @@ const readPerFrame = (i: Input, code: string, frames: number): number => {
   i.endFrame();
   eq('...and the carried tap resolves the same way, not the shifted one',
     commandsFor('flight', i).join('|'), 'startHyperspace');
+}
+
+// --- the carry against the budget it was chosen inside ------------------------
+//
+// CARRY_LIMIT lives beside MAX_STEPS_PER_FRAME now (constants/world-clock.ts)
+// because the choice was argued against it: a backlog must fit inside one
+// recovered frame's catch-up, or carried taps arrive as a burst the player
+// did not ask for. The prose used to state this from a file that could not
+// see the budget; this is the check instead of the sentence.
+{
+  check(`the tap carry (${CARRY_LIMIT}) fits inside one recovered frame's`
+    + ` catch-up (${MAX_STEPS_PER_FRAME})`,
+  CARRY_LIMIT < MAX_STEPS_PER_FRAME);
 }

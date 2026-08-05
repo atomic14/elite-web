@@ -58,3 +58,16 @@ export const CHART_SPAN_X = 256;
  * halving without naming it.
  */
 export const CHART_SPAN_Y = CHART_SPAN_X / CHART_Y_SQUASH;
+
+/**
+ * The console's short-range chart: canvas px per chart unit.
+ *
+ * Bounded by the range circle, not by taste: a full tank is 7.0 LY, drawn at
+ * `(fuel / TENTHS_PER_CHART_UNIT) * LOCAL_SCALE` = 17.5 x LOCAL_SCALE px. At
+ * 15 that is 262px, which fits inside the `LOCAL_CANVAS` square with room to
+ * spare. Raise one and you must raise the other or the range clips again.
+ */
+export const LOCAL_SCALE = 15;
+
+/** Square, so a light year is the same number of pixels whichever way you go. */
+export const LOCAL_CANVAS = 560;

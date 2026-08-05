@@ -197,6 +197,20 @@ src/
   player.ts                 the player's flight model — flies a FlightDemand,
                             and has never heard of a keyboard
 
+  constants/                ONE HOME FOR EVERY GAME-RULE CONSTANT (docs/TODO/90):
+                            one file per subject, flat export consts, the
+                            reasoning and measured evidence beside each value.
+                            An import-nothing leaf — the whole directory may
+                            import only itself, and test/constants.test.ts
+                            enforces that, plus one-home-per-name across all of
+                            src/. READ IT, in full, before adding any constant
+                            anywhere: the point is to find the one that already
+                            exists under a name you would not have guessed.
+                            Data tables (ship-specs, the 1984 galaxy, the
+                            Elite-A catalogue) are NOT constants and stay with
+                            their provenance; the gate's OUTSIDE list names
+                            every deliberate exception with its reason
+
   game/
     game.ts                 THE ORCHESTRATOR: the frame, input routing, the
                             mode machine, and every consequence modules report

@@ -19,6 +19,10 @@ import { DOCK_COMPUTER_RANGE } from '../src/constants/docking-computer.ts';
 import { CombatComputer } from '../src/game/combat-computer.ts';
 import { CC_MAX_SPEED } from '../src/constants/combat-computer.ts';
 import { check, eq, cmds, eqc, keys } from './harness.ts';
+import { readFileSync } from 'node:fs';
+import { LASER_GAUGE_WARN, CABIN_GAUGE_WARN, SIGHT_Y } from '../src/constants/console.ts';
+import { LASER_CUTOUT } from '../src/constants/player-gun.ts';
+import { CABIN_TEMP_FATAL } from '../src/constants/sun.ts';
 
 // --- the screen contract ----------------------------------------------------
 
@@ -368,4 +372,27 @@ console.log('\nautopilots');
     check('no policy means no autopilot',
       noBrain.demand === null && !state.session.ccEngaged);
   }
+}
+
+// --- the console's warnings, and the sight's CSS twin -------------------------
+
+// A warning must precede the rule it warns about, or the gauge is a
+// post-mortem: the laser bar reddens BELOW the cut-out and the cabin bar
+// BELOW the fatal band. The survey called both "thresholds that guess at a
+// rule they could read"; the guess is now beside the rule and this is the
+// inequality that keeps it a warning.
+console.log('\nthe console warns before the rule fires');
+{
+  check(`the laser gauge warns (${LASER_GAUGE_WARN}) before the cut-out (${LASER_CUTOUT})`,
+    LASER_GAUGE_WARN < LASER_CUTOUT);
+  check(`the cabin gauge warns (${CABIN_GAUGE_WARN}) before the fatal band (${CABIN_TEMP_FATAL})`,
+    CABIN_GAUGE_WARN < CABIN_TEMP_FATAL);
+
+  // SIGHT_Y's CSS twin is a DECIDED duplication (CSS cannot import), which is
+  // exactly why it gets a gate instead of a hope: the stylesheet's crosshair
+  // must sit at the same fraction the projection shifts the gun axis by.
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const m = /#crosshair\s*{[^}]*top:\s*(\d+)%/s.exec(css);
+  check(`#crosshair's top (${m?.[1]}%) is SIGHT_Y (${SIGHT_Y * 100}%) — the decided CSS twin`,
+    m !== null && Number(m[1]) === SIGHT_Y * 100);
 }

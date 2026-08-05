@@ -1,3 +1,5 @@
+import { CARRY_LIMIT } from '../constants/world-clock.ts';
+
 // Keyboard state with frame-oriented semantics:
 //  - held(codes): live keydown state — every continuous control, the trigger
 //    included, so nothing in here can queue a shot
@@ -47,18 +49,9 @@
 
 /**
  * How many unread taps of one key survive a frame boundary.
- *
- * Three, because that is about the most a hand delivers into a single dropped
- * frame and it is well inside one recovered frame's catch-up budget — see
- * `MAX_STEPS_PER_FRAME` in constants/world-clock.ts — so a backlog is spent as
- * cursor movement the player asked for rather than as a burst they did not.
- *
- * That budget used to be written out here as "is 5", from a file that could not
- * see it: game.ts held the constant privately and cannot be imported without a
- * browser. It can be named now. The constant itself stays module-private until
- * the console's own slice of docs/TODO/90 reaches this file.
+ * — see constants/world-clock.ts, where it lives beside the catch-up budget
+ * it was chosen against.
  */
-const CARRY_LIMIT = 3;
 
 export class Input {
   private readonly down = new Set<string>();
