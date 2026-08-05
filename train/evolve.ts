@@ -25,7 +25,7 @@ import {
   Episode, type Controller, type TargetHullId,
 } from '../src/ai-training/scenario.ts';
 import {
-  randomBrain, mutate, brainFromFile, widenBrain, act, makeScratch,
+  randomBrain, mutate, brainFromFile, widenBrain, act, makeObs, makeScratch,
   OBS_SIZE, DEFEND_OBS_SIZE, PACK_OBS_SIZE, PACK_WIDE_OBS_SIZE,
   OUT_SIZE, DEFEND_OUT_SIZE, HIDDEN, DEFEND_HIDDEN,
   type Brain, type BrainFile,
@@ -512,7 +512,7 @@ const VALIDATION_EPISODES = 24;
  * whose throttle is constant. A real pursuer varies it.
  */
 function flies(genome: Brain): { forward: number; degenerate: boolean } {
-  const obs = new Float32Array(PACK_WIDE_OBS_SIZE);
+  const obs = makeObs();
   const scratch = makeScratch();
   let forward = 0;
   let frames = 0;
@@ -621,7 +621,15 @@ if (VALIDATE_SELECT && champions.length) {
       `(see flies(): run 11 shipped one of these)`);
   }
   if (bestScore === -Infinity) {
+    // Refuse the write. `best` still holds the raw luckiest genome from
+    // training, and saving it under the requested name would put an
+    // UNVALIDATED brain on disk wearing the name of a selected champion —
+    // which is how it would end up wired into the game. This happened on the
+    // first v2 run (2026-08-05): a buffer bug rejected all 880 champions and
+    // the fallback silently saved the raw best anyway.
     console.log('EVERY champion was degenerate — nothing worth saving from this run');
+    console.log('refusing to save: the raw training best is not a selected champion');
+    process.exit(1);
   }
   if (bestValidation) {
     const v = bestValidation;

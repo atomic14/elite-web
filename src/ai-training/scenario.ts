@@ -89,7 +89,7 @@ import {
 } from '../game/systems.ts';
 import { seedWorld, random, randomDirection } from '../game/rng.ts';
 import {
-  act, makeScratch, MAX_OBS_SIZE, type Brain, type Control,
+  act, makeObs, makeScratch, type Brain, type Control,
 } from './policy.ts';
 import { observeFor, shipView, writeView } from './observation.ts';
 
@@ -844,7 +844,7 @@ export class Episode {
    * not in this file any more.
    */
   private readonly fire: FireWorld;
-  private readonly obs = new Float32Array(MAX_OBS_SIZE);
+  private readonly obs = makeObs();
   private readonly scratch = makeScratch();
   private readonly meView = shipView();
   private readonly threatView = shipView();

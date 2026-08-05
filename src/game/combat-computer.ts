@@ -15,7 +15,7 @@
 import type * as THREE from 'three';
 import { rampToward, type FlightDemand } from '../player.ts';
 import {
-  act, makeScratch, MAX_OBS_SIZE, type Brain,
+  act, makeObs, makeScratch, type Brain,
 } from '../ai-training/policy.ts';
 import {
   observeFor, shipView, writeView, type ThreatsView, type V3,
@@ -102,7 +102,7 @@ export class CombatComputer {
   // that reads past its end the day a wider one is promoted. It has happened
   // twice now (docs/TODO/71, /91); `MAX_OBS_SIZE` is policy.ts saying it
   // cannot happen again.
-  private readonly obs = new Float32Array(MAX_OBS_SIZE);
+  private readonly obs = makeObs();
   private readonly scratch = makeScratch();
   private readonly me = shipView(CC_MAX_SPEED, 0.5, 0);
   /**

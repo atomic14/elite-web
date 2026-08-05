@@ -56,6 +56,20 @@ export const PACK_OBS_SIZE = 17; // solo + nearest-packmate dir (3) + distance (
 export const PACK_WIDE_OBS_SIZE = 25;
 /** The widest observation any encoder writes — what an obs buffer must hold. */
 export const MAX_OBS_SIZE = DEFEND_OBS_SIZE;
+
+/**
+ * The observation buffer every caller of `observeFor`/`act` should hold.
+ *
+ * ONE home for its size, because sizing these by hand has now caused two
+ * incidents: docs/TODO/71's buffer was one slot too small for the encoder it
+ * fed, and the v2 selection gate (`flies()`, 2026-08-05) probed 29-input
+ * genomes through a 25-float buffer — the out-of-range reads went NaN, every
+ * argmax fell through to -1, and all 880 champions of a full training run
+ * were rejected as 'constant throttle' by an instrument, not a measurement.
+ */
+export function makeObs(): Float32Array {
+  return new Float32Array(MAX_OBS_SIZE);
+}
 export const HIDDEN = 32;
 /**
  * The defence policy's hidden width. Twice `HIDDEN`, because docs/TODO/91's

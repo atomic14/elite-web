@@ -10,7 +10,7 @@ import type {
   NpcCombatProfileId, ShipDesignId, ShipIdentity,
 } from './ship-identity.ts';
 import {
-  act, makeScratch, MAX_OBS_SIZE, type Brain,
+  act, makeObs, makeScratch, type Brain,
 } from '../ai-training/policy.ts';
 import {
   observeFor, shipView, writeView, type ObservableMate, type ThreatsView,
@@ -418,7 +418,7 @@ export class NpcShip {
   private readonly tmpQ = new THREE.Quaternion();
 
   // sized for the WIDEST encoder; narrower brains read their own prefix
-  private static readonly obsBuf = new Float32Array(MAX_OBS_SIZE);
+  private static readonly obsBuf = makeObs();
   /** scratch packmate list, reused so the 10 Hz decision stays allocation-light */
   private static readonly mateView: ObservableMate[] = [];
   /** …backed by a pool that is never truncated, so growth allocates once */
