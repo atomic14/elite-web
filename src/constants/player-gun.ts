@@ -22,7 +22,17 @@
 export const LASER_RANGE = 3500;
 
 /**
- * The cadence and heat of each fitted laser. Harmless's numbers, unchanged.
+ * The cadence and heat of each fitted laser. Cadence is Harmless's; the heat is
+ * tuned to the Elite-A player-laser spec's OVERHEAT TIMES.
+ *
+ * The spec adds a flat heat per shot for every laser and differentiates them by
+ * power (damage) alone, so its two continuous lasers overheat identically —
+ * beam and military both cook in ~3.5s — and its pulse lasts ~20s. We keep our
+ * own 0..1 heat scale and continuous cooling rather than porting the 0..255
+ * byte, and match the spec by choosing the per-shot heat that lands those times
+ * under our real (frame-quantized) cadence. So beam and military share a heat
+ * and differ only in what a hit is worth; the military laser is simply the
+ * better gun, as in the original. See `LASER_COOL_RATE` for the arithmetic.
  *
  * `mining` is absent because Harmless has no mining MOUNT: the mining laser is
  * a fitting that changes what a destroyed rock yields (see `Combat.destroy`),
@@ -37,9 +47,9 @@ export const LASER_RANGE = 3500;
  * nothing, and the check does not need it to.
  */
 export const LASER_PACING = {
-  pulse: { cooldown: 0.24, heat: 0.055 },
-  beam: { cooldown: 0.09, heat: 0.035 },
-  military: { cooldown: 0.09, heat: 0.03 },
+  pulse: { cooldown: 0.24, heat: 0.067 },
+  beam: { cooldown: 0.09, heat: 0.05 },
+  military: { cooldown: 0.09, heat: 0.05 },
 } as const;
 
 /** The laser cuts out at this temperature and will not fire again until it cools. */
@@ -54,14 +64,44 @@ export const LASER_CUTOUT = 0.98;
  * says when it stops firing — so the third number of the three belongs beside
  * them rather than beside the energy banks it shares a step with.
  *
- * It is what decides whether a mount can be held down. Against `LASER_PACING`:
- * the pulse adds 0.055 every 0.24s, which is 0.229 a second against 0.22 of
- * cooling — it nets +0.009 and takes about 107 seconds of continuous fire to
- * reach the cut-out, so in practice it never does. The beam nets +0.169 and
- * cuts out in 5.8 seconds; the military laser nets +0.113 and lasts 8.7. From
- * the cut-out, a cold gun is 4.5 seconds away.
+ * It is what decides whether a mount can be held down, and the rates depend on
+ * the REAL fire cadence, which is frame-quantized: the world steps in FIXED_DT
+ * (1/60s) slices, so a 0.09s cooldown does not fire every 0.09s — it clears on
+ * the sixth frame and fires every 0.10s (10 Hz), and the 0.24s pulse fires every
+ * 0.25s. Measured held down from cold against 0.22/s of cooling (2026-08-06),
+ * with the heat retuned to the Elite-A spec's overheat times:
+ *
+ *   - pulse    0.067 every 0.25s = 0.27/s, nets +0.05, cuts out in ~19s.
+ *   - beam     0.050 every 0.10s = 0.50/s, nets +0.28, cuts out in ~3.4s.
+ *   - military 0.050 every 0.10s = 0.50/s, nets +0.28, cuts out in ~3.4s.
+ *
+ * Beam and military are identical here, as the spec has them: both continuous,
+ * both cooking in ~3.5s, separated only by damage. From the cut-out a cold gun
+ * is 4.5s away (cooling is continuous and dt-scaled, so it is NOT quantized).
+ * The gun stops firing at `LASER_CUTOUT`, so the gauge never climbs past it to
+ * 1.0. Before this retune the continuous lasers lasted 7.3s (beam) and 12s
+ * (military) and the pulse never cut out at all.
  */
 export const LASER_COOL_RATE = 0.22;
+
+/**
+ * What one laser shot draws from the energy bank.
+ *
+ * The Elite-A player laser spends one energy point per firing event (spec §11),
+ * and our energy pool IS the released 255 (`MAX_ENERGY`, constants/pools.ts), so
+ * the number transfers directly — no scaling. It is a soft, secondary limit: at
+ * the beam/military 10 Hz cadence it drains ~10/s against ~6.4/s of base regen
+ * (doubled by an energy unit), so sustained fire slowly erodes the bank — and
+ * the bank is what recharges the shields, so holding the trigger down costs you
+ * defence. Heat is still the hard limit (`LASER_CUTOUT`); this is the tax
+ * underneath it.
+ *
+ * The firing gate keeps one point in reserve after paying (so you need two to
+ * shoot), which is the clean replacement for the original's fire-at-one-energy
+ * quirk rather than a tactical reserve — the last bank is `LOW_ENERGY`, a
+ * separate rule, and firing is deliberately NOT gated on it.
+ */
+export const LASER_ENERGY_COST = 1;
 
 /**
  * How much of a target's silhouette counts as a hit, as a multiple of its

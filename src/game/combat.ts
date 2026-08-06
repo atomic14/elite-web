@@ -30,7 +30,7 @@ import { viewDirection } from './views.ts';
 import { type CommanderData, formatCredits, killValue } from './commander.ts';
 import { laserForView, canFire, chargeShot } from './gunnery.ts';
 import { traceShot } from './shot.ts';
-import { applyDamage } from './systems.ts';
+import { applyDamage, canAffordLaserShot, spendLaserEnergy } from './systems.ts';
 import { hitFromAhead } from './shield-face.ts';
 import { offenceFor } from './law.ts';
 import { OFFENDER, FUGITIVE } from '../constants/law.ts';
@@ -127,8 +127,13 @@ export class Combat {
     scratch: CombatScratch,
   ): CombatEvent[] {
     const laser = laserForView(commander, view);
-    if (!laser || !canFire(sys)) return [];
+    // Firing eligibility: a fitted mount, cooled and not overheated, AND enough
+    // energy to pay the shot while keeping one point in reserve. A shot blocked
+    // for any of these spends nothing — no heat, no energy, no beam — which is
+    // why all three sit in this one guard, before chargeShot.
+    if (!laser || !canFire(sys) || !canAffordLaserShot(sys)) return [];
     chargeShot(sys, laser);
+    spendLaserEnergy(sys);
 
     const sounds: CombatEvent[] = [heard('laser')];
     const out: CombatEvent[] = [{ kind: 'fired' }];

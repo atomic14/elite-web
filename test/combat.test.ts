@@ -31,6 +31,7 @@ import { IMPACT } from '../src/constants/impact.ts';
 import {
   ESCAPE_CHANCE, MINING_YIELD_MIN, MINING_YIELD_SPAN,
 } from '../src/constants/wreck.ts';
+import { LASER_ENERGY_COST } from '../src/constants/player-gun.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
 import { Episode, type Controller } from '../src/ai-training/scenario.ts';
 import { check, eq } from './harness.ts';
@@ -151,6 +152,43 @@ console.log('\ncombat');
       e.kind === 'sound' ? `sound:${e.name}` : e.kind);
     eq('a laser hit reports both sounds before ordered combat consequences',
       ordered.join('|'), 'sound:laser|sound:hit|fired|beam|offence');
+  }
+  {
+    // The laser costs energy to fire (Elite-A spec §11): every shot draws
+    // LASER_ENERGY_COST, and a bank too low to pay while keeping one point in
+    // reserve cannot fire at all — no shot, no heat, nothing spent. Reverting
+    // the cost reddens the first check; reverting the gate reddens the rest.
+    const world = new World();
+    const combat = new Combat(world);
+    const c = newCommander();
+    world.spawn('pirate', at(-500), 1);
+    const scratch = {
+      a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(),
+      ray: new THREE.Raycaster(),
+    };
+    const shoot = (sys: ReturnType<typeof freshSystems>) => combat.fire(
+      c, sys, new THREE.Vector3(), new THREE.Vector3(0, 0, -1), 0, true, scratch);
+
+    const full = freshSystems();
+    const before = full.energy;
+    check(`firing draws ${LASER_ENERGY_COST} energy from the bank`,
+      shoot(full).length > 0 && full.energy === before - LASER_ENERGY_COST);
+
+    // At the reserve floor (one point) paying would leave less than the reserve,
+    // so it cannot fire, and a blocked shot spends nothing.
+    const floor = freshSystems();
+    floor.energy = LASER_ENERGY_COST;
+    const heatBefore = floor.laserTemp;
+    check('a bank at the reserve floor does not fire',
+      shoot(floor).length === 0);
+    check('...and a blocked shot spends nothing — energy and heat untouched',
+      floor.energy === LASER_ENERGY_COST && floor.laserTemp === heatBefore);
+
+    // ...but one point above the floor fires and lands exactly on the reserve.
+    const edge = freshSystems();
+    edge.energy = LASER_ENERGY_COST + 1;
+    check('one point above the floor fires, leaving the reserve',
+      shoot(edge).length > 0 && edge.energy === 1);
   }
   {
     // The wreck constants moved to constants/wreck.ts, so the rule and its

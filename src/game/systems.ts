@@ -41,7 +41,7 @@ import { LOW_ENERGY, MAX_ENERGY, MAX_SHIELD } from '../constants/pools.ts';
 import {
   ENERGY_REGEN_FRACTION, ENERGY_UNIT_MULTIPLIER, SHIELD_REGEN,
 } from '../constants/recharge.ts';
-import { LASER_COOL_RATE } from '../constants/player-gun.ts';
+import { LASER_COOL_RATE, LASER_ENERGY_COST } from '../constants/player-gun.ts';
 import { CABIN_TEMP_FATAL, CABIN_TEMP_LAG, SCOOP_RATE, SUN_HEAT_MAX, SUN_HEAT_START,
   SUN_SCOOP_RANGE } from '../constants/sun.ts';
 import { BREAKABLE, CARGO_LOSS_CHANCE, EQUIPMENT_DAMAGE_CHANCE }
@@ -84,6 +84,26 @@ export interface ShipSystems {
  */
 export function energyLow(energy: number): boolean {
   return energy <= LOW_ENERGY;
+}
+
+/**
+ * Whether the laser can fire without dropping the bank below its one-point
+ * reserve — the read half of the shot's energy cost (constants/player-gun.ts).
+ * `combat.ts` asks this alongside the heat and cadence gate, and spends with
+ * `spendLaserEnergy` only once the whole shot is eligible.
+ */
+export function canAffordLaserShot(sys: Pick<ShipSystems, 'energy'>): boolean {
+  return sys.energy - LASER_ENERGY_COST >= 1;
+}
+
+/**
+ * Spend one laser shot's energy. The WRITE lives HERE because this file owns the
+ * commander's pools (test/damage-paths.ts invariant 4) — the same reason the
+ * E.C.M.'s price sits beside its burst in ordnance.ts rather than in the
+ * orchestrator that presses the button.
+ */
+export function spendLaserEnergy(sys: ShipSystems): void {
+  sys.energy -= LASER_ENERGY_COST;
 }
 
 /**
