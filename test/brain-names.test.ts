@@ -11,20 +11,15 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { defenceBrain, brainByName } from '../src/game/brains.ts';
 import {
-  AS_SHIPPED, AS_THE_GAME_FLIES, BRAINS, LIVE_BRAIN_IDS, SHIPPED_BRAINS,
+  AS_SHIPPED, BRAINS, LIVE_BRAIN_IDS, SHIPPED_BRAINS,
   brainCharacter, brainName,
   defenceBrainNameFor, liveBrainId, liveBrainSelection, pirateBrainNameFor, selectionForBrain,
   type BrainName, type BrainSelection,
 } from '../src/game/brain-names.ts';
 import { liveBrainFor } from '../src/game/combat-sim-scenarios.ts';
-import {
-  BRAIN_CHOICES, defaultGroup, freshDraft, liveSelectionOf, setupCells, specFrom,
-} from '../src/game/screens/combat-sim-setup.ts';
-import {
-  brainNote, careerNote, careerNoteReserve, draftNotes,
-} from '../src/game/screens/combat-sim-notes.ts';
-import { newCommander } from '../src/game/commander.ts';
-import { check, eq } from './harness.ts';
+import { PIRATE_CHOICES } from '../src/game/screens/combat-sim-setup.ts';
+import { brainNote } from '../src/game/screens/combat-sim-notes.ts';
+import { check } from './harness.ts';
 
 // --- one rule, one home: the name, the weights and the report ----------------
 //
@@ -140,17 +135,15 @@ console.log('\nwhich brain flies, by name');
 // saying how it flies, and the measured line the words were compressed from.
 // They live in one table, so neither can be added without the other.
 
-console.log('\nevery brain the pickers offer has a name and a character');
+console.log('\nevery brain the picker offers has a name and a character');
 {
-  const offered = [...new Set<string>([...BRAIN_CHOICES, ...LIVE_BRAIN_IDS])];
+  const offered = [...PIRATE_CHOICES];
   const silent = offered.filter((id) => !brainNote(id));
-  check(`every value on both brain rows says what it does (${offered.length})`,
+  check(`every value on the pirate-brain row says what it does (${offered.length})`,
     silent.length === 0, silent.join(', '));
   const unnamed = offered.filter((id) => !brainName(id));
   check(`...and every one of them has a name to be picked BY (${offered.length})`,
     unnamed.length === 0, unnamed.join(', '));
-  check('...and the character table covers the picker exactly, with nothing spare',
-    Object.keys(BRAINS).every((id) => offered.includes(id)));
 
   // A name is the character line compressed, not a second way of writing the
   // file: no stem, no generation, and short enough to read at a glance.
@@ -169,20 +162,6 @@ console.log('\nevery brain the pickers offer has a name and a character');
     .filter(([, line]) => !/\d/.test(line) && !line.includes('NEVER PROBED')).map(([id]) => id);
   check('...and each carries the measured number that shows it (or says NEVER PROBED)',
     noNumber.length === 0, noNumber.join(', '));
-
-  // The two sentinels are not brains, so they are answered by the panel's own
-  // prose — and the shipped one is DERIVED, so promoting a candidate moves it.
-  check('"as the game flies" says where the answer comes from instead',
-    /NOTHING IS SWAPPED OUT FOR THIS FIGHT/.test(brainNote(AS_THE_GAME_FLIES) ?? '')
-    // in a pilot's words: not one of ours, and not a word that presupposes the
-    // thing it is explaining
-    && !/OVERRIDE|\bROLE\b|\bTIER\b/.test(brainNote(AS_THE_GAME_FLIES) ?? ''));
-  check('...and "as shipped" names the three the shipped rule actually returns',
-    LIVE_BRAIN_IDS.filter((id) => id !== AS_SHIPPED)
-      .every((id) => !brainNote(AS_SHIPPED)!.includes(id.toUpperCase())
-        || [pirateBrainNameFor(0, false), pirateBrainNameFor(0, true),
-          defenceBrainNameFor()].includes(id as BrainName))
-    && brainNote(AS_SHIPPED)!.includes(pirateBrainNameFor(0, false).toUpperCase()));
 
   check('a name no picker offers has no line, rather than a made-up one',
     brainCharacter('pirate-attack-r14') === undefined && brainNote('') === null);
@@ -216,90 +195,6 @@ console.log('\nthe trainer names what the game flies');
   check('...including with the brains switched off entirely',
     liveBrainFor('pirate', false, 1, { scripted: true }) === 'scripted'
     && liveBrainFor('trader', false, 1, { scripted: true }) === 'scripted');
-}
-
-// --- the LIVE BRAINS row, which is the career's own selection ---------------
-//
-// The exercise brain row is one fight; this one is the galaxy until it is set
-// back. It exists because live-play brain selection was reachable only from a
-// developer console, which is not a thing to ask of a playtest.
-
-console.log('\ncombat simulator — the live brain row');
-{
-const d = freshDraft(newCommander());
-const row = () => setupCells(d).find((c) => c.label === 'COMBAT COMPUTER BRAINS')!;
-eq('the panel offers it, and it starts at the shipped set',
-  row().value, `(1 OF ${LIVE_BRAIN_IDS.length}) THE ORIGINAL`);
-eq('...so the draft asks for no override', JSON.stringify(liveSelectionOf(d)), '{}');
-// The fence is never an empty box: the reserved space is held whether or not
-// there is a warning in it, so the calm case says the calm thing instead of
-// leaving a hole. It is a STATUS, not a warning, and the two are painted apart.
-eq('...and the fence says so rather than sitting empty',
-  careerNote(d).text,
-  'THE ORIGINAL — YOUR CAREER IS UNCHANGED. ANY OTHER VALUE HERE APPLIES OUT THERE TOO.');
-eq('...as a status, not a warning', careerNote(d).warning, false);
-
-// It is fenced off from the exercise settings and it is LAST, because it is the
-// one row that is still set when you undock. A pilot reading it beside EXERCISE
-// BRAIN read it as a second override for the same fight.
-check('the row is fenced off from the exercise settings', row().fenced === true);
-check('...under a heading that says it leaves the room',
-  /STAYS SET AFTER YOU UNDOCK/.test(row().heading ?? ''));
-eq('...and it is the last row on the panel',
-  setupCells(d).at(-1)!.label, 'COMBAT COMPUTER BRAINS');
-check('...so no exercise setting sits below it',
-  setupCells(d).filter((c) => c.fenced).length === 1);
-
-// step to a named value: one arrow key, and it is the whole galaxy. Since the
-// trained pirate policies left the bundle (2026-08-05) the only stepped value
-// that changes anything is the scripted A/B control, which also turns the
-// armed traders' defence policy off.
-d.live = 'scripted';
-// On a combat-computer row, `scripted` means the co-pilot flies NOTHING —
-// showing the attack run's behaviour there was gibberish for a pilot, so the
-// row says what you actually get.
-eq('a picked value reads back on the row as what the co-pilot does', row().value,
-  `(${LIVE_BRAIN_IDS.indexOf('scripted') + 1} OF ${LIVE_BRAIN_IDS.length})`
-  + ' NONE — FLY IT YOURSELF');
-check('...and the file stem is in the note instead, not the value',
-  (brainNote('scripted') ?? '').includes('SCRIPTED'));
-eq('...and is the selection the game would fly',
-  JSON.stringify(liveSelectionOf(d)), '{"scripted":true}');
-check('...and the fenced note says it outlives the exercise',
-  /COMBAT COMPUTER: YOUR CO-PILOT AND EVERY ARMED TRADER NOW FLIES NOTHING/
-    .test(careerNote(d).text));
-eq('...as a warning this time, painted apart from the calm case',
-  careerNote(d).warning, true);
-check('...in words the contextual help does not use, because it is forgettable',
-  /CAREER|SAVED WITH THE COMMANDER/.test(careerNote(d).text)
-  && !draftNotes(d).some((n) => /LIVE BRAINS/.test(n)));
-check('...and the space it takes is reserved whether it is there or not',
-  careerNoteReserve().length >= careerNote(d).text.length);
-
-// ...and every "AS THE GAME FLIES" hint on the panel follows it, because the
-// hint's whole job is to say what the opposition will actually be flying
-d.groups.push(defaultGroup(1));
-const hint = setupCells(d)
-  .find((c) => c.label.replace(/&nbsp;/g, '') === 'THIS GROUP FLIES');
-// Asserted on the RESOLUTION rather than on a substring of the value. The value
-// used to carry `SAME AS OUTSIDE — HOLDS OFF (pirate-pack-r4-selectonly)`, so
-// this could pass on the formatting; `cell.brain` is the thing the note and the
-// spec are both built from, which is what the claim was always about.
-check('a group left on "same as outside" names the LIVE brain, not the shipped one',
-  !!hint && hint.brain === 'scripted');
-eq('...and that is the brain the spec carries',
-  specFrom(d, 1).custom![0].brain, 'scripted');
-
-// a console-set combination the picker cannot name is SAID, not guessed — and
-// so is a flag a save carries from before TODO 57 deleted the policy behind it
-d.live = null;
-eq('a selection only the console can make says so', row().value, 'SET FROM THE CONSOLE');
-check('...in the fenced note too', /SET FROM THE CONSOLE/.test(careerNote(d).text));
-eq('...and that is a warning as well', careerNote(d).warning, true);
-check('...and it fits the reserved space',
-  careerNoteReserve().length >= careerNote(d).text.length);
-row().change!(1);
-check('...and one arrow key takes it back', d.live !== null);
 }
 
 // --- which policy actually flies -------------------------------------------

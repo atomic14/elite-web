@@ -339,10 +339,9 @@ const OUTSIDE: readonly Group[] = [
         'WAVE_STEPS', 'WAVE_SATURATION', 'MODES',
       ],
       'game/screens/combat-sim-notes.ts': [
-        'MODE_BLURB', 'MIXED_BRAINS', 'NO_OVERRIDE', 'FROM_THE_CONSOLE',
-        'AS_SHIPPED_NOTE',
+        'MODE_BLURB',
       ],
-      'game/screens/combat-sim-setup.ts': ['MODES', 'TIERS', 'LASERS', 'BRAIN_CHOICES'],
+      'game/screens/combat-sim-setup.ts': ['MODES', 'TIERS', 'LASERS', 'PIRATE_CHOICES'],
     },
   },
 

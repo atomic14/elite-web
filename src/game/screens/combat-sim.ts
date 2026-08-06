@@ -30,13 +30,12 @@ import {
 } from '../combat-sim-compare.ts';
 import type { ExerciseSpec } from '../combat-sim-scenarios.ts';
 import {
-  defaultGroup, fitFrom, freshDraft, freshSeed, setupCells, specFrom,
+  fitFrom, freshDraft, freshSeed, setupCells, specFrom,
   type SimDraft,
 } from './combat-sim-setup.ts';
 import {
-  brainNote, brainNoteReserve, careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
+  brainNote, brainNoteReserve, draftNotes, draftNotesReserve,
 } from './combat-sim-notes.ts';
-import type { LiveBrainId } from '../brain-names.ts';
 import {
   renderCombatSimSetup, renderCombatSimReport, renderCombatSimCompare,
 } from '../../ui/screens.ts';
@@ -53,20 +52,6 @@ export interface CombatSimContext {
   /** start one. False when the Game refused — you are dead, or one is running */
   begin(spec: ExerciseSpec, fit: ExerciseFit): boolean;
   message(text: string, seconds: number): void;
-  /**
-   * Which policy the CAREER is flying, as a name the picker can show — or null
-   * when `state.brains` holds a combination only the console can express.
-   */
-  readonly liveBrain: LiveBrainId | null;
-  /**
-   * Point the career's brains at a named policy.
-   *
-   * The one thing this screen changes that outlives the exercise, and it is a
-   * playtest switch rather than a leak: `state.brains` is state, it is in the
-   * save, and the pilot picked it on a row that says so. Before this it was
-   * reachable only from a developer console.
-   */
-  selectLiveBrain(id: LiveBrainId): void;
 }
 
 const cycle = (n: number, len: number, d: number): number => (n + d + len) % len;
@@ -117,13 +102,8 @@ export class CombatSimScreen implements Screen {
   }
 
   open(): void {
-    this.draft ??= freshDraft(this.ctx().commander, this.ctx().liveBrain);
-    // The LIVE BRAINS row shows the career's actual selection, so it is re-read
-    // on every open: the draft is kept for the session (so an A/B is two
-    // launches of the same setup), and a console or an exercise teardown can
-    // have moved `state.brains` underneath it since.
-    this.draft.live = this.ctx().liveBrain;
-    // ...and so is the best wave, for the same reason: the draft is kept for the
+    this.draft ??= freshDraft(this.ctx().commander);
+    // The best wave is re-read on every open: the draft is kept for the
     // session, and a run flown since the last open is exactly when it moves.
     this.draft.furthestWave = this.ctx().commander.furthestWave ?? 0;
     const n = this.ctx().reports.length;
@@ -162,8 +142,6 @@ export class CombatSimScreen implements Screen {
       // does rather than only what it is called.
       brainNote: brainNote(cells[this.row].brain),
       brainReserve: brainNoteReserve(),
-      careerNote: careerNote(draft),
-      careerReserve: careerNoteReserve(),
       hasReport: this.ctx().reports.length > 0,
     });
   }
@@ -193,8 +171,6 @@ export class CombatSimScreen implements Screen {
       return this.repaint();
     }
     if (i.pressed('KeyR')) { d.seed = null; return this.repaint(); }
-    if (i.pressed('KeyA')) { d.groups.push(defaultGroup(d.tier)); return this.repaint(); }
-    if (i.pressed('KeyX')) { d.groups.pop(); return this.repaint(); }
 
     const cells = setupCells(d);
     const up = i.pressed('ArrowUp');
@@ -215,11 +191,6 @@ export class CombatSimScreen implements Screen {
       const cell = cells[clamp(this.row, 0, cells.length - 1)];
       if (home || end) cell.jump?.(end ? 1 : -1);
       else cell.change?.(right ? 1 : -1);
-      // The LIVE BRAINS row is the one cell whose change has to reach the
-      // career. Pushing it after every change rather than teaching this method
-      // which row it is keeps the screen's ONE input surface: a click is a
-      // keystroke, and both end up here.
-      if (d.live !== null) this.ctx().selectLiveBrain(d.live);
       return this.repaint();
     }
     return 'stay';

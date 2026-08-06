@@ -1072,19 +1072,14 @@ const reservedNotes = (
  * The setup panel: a list of rows, and which one the cursor is on.
  *
  * A row list rather than a named field per control, because the panel's shape
- * depends on what has been picked — a custom opposition grows seven rows per
- * group — and a renderer that knew that would be holding half the screen's
- * logic. It paints a list; `screens/combat-sim-setup.ts` decides what is in it,
- * which of them opens a group, and which one is fenced off.
+ * depends on what has been picked. It paints a list; `screens/combat-sim-setup.ts`
+ * decides what is in it and which one opens a group.
  */
 export function renderCombatSimSetup(p: SimSetupPanel): void {
-  const exercise = p.rows
-    .map((r, i) => (r.fenced ? '' : simSetupRow(r, i, p.selected))).join('');
-  const career = p.rows
-    .map((r, i) => (r.fenced ? simSetupRow(r, i, p.selected) : '')).join('');
+  const exercise = p.rows.map((r, i) => simSetupRow(r, i, p.selected)).join('');
   const hints = [
     'CLICK A ROW', '&uarr;&darr; SELECT', '&larr;&rarr; CHANGE', 'HOME/END ENDS OF LIST',
-    'R RANDOM SEED', 'A ADD OPPONENT', 'X REMOVE',
+    'R RANDOM SEED',
     ...(p.hasReport ? ['L LAST REPORT'] : []), 'ESC DONE',
   ];
   show(`
@@ -1097,11 +1092,6 @@ export function renderCombatSimSetup(p: SimSetupPanel): void {
     <table>${exercise}</table>
     ${reservedNotes(p.notes, p.notesReserve, 'note-help')}
     ${reservedNotes(p.brainNote ? [p.brainNote] : [], [p.brainReserve], 'note-brain')}
-    <div class="fence">
-      <table>${career}</table>
-      ${reservedNotes([p.careerNote.text], [p.careerReserve],
-    p.careerNote.warning ? 'note-warn' : 'note-calm')}
-    </div>
     <div class="buttons">
       <button data-key="Enter">ENTER &mdash; LAUNCH</button>
       ${p.hasReport ? '<button data-key="KeyL">L &mdash; LAST REPORT</button>' : ''}

@@ -22,63 +22,47 @@ import {
   SCENARIOS, WAVE_SATURATION, WAVE_STEPS, waveOfStage,
 } from '../src/game/combat-sim-scenarios.ts';
 import {
-  MODES, defaultGroup, freshDraft, setupCells,
+  MODES, freshDraft, setupCells,
 } from '../src/game/screens/combat-sim-setup.ts';
 import {
-  careerNote, careerNoteReserve, draftNotes, draftNotesReserve,
+  draftNotes, draftNotesReserve,
 } from '../src/game/screens/combat-sim-notes.ts';
-import { AS_SHIPPED } from '../src/game/brain-names.ts';
 
 const read = (path: string): string =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 // --- the panel has a shape --------------------------------------------------
 //
-// Thirteen rows in one flat column, every one the same weight, and finding one
-// meant reading rather than scanning. The groups are headings ON a row rather
-// than entries in the list, because the cursor and every click index this list:
-// a heading that could be selected would be a row that does nothing.
+// The groups are headings ON a row rather than entries in the list, because the
+// cursor and every click index this list: a heading that could be selected
+// would be a row that does nothing. The custom-opposition builder and the
+// fenced career row are gone (the panel was too complex — Chris), so the shape
+// is three plain groups.
 
 console.log('\ncombat simulator — the panel has a shape');
 {
   const d = freshDraft(newCommander());
   const headings = (): string[] => setupCells(d)
     .flatMap((c) => (c.heading ? [c.heading] : []));
-  eq('the panel comes out in three groups and a fence',
-    headings().join(' / '),
-    'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE STAYS SET AFTER YOU UNDOCK');
+  eq('the panel comes out in three groups',
+    headings().join(' / '), 'THE FIGHT / WHO YOU FIGHT / YOUR SHIP');
   const opens = (h: string): string =>
     setupCells(d).find((c) => c.heading === h)!.label;
   eq('the fight group opens on the mode', opens('THE FIGHT'), 'MODE');
-  // The label says what the row DECIDES, and for which fight: "EXERCISE BRAIN"
-  // named our concept, and read beside the fenced career row it was one of two
-  // rows about brains with nothing saying which fight either one changed.
-  eq('...who flies what opens on the row that says who the opposition flies like',
-    opens('WHO FLIES WHAT'), 'COMBAT COMPUTER BRAIN (THIS FIGHT)');
+  eq('...who you fight opens on the row that says what the pirates fly',
+    opens('WHO YOU FIGHT'), 'PIRATES FLY');
   eq('...and your ship on the laser', opens('YOUR SHIP'), 'YOUR LASER');
 
-  // The order inside a group is unchanged, so muscle memory survives.
+  // The order inside the fight group is unchanged, so muscle memory survives.
   eq('the fight group is still mode, fight, tier, seed',
     setupCells(d).slice(0, 4).map((c) => c.label).join(','),
     'MODE,FIGHT,THREAT TIER,SEED');
-  eq('...and the exercise brain is followed by the opposition, as it was',
-    setupCells(d).map((c) => c.label).join(',')
-      .includes('COMBAT COMPUTER BRAIN (THIS FIGHT),OPPOSITION'), true);
 
   // A heading is not a row. Every entry in the list is something the cursor can
   // land on and change — which is what makes `this.row` and `data-row` the same
-  // index — so a group heading has to travel WITH a row.
+  // index.
   check('every entry in the list is a row that does something',
     setupCells(d).every((c) => !!c.label && !!c.value && !!c.change));
-
-  // Adding a group extends WHO FLIES WHAT: it must not land under YOUR SHIP, and
-  // it must not push the fenced row up into the exercise settings.
-  d.groups.push(defaultGroup(1));
-  eq('a custom group still lands before YOUR SHIP',
-    headings().join(' / '),
-    'THE FIGHT / WHO FLIES WHAT / YOUR SHIP / THIS ONE STAYS SET AFTER YOU UNDOCK');
-  eq('...and the fenced row stays last',
-    setupCells(d).at(-1)!.label, 'COMBAT COMPUTER BRAINS');
 }
 
 // --- and it does not change height while you use it -------------------------
@@ -103,43 +87,18 @@ console.log('\ncombat simulator — the notes hold their own height');
     d.mode = mode;
     for (let s = 0; s < SCENARIOS.length; s++) {
       d.scenario = s;
-      for (const groups of [0, 1, 2]) {
-        d.groups = Array.from({ length: groups }, () => defaultGroup(1));
-        if (groups === 2) {
-          d.groups[0].brain = 'attack-run';
-          d.groups[1].brain = 'scripted';
-        }
-        const notes = draftNotes(d);
-        if (notes.length > reserve.length) over.push(`${mode}/${s}/${groups}: too many`);
-        notes.forEach((n, i) => {
-          if (n.length > (reserve[i] ?? '').length) over.push(`${mode}/${s}/${groups}[${i}]`);
-          if (n.length === (reserve[i] ?? '').length) filled = true;
-        });
-      }
+      const notes = draftNotes(d);
+      if (notes.length > reserve.length) over.push(`${mode}/${s}: too many`);
+      notes.forEach((n, i) => {
+        if (n.length > (reserve[i] ?? '').length) over.push(`${mode}/${s}[${i}]`);
+        if (n.length === (reserve[i] ?? '').length) filled = true;
+      });
     }
   }
   check('no draft says more than the reserve holds, slot for slot',
     over.length === 0, over.join(', '));
   check('...and the reserve is not padding: some draft fills every slot of it',
     filled);
-  check('the career warning is NOT one of those notes — it has its own block',
-    !draftNotes(d).some((n) => /THE WHOLE GALAXY FLIES/.test(n))
-    && careerNote({ ...d, live: 'scripted' }).warning);
-
-  // The fence holds its space either way, so it always has something in it: a
-  // held box with a hole in it reads as a bug, not as a promise.
-  check('the fence is never empty — the calm case says the calm thing',
-    careerNote({ ...d, live: AS_SHIPPED }).text.length > 0
-    && !careerNote({ ...d, live: AS_SHIPPED }).warning);
-  check('...and it fits the space the warning reserves',
-    careerNoteReserve().length >= careerNote({ ...d, live: AS_SHIPPED }).text.length);
-  // Told apart without being read: the renderer picks the tone off `warning`.
-  const screens = read('src/ui/screens.ts');
-  check('the renderer paints a warning apart from a status',
-    /careerNote\.warning \? 'note-warn' : 'note-calm'/.test(screens));
-  check('...and the stylesheet gives the calm one a quiet green, not the red',
-    /\.note-calm \{ color: var\(--hud-green\); opacity: 0\.5;/.test(read('src/style.css'))
-    && /\.note-warn \{ color: var\(--hud-red\); \}/.test(read('src/style.css')));
 }
 
 // --- and a long list can be got to the end of -------------------------------
@@ -151,20 +110,16 @@ console.log('\ncombat simulator — the notes hold their own height');
 console.log('\ncombat simulator — a long list is navigable');
 {
   const d = freshDraft(newCommander());
-  d.groups.push(defaultGroup(1));
   const cell = (label: string) =>
     setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
 
-  const rows = ['COMBAT COMPUTER BRAIN (THIS FIGHT)', 'THIS GROUP FLIES',
-    'GROUP 1 HULL', 'COMBAT COMPUTER BRAINS'];
+  const rows = ['PIRATES FLY'];
   for (const label of rows) {
     check(`${label} says where in the list it is`,
       /^\(\d+ OF \d+\) /.test(cell(label).value));
   }
 
-  // How many options a row offers, read off its `(n OF m)` prefix. One helper
-  // rather than three hand-rolled `split('/')` calls, which is what made the
-  // format change break this block in three places at once.
+  // How many options a row offers, read off its `(n OF m)` prefix.
   const listLength = (v: string) => Number(/^\(\d+ OF (\d+)\)/.exec(v)?.[1] ?? 0);
   const at = (v: string) => Number(/^\((\d+) OF/.exec(v)?.[1] ?? 0);
 
@@ -188,7 +143,7 @@ console.log('\ncombat simulator — a long list is navigable');
     eq(`...and HOME is the first`, at(cell(label).value), 1);
   }
   check('a row over a number has no end to jump to, so it has no jump',
-    !cell('SEED').jump && !cell('COUNT').jump && !cell('YOUR MISSILES').jump);
+    !cell('SEED').jump && !cell('YOUR MISSILES').jump);
 
   // HOME and END are the SCREEN's own keys rather than `BINDINGS` commands, so
   // nothing generates the places they are written down (docs/TODO/50 covers the

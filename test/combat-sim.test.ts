@@ -16,7 +16,6 @@
 // those surfaces.
 
 import { readFileSync } from 'node:fs';
-import { hasShipDef, shipDisplayName } from '../src/ships/registry.ts';
 
 import { check, eq, cmds, eqc } from './harness.ts';
 import {
@@ -25,13 +24,11 @@ import {
 import { newCommander } from '../src/game/commander.ts';
 import { MAX_MISSILES } from '../src/constants/commander.ts';
 import {
-  SCENARIOS, SIM_BRAINS, clampTier, liveBrainFor, simHulls, type BrainId,
+  SCENARIOS, clampTier, type BrainId,
 } from '../src/game/combat-sim-scenarios.ts';
 import {
-  MODES, brainOverride, defaultGroup, fitFrom,
-  freshDraft, freshSeed, nudgeOrHull, setupCells, specFrom,
+  MODES, fitFrom, freshDraft, freshSeed, setupCells, specFrom, type SimDraft,
 } from '../src/game/screens/combat-sim-setup.ts';
-import { AS_THE_GAME_FLIES } from '../src/game/brain-names.ts';
 import { draftNotes } from '../src/game/screens/combat-sim-notes.ts';
 import { dockedMenuHtml, guideSections, guideTableHtml } from '../src/ui/key-help.ts';
 
@@ -173,9 +170,8 @@ console.log('\ncombat simulator — the setup draft');
   eq('a fresh draft is a single pirate, scored', draft.mode, 'scenario');
   eq('...at the tier the balance figures are quoted at', draft.tier, 1);
   eq('...on a random seed, so two launches are two fights', draft.seed, null);
-  eq('...against the scenario table rather than a hand-built fight',
-    draft.groups.length, 0);
-  eq('...flying whatever the live game flies', draft.brain, AS_THE_GAME_FLIES);
+  eq('...with the pirates flying the attack run they fly out there',
+    draft.brain, 'attack-run');
   eq('...and it starts from the ship you actually own',
     draft.fit.laser, newCommander().equipment.laser);
   // FIT ONLY, and the list is exact so a hull, a bay or a galactic drive cannot
@@ -241,108 +237,30 @@ console.log('\ncombat simulator — the setup draft');
     !read('src/game/screens/combat-sim-setup.ts').includes("from '../rng.ts'"));
 }
 
-// --- the custom picker ------------------------------------------------------
+// --- the pirate brain row, which is the A/B rig ----------------------------
 
-console.log('\ncombat simulator — the custom picker');
+console.log('\ncombat simulator — the pirate brain');
 {
-  const d = freshDraft(newCommander());
-  // By LABEL, not by row index — setupCells' own comment is that a cell owns
-  // its label, its reading and what an arrow does to it, so nothing switches on
-  // a position. A test that counts rows breaks the moment one is inserted, and
-  // says nothing true when it does.
-  const cell = (label: string) =>
+  const cell = (d: SimDraft, label: string) =>
     setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
-  const rows = setupCells(d).length;
-  cell('OPPOSITION').change!(1);
-  eq('the opposition row builds a group', d.groups.length, 1);
-  eq('...seven rows of it', setupCells(d).length - rows, 7);
-  cell('OPPOSITION').change!(-1);
-  eq('...and drops the lot again', d.groups.length, 0);
 
-  d.groups.push(defaultGroup(2));
-  const hulls = simHulls();
-  check('the hull roster is the whole roster that can fight',
-    hulls.length > 8 && hulls.every((h) => hasShipDef(h.spec.designId)));
-  check('...including the Constrictor, which a career meets once',
-    hulls.some((h) => h.name === 'Constrictor'));
-  check('the group row names its hull and its role',
-    /\(pirate\)$/.test(cell('GROUP 1 HULL').value));
-  for (let n = 0; n < hulls.length; n++) cell('GROUP 1 HULL').change!(1);
-  eq('every hull is reachable and the list wraps', d.groups[0].hull, defaultGroup(2).hull);
-
-  cell('COUNT').change!(3);
-  eq('the count goes up', d.groups[0].count, 4);
-  cell('COUNT').change!(-99);
-  eq('...and never below one ship, which would be no fight', d.groups[0].count, 1);
-
-  cell('ORGANISED — THEY FLY AS A GANG').change!(1);
-  eq('a group can be made organised, which is the pack-policy lever',
-    d.groups[0].organised, true);
-
-  // fit: "whatever the hull carries" is a real value, not a zero
-  const g = d.groups[0];
-  eq('a group carries the hull\'s own missiles until told otherwise', g.missiles, null);
-  // ...in words, so that the mode is readable apart from the number it gives —
-  // test/combat-sim-panel.test.ts owns the wording and the zero case.
-  check('...and says so', cell('MISSILES').value.startsWith('FROM THE HULL'));
-  cell('MISSILES').change!(1);
-  eq('...then takes a number', g.missiles, 0);
-  cell('MISSILES').change!(-1);
-  eq('...and goes back to the hull past the end of the range', g.missiles, null);
-  eq('nudgeOrHull walks off the top back to the hull', nudgeOrHull(8, 1, 0, 8), null);
-  eq('...and off the bottom too', nudgeOrHull(0, -1, 0, 8), null);
-  eq('...and enters the range from the right end', nudgeOrHull(null, -1, 0, 8), 8);
-
-  cell('E.C.M.').change!(1);
-  eq('E.C.M. is a chance, entered as a percentage', g.ecm, 0);
-
-  const spec = specFrom(d, 7);
-  check('the spec carries the custom opposition', (spec.custom ?? []).length === 1);
-  eq('...with the hull pinned, which is what makes it custom',
-    shipDisplayName(spec.custom![0].hull!.designId), simHulls()[g.hull].name);
-  eq('...and the role that hull actually flies', spec.custom![0].role, simHulls()[g.hull].role);
-  eq('...and the seed left to nextOpposition, which re-seeds per round',
-    spec.custom![0].seed, 0);
-}
-
-// --- the brain override, which is the A/B rig ------------------------------
-
-console.log('\ncombat simulator — the brain override');
-{
   const d = freshDraft(newCommander());
-  eq('no override by default: an exercise measures the game as shipped',
-    brainOverride(d), null);
-  eq('...so the spec carries no brain', specFrom(d, 1).brain, undefined);
+  eq('the default is the attack run — what pirates fly out there', d.brain, 'attack-run');
+  eq('...so the spec carries no override', specFrom(d, 1).brain, undefined);
 
-  d.brain = 'scripted';
-  eq('the exercise brain row is the override', brainOverride(d), 'scripted');
-  eq('...and it reaches the spec', specFrom(d, 1).brain, 'scripted');
-  check('every brain the picker offers is one the report can name',
-    SIM_BRAINS.every((b) => typeof b === 'string' && b.length > 0));
+  // arrow the PIRATES FLY row to pursuit — the one lever over the opposition
+  cell(d, 'PIRATES FLY').change!(1);
+  eq('arrowing it turns the pirates onto pursuit', d.brain, 'pursuit');
+  eq('...and that reaches the spec as the override', specFrom(d, 1).brain, 'pursuit');
 
-  // The honest bit. Which policy a pirate flies is a GLOBAL flag in brains.ts,
-  // so a per-group choice can only be honoured when every group agrees — and
-  // when they do not the panel must SAY so rather than let the report disagree
-  // with the picker.
-  const mixed = freshDraft(newCommander());
-  mixed.groups.push(defaultGroup(1), defaultGroup(1));
-  mixed.groups[0].brain = 'attack-run';
-  mixed.groups[1].brain = 'scripted';
-  eq('two groups asking for two brains cannot both fly', brainOverride(mixed), null);
-  check('...and the panel says why',
-    draftNotes(mixed).some((n) => /MIXED BRAINS CANNOT FLY/.test(n)));
-  mixed.groups[1].brain = 'attack-run';
-  eq('...where two groups that agree do fly it', brainOverride(mixed), 'attack-run');
-  check('...and the complaint goes away',
-    !draftNotes(mixed).some((n) => /MIXED BRAINS/.test(n)));
+  // the row cycles the two code pilots and comes back
+  const seen = new Set<BrainId>();
+  const d2 = freshDraft(newCommander());
+  for (let n = 0; n < 4; n++) { seen.add(d2.brain); cell(d2, 'PIRATES FLY').change!(1); }
+  check('the row offers the attack run and pursuit',
+    seen.has('attack-run') && seen.has('pursuit') && seen.size === 2);
 
-  const one = freshDraft(newCommander());
-  one.groups.push(defaultGroup(1));
-  eq('a group left on "as the game flies" asks for nothing',
-    brainOverride(one), null);
-  eq('...which for a lone pirate is the scripted attack run, what ships',
-    liveBrainFor('pirate', false, 1) as BrainId, 'scripted');
-  check('the notes always describe the mode', draftNotes(one).length >= 1);
+  check('the notes always describe the mode', draftNotes(d).length >= 1);
 }
 
 // --- the fit-out override ---------------------------------------------------

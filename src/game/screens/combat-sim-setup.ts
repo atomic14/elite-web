@@ -20,13 +20,10 @@ import type { CommanderData, LaserType } from '../commander.ts';
 import { MAX_MISSILES } from '../../constants/commander.ts';
 import type { ExerciseFit } from '../combat-sim.ts';
 import {
-  SCENARIOS, SIM_BRAINS, clampTier, liveBrainFor, simHulls,
-  type BrainId, type ExerciseSpec, type Opposition, type SimMode,
+  SCENARIOS, clampTier,
+  type BrainId, type ExerciseSpec, type SimMode,
 } from '../combat-sim-scenarios.ts';
-import {
-  AS_SHIPPED, AS_THE_GAME_FLIES, LIVE_BRAIN_IDS, SHIPPED_BRAINS, brainName,
-  liveBrainSelection, type BrainSelection, type LiveBrainId,
-} from '../brain-names.ts';
+import { brainName } from '../brain-names.ts';
 
 /**
  * One line on the setup panel, as the renderer needs it.
@@ -49,14 +46,6 @@ export interface SimSetupRow {
    * would stop meaning what `setupCells()` says it means.
    */
   heading?: string;
-  /**
-   * This row is not about the exercise, and the renderer fences it off.
-   *
-   * Exactly one row is: LIVE BRAINS (COMMANDER) writes `state.brains`, so it is
-   * still set when you undock. It stays IN this list — it is a cell, it is
-   * arrowed and clicked like any other — and the renderer paints it apart.
-   */
-  fenced?: boolean;
 }
 
 /** The whole setup panel, as the renderer needs it. */
@@ -75,15 +64,6 @@ export interface SimSetupPanel {
   brainNote: string | null;
   /** the tallest `brainNote` can ever be, held open the same way */
   brainReserve: string;
-  /**
-   * The line under the fenced row, and whether it is a warning or a status.
-   *
-   * Structural rather than imported from combat-sim-notes.ts, which already
-   * imports this file: the shape is two fields and the arrow points one way.
-   */
-  careerNote: { text: string; warning: boolean };
-  /** the tallest `careerNote` can ever be, held open the same way */
-  careerReserve: string;
   /** whether there is a report to go back to */
   hasReport: boolean;
 }
@@ -94,26 +74,14 @@ const TIERS = ['0 OPPORTUNISTS', '1 PROFESSIONALS', '2 ORGANISED GANG'];
 const LASERS: readonly LaserType[] = ['pulse', 'beam', 'military'];
 
 /**
- * The exercise picker's vocabulary: any named policy, or `AS_THE_GAME_FLIES` —
- * `liveBrainFor`'s answer, offered as a choice so "leave it alone" is pickable.
- * The sentinel itself lives in `brain-names.ts`, with every other name.
+ * What the pirates can be set to fly for a fight — the two CODE pilots a
+ * commander can meet: the scripted attack run they fly by default, and the
+ * pursuit dogfighter (the combat computer's own pilot, turned on them). This
+ * is the whole of "change the brain the pirates fly"; there is no custom
+ * opposition builder any more, and no career-persisting brain row — the choice
+ * is the fight's, restored when you undock (combat-sim.ts's entry snapshot).
  */
-export type BrainChoice = BrainId | typeof AS_THE_GAME_FLIES;
-export const BRAIN_CHOICES: readonly BrainChoice[] = [AS_THE_GAME_FLIES, ...SIM_BRAINS];
-
-/** One group in the custom picker, in the terms the picker offers. */
-export interface CustomGroup {
-  /** index into `simHulls()` */
-  hull: number;
-  count: number;
-  tier: number;
-  organised: boolean;
-  brain: BrainChoice;
-  /** null: whatever the hull carries */
-  missiles: number | null;
-  /** null: whatever the hull carries. 0..1, as `NpcSpec.ecmChance` */
-  ecm: number | null;
-}
+export const PIRATE_CHOICES: readonly BrainId[] = ['attack-run', 'pursuit'];
 
 /**
  * The fit-out lent to the commander for the exercise.
@@ -148,30 +116,17 @@ export interface SimDraft {
   seed: number | null;
   /** the seed the last launch used — quoted so a fight can be flown again */
   lastSeed: number | null;
-  /** empty: take the opposition from the scenario table */
-  groups: CustomGroup[];
-  brain: BrainChoice;
-  /**
-   * Which policy the CAREER flies — `state.brains`, not the exercise's. The one
-   * row here that outlives the fight; `null` is a selection only the console
-   * could have made, which the row says rather than mislabelling.
-   */
-  live: LiveBrainId | null;
+  /** which brain the PIRATES fly this fight — one of `PIRATE_CHOICES` */
+  brain: BrainId;
   /**
    * The furthest wave this commander has ever reached, 0 for never.
    *
    * READ from the commander, never written here: the draft is a picker and the
    * record is the career's (`commander.furthestWave`). Re-read every time the
-   * screen opens, exactly as `live` is, because a run since the last open is
-   * precisely when it changes.
+   * screen opens, because a run since the last open is precisely when it changes.
    */
   furthestWave: number;
   fit: FitDraft;
-}
-
-/** The selection the draft's LIVE row means — what the game will actually fly. */
-export function liveSelectionOf(d: SimDraft): BrainSelection {
-  return d.live === null ? { ...SHIPPED_BRAINS } : liveBrainSelection(d.live);
 }
 
 /** A row on the setup panel, and what &larr;&rarr; does to it. */
@@ -189,14 +144,10 @@ export interface SetupCell extends SimSetupRow {
    * The brain this row currently names, for the line that says what it DOES.
    *
    * An id, never prose: `screens/combat-sim-notes.ts` turns it into a sentence
-   * and `game/brain-names.ts` owns the sentence. A group row left on AS THE
-   * GAME FLIES reports the brain that resolves to, because that is the one the
-   * pilot is about to meet.
-   *
-   * Both pickers' vocabularies, because both have a brain row: the exercise
-   * rows speak `BrainChoice` and the fenced career row speaks `LiveBrainId`.
+   * and `game/brain-names.ts` owns the sentence. Only the PIRATES FLY row
+   * carries one now.
    */
-  brain?: BrainChoice | LiveBrainId;
+  brain?: BrainId;
 }
 
 const cycle = (n: number, len: number, d: number): number => (n + d + len) % len;
@@ -235,16 +186,7 @@ const position = (at: number, len: number): string => `(${at + 1} OF ${len})`;
  * the note underneath, where the rest of the prose already lives and where
  * nobody has to read past it.
  */
-const flies = (id: BrainChoice | LiveBrainId): string => brainName(id) ?? id.toUpperCase();
-/**
- * The same value on a COMBAT COMPUTER row. One difference, and it is the
- * pilot's: `scripted` on an opposition row means "the attack run" and reads
- * as its behaviour, but on these two rows it means the co-pilot and every
- * armed trader fly NOTHING — so saying "MAKES ATTACK RUNS" there was
- * gibberish. The value says what the pilot gets.
- */
-const coPilotFlies = (id: BrainChoice | LiveBrainId): string =>
-  (id === 'scripted' ? 'NONE — FLY IT YOURSELF' : flies(id));
+const flies = (id: BrainId): string => brainName(id) ?? id.toUpperCase();
 
 /**
  * A draft to start from: a single professional pirate, in the ship you own.
@@ -253,16 +195,14 @@ const coPilotFlies = (id: BrainChoice | LiveBrainId): string =>
  * fight a pilot came to practise and the one every balance figure this project
  * quotes is about.
  */
-export function freshDraft(c: CommanderData, live: LiveBrainId | null = AS_SHIPPED): SimDraft {
+export function freshDraft(c: CommanderData): SimDraft {
   return {
     mode: 'scenario',
     scenario: Math.max(0, SCENARIOS.findIndex((s) => s.id === 'single-pirate')),
     tier: 1,
     seed: null,
     lastSeed: null,
-    groups: [],
-    brain: AS_THE_GAME_FLIES,
-    live,
+    brain: 'attack-run',
     furthestWave: c.furthestWave ?? 0,
     fit: {
       laser: c.equipment.laser,
@@ -274,53 +214,6 @@ export function freshDraft(c: CommanderData, live: LiveBrainId | null = AS_SHIPP
       missiles: c.missiles,
     },
   };
-}
-
-/** A new group: one pirate at the picked tier, flying whatever the game flies. */
-export function defaultGroup(tier: number): CustomGroup {
-  const pirate = simHulls().findIndex((h) => h.role === 'pirate');
-  return {
-    hull: Math.max(0, pirate),
-    count: 1,
-    tier: clampTier(tier),
-    organised: false,
-    brain: AS_THE_GAME_FLIES,
-    missiles: null,
-    ecm: null,
-  };
-}
-
-/** Step a number that can also be "whatever the hull carries". */
-export function nudgeOrHull(
-  n: number | null, d: number, lo: number, hi: number,
-): number | null {
-  if (n === null) return d > 0 ? lo : hi;
-  const next = Math.round(n) + d;
-  return next < lo || next > hi ? null : next;
-}
-
-/**
- * `2` / `FROM THE HULL — NONE` — a set number, or the mode that produced one.
- *
- * The delegated reading used to be `HULL (${n})`, which put the SETTING ("leave
- * it to the hull") and the VALUE that setting currently gives in one string with
- * nothing saying which half was which — and on a hull that carries none,
- * `HULL (0)` read like a broken interpolation. `null` is a real and useful state
- * and stays: "whatever this hull carries" is not "zero", and it stays right when
- * the hull row above changes. So the wording moved instead. `FROM THE ...` is
- * the phrase the OPPOSITION row already uses for the same idea, the mode is in
- * words and the number is a consequence of it, and a set value is a bare
- * number — so a delegated none and an explicit zero cannot be read for one
- * another, which is what arrowing off `null` and back has to be visible as.
- *
- * One function for both rows, because both say the same thing and there is no
- * second place that should get to phrase it differently.
- */
-export function setOrHull(
-  set: number | null, hull: number, show: (n: number) => string,
-): string {
-  if (set !== null) return show(set);
-  return `FROM THE HULL — ${hull === 0 ? 'NONE' : show(hull)}`;
 }
 
 /**
@@ -338,57 +231,24 @@ export function freshSeed(now = Date.now()): number {
 
 // --- the draft, as an exercise ----------------------------------------------
 
-/** A picker group, in the terms combat-sim-scenarios.ts states opposition. */
-export function oppositionFor(g: CustomGroup, sel: BrainSelection = SHIPPED_BRAINS): Opposition {
-  const hulls = simHulls();
-  const hull = hulls[g.hull % hulls.length];
-  const brain = g.brain === AS_THE_GAME_FLIES
-    ? liveBrainFor(hull.role, g.organised, g.tier, sel) : g.brain;
-  return {
-    role: hull.role,
-    count: g.count,
-    tier: g.tier,
-    organised: g.organised,
-    brain,
-    mixed: false,
-    seed: 0,   // nextOpposition() re-seeds each group from the round's seed
-    hull: hull.spec,
-    ...(g.missiles === null ? {} : { missiles: g.missiles }),
-    ...(g.ecm === null ? {} : { ecm: g.ecm }),
-  };
-}
-
 /**
- * Which single brain the opposition will fly, if the picker asked for one.
+ * The draft as the exercise the session will run.
  *
- * The honest answer, and it is narrower than the picker looks. Which policy a
- * pirate flies is one `BrainSelection` for the whole exercise (brain-names.ts),
- * not a field on a ship — so `ExerciseSpec.brain` is the only lever the game
- * actually has, and a per-group choice can only be honoured when every group
- * agrees. (It was five `window.__` flags once; invariant 12 and
- * `test/state.test.ts` keep them gone.) When they do
- * not, no override goes in, the live brains fly, and `draftNotes()` says so on
- * the panel rather than letting the report quietly disagree with the picker.
+ * The pirate brain is the only override the game has: which policy a pirate
+ * flies is one `BrainSelection` for the whole exercise (brain-names.ts), not a
+ * field on a ship, and `combat-sim.ts` applies `spec.brain` to `state.brains`
+ * for the fight and restores it on undock. `attack-run` is the default — the
+ * scripted run every pirate flies — so it goes in as NO override, leaving the
+ * scenario table and the report to name it `scripted`; only a real change
+ * (`pursuit`) is sent.
  */
-export function brainOverride(d: SimDraft): BrainId | null {
-  if (d.brain !== AS_THE_GAME_FLIES) return d.brain;
-  const asked = [...new Set(d.groups
-    .filter((g) => g.brain !== AS_THE_GAME_FLIES)
-    .map((g) => g.brain as BrainId))];
-  return asked.length === 1 ? asked[0] : null;
-}
-
-/** The draft as the exercise the session will run. */
 export function specFrom(d: SimDraft, seed: number): ExerciseSpec {
-  const custom = d.groups.map((g) => oppositionFor(g, liveSelectionOf(d)));
-  const brain = brainOverride(d);
   return {
     mode: d.mode,
     scenario: SCENARIOS[d.scenario].id,
     tier: d.tier,
     seed,
-    ...(custom.length ? { custom } : {}),
-    ...(brain ? { brain } : {}),
+    ...(d.brain === 'attack-run' ? {} : { brain: d.brain }),
   };
 }
 
@@ -412,21 +272,19 @@ export function fitFrom(d: SimDraft): ExerciseFit {
 /**
  * The panel, as a list.
  *
- * Rebuilt on every render because its SHAPE moves: a custom opposition adds
- * seven rows per group. A cell owns its own label, its own reading and what an
- * arrow key does to it, so nothing anywhere switches on a row index — which is
- * the drift the market screen's old parallel click path was.
+ * A cell owns its own label, its own reading and what an arrow key does to it,
+ * so nothing anywhere switches on a row index — which is the drift the market
+ * screen's old parallel click path was.
  *
- * It comes out in three groups and a fence — THE FIGHT, WHO FLIES WHAT, YOUR
- * SHIP, and then the one row that outlives the fight. The groups are `heading`
- * on the row that opens each, not entries in the list, so the list stays
- * exactly the rows the cursor can land on.
+ * Three groups — THE FIGHT, WHO YOU FIGHT, YOUR SHIP. The custom-opposition
+ * builder is gone (Chris: too complex): who you fight is the scenario/mode, and
+ * the one lever over the opposition is which brain the pirates fly. The
+ * combat computer is one thing now, a fit YES/NO like the laser — there is one
+ * co-pilot pilot, so there is nothing to pick and no career-brain row. The
+ * groups are `heading` on the row that opens each, not entries in the list.
  */
 export function setupCells(d: SimDraft): SetupCell[] {
-  const hulls = simHulls();
-  const live = liveSelectionOf(d);
   const scenario = SCENARIOS[d.scenario];
-  const custom = d.groups.length > 0;
   const cells: SetupCell[] = [
     {
       heading: 'THE FIGHT',
@@ -438,14 +296,14 @@ export function setupCells(d: SimDraft): SetupCell[] {
     {
       label: 'FIGHT',
       value: scenario.name.toUpperCase(),
-      dim: d.mode === 'waves' || custom,
+      dim: d.mode === 'waves',
       change: (n) => { d.scenario = cycle(d.scenario, SCENARIOS.length, n); },
       jump: (n) => { d.scenario = n > 0 ? SCENARIOS.length - 1 : 0; },
     },
     {
       label: 'THREAT TIER',
       value: TIERS[d.tier],
-      dim: custom || d.mode === 'waves' || !scenario.tiered,
+      dim: d.mode === 'waves' || !scenario.tiered,
       change: (n) => { d.tier = clampTier(d.tier + n); },
     },
     {
@@ -460,94 +318,19 @@ export function setupCells(d: SimDraft): SetupCell[] {
       },
     },
     {
-      heading: 'WHO FLIES WHAT',
-      // What the row DECIDES, and it says WHICH FIGHT, because the row at the
-      // foot of the panel decides the same thing for the career and the two
-      // were told apart only by a fence. It used to say OPPOSITION: since the
-      // trained pirate policies left the bundle (2026-08-05) the selection it
-      // writes moves the DEFENCE — every armed trader in the fight and YOUR
-      // combat computer — or turns it off (the scripted control). The label
-      // says brains because that is what it changes.
-      label: 'COMBAT COMPUTER BRAIN (THIS FIGHT)',
-      value: `${position(BRAIN_CHOICES.indexOf(d.brain), BRAIN_CHOICES.length)} `
-        + coPilotFlies(d.brain),
+      heading: 'WHO YOU FIGHT',
+      // The one lever over the opposition: which brain the pirates fly. The
+      // scripted attack run by default, or the pursuit dogfighter — the combat
+      // computer's own pilot turned on them. Training-fight only: it sets the
+      // exercise brain, which combat-sim.ts restores when you undock.
+      label: 'PIRATES FLY',
+      value: `${position(PIRATE_CHOICES.indexOf(d.brain), PIRATE_CHOICES.length)} `
+        + flies(d.brain),
       brain: d.brain,
-      change: (n) => { d.brain = step(BRAIN_CHOICES, d.brain, n); },
-      jump: (n) => { d.brain = endOf(BRAIN_CHOICES, n); },
-    },
-    {
-      label: 'OPPOSITION',
-      value: custom
-        ? `CUSTOM — ${d.groups.length} GROUP${d.groups.length === 1 ? '' : 'S'}`
-        : 'FROM THE SCENARIO',
-      change: (n) => {
-        if (n > 0 && !custom) d.groups.push(defaultGroup(d.tier));
-        else if (n < 0) d.groups.length = 0;
-      },
+      change: (n) => { d.brain = step(PIRATE_CHOICES, d.brain, n); },
+      jump: (n) => { d.brain = endOf(PIRATE_CHOICES, n); },
     },
   ];
-  for (const [k, g] of d.groups.entries()) {
-    const hull = hulls[g.hull % hulls.length];
-    const pad = (s: string): string => `&nbsp;&nbsp;&nbsp;${s}`;
-    cells.push(
-      {
-        label: `GROUP ${k + 1} HULL`,
-        // The position is on the front because the roster is 40-odd hulls
-        // wide now and one arrow key steps one hull: without it you cannot tell
-        // whether you are near the end of the list or the start of it.
-        value: `${position(g.hull % hulls.length, hulls.length)}`
-          + ` ${hull.name.toUpperCase()} (${hull.role})`,
-        change: (n) => { g.hull = cycle(g.hull, hulls.length, n); },
-        jump: (n) => { g.hull = n > 0 ? hulls.length - 1 : 0; },
-      },
-      {
-        label: pad('COUNT'),
-        value: String(g.count),
-        change: (n) => { g.count = clamp(g.count + n, 1, 8); },
-      },
-      {
-        label: pad('THREAT TIER'),
-        value: TIERS[g.tier],
-        change: (n) => { g.tier = clampTier(g.tier + n); },
-      },
-      {
-        label: pad('ORGANISED — THEY FLY AS A GANG'),
-        value: yesNo(g.organised),
-        change: () => { g.organised = !g.organised; },
-      },
-      {
-        label: pad('THIS GROUP FLIES'),
-        // The VALUE is what you picked, and only that. It used to append what
-        // the sentinel resolves to — `SAME AS OUTSIDE — HOLDS OFF
-        // (pirate-pack-r4-selectonly)` — which put a choice, a consequence and a
-        // file stem in one cell and read as two selections at once. The consequence
-        // is a sentence, so it belongs in the note under the panel with the
-        // other sentences; `brain` below is what puts it there.
-        value: `${position(BRAIN_CHOICES.indexOf(g.brain), BRAIN_CHOICES.length)} `
-          + flies(g.brain),
-        // Resolved, not the sentinel: a group left on SAME AS OUTSIDE will fly
-        // a real policy and the line under the panel should describe THAT one.
-        brain: g.brain === AS_THE_GAME_FLIES
-          ? liveBrainFor(hull.role, g.organised, g.tier, live) : g.brain,
-        change: (n) => { g.brain = step(BRAIN_CHOICES, g.brain, n); },
-        jump: (n) => { g.brain = endOf(BRAIN_CHOICES, n); },
-      },
-      {
-        label: pad('MISSILES'),
-        value: setOrHull(g.missiles, hull.spec.missiles ?? 0, String),
-        change: (n) => { g.missiles = nudgeOrHull(g.missiles, n, 0, 8); },
-      },
-      {
-        label: pad('E.C.M.'),
-        value: setOrHull(g.ecm, hull.spec.ecmChance ?? 0,
-          (n) => `${Math.round(n * 100)}%`),
-        change: (n) => {
-          const next = nudgeOrHull(g.ecm === null ? null : g.ecm * 10, n, 0, 10);
-          g.ecm = next === null ? null : next / 10;
-        },
-      },
-    );
-  }
   const f = d.fit;
   cells.push(
     {
@@ -579,37 +362,13 @@ export function setupCells(d: SimDraft): SetupCell[] {
       change: (n) => { f.missiles = clamp(f.missiles + n, 0, MAX_MISSILES); },
     },
     {
-      // Fitted here so the trained defence policy can be WATCHED. It is the one
-      // brain the game flies on the commander's behalf rather than against him,
-      // so the only way to judge it was to be attacked by nothing and read a
-      // number afterwards. Fit it, launch, and press K.
+      // Fitted here so the co-pilot can be WATCHED: it is the one pilot the game
+      // flies on the commander's behalf rather than against him. Fit it, launch,
+      // press K. One thing now — YES or NO — because there is one co-pilot.
       label: 'YOUR COMBAT COMPUTER',
       value: yesNo(f.combatComputer),
       change: () => { f.combatComputer = !f.combatComputer; },
     },
   );
-  // LAST, alone, and fenced. It used to sit sixth, between the exercise brain
-  // and the opposition, in the same weight as YOUR MISSILES — and it is the one
-  // row here that is still set when you undock: it writes `state.brains`, so the
-  // whole galaxy flies what it says, and it is saved with the commander. Read
-  // together with the exercise brain it looked like a second override for the
-  // same fight, which is exactly what it is not.
-  cells.push({
-    heading: 'THIS ONE STAYS SET AFTER YOU UNDOCK',
-    fenced: true,
-    label: 'COMBAT COMPUTER BRAINS',
-    // No position on the console case, because there is no position: a selection
-    // the picker cannot name is not one of the eleven it offers.
-    value: d.live === null ? 'SET FROM THE CONSOLE'
-      : `${position(LIVE_BRAIN_IDS.indexOf(d.live), LIVE_BRAIN_IDS.length)} `
-        + coPilotFlies(d.live),
-    brain: d.live ?? undefined,
-    change: (n) => {
-      const at = d.live === null ? -1 : LIVE_BRAIN_IDS.indexOf(d.live);
-      d.live = at < 0 ? LIVE_BRAIN_IDS[0]
-        : LIVE_BRAIN_IDS[cycle(at, LIVE_BRAIN_IDS.length, n)];
-    },
-    jump: (n) => { d.live = endOf(LIVE_BRAIN_IDS, n); },
-  });
   return cells;
 }
