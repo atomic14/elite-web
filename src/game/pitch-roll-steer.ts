@@ -22,7 +22,7 @@
 // the caps; this only decides which way, and how hard, to move each stick.
 
 import * as THREE from 'three';
-import { STEER_SATURATION, STEER_PITCH_SATURATION } from '../constants/combat-computer.ts';
+import { STEER_SATURATION, STEER_PITCH_SATURATION, ROLL_FADE_ANGLE, ROLL_FADE_FLOOR } from '../constants/combat-computer.ts';
 
 export interface StickCommand {
   /** pitch stick, −1 (nose down) .. +1 (nose up) */
@@ -127,7 +127,20 @@ export function bankToTurn(
   if (Math.abs(other) + STEER_SATURATION < Math.abs(here)) mem.side = mem.side === 1 ? -1 : 1;
   const rollErr = mem.side === 1 ? toTop : toBottom;
 
-  const roll = stick(rollErr);
+  // Roll to bank the target onto the vertical, FADED by how far off the nose it
+  // actually is (`theta`). `rollErr` is a BEARING — how far round the clock the
+  // target sits from vertical — which is large even for a target a few degrees
+  // off the nose, so `stick(rollErr)` alone asked for full roll to correct a
+  // 3-degree error. At full authority the ship overshoots as a maneuvering
+  // target moves, and reverses: the spin far out and the seasick oscillation in
+  // the mid range. Authority ramps in over `ROLL_FADE_ANGLE` down to a floor
+  // (`ROLL_FADE_FLOOR`) — full for a genuinely off-axis (hard) target, gentle
+  // near the nose. The floor is why this converges where a fade to zero did not;
+  // it converges to within a gun cone rather than dead centre, which is all a
+  // gun firing through a cone needs. See the constants for the whole argument
+  // (and why lead pursuit was rejected).
+  const rollAuthority = Math.max(ROLL_FADE_FLOOR, Math.min(1, theta / ROLL_FADE_ANGLE));
+  const roll = stick(rollErr) * rollAuthority;
 
   // PITCH the nose onto the target. Gated by `cos(rollErr)` — pull once banked,
   // not while still 90 degrees off the plane — which is what keeps a far target

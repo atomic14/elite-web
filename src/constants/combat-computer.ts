@@ -76,6 +76,36 @@ export const STEER_SATURATION = 0.35;
  */
 export const STEER_PITCH_SATURATION = 0.08;
 
+/**
+ * The off-nose angle, in radians, over which the co-pilot's ROLL authority ramps
+ * in — and `ROLL_FADE_FLOOR`, the fraction it never drops below. See the roll in
+ * `pitch-roll-steer.ts`.
+ *
+ * The roll is a bank-to-turn: it rolls the target onto the vertical (pitch)
+ * plane. The angle it rolls THROUGH is a bearing — how far round the clock the
+ * target sits from vertical — which is large even for a target a few degrees off
+ * the nose, so ungated it asked for FULL roll to correct a 3-degree error. To
+ * nudge the nose sideways with no yaw the ship must roll ~90 degrees then pitch,
+ * and at full authority it overshoots as a maneuvering target keeps moving: the
+ * spin far out and the seasick roll oscillation in the mid range where the fight
+ * lives (Chris, flying it). Fading roll by the off-nose angle makes the bank's
+ * effort scale with the actual error, which settles the amplitude.
+ *
+ * It could not be a plain fade to zero: that left the nose short of centre and
+ * broke the sphere convergence, so the floor keeps enough authority to still
+ * arrive. It arrives WITHIN A GUN CONE rather than dead centre now — the
+ * co-pilot fires through a cone and never needed dead centre (Chris: "we can hit
+ * the opponent, it need not be dead centre"), and the convergence test's
+ * threshold was relaxed to match.
+ *
+ * Lead pursuit was tried first and rejected: aiming where the target WILL be
+ * moves the aim point at the target's own rate, so the chase lags exactly as
+ * before, and for a hitscan gun the nose has to be ON the target, not ahead of
+ * it. Feel, not fit; meant to be flown and tuned.
+ */
+export const ROLL_FADE_ANGLE = 0.35;
+export const ROLL_FADE_FLOOR = 0.5;
+
 // --- the scripted co-pilot as a PURSUIT DOGFIGHTER --------------------------
 //
 // It does not fly the pirates' slash-and-fly-through attack run: Chris flew that

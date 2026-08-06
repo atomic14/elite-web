@@ -45,7 +45,18 @@ function flyToward(target: THREE.Vector3, frames: number): { end: number; lock: 
 // The whole point of the rewrite: the quaternion slew it replaced left 70 of
 // these directions stuck (it rolled before it pitched, so a target behind and
 // below never got the pitch). This sweeps azimuth and elevation and asserts the
-// nose lands on the target within ten seconds, every time.
+// nose lands ON the target from every one.
+//
+// WITHIN A GUN CONE, not dead centre. The roll fades near the boresight
+// (ROLL_FADE_ANGLE) to stop the seasick oscillation Chris flew, and the cost is
+// that a few near-horizontal side directions settle ~2-3 degrees out rather
+// than exactly on the pip. That is fine: the co-pilot fires through a cone and
+// never needed dead centre (Chris: "we can hit the opponent, it need not be
+// dead centre"). The threshold is a gun cone's worth — loose enough for the
+// fade, still tight enough to catch a nose that is genuinely stuck, which is
+// what this test exists for and what the tens-of-degrees slew failure looked
+// like.
+const WITHIN_A_GUN_CONE = 0.05; // ~2.9 degrees
 {
   let stuck = 0;
   let worst = 0;
@@ -57,7 +68,7 @@ function flyToward(target: THREE.Vector3, frames: number): { end: number; lock: 
         Math.cos(el) * Math.sin(az), Math.sin(el), -Math.cos(el) * Math.cos(az),
       ).multiplyScalar(1000);
       const { end } = flyToward(t, 1200);
-      if (end > 0.02) { stuck += 1; if (end > worst) { worst = end; worstAt = `az${a} el${b}`; } }
+      if (end > WITHIN_A_GUN_CONE) { stuck += 1; if (end > worst) { worst = end; worstAt = `az${a} el${b}`; } }
     }
   }
   check(`the nose reaches the target from all 475 directions (worst left ${(worst * 180 / Math.PI).toFixed(1)} deg${worstAt ? ` @ ${worstAt}` : ''})`,
@@ -148,5 +159,26 @@ function flyToward(target: THREE.Vector3, frames: number): { end: number; lock: 
   const cmd = bankToTurn(new THREE.Quaternion(), up5, mem);
   check(`a target 5 degrees above gets strong pitch (${cmd.pitch.toFixed(2)})`,
     Math.abs(cmd.pitch) > 0.6);
+}
+
+// --- roll FADES near the boresight, but stays full for a hard target --------
+//
+// The seasick-roll fix (Chris, flying it): a target only a few degrees off the
+// nose but off to the SIDE needs a ~90-degree roll to bank it vertical, and at
+// full authority the ship overshoots and reverses as the target moves. Roll
+// authority ramps in over ROLL_FADE_ANGLE down to a floor, so a near-boresight
+// side target rolls GENTLY (the floor) while a genuinely off-axis one still gets
+// FULL roll — which is what keeps the sphere convergence above. Both targets sit
+// dead on the 3-o'clock line (bearing horizontal), so the bearing saturates the
+// roll stick and the only thing left moving the number is the fade.
+{
+  const near = new THREE.Vector3(Math.sin(0.05), 0, -Math.cos(0.05)); // ~3 deg to the side
+  const far = new THREE.Vector3(Math.sin(0.6), 0, -Math.cos(0.6)); // ~34 deg to the side
+  const nearRoll = bankToTurn(new THREE.Quaternion(), near, freshSteerMemory()).roll;
+  const farRoll = bankToTurn(new THREE.Quaternion(), far, freshSteerMemory()).roll;
+  check(`a near-boresight side target banks gently, not full over (${nearRoll.toFixed(2)})`,
+    Math.abs(nearRoll) > 0 && Math.abs(nearRoll) < 0.6);
+  check(`...but a hard off-axis target still gets full roll (${farRoll.toFixed(2)})`,
+    Math.abs(farRoll) > 0.99);
 }
 
