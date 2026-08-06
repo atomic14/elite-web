@@ -134,3 +134,19 @@ function flyToward(target: THREE.Vector3, frames: number): { end: number; lock: 
     outside.pitch !== 0 || outside.roll !== 0);
 }
 
+// --- pitch is STRONG on a near, ahead target --------------------------------
+//
+// Chris, flying it: a target a few degrees above the sights got only a fraction
+// of pitch and was never dragged into the cone. Pitch saturates on a much
+// tighter angle than roll when the target is ahead, so a small vertical error
+// still commands most of the pitch stick. A target 5 degrees straight above
+// (directly up, so no roll needed and the pitch is not gated) must ask for
+// nearly full pitch.
+{
+  const mem = freshSteerMemory();
+  const up5 = new THREE.Vector3(0, Math.sin(0.087), -Math.cos(0.087)); // 5 deg up, dead ahead
+  const cmd = bankToTurn(new THREE.Quaternion(), up5, mem);
+  check(`a target 5 degrees above gets strong pitch (${cmd.pitch.toFixed(2)})`,
+    Math.abs(cmd.pitch) > 0.6);
+}
+

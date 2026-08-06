@@ -60,6 +60,22 @@ export const CC_MAX_ROLL = 0.5 * TURN.roll;
  */
 export const STEER_SATURATION = 0.35;
 
+/**
+ * The off-nose angle, in radians, at which the co-pilot asks for full PITCH when
+ * the target is dead ahead — the strong-pitch saturation. Much tighter than
+ * `STEER_SATURATION` on purpose: with a shared 0.35 band a target 4 degrees
+ * above the sights got only ~20% pitch and a weaving target was never dragged
+ * into the cone (Chris, flying it: "the pitch is not strong enough"). At 0.08
+ * (~4.5 degrees) the nose is hauled onto a near target hard.
+ *
+ * It applies only when the target is AHEAD (`localZ > 0`), blended back to
+ * `STEER_SATURATION` as the target moves abeam or behind — pitching hard before
+ * the bank has brought a far-behind target into the pitch plane would loop the
+ * nose the wrong way and cost convergence. The sphere-convergence sweep holds at
+ * 0 stuck with this gating; without it, ~20 directions were lost.
+ */
+export const STEER_PITCH_SATURATION = 0.08;
+
 // --- the scripted co-pilot as a PURSUIT DOGFIGHTER --------------------------
 //
 // It does not fly the pirates' slash-and-fly-through attack run: Chris flew that

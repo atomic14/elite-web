@@ -22,7 +22,7 @@
 // the caps; this only decides which way, and how hard, to move each stick.
 
 import * as THREE from 'three';
-import { STEER_SATURATION } from '../constants/combat-computer.ts';
+import { STEER_SATURATION, STEER_PITCH_SATURATION } from '../constants/combat-computer.ts';
 
 export interface StickCommand {
   /** pitch stick, −1 (nose down) .. +1 (nose up) */
@@ -128,9 +128,25 @@ export function bankToTurn(
   const rollErr = mem.side === 1 ? toTop : toBottom;
 
   const roll = stick(rollErr);
-  // Pull only once banked: full pitch when aligned, none while still 90 degrees
-  // off the plane. `side` pulls the nose up toward the top or down to the bottom.
-  const pitch = stick(theta) * mem.side * Math.max(0, Math.cos(rollErr));
+
+  // PITCH the nose onto the target. Gated by `cos(rollErr)` — pull once banked,
+  // not while still 90 degrees off the plane — which is what keeps a far target
+  // from being pitched the wrong way before the roll brings it in (convergence).
+  //
+  // STRONGER when the target is AHEAD: a shared saturation with roll left a
+  // near, slightly-off target commanding only a fraction of pitch, too weak to
+  // drag a weaving target into the gun (Chris, flying it: "the pitch is not
+  // strong enough"). `pitchSat` tightens toward `STEER_PITCH_SATURATION` as
+  // `localZ` -> 1, blending back to the roll band as the target moves abeam or
+  // behind (where hard pitch would cost convergence). This alone tripled
+  // time-on-target close up and — crucially — held it at distance; a roll
+  // derivative term tried alongside it damped close-up chatter but drove
+  // sustained banking on a far target and was dropped.
+  const pitchSat = localZ > 0
+    ? STEER_PITCH_SATURATION + (STEER_SATURATION - STEER_PITCH_SATURATION) * (1 - localZ)
+    : STEER_SATURATION;
+  const pitch = Math.max(-1, Math.min(1, theta / pitchSat))
+    * mem.side * Math.max(0, Math.cos(rollErr));
 
   return { pitch, roll };
 }
