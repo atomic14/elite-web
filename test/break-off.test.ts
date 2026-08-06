@@ -298,6 +298,16 @@ check('...and a brain-flown ship names no tactic, because it is flying none',
   describeFlight('closing', 0, false, 'brain', 'knife') === 'own policy'
   && describeFlight('closing', 0.4, false, 'brain', 'knife') === 'evading');
 
+// The pursuit dogfighter has no phase and no tactic either — it holds the six
+// or veers off a ram — so it reports its OWN two states off `breakingOff`,
+// ignoring the `attackPhase` it never set (which is why the strip used to read
+// "KNIFE CLOSING" for a ship holding station on the six). And NOT `evading`:
+// unlike the attack run, a pursuit pirate under fire keeps chasing.
+check('...and the pursuit pilot names the six or the break-off, not a phase',
+  describeFlight('closing', 0, false, 'pursuit', 'knife') === 'on your six'
+  && describeFlight('extending', 0, false, 'pursuit', 'run', true) === 'breaking off'
+  && describeFlight('passing', UNDER_FIRE_SECONDS, false, 'pursuit', 'ram') === 'on your six');
+
 // It must describe the ship, not a guess about it: every phase the flight can
 // be in has to come back as something, or a log would silently lose frames —
 // and now every TACTIC too, or a ship rolling a new one would vanish from the

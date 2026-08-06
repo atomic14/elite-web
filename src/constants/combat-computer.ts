@@ -143,6 +143,32 @@ export const PURSUIT_CLEAR_RANGE = 560;
 export const PURSUIT_BREAK_CLEARANCE = 320;
 
 /**
+ * A pursuit PIRATE switches flight models on where it sits in the commander's
+ * arc — these two cones are the switch, and they are the pirate's alone: the
+ * co-pilot flying YOUR ship only ever pursues, so no brain flies through them.
+ *
+ * A ship that only ever held the six was a duck the moment it drifted ahead of
+ * the commander's guns — Chris: "they can just sit in front of us holding still
+ * — sitting ducks." So a pursuit pirate holds the six only while it is ASTERN,
+ * and flies the evasive attack run (a slashing pass) the moment the commander
+ * swings its nose toward it.
+ *
+ * `faced` is the angle between the COMMANDER's nose and the direction to the
+ * pirate: ~0 when the commander is pointed straight at it, ~pi when it is dead
+ * astern. Two cones rather than one so a commander weaving across the boundary
+ * does not flip the pirate between flight models every frame:
+ *
+ *   - within `PURSUIT_SLASH_CONE` of the nose  -> switch to the attack run
+ *   - beyond `PURSUIT_HOLD_CONE` off the nose  -> switch back to holding the six
+ *   - between the two                          -> keep whatever it was doing
+ *
+ * ~75 and ~105 degrees straddle the 90-degree front/rear split with a ~30-degree
+ * hysteresis band. Feel, not fit — meant to be flown and tuned.
+ */
+export const PURSUIT_SLASH_CONE = 1.3;
+export const PURSUIT_HOLD_CONE = 1.85;
+
+/**
  * The nose-to-target angle, in radians, within which the co-pilot counts itself
  * ENGAGED and will not switch targets — it vetoes `ThreatLock`'s distance-based
  * switch (`game/threat-lock.ts`). A pilot lined up on a ship does not drop it

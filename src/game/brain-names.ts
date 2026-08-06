@@ -130,14 +130,15 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
   },
   // The pursuit dogfighter the combat computer flies, turned on the pirates —
   // the experiment that lets a player fly against opponents with his own
-  // pilot. It does NOT joust: it gets on your six and stays, breaking off only
-  // to avoid a collision. NOT PROBED in the tournament (it post-dates it), and
-  // the character line says so rather than quoting a number it never measured.
+  // pilot. It does NOT just hold station: since it switches to the attack run
+  // when the commander faces it, it is a hybrid, and the character line says
+  // so. NOT PROBED in the tournament (it post-dates it).
   pursuit: {
     name: 'GETS ON YOUR SIX',
     character: 'THE COMBAT COMPUTER\'S OWN PILOT, FLOWN BY THE PIRATES: IT CHASES ONTO YOUR '
-      + 'TAIL AND HOLDS THERE, VEERING OFF ONLY TO AVOID RAMMING — NOT THE ATTACK RUN\'S '
-      + 'JOUST. NEVER PROBED (IT IS NEWER THAN THE TOURNAMENT).',
+      + 'TAIL AND HOLDS THERE WHEN IT IS ASTERN — BUT BREAKS INTO THE ATTACK RUN\'S SLASHING '
+      + 'PASS THE MOMENT YOU TURN YOUR NOSE ONTO IT, SO IT WILL NOT SIT IN YOUR GUNS. NEVER '
+      + 'PROBED (IT IS NEWER THAN THE TOURNAMENT).',
   },
 });
 

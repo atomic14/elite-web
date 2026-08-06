@@ -150,14 +150,25 @@ export function nextAttackPhase(
  * `evading` outranks the phase because it is the answer to "why has it stopped
  * flying the run". `fleeing` and `own policy` carry NO tactic: a trader running
  * for the system edge is not flying an attack run at all, and a brain-flown
- * ship's tactic is dormant until it hands over at `BRAIN_HANDOVER_RANGE`.
+ * ship's tactic is dormant until it hands over at `BRAIN_HANDOVER_RANGE`. The
+ * pursuit dogfighter is a third case with no tactic and no phase — `on your
+ * six` while it chases, `breaking off` while it veers clear of a ram — because
+ * it never runs the attack-run machine those words describe.
  */
 export function describeFlight(
   phase: AttackPhase, underFire: number, fleeing: boolean,
-  flownBy: 'brain' | 'scripted' = 'scripted',
+  flownBy: 'brain' | 'scripted' | 'pursuit' = 'scripted',
   tactic: TacticId = 'run',
+  breaking = false,
 ): string {
   if (fleeing) return 'fleeing';
+  // The pursuit dogfighter is not in an attack-run phase either — it has no
+  // `closing`/`passing`/`extending`, only "on the six" and "veering off to
+  // avoid a ram". Reporting `attackPhase` here quoted a word it never set, so
+  // the strip read the same "KNIFE CLOSING" as a jousting pirate. It reads its
+  // own two states instead, and NOT `evading`: a pursuit pirate under fire
+  // keeps chasing rather than breaking the way the attack run does.
+  if (flownBy === 'pursuit') return breaking ? 'breaking off' : 'on your six';
   // A brain-flown ship is not IN a phase — `attackPhase` is only touched by the
   // scripted run, so reporting it here would quote a stale word. It flies its
   // own policy and that is the name for what it is doing. This is not a

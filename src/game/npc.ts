@@ -22,6 +22,7 @@ import { attackRunSteer, attackRunSpeed } from './attack-run.ts';
 import {
   pursuitSpeed, pursuitAim, freshPursuitBreak, type PursuitBreak,
 } from './pursuit.ts';
+import { PURSUIT_SLASH_CONE, PURSUIT_HOLD_CONE } from '../constants/combat-computer.ts';
 import {
   EXTEND_RANGE_MAX, MIN_CRUISE_FRACTION, UNDER_FIRE_SECONDS,
 } from '../constants/attack-run.ts';
@@ -137,18 +138,20 @@ export interface NpcState {
   /** where this ship is in its attack run — see break-off.ts */
   attackPhase: AttackPhase;
   /**
-   * Which flight actually moved this ship last step — a trained policy, or the
-   * scripted attack run.
+   * Which flight actually moved this ship last step — a trained policy, the
+   * scripted attack run, or the pursuit dogfighter.
    *
    * Reported, never read by a rule, and it exists because the readout without
    * it LIED. `attackPhase` is only touched inside `attack()`, so a brain-flown
    * pirate left it at whatever it was and the trainer's new "spent its time"
    * column read `closing 45s` for a ship that had not run the closing logic
-   * once in 45 seconds. A field that says which flight ran is the honest
-   * version, and it costs nothing to snapshot because NpcState is walked
-   * generically.
+   * once in 45 seconds. `pursuit` is the same lie by a different pilot: a
+   * pursuit pirate never runs the phase machine either, so it read `closing`
+   * forever — the strip said "KNIFE CLOSING" for a ship holding station on the
+   * six. A field that says which flight ran is the honest version, and it costs
+   * nothing to snapshot because NpcState is walked generically.
    */
-  flownBy: 'brain' | 'scripted';
+  flownBy: 'brain' | 'scripted' | 'pursuit';
   /** seconds of evasive flying left after the last hit taken — see break-off.ts */
   underFire: number;
   /**
@@ -406,6 +409,25 @@ export class NpcShip {
    */
   private readonly pursuitBrk: PursuitBreak = freshPursuitBreak();
 
+  /**
+   * Whether a pursuit pirate is currently flying the slashing attack run rather
+   * than holding the six — the hysteresis bit for the mode switch below. Starts
+   * holding the six and is re-decided every frame off the commander's arc, so
+   * like `pursuitBrk` it is transient (a reload re-decides within a frame) and
+   * not in `NpcState`.
+   */
+  private pursuitSlashing = false;
+
+  /**
+   * Whether the pursuit pilot is veering off to avoid a ram this frame, for the
+   * readout alone (`describeFlight`). Live off the transient break state rather
+   * than mirrored into `NpcState`, so there is still one home for the bit and
+   * the "not saved" decision above stands.
+   */
+  get breakingOff(): boolean {
+    return this.pursuitBrk.breaking;
+  }
+
   private readonly maxSpeed: number;
   private readonly turnRate: number;
   /**
@@ -421,6 +443,7 @@ export class NpcShip {
   private readonly tmpAway = new THREE.Vector3();
   private readonly tmpVel = new THREE.Vector3();
   private readonly tmpAim = new THREE.Vector3();
+  private readonly tmpFwd = new THREE.Vector3();
   private readonly mateSlots: THREE.Vector3[] = [];
   private readonly tmpMat = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
@@ -668,12 +691,16 @@ export class NpcShip {
 
     if (aggressiveToPlayer) {
       // A pirate a player meets flies the scripted attack run by default — the
-      // whole of CLAUDE.md's "scripted flies the opposition" — UNLESS the LIVE
-      // BRAINS row selects `pursuit`, which turns the combat computer's own
-      // pilot on the pirates so a commander can fight opponents with his own
-      // flying (brain-names.ts). Either way `chooseWeapon` decides what leaves
-      // the rail.
-      const shot = pirateBrainNameFor(this.state.threatTier, false, brains) === 'pursuit'
+      // whole of CLAUDE.md's "scripted flies the opposition". The LIVE BRAINS
+      // `pursuit` choice turns the combat computer's own pilot on the pirates,
+      // but NOT as a single flight: a ship that only ever held the six was a
+      // duck the moment it drifted ahead of the commander's guns. So a pursuit
+      // pirate SWITCHES — it holds the six while it is astern of the commander
+      // (`pursue`) and slashes past on the attack run the moment the commander
+      // faces it (`slashesRatherThanHoldSix`). Either flight goes through the
+      // same `chooseWeapon` for what leaves the rail.
+      const pursuit = pirateBrainNameFor(this.state.threatTier, false, brains) === 'pursuit';
+      const shot = pursuit && !this.slashesRatherThanHoldSix(player)
         ? this.pursue(dt, player.position, distPlayer, true, undefined, player.speed, fleet)
         : this.attack(dt, player.position, distPlayer, true, undefined,
           fleet, this.velocityOf(player.quaternion, player.speed));
@@ -1150,6 +1177,33 @@ export class NpcShip {
   }
 
   /**
+   * A pursuit pirate's per-frame choice: slash past on the attack run, or hold
+   * the commander's six?
+   *
+   * A ship on the six is safe — the commander's guns point the other way — and
+   * one parked ahead of the commander is a duck. So it holds the six only while
+   * it is in the commander's REAR arc and switches to the evasive attack run
+   * the moment the commander swings its nose toward it. Two cones give the
+   * switch hysteresis (`PURSUIT_SLASH_CONE`/`PURSUIT_HOLD_CONE`), so a weaving
+   * commander does not make it flip flight models frame to frame.
+   *
+   * `faced` is the angle between the COMMANDER's nose and the direction to this
+   * ship — the same −Z-forward rule `facing()` uses, but taken from the
+   * commander's frame rather than ours. Small when the commander is pointed at
+   * us, ~pi when we are dead astern.
+   */
+  private slashesRatherThanHoldSix(player: PlayerRef): boolean {
+    const fwd = this.tmpFwd.set(0, 0, -1).applyQuaternion(player.quaternion);
+    const toUs = this.tmpDir2.copy(this.object.position).sub(player.position);
+    if (toUs.lengthSq() > 0) {
+      const faced = fwd.angleTo(toUs.normalize());
+      if (faced < PURSUIT_SLASH_CONE) this.pursuitSlashing = true;
+      else if (faced > PURSUIT_HOLD_CONE) this.pursuitSlashing = false;
+    }
+    return this.pursuitSlashing;
+  }
+
+  /**
    * Fly the PURSUIT dogfighter — get on the target's six and hold there,
    * shooting, breaking off only to avoid a ram. The pirate counterpart of the
    * combat computer's pilot, selectable via the LIVE BRAINS row
@@ -1170,7 +1224,7 @@ export class NpcShip {
     targetSpeed = 0,
     fleet: readonly NpcShip[] = [],
   ): FireEvent | null {
-    this.state.flownBy = 'scripted';
+    this.state.flownBy = 'pursuit';
     // WHERE TO BE: chase the target, or veer past it when a collision is close
     // (pursuit.ts's two-phase break-off). Bend the line away from wingmen, as
     // `attack()` does, so a pursuing gang does not converge into itself.
