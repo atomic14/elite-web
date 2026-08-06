@@ -16,9 +16,12 @@ import {
   observeFor, shipView, writeView, type ObservableMate, type ThreatsView,
 } from '../ai-training/observation.ts';
 import { defenceBrain } from './brains.ts';
-import { defenceBrainNameFor } from './brain-names.ts';
+import { defenceBrainNameFor, pirateBrainNameFor } from './brain-names.ts';
 import { type AttackPhase } from './break-off.ts';
 import { attackRunSteer, attackRunSpeed } from './attack-run.ts';
+import {
+  pursuitSpeed, pursuitAim, freshPursuitBreak, type PursuitBreak,
+} from './pursuit.ts';
 import {
   EXTEND_RANGE_MAX, MIN_CRUISE_FRACTION, UNDER_FIRE_SECONDS,
 } from '../constants/attack-run.ts';
@@ -394,6 +397,14 @@ export class NpcShip {
   private readonly attackers: NpcShip[] = [];
   /** NPC-vs-NPC target, assigned by the game (pirate→trader, police→pirate). */
   npcTarget: NpcShip | null = null;
+  /**
+   * The pursuit pilot's break-off phase, for a pirate flying `pursuit` rather
+   * than the attack run. Transient like the co-pilot's threat lock — NOT in
+   * `NpcState`, so it is not saved: a reload resumes the chase and re-decides
+   * the break within a frame off the range, which is a defensible cold open and
+   * costs nothing.
+   */
+  private readonly pursuitBrk: PursuitBreak = freshPursuitBreak();
 
   private readonly maxSpeed: number;
   private readonly turnRate: number;
@@ -409,6 +420,7 @@ export class NpcShip {
   private readonly tmpDir2 = new THREE.Vector3();
   private readonly tmpAway = new THREE.Vector3();
   private readonly tmpVel = new THREE.Vector3();
+  private readonly tmpAim = new THREE.Vector3();
   private readonly mateSlots: THREE.Vector3[] = [];
   private readonly tmpMat = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
@@ -655,13 +667,16 @@ export class NpcShip {
       isHostileToPlayer(this, playerLegal) && distPlayer < PLAYER_INTEREST_RANGE;
 
     if (aggressiveToPlayer) {
-      // Every pirate a player meets flies the scripted attack run — the whole
-      // of CLAUDE.md's "scripted flies the opposition", and since 2026-08-05
-      // there is no trained pirate policy in the bundle for an A/B to select
-      // (brain-names.ts). The run closes, passes and extends; chooseWeapon
-      // decides what leaves the rail.
-      const shot = this.attack(dt, player.position, distPlayer, true, undefined,
-        fleet, this.velocityOf(player.quaternion, player.speed));
+      // A pirate a player meets flies the scripted attack run by default — the
+      // whole of CLAUDE.md's "scripted flies the opposition" — UNLESS the LIVE
+      // BRAINS row selects `pursuit`, which turns the combat computer's own
+      // pilot on the pirates so a commander can fight opponents with his own
+      // flying (brain-names.ts). Either way `chooseWeapon` decides what leaves
+      // the rail.
+      const shot = pirateBrainNameFor(this.state.threatTier, false, brains) === 'pursuit'
+        ? this.pursue(dt, player.position, distPlayer, true, undefined, player.speed, fleet)
+        : this.attack(dt, player.position, distPlayer, true, undefined,
+          fleet, this.velocityOf(player.quaternion, player.speed));
       return this.chooseWeapon(shot, distPlayer, player.position,
         view.missileInbound);
     }
@@ -1130,6 +1145,55 @@ export class NpcShip {
       return isPlayer
         ? { at: 'player', weapon: 'laser' }
         : { at: npcTarget!, weapon: 'laser' };
+    }
+    return null;
+  }
+
+  /**
+   * Fly the PURSUIT dogfighter — get on the target's six and hold there,
+   * shooting, breaking off only to avoid a ram. The pirate counterpart of the
+   * combat computer's pilot, selectable via the LIVE BRAINS row
+   * (brain-names.ts); the DECISIONS — where to aim, how fast, when to break —
+   * are `pursuit.ts`, shared with the co-pilot so the two cannot drift.
+   *
+   * The same shape as `attack()` and interchangeable with it at the call site:
+   * it steers, throttles, advances and returns a `FireEvent` through the same
+   * `npcTriggerPull`. What differs is only the aim (chase, not a slashing run)
+   * and the speed (match the target and hold gun range, not flat out).
+   */
+  pursue(
+    dt: number,
+    targetPos: THREE.Vector3,
+    dist: number,
+    isPlayer: boolean,
+    npcTarget?: NpcShip,
+    targetSpeed = 0,
+    fleet: readonly NpcShip[] = [],
+  ): FireEvent | null {
+    this.state.flownBy = 'scripted';
+    // WHERE TO BE: chase the target, or veer past it when a collision is close
+    // (pursuit.ts's two-phase break-off). Bend the line away from wingmen, as
+    // `attack()` does, so a pursuing gang does not converge into itself.
+    const aim = pursuitAim(this.pursuitBrk, this.object.position, targetPos, dist, this.tmpAim);
+    const crowd = separationFrom(this.object.position, this.matePositions(fleet), this.tmpAway);
+    if (crowd > 0) aim.addScaledVector(this.tmpAway, SEPARATION_PUSH * crowd);
+    this.steerToward(aim, dt);
+    // HOW FAST: hold a gun-range standoff behind the target, easing off in a
+    // hard turn — unless breaking off, where it stays quick to clear the hull.
+    const want = this.pursuitBrk.breaking
+      ? this.maxSpeed
+      : pursuitSpeed(targetSpeed, dist, this.facing(targetPos), this.maxSpeed);
+    this.state.speed = approach(this.state.speed, want, this.accel * dt);
+    this.advance(dt);
+    // THE SAME gun as the attack run, through the same shared pull.
+    this.state.fireCooldown -= dt;
+    const reload = npcTriggerPull(
+      this.state.fireCooldown, this.facing(targetPos), dist, random,
+      this.role === 'thargoid' ? THARGOID_FIRE_RATE : 1);
+    if (reload !== null) {
+      this.state.fireCooldown = reload;
+      this.state.dryFor = 0;
+      return isPlayer ? { at: 'player', weapon: 'laser' } : { at: npcTarget!, weapon: 'laser' };
     }
     return null;
   }

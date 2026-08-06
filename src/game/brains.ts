@@ -31,11 +31,13 @@ import {
 } from './brain-names.ts';
 
 /**
- * Every policy, by name. Both names are CODE pilots — the attack run and the
- * pre-neuroevolution scripted AI — so nothing here has weights behind it.
+ * Every policy, by name. All are CODE pilots — the attack run, the pursuit
+ * dogfighter, and the pre-neuroevolution scripted AI — so nothing here has
+ * weights behind it.
  */
 const LOADED: Record<BrainName, Brain | null> = {
   'attack-run': null,
+  pursuit: null,
   scripted: null,
 };
 

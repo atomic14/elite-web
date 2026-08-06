@@ -37,12 +37,12 @@ import type { AutopilotShip } from './combat-computer.ts';
 import { hitCone } from './gunnery.ts';
 import { autopilotEcm } from './ordnance.ts';
 import { bankToTurn, freshSteerMemory, type SteerMemory } from './pitch-roll-steer.ts';
+import { pursuitSpeed } from './pursuit.ts';
 import { rampFlightRate, type FlightDemand } from '../player.ts';
 import { LASER_RANGE } from '../constants/player-gun.ts';
 import { UNDER_FIRE_SECONDS } from '../constants/attack-run.ts';
 import {
-  THREAT_RANGE, PURSUIT_RANGE, PURSUIT_CLOSE_GAIN, PURSUIT_TURN_FLOOR,
-  PURSUIT_SPEED_DEADBAND, ENGAGED_CONE, TARGET_DIST_WEIGHT,
+  THREAT_RANGE, PURSUIT_SPEED_DEADBAND, ENGAGED_CONE, TARGET_DIST_WEIGHT,
 } from '../constants/combat-computer.ts';
 import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
 import type { V3 } from '../ai-training/observation.ts';
@@ -173,19 +173,15 @@ export class ScriptedCoPilot {
   }
 
   /**
-   * Hold a gun-range standoff on the target's six: match its speed, plus close
-   * (or open) the gap toward `PURSUIT_RANGE`, throttled back hard while the nose
-   * still has a long way to swing so the ship can pivot instead of sailing wide.
-   * Returns a throttle SIGN (−1/0/+1) with a deadband, because that is all
-   * `FlightDemand.throttle` is and the ship's own accel does the rest.
+   * Hold a gun-range standoff on the target's six. The speed to fly is
+   * `pursuit.ts`'s `pursuitSpeed` — shared with the pursuit pirate so the two
+   * cannot drift; this turns it into the throttle SIGN `FlightDemand` wants,
+   * with a deadband so it coasts rather than pumping at the held speed.
    */
   private pursuitThrottle(
     ownSpeed: number, targetSpeed: number, dist: number, facing: number,
   ): number {
-    const turnScale = PURSUIT_TURN_FLOOR
-      + (1 - PURSUIT_TURN_FLOOR) * Math.max(0, Math.cos(facing));
-    const want = Math.max(0, Math.min(PLAYER_FLIGHT.maxSpeed,
-      (targetSpeed + PURSUIT_CLOSE_GAIN * (dist - PURSUIT_RANGE)) * turnScale));
+    const want = pursuitSpeed(targetSpeed, dist, facing, PLAYER_FLIGHT.maxSpeed);
     const diff = want - ownSpeed;
     return Math.abs(diff) < PURSUIT_SPEED_DEADBAND ? 0 : Math.sign(diff);
   }

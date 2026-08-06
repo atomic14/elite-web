@@ -121,6 +121,28 @@ export const PURSUIT_TURN_FLOOR = 0.15;
 export const PURSUIT_SPEED_DEADBAND = 6;
 
 /**
+ * A pursuit chaser this close to its target breaks off — veers to one side to
+ * pass the hull rather than ram it (`game/pursuit.ts`). Above hull contact
+ * (~136 units for two Cobras) with room to turn, and below `PURSUIT_RANGE` so a
+ * chase that is holding station never trips it. This is what keeps a pursuit
+ * PIRATE from being the "annoying ship that just rams you" (Chris).
+ */
+export const PURSUIT_BREAK_RANGE = 260;
+
+/**
+ * ...and it resumes the chase once the range opens back past this. The gap from
+ * `PURSUIT_BREAK_RANGE` is hysteresis: without it the chaser would flip between
+ * breaking and chasing every frame at the boundary and judder.
+ */
+export const PURSUIT_CLEAR_RANGE = 560;
+
+/**
+ * How far to the side of the target a breaking chaser aims — enough that its
+ * path clears the hull comfortably at the speed it passes. A feel setting.
+ */
+export const PURSUIT_BREAK_CLEARANCE = 320;
+
+/**
  * The nose-to-target angle, in radians, within which the co-pilot counts itself
  * ENGAGED and will not switch targets — it vetoes `ThreatLock`'s distance-based
  * switch (`game/threat-lock.ts`). A pilot lined up on a ship does not drop it

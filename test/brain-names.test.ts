@@ -51,10 +51,11 @@ console.log('\nwhich brain flies, by name');
     const sel = liveBrainSelection(id);
     for (const tier of [0, 1, 2]) {
       for (const organised of [false, true]) {
-        // Pirates have no loader path at all since 2026-08-05: the name rule
-        // must answer 'scripted' for every tier under every selection, which
-        // is the whole of "scripted flies the opposition".
-        if (pirateBrainNameFor(tier, organised, sel) !== 'scripted') {
+        // Pirates fly scripted, EXCEPT the pursuit selection, which turns the
+        // combat computer's own pilot on them. Both are code — no loader path —
+        // so the check is on the NAME rule, and it must agree with the picker.
+        const want = sel.pursuit ? 'pursuit' : 'scripted';
+        if (pirateBrainNameFor(tier, organised, sel) !== want) {
           disagreed.push(`${id}/${tier}/${organised}`);
         }
       }
@@ -68,13 +69,15 @@ console.log('\nwhich brain flies, by name');
 
   // ...and the table that turns a name back into a selection round-trips,
   // which is what makes "fly the same fight against X" mean what it says.
-  // Every name is a defence-side pilot now; the pirate side is scripted
-  // whatever the selection says.
-  const badTrip = (Object.keys(BRAINS) as BrainName[]).filter((n) => {
+  // `pursuit` round-trips through the PIRATE rule; the rest are defence-side.
+  const roundTrips = (n: BrainName): boolean => {
     const sel = selectionForBrain(n);
-    if (!sel) return true;
-    return defenceBrainNameFor(sel) !== n;
-  });
+    if (!sel) return false;
+    return n === 'pursuit'
+      ? pirateBrainNameFor(0, false, sel) === n
+      : defenceBrainNameFor(sel) === n;
+  };
+  const badTrip = (Object.keys(BRAINS) as BrainName[]).filter((n) => !roundTrips(n));
   check('every named brain is reachable through its own selection',
     badTrip.length === 0, badTrip.join(', '));
 
@@ -158,10 +161,13 @@ console.log('\nevery brain the pickers offer has a name and a character');
     bad.length === 0, bad.map(([id]) => id).join(', '));
 
   // Behaviour, not provenance: a line is there to be read before a fight, and
-  // "run 19's solo candidate" is not something a pilot can fly against.
+  // "run 19's solo candidate" is not something a pilot can fly against. A line
+  // carries the measured number that shows the behaviour — OR says NEVER PROBED,
+  // the honest absence the profile comment blesses over a made-up figure (the
+  // pursuit pilot post-dates the tournament and has none).
   const noNumber = Object.entries(BRAINS).map(([id, b]) => [id, b.character] as const)
-    .filter(([, line]) => !/\d/.test(line)).map(([id]) => id);
-  check('...and each carries the measured number that shows it',
+    .filter(([, line]) => !/\d/.test(line) && !line.includes('NEVER PROBED')).map(([id]) => id);
+  check('...and each carries the measured number that shows it (or says NEVER PROBED)',
     noNumber.length === 0, noNumber.join(', '));
 
   // The two sentinels are not brains, so they are answered by the panel's own
@@ -389,11 +395,12 @@ console.log('\nbrain selection');
       && defenceBrain() === defenceBrain({}));
     // On 2026-08-05 "ship the scripted run" DID become "delete the trained
     // pirate policies" — by decision, not drift. The assertion flips: no
-    // selection can summon a pirate brain any more.
+    // selection can summon a WEIGHTS-backed pirate brain any more. `pursuit`
+    // (added later) is a third CODE pilot, not a trained one.
     check('no selection can put a trained policy on anything',
       pirateBrainNameFor(2, true, { scripted: true }) === 'scripted'
       && (Object.keys(BRAINS) as BrainName[])
-        .every((n) => n === 'scripted' || n === 'attack-run'));
+        .every((n) => n === 'scripted' || n === 'attack-run' || n === 'pursuit'));
   }
   // No defence weights fitted since 2026-08-05 — the shipped defence is the
   // scripted attack run, which the name rule returns.

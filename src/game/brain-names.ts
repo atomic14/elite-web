@@ -46,6 +46,7 @@
  */
 export type BrainName =
   | 'attack-run'
+  | 'pursuit'
   | 'scripted';
 
 /**
@@ -126,6 +127,17 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
     character: 'THE HAND-WRITTEN ATTACK RUN EVERY PIRATE FLIES: CLOSES, FIRES THROUGH THE '
       + 'PASS AND COMES ROUND AGAIN — ABOUT 5 RUNS A MINUTE. ON A COMBAT COMPUTER ROW '
       + 'THIS MEANS NO CO-PILOT AT ALL.',
+  },
+  // The pursuit dogfighter the combat computer flies, turned on the pirates —
+  // the experiment that lets a player fly against opponents with his own
+  // pilot. It does NOT joust: it gets on your six and stays, breaking off only
+  // to avoid a collision. NOT PROBED in the tournament (it post-dates it), and
+  // the character line says so rather than quoting a number it never measured.
+  pursuit: {
+    name: 'GETS ON YOUR SIX',
+    character: 'THE COMBAT COMPUTER\'S OWN PILOT, FLOWN BY THE PIRATES: IT CHASES ONTO YOUR '
+      + 'TAIL AND HOLDS THERE, VEERING OFF ONLY TO AVOID RAMMING — NOT THE ATTACK RUN\'S '
+      + 'JOUST. NEVER PROBED (IT IS NEWER THAN THE TOURNAMENT).',
   },
 });
 
@@ -212,6 +224,13 @@ export interface BrainSelection {
    * cannot name and offers to take it back.
    */
   scripted?: boolean;
+  /**
+   * Fly the PURSUIT dogfighter as the pirates — the combat computer's own
+   * pilot turned on the player, so a commander can fight opponents with his own
+   * co-pilot's flying. An experiment, offered by the trainer's LIVE BRAINS row;
+   * the default sky still flies the scripted attack run (`pirateBrainNameFor`).
+   */
+  pursuit?: boolean;
 }
 
 /**
@@ -267,9 +286,9 @@ export const SHIPPED_BRAINS: BrainSelection = Object.freeze({});
  * shape again without every call site moving.
  */
 export function pirateBrainNameFor(
-  _tier: number, _organised: boolean, _sel: BrainSelection = SHIPPED_BRAINS,
+  _tier: number, _organised: boolean, sel: BrainSelection = SHIPPED_BRAINS,
 ): BrainName {
-  return 'scripted';
+  return sel.pursuit ? 'pursuit' : 'scripted';
 }
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */
@@ -294,6 +313,7 @@ export function defenceBrainNameFor(sel: BrainSelection = SHIPPED_BRAINS): Brain
  */
 const SELECTIONS: Partial<Record<BrainName, BrainSelection>> = {
   'attack-run': {},
+  pursuit: { pursuit: true },
   scripted: { scripted: true },
 };
 
