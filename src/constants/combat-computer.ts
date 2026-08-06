@@ -132,3 +132,19 @@ export const PURSUIT_SPEED_DEADBAND = 6;
  * keeps the lock. Feel, not fit.
  */
 export const ENGAGED_CONE = 0.6;
+
+/**
+ * How many world units of range weigh as much as one radian of off-nose turn
+ * when the co-pilot ranks targets by ease of locking (`game/scripted-co-pilot.ts`).
+ *
+ * The co-pilot fights the EASIEST target to get guns on — favouring the one
+ * needing the least turn, with distance in the balance. At 800 a target 1200
+ * units out but 5 degrees off the nose beats one 400 units out but abeam, so
+ * alignment genuinely wins among comparable ranges — but it will NOT chase a
+ * far dead-ahead ship over a close one, which matters: flying the waves showed
+ * that fixating on a distant near-boresight target is exactly what feeds the
+ * approach roll-spin (a long straight run at a 3-degree-off target). 800 keeps
+ * the longest spin near 1s where a stronger angle preference (3000) stretched
+ * it past 3s. Feel, not fit — chosen on the wave harness.
+ */
+export const TARGET_DIST_WEIGHT = 800;

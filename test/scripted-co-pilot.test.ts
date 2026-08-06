@@ -104,6 +104,28 @@ console.log('\nscripted combat computer');
       empty.kind === 'disengage' && empty.reason.includes('AREA CLEAR'));
   }
 
+  // --- it fights the EASIEST target to lock, not merely the nearest ----------
+  // Chris asked for this, and it also keeps the co-pilot off the far-dead-ahead
+  // targets that feed the approach roll-spin. A ship dead ahead but farther is
+  // preferred over one close but abeam — you get guns on it for less turn.
+  {
+    // player looking down −Z
+    state.player.position.set(0, 0, 0);
+    state.player.quaternion.identity();
+    while (state.world.npcs.length) state.world.npcs.pop();
+    // A: close but 90 degrees off to the side (hard to lock)
+    state.world.spawn('pirate', new THREE.Vector3(500, 0, 0), 1);
+    // B: farther but dead ahead (easy to lock)
+    state.world.spawn('pirate', new THREE.Vector3(0, 0, -1200), 1);
+    const abeam = state.world.npcs[0];
+    const ahead = state.world.npcs[1];
+    const picker = new ScriptedCoPilot();
+    picker.step(1 / 60, state.player, state.world.npcs, legal, false, null);
+    const held = (picker as unknown as { lock: { held: unknown } }).lock.held;
+    check('the aligned target is chosen over the closer abeam one',
+      held === ahead && held !== abeam);
+  }
+
   // --- it PURSUES: get on a crossing target's six and hold it -----------------
   // The failure this replaced: the co-pilot flew the pirates' attack run, whose
   // pass phase steers nowhere on purpose, so a target crossing close up was
@@ -114,6 +136,10 @@ console.log('\nscripted combat computer');
   // which the attack run could not do.
   {
     const flier = new ScriptedCoPilot();
+    while (state.world.npcs.length) state.world.npcs.pop();
+    state.player.position.set(0, 0, 0);
+    state.player.quaternion.identity();
+    state.world.spawn('pirate', new THREE.Vector3(-900, 0, -700), 1);
     const target = state.world.npcs[state.world.npcs.length - 1];
     target.state.speed = 150;
     const nose = new THREE.Vector3();

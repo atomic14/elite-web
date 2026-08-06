@@ -42,7 +42,7 @@ import { LASER_RANGE } from '../constants/player-gun.ts';
 import { UNDER_FIRE_SECONDS } from '../constants/attack-run.ts';
 import {
   THREAT_RANGE, PURSUIT_RANGE, PURSUIT_CLOSE_GAIN, PURSUIT_TURN_FLOOR,
-  PURSUIT_SPEED_DEADBAND, ENGAGED_CONE,
+  PURSUIT_SPEED_DEADBAND, ENGAGED_CONE, TARGET_DIST_WEIGHT,
 } from '../constants/combat-computer.ts';
 import { PLAYER_FLIGHT } from '../constants/player-flight.ts';
 import type { V3 } from '../ai-training/observation.ts';
@@ -102,19 +102,29 @@ export class ScriptedCoPilot {
   ): CoPilotStep {
     if (manualInput) return { kind: 'disengage', reason: 'MANUAL OVERRIDE' };
     this.underFire = Math.max(0, this.underFire - dt);
+    // How far off the nose a candidate is — the turn it would cost to lock.
+    const offNose = (npc: NpcShip): number => this.nose.set(0, 0, -1)
+      .applyQuaternion(player.quaternion)
+      .angleTo(this.toThreat.copy(npc.object.position).sub(player.position));
     const threat = this.lock.pick(
       dt,
       npcs.filter((npc) => isHostileToPlayer(npc, legalStatus)
         && npc.object.position.distanceTo(player.position) < THREAT_RANGE),
-      (npc) => npc.object.position.distanceTo(player.position),
+      // EASIEST to lock, not nearest: rank by the off-nose angle (the turn it
+      // costs to get guns on) plus distance as a secondary tiebreak. Chris
+      // asked for this, and it also sidesteps the distance roll-spin at its
+      // source — with a wave of ships the co-pilot shoots the one already near
+      // the crosshair and moves to the next-easiest, rather than banking hard
+      // onto a far off-axis target and spinning. `TARGET_DIST_WEIGHT` sets how
+      // many units of range weigh as much as a radian of turn.
+      (npc) => offNose(npc)
+        + npc.object.position.distanceTo(player.position) / TARGET_DIST_WEIGHT,
       // ENGAGED means don't switch: the target is in front and roughly on the
-      // nose, so we are making the kill, not merely nearest to it. A pilot does
-      // not drop a ship it is lined up on because another drifted closer
+      // nose, so we are making the kill, not merely easiest to lock. A pilot
+      // does not drop a ship it is lined up on because another became easier
       // (Chris). Only when NOT engaged — the current target has run wide or
-      // behind — does the lock's distance rule get to hand us a better one.
-      (npc) => this.nose.set(0, 0, -1).applyQuaternion(player.quaternion)
-        .angleTo(this.toThreat.copy(npc.object.position).sub(player.position))
-        < ENGAGED_CONE,
+      // behind — does the ranking get to hand us a better one.
+      (npc) => offNose(npc) < ENGAGED_CONE,
     );
     if (!threat) {
       this.reset();
