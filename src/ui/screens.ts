@@ -11,6 +11,7 @@ import {
 } from '../game/commander.ts';
 import { MAX_FUEL, STARTING_CREDITS } from '../constants/commander.ts';
 import { rating } from '../game/rating.ts';
+import { characterName } from '../game/character.ts';
 import {
   equipmentOwned, fuelQuote, type FuelQuote,
 } from '../game/shop.ts';
@@ -550,6 +551,7 @@ export function renderStatus(
       Present system: ${sys.name}<br/>
       Hyperspace target: ${targetIndex === null ? 'None' : systems[targetIndex].name}<br/>
       Legal status: ${legalName}<br/>
+      Character: ${characterName(c.disrepute ?? 0)}<br/>
       Fuel: ${(c.fuel / 10).toFixed(1)} / ${(MAX_FUEL / 10).toFixed(1)} light years<br/>
       Cash: ${formatCredits(c.credits)}<br/>
       Missiles: ${c.missiles}<br/>

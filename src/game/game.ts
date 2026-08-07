@@ -143,6 +143,7 @@ import {
   LEGAL_NAMES, CLEAN, DEFENCE_RANGE,
 } from '../constants/law.ts';
 import { recordCleared } from './law.ts';
+import { afterDecay } from './character.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver,
@@ -1008,6 +1009,9 @@ export class Game {
       return;
     }
     this.state.living.advance(jump.days, COMMODITIES.map((c) => c.gradient));
+    // the galaxy forgets a little on the way — a jump is days of honest distance
+    this.state.commander.disrepute =
+      afterDecay(this.state.commander.disrepute ?? 0, jump.days);
     this.state.chart.targetIndex = null;
     this.arriveInSystem();
     this.showMessage(`ARRIVED: ${this.system.name.toUpperCase()}`, 4);
@@ -1254,6 +1258,7 @@ export class Game {
     c.systemIndex = target;
     c.day += 3; // the tow takes a while
     this.state.living.advance(3, COMMODITIES.map((cm) => cm.gradient));
+    c.disrepute = afterDecay(c.disrepute ?? 0, 3);
     this.state.chart.targetIndex = null;
     this.state.session.witchspace = false;
     this.arriveInSystem();

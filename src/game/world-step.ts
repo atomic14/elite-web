@@ -39,6 +39,8 @@ import { cargoCapacity, cargoTonnes } from './commander.ts';
 import { MAX_FUEL } from '../constants/commander.ts';
 import { carryingContraband } from './law.ts';
 import { SCAN_RANGE } from '../constants/law.ts';
+import { afterDeed } from './character.ts';
+import { DISREPUTE_CAUGHT } from '../constants/character.ts';
 import { playerVsNpcs, npcVsNpcs, npcsVsStation } from './collisions.ts';
 import { assignNpcTargets } from './npc-targeting.ts';
 import { stepEncounters } from './encounters.ts';
@@ -578,6 +580,8 @@ export class WorldStep {
         if (policeNear) {
           session.policeScanned = true;
           this.host.raiseLegal(1);
+          // caught smuggling: the fine clears, but the name does not
+          commander.disrepute = afterDeed(commander.disrepute ?? 0, DISREPUTE_CAUGHT);
           out.push(say('POLICE SCAN: CONTRABAND DETECTED', 4));
         }
       }

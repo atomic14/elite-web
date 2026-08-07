@@ -130,6 +130,13 @@ export interface CommanderData {
   survivors: number;
   equipment: Equipment;
   legalStatus: number; // 0 clean, 1 offender, 2 fugitive
+  /**
+   * Disrepute: the reputation for dirty dealing that clings after the fine is
+   * paid. Shady deeds raise it, time erodes it; `game/character.ts` turns it
+   * into a name (Honest…Cutthroat). Drives nothing in the world yet — the label
+   * alone. 0 is Honest.
+   */
+  disrepute: number;
   mission: MissionState;
   /** breeding stowaways; they eat cargo and hate heat */
   trumbles: number;
@@ -174,6 +181,7 @@ export function newCommander(): CommanderData {
     survivors: 0,
     equipment: defaultEquipment(),
     legalStatus: 0,
+    disrepute: 0,
     mission: { stage: 0, targetIndex: null },
     trumbles: 0,
     day: 0,

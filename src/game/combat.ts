@@ -39,6 +39,8 @@ import { random, randomInt } from './rng.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
 import { ESCAPE_CHANCE, HERMIT_CONTRABAND_MIN, HERMIT_CONTRABAND_SPAN,
   MINING_YIELD_MIN, MINING_YIELD_SPAN } from '../constants/wreck.ts';
+import { DISREPUTE_HERMIT_KILL, DISREPUTE_MURDER } from '../constants/character.ts';
+import { afterDeed } from './character.ts';
 import { ORE, ORDINARY_GOODS } from '../constants/commodities.ts';
 
 /** Seconds the cockpit beams stay lit after a shot. */
@@ -237,7 +239,18 @@ export class Combat {
       }
     }
 
-    out.push({ kind: 'offence', level: offenceFor(npc.role, true) });
+    const crime = offenceFor(npc.role, true);
+    out.push({ kind: 'offence', level: crime });
+
+    // What it does to your NAME, which the fine will not wash off. Cracking a
+    // hermit is a career-marking act; so is destroying any lawful ship (the
+    // Fugitive-grade offence). Both are the player's own doing — this is only
+    // reached through `destroy`, the player-credited path.
+    if (npc.role === 'hermit') {
+      c.disrepute = afterDeed(c.disrepute ?? 0, DISREPUTE_HERMIT_KILL);
+    } else if (crime === FUGITIVE) {
+      c.disrepute = afterDeed(c.disrepute ?? 0, DISREPUTE_MURDER);
+    }
 
     if (npc.bounty > 0) {
       c.credits += npc.bounty;
