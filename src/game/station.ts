@@ -34,8 +34,6 @@ import { slotNormal } from '../world/slot.ts';
 
 import type { StarSystem } from '../galaxy/galaxy.ts';
 import { formatCredits } from './commander.ts';
-import { fineFor } from './law.ts';
-import { CLEAN } from '../constants/law.ts';
 import { LAUNCH_STANDOFF, LAUNCH_SPEED } from '../constants/station.ts';
 import { generateContractOffers, makeLocalMarket, describeContract } from './contracts.ts';
 import { stepMissionAtDock, missionHeadline, constrictorWarning } from './missions.ts';
@@ -172,12 +170,9 @@ export class Station {
       messages.push(say(`${n} SURVIVOR${n > 1 ? 'S' : ''} HANDED TO STATION MEDICAL`, 4));
     }
 
-    const fine = fineFor(c.legalStatus, c.credits);
-    if (fine > 0 || c.legalStatus > CLEAN) {
-      c.credits -= fine;
-      c.legalStatus = CLEAN;
-      messages.push(say(`OFFENCE FINE PAID: ${formatCredits(fine)}`, 5));
-    }
+    // The record is NOT cleared on docking any more. The station is a neutral
+    // trading port: a fugitive may dock and trade, and clearing your name is a
+    // choice — the `payFine` docked command (game.ts), not a toll on the door.
     s.session.policeScanned = false;
     s.session.defenceLaunched = false;
     s.session.view = 0;

@@ -34,6 +34,23 @@ export function fineFor(legalStatus: number, credits: number): number {
 }
 
 /**
+ * Buying your name back at a station: what a commander is left with after
+ * paying to clear a record, or `null` when there is nothing to clear.
+ *
+ * The station does not fine you at the door any more (station.ts) — this is the
+ * optional half. The charge is `fineFor`, capped at what you can pay, so a broke
+ * commander is not trapped as a Fugitive; the cost is the credits, not the
+ * impossibility. The caller applies the result and sets the status Clean.
+ */
+export function recordCleared(
+  legalStatus: number, credits: number,
+): { paid: number; creditsLeft: number } | null {
+  if (legalStatus <= CLEAN) return null;
+  const paid = fineFor(legalStatus, credits);
+  return { paid, creditsLeft: credits - paid };
+}
+
+/**
  * How far your standing falls for harming a given ship.
  *
  * Shooting at police, traders or bounty hunters is an offence; destroying one

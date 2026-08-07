@@ -174,6 +174,7 @@ because browsers claim the function keys.
 | N / G / D / I | local chart · galactic chart · data on system · status |
 | **T** | **combat training simulator** — practise a fight; nothing in it reaches your commander |
 | H | new pilot's briefing |
+| P | pay your fine — clear an Offender or Fugitive record |
 | B | switch keyboard layout |
 | S | commander file — named saves and autosaves (S saves the run · ENTER loads, asking first · D deletes · R changes what you are called) |
 | X / Z | export · import a save file |

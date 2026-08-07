@@ -15,6 +15,7 @@ import {
   contrabandTonnes,
   carryingContraband,
   fineFor,
+  recordCleared,
   offenceFor,
 } from '../src/game/law.ts';
 import {
@@ -501,6 +502,23 @@ console.log('\nthe law');
     check('...but never more than you have', fineFor(FUGITIVE, 100) === 100);
     check('...and a broke fugitive pays nothing rather than going negative',
       fineFor(FUGITIVE, 0) === 0);
+  }
+
+  {
+    // Buying your name back — the optional station action, no longer a toll on
+    // docking. The rule is the same fine, capped, but it also reports there is
+    // nothing to clear when you are already Clean.
+    check('a clean record cannot be paid off — there is nothing to clear',
+      recordCleared(CLEAN, 100_000) === null);
+    const offender = recordCleared(OFFENDER, 100_000);
+    check('an offender clears for 25 Cr',
+      offender?.paid === OFFENDER_FINE && offender.creditsLeft === 100_000 - OFFENDER_FINE);
+    const fugitive = recordCleared(FUGITIVE, 100_000);
+    check('a fugitive clears for 75 Cr',
+      fugitive?.paid === FUGITIVE_FINE && fugitive.creditsLeft === 100_000 - FUGITIVE_FINE);
+    const broke = recordCleared(FUGITIVE, 40);
+    check('...and a broke fugitive pays all they have and is left with nothing',
+      broke?.paid === 40 && broke.creditsLeft === 0);
   }
 
   {

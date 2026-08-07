@@ -142,6 +142,7 @@ import {
 import {
   LEGAL_NAMES, CLEAN, DEFENCE_RANGE,
 } from '../constants/law.ts';
+import { recordCleared } from './law.ts';
 import {
   hideScreen, renderDockedMenu, renderNewGameConfirm,
   renderGameOver,
@@ -1063,6 +1064,25 @@ export class Game {
   }
 
   /**
+   * Buy your name back at the station — the optional half of the law.
+   *
+   * Docking no longer clears your record (station.ts); this is the choice that
+   * does. `recordCleared` (law.ts) owns the rule — the fine, capped at what you
+   * can pay — and this applies it and announces it.
+   */
+  private payFine(): void {
+    const c = this.state.commander;
+    const cleared = recordCleared(c.legalStatus, c.credits);
+    if (!cleared) {
+      this.showMessage('RECORD CLEAN — NO FINE DUE', 3);
+      return;
+    }
+    c.credits = cleared.creditsLeft;
+    c.legalStatus = CLEAN;
+    this.showMessage(`FINE PAID: ${formatCredits(cleared.paid)} — RECORD CLEAR`, 4);
+  }
+
+  /**
    * Stations keep "a small fleet of ships for their own defence, which they
    * may risk to assist a trader if they see him attacked" — misbehave in
    * sight of the station and Vipers launch from the slot.
@@ -1537,6 +1557,7 @@ export class Game {
     openSaves: () => this.openSaves(),
     openSystemData: () => this.openSystemData(this.system, 'docked'),
     openCombatSim: () => this.screens.open('combat-sim'),
+    payFine: () => this.payFine(),
     exportSave: () => this.exportSave(),
     importSave: () => this.importSave(),
     toggleLayout: () => this.switchLayout(),

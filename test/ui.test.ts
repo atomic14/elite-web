@@ -135,7 +135,7 @@ console.log('\ncommand layer');
   eqc('J is the torus drive', cmds('flight', ['KeyJ']), ['toggleTorus']);
   eqc('P pauses in flight', cmds('flight', ['KeyP']), ['togglePause']);
   eqc('P also pauses the training simulator', cmds('simulator', ['KeyP']), ['togglePause']);
-  eqc('P does nothing on the docked menu', cmds('docked', ['KeyP']), []);
+  eqc('P pays your fine on the docked menu', cmds('docked', ['KeyP']), ['payFine']);
   eqc('P does nothing on the new-game confirmation', cmds('confirmNewGame', ['KeyP']), []);
   eqc('P does nothing after destruction', cmds('dead', ['KeyP']), []);
   eqc('Enter is the only key that answers the game over screen',

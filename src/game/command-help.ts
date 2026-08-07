@@ -83,6 +83,7 @@ export const COMMAND_HELP: Record<Command, CommandHelp> = {
     what: 'combat training simulator — free, and nothing in it reaches your commander',
     menu: 'COMBAT TRAINING',
   },
+  payFine: { what: 'pay your fine — clear an Offender or Fugitive record', menu: 'PAY FINE' },
   exportSave: { what: 'export a save file', keyline: 'EXPORT' },
   importSave: { what: 'import a save file', keyline: 'IMPORT' },
   toggleLayout: { what: 'switch keyboard layout: classic / modern', keyline: 'KEYBOARD LAYOUT' },

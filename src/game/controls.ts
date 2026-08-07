@@ -56,6 +56,7 @@ export type Command =
   | 'openSaves'
   | 'openSystemData'
   | 'openCombatSim'
+  | 'payFine'
   | 'exportSave'
   | 'importSave'
   | 'toggleLayout'
@@ -227,6 +228,9 @@ export const BINDINGS: Record<ControlMode, readonly Binding[]> = {
     // launch-missile in flight. The tables are per mode.
     { key: 'KeyT', command: 'openCombatSim' },
     { key: 'KeyH', command: 'openBriefing' },
+    // P to buy your name back — the station clears an Offender or Fugitive
+    // record for a fine, by choice, rather than docking charging it at the door.
+    { key: 'KeyP', command: 'payFine' },
     // --- the keyline under the menu: bound here, but not rows you arrow onto -
     { key: 'KeyB', command: 'toggleLayout' },
     { key: 'KeyS', command: 'openSaves' },
