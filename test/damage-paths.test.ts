@@ -229,15 +229,17 @@ console.log('\nthe Constrictor and the stations — player lasers only');
   eq('...and a warhead the ordinary warhead',
     npcImpactDamage(IMPACT.warhead), IMPACT.warhead.ship);
 
-  // Immunity, the same way round.
+  // The rock hermit is a tough but destructible outpost now — a hollowed rock
+  // you CAN crack open, not one of the immune source stations.
   const hermit = npcEnergyPolicy(SPECS.hermit[0].profileId);
-  check('the rock hermit is laser-immune', hermit.laserImmune);
-  eq('...so a player laser does nothing at all',
-    playerLaserDamage(hermit, playerLaserHit(COBRA_MK_3_HULL_ID, 'military')), 0);
-  check('...but immunity does not make it immune to everything',
-    npcCrossfireDamage(anyByte, hermit) > 0
-    && npcImpactDamage(IMPACT.ram) > 0);
-  eq('the released stations are immune through the same field',
+  check('the rock hermit is not laser-immune — you can destroy it', !hermit.laserImmune);
+  check('...so a player laser bites it',
+    playerLaserDamage(hermit, playerLaserHit(COBRA_MK_3_HULL_ID, 'military')) > 0);
+  check('...but it is tougher than any hull, so cracking it is a deliberate job',
+    hermit.maxEnergy > 255);
+  check('...and a ram or crossfire bites it too, like any hull',
+    npcCrossfireDamage(anyByte, hermit) > 0 && npcImpactDamage(IMPACT.ram) > 0);
+  eq('the released stations, though, stay immune through the same field',
     [0, 1].filter((d) => !npcEnergyPolicy(
       recommendedProfileIdFor(`elite-a:design:${d}`)).laserImmune).length, 0);
   // ...and nothing can shoot a hermit anyway: NPC targeting only ever picks a

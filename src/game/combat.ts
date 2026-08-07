@@ -33,11 +33,12 @@ import { traceShot } from './shot.ts';
 import { applyDamage, canAffordLaserShot, spendLaserEnergy } from './systems.ts';
 import { hitFromAhead } from './shield-face.ts';
 import { offenceFor } from './law.ts';
-import { OFFENDER, FUGITIVE } from '../constants/law.ts';
+import { OFFENDER, FUGITIVE, CONTRABAND } from '../constants/law.ts';
 import { constrictorDestroyed } from './missions.ts';
 import { random, randomInt } from './rng.ts';
 import type { SoundEvent, SoundName } from './sounds.ts';
-import { ESCAPE_CHANCE, MINING_YIELD_MIN, MINING_YIELD_SPAN } from '../constants/wreck.ts';
+import { ESCAPE_CHANCE, HERMIT_CONTRABAND_MIN, HERMIT_CONTRABAND_SPAN,
+  MINING_YIELD_MIN, MINING_YIELD_SPAN } from '../constants/wreck.ts';
 import { ORE, ORDINARY_GOODS } from '../constants/commodities.ts';
 
 /** Seconds the cockpit beams stay lit after a shot. */
@@ -275,6 +276,11 @@ export class Combat {
     if (npc.cargoDrop > 0) {
       this.world.cargo.spawn(npc.object.position,
         Math.floor(random() * (npc.cargoDrop + 1)), ORDINARY_GOODS);
+    }
+    // a cracked hermit spills the contraband it dealt in — the smuggler's payday
+    if (npc.role === 'hermit') {
+      this.world.cargo.spawn(npc.object.position,
+        HERMIT_CONTRABAND_MIN + randomInt(HERMIT_CONTRABAND_SPAN), CONTRABAND);
     }
     // the drones go dead when the last mothership does
     if (npc.role === 'thargoid'

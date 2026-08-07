@@ -228,15 +228,15 @@ console.log('\nlive combat — the cases the contract names');
   eq('...so it never dies to one',
     hitsToDestroy(dragon.maxEnergy, npcEnergyPoints(0)), null);
 
-  // IMMUNITY, from the profile — no role or hull name anywhere near the gun
+  // A DESTRUCTIBLE outpost, from the profile — no role or hull name near the gun
   const hermit = spawn('hermit');
-  check('the rock hermit is a station: immune, and it says so in its policy',
-    hermit.energyPolicy.laserImmune);
+  check('the rock hermit is not laser-immune — you can crack it open',
+    !hermit.energyPolicy.laserImmune);
   const hermitBefore = hermit.state.energy;
-  check('...so a military laser at point blank does nothing to it',
+  check('...so a military laser at point blank bites it (one hit is not enough)',
     hermit.takeLaserHit(playerLaserHit(COBRA_MK_3_HULL_ID, 'military')) === false
-    && hermit.state.energy === hermitBefore && hermit.state.alive);
-  eq('...and the released stations are immune too, through the same field',
+    && hermit.state.energy < hermitBefore && hermit.state.alive);
+  eq('...but the released stations stay immune, through the same field',
     [0, 1].filter((d) => !npcEnergyPolicy(
       npcCombatProfileIdOf(recommendedNpcProfile(d).variantId)).laserImmune).length, 0);
 
@@ -255,33 +255,21 @@ console.log('\nlive combat — the cases the contract names');
     playerLaserDamage(constrictor.energyPolicy, 7), 0);
 
   // The two Harmless inventions have STATED policy and no source parity claim.
-  //
-  // Their banks are still HAND-COPIES of released numbers, though, and
-  // npc-energy.ts says out loud which ones: the generation ship carries "the
-  // Anaconda's bank, the heaviest thing that FLIES in the released catalogue"
-  // and the rock hermit "what a Coriolis carries". So they are asserted against
-  // the catalogue rather than against 252 and 240 — the literals said nothing
-  // about where the numbers came from, and a re-import that moved either would
-  // have left the copy behind with the test still green.
-  // Source design numbers. The two `shipName` assertions below are what says
-  // they are the right ones, so the numbers cannot go stale silently either.
+  // The generation ship's bank is still a hand-copy of a released number —
+  // npc-energy.ts says out loud which one: "the Anaconda's bank, the heaviest
+  // thing that FLIES in the released catalogue" — so it is asserted against the
+  // catalogue rather than against 252, which a re-import could move silently.
+  // The rock hermit's bank is its own stated number now: it is not a station
+  // any more, so it borrows no station's bank — just tougher than any hull.
   const ANACONDA_DESIGN = 13;
-  const CORIOLIS_DESIGN = 1;
   const anaconda = recommendedNpcProfile(ANACONDA_DESIGN);
-  const coriolis = recommendedNpcProfile(CORIOLIS_DESIGN);
   eq('the heaviest flying hull in the pack is the Anaconda', anaconda.shipName, 'Anaconda');
-  eq('...and the station whose bank the hermit borrows is the Coriolis',
-    coriolis.shipName, 'Coriolis station');
   const gen = npcEnergyPolicy(HARMLESS_OVERLAYS.generationShip.profileId);
   const rock = npcEnergyPolicy(HARMLESS_OVERLAYS.rockHermit.profileId);
   check(`the generation ship carries the Anaconda's bank (${anaconda.maxEnergy})`,
     gen.maxEnergy === anaconda.maxEnergy && !gen.laserImmune && gen.regenPerSecond === 0);
-  check(`...and the rock hermit a Coriolis's (${coriolis.maxEnergy}), immune and cold`,
-    rock.maxEnergy === coriolis.maxEnergy && rock.laserImmune && rock.regenPerSecond === 0);
-  // ...and the two are telling the banks apart rather than agreeing by accident.
-  check('...which are two different numbers, both real',
-    anaconda.maxEnergy !== coriolis.maxEnergy
-    && anaconda.maxEnergy > 0 && coriolis.maxEnergy > 0);
+  check(`...and the rock hermit is tougher than any hull (${rock.maxEnergy}), destructible and cold`,
+    rock.maxEnergy > 255 && !rock.laserImmune && rock.regenPerSecond === 0);
   check('...and neither appears in the released variant matrix',
     !hits.variants.includes(HARMLESS_OVERLAYS.generationShip.profileId)
     && !hits.variants.includes(HARMLESS_OVERLAYS.rockHermit.profileId));

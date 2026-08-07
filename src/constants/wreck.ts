@@ -35,3 +35,17 @@ export const ESCAPE_CHANCE = { trader: 0.45, other: 0.2 } as const;
  */
 export const MINING_YIELD_MIN = 1;
 export const MINING_YIELD_SPAN = 3;
+
+/**
+ * Contraband canisters a destroyed rock hermit scatters — a smuggler's den
+ * spilling its stock.
+ *
+ * `HERMIT_CONTRABAND_MIN + randomInt(HERMIT_CONTRABAND_SPAN)`, so three to six
+ * cans, drawn from `CONTRABAND` (constants/law.ts) — the illegal goods it dealt
+ * in. Always at least a few: cracking a hermit is a deliberate job (it is
+ * tougher than any hull, npc-energy.ts), so it has to pay like one. What the
+ * cans contain is contraband, which is worth carrying only where it can be
+ * sold — another hermit, if you can find one.
+ */
+export const HERMIT_CONTRABAND_MIN = 3;
+export const HERMIT_CONTRABAND_SPAN = 4;

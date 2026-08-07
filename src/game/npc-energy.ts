@@ -101,13 +101,16 @@ export const ANCHOR_NPC_MAX_ENERGY =
  */
 const HARMLESS_POLICY: Readonly<Record<string, NpcEnergyPolicy>> = {
   /**
-   * The rock hermit is a STATION — you dock with it — so it takes the station
-   * rule: immune to player lasers, and a hollowed asteroid has no generator.
-   * 240 is what a Coriolis carries and is here only so the bank has a size;
-   * nothing can spend it through a laser.
+   * The rock hermit is a hollowed asteroid outpost you dock with — and, since
+   * you could never tell it from a plain rock until you had already shot it, one
+   * you can now blast open. It is NOT laser-immune like the two source stations:
+   * 300 is tougher than the heaviest hull (the 255 Dragon), so cracking a
+   * smuggler's den is a deliberate job rather than a stray shot, and it sheds
+   * its contraband when it goes (combat.ts). A hollowed rock has no generator,
+   * so it recovers nothing.
    */
   [HARMLESS_OVERLAYS.rockHermit.profileId]: {
-    maxEnergy: 240, laserImmune: true, playerLaserMultiplier: 1, regenPerSecond: 0,
+    maxEnergy: 300, laserImmune: false, playerLaserMultiplier: 1, regenPerSecond: 0,
   },
   /**
    * The derelict generation ship is the largest hull in the sky and dead: 252

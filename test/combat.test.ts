@@ -22,14 +22,14 @@ import { Combat } from '../src/game/combat.ts';
 import {
   isContraband, contrabandTonnes, carryingContraband,
 } from '../src/game/law.ts';
-import { CLEAN, FUGITIVE } from '../src/constants/law.ts';
+import { CLEAN, FUGITIVE, CONTRABAND } from '../src/constants/law.ts';
 import type { CommanderData } from '../src/game/commander.ts';
 import { seedWorld } from '../src/game/rng.ts';
 import { isHostileToPlayer } from '../src/game/npc.ts';
 import { npcImpactDamage } from '../src/game/impact-damage.ts';
 import { IMPACT } from '../src/constants/impact.ts';
 import {
-  ESCAPE_CHANCE, MINING_YIELD_MIN, MINING_YIELD_SPAN,
+  ESCAPE_CHANCE, HERMIT_CONTRABAND_MIN, MINING_YIELD_MIN, MINING_YIELD_SPAN,
 } from '../src/constants/wreck.ts';
 import { LASER_ENERGY_COST } from '../src/constants/player-gun.ts';
 import { COMMODITIES } from '../src/galaxy/galaxy.ts';
@@ -91,6 +91,16 @@ console.log('\ncombat');
     const { world, combat, c } = setup();
     combat.destroy(c, world.spawn('asteroid', at(-500), 1));
     check('a rock is not a kill', c.kills === 0 && c.combatScore === 0);
+  }
+  {
+    // A cracked hermit spills the contraband it dealt in — a smuggler's payday —
+    // and is no crime, since the outpost is illegal itself (offenceFor: CLEAN).
+    const { world, combat, c } = setup();
+    const evs = combat.destroy(c, world.spawn('hermit', at(-500), 1));
+    const cans = world.cargo.items.filter((i) => i.kind === 'cargo');
+    check(`destroying a hermit scatters contraband (${cans.length} cans)`,
+      cans.length >= HERMIT_CONTRABAND_MIN && cans.every((i) => CONTRABAND.includes(i.commodity)));
+    check('...and is nobody\'s business legally', offence(evs) === CLEAN);
   }
   {
     // the wreck path exists so a fight you only WATCHED does not pay you
