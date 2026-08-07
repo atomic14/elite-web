@@ -9,7 +9,6 @@ import {
 import { seedWorld } from '../src/game/rng.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { describeFlight } from '../src/game/break-off.ts';
-import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import {
   PURSUIT_RANGE, PURSUIT_BREAK_RANGE, PURSUIT_CLEAR_RANGE,
 } from '../src/constants/combat-computer.ts';
@@ -119,11 +118,11 @@ console.log('\npursuit');
   };
 
   const pursued = flyAtPlayer({ pursuit: true }, 20);
-  const jousted = flyAtPlayer(SHIPPED_BRAINS, 20);
+  const jousted = flyAtPlayer({ scripted: true }, 20);
 
   check('choosing pursuit routes the pirate through pursue(): flownBy says so',
     pursued.npc.state.flownBy === 'pursuit');
-  check('...and the default sky still flies the scripted attack run',
+  check('...and selecting scripted flies the hand-written attack run instead',
     jousted.npc.state.flownBy === 'scripted');
 
   // The readout: the pursuit pilot only ever names its own two states, and the

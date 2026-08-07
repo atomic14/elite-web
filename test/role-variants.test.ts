@@ -12,8 +12,9 @@
 //      touched, a defined answer for every role and every design, and the same
 //      answer a legacy snapshot re-derives on restore.
 //   3. THE POINT OF THE EXERCISE — no combat role flies a build that cannot
-//      damage a Cobra Mk III. That is the failure the Asp Mk II was: it chased,
-//      shot, and could never win.
+//      damage a Cobra Mk III. The Asp Mk II was exactly that failure until a
+//      decode bug was fixed (combat-math.ts `eliteANpcLaserPower`); its byte is
+//      laser power nine, and it now hits for 29 and flies as a pirate.
 //
 // The oracle itself is not re-tested here; `test/elite-a-oracle.test.ts` owns
 // the arithmetic and this file must not restate a line of it. What it does is

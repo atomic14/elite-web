@@ -41,7 +41,7 @@ export const variantId = (set, designId) => `${set}:${designId}`;
  * emit records the types do not describe. Stop instead.
  */
 const EXPECTED_VARYING = ['maxEnergy', 'perHitDefence', 'weaponByte', 'laserPower',
-  'canFireLaser', 'weaponByteShiftedHalf', 'npcLaserDamageOriginalBeforeArmour',
+  'weaponByteShiftedHalf', 'npcLaserDamageOriginalBeforeArmour',
   'npcLaserDamageCleanBeforeArmour', 'bountyRawTenthsOfCredit', 'bountyCredits'];
 
 // --- classification ---------------------------------------------------------

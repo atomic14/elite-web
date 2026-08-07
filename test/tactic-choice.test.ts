@@ -29,7 +29,6 @@ import { NpcShip } from '../src/game/npc.ts';
 import { SPECS, CONSTRICTOR_SPEC, type NpcSpec } from '../src/game/ship-specs.ts';
 import { registeredHull } from '../src/ships/registry.ts';
 import { serialiseState, restoreState } from '../src/game/snapshot.ts';
-import { SHIPPED_BRAINS } from '../src/game/brain-names.ts';
 import { FIXED_DT } from '../src/constants/world-clock.ts';
 import { check } from './harness.ts';
 
@@ -264,7 +263,7 @@ const ROLLS = Array.from({ length: 201 }, (_, i) => i / 200);
 {
   const station = new THREE.Object3D();
   const view = (fleet: readonly NpcShip[]) => ({
-    station, dockZ: 160, fleet, playerLegal: 2, brains: SHIPPED_BRAINS, missileInbound: false,
+    station, dockZ: 160, fleet, playerLegal: 2, brains: { scripted: true }, missileInbound: false,
   });
   const player = {
     position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), speed: 0,
@@ -273,9 +272,10 @@ const ROLLS = Array.from({ length: 201 }, (_, i) => i / 200);
   let changedId = 0;
   for (let seed = 0; seed < 24; seed++) {
     seedWorld(80_000_009 + seed * 7919);
-    // A police ship, so it is hostile to a fugitive and always flies `attack()`
-    // rather than handing over to a brain — the tactic governs the scripted
-    // flight and this is a test about the tactic.
+    // A police ship under the `scripted` selection, so it flies `attack()` —
+    // the hand-written run the tactic machine governs — rather than the pursuit
+    // dogfighter the opposition now flies by default (which has no tactic). This
+    // is a test about the tactic, so it flies the pilot that has one.
     const npc = new NpcShip('police', new THREE.Vector3(0, 0, 700), seed);
     for (let i = 0; i < 60 * 8; i++) npc.update(FIXED_DT, player, view([npc]));
     const before = npc.state.tactic;

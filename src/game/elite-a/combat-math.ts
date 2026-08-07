@@ -137,9 +137,20 @@ export function eliteAHitsToDestroy(
 
 // --- what an NPC laser does to the player ------------------------------------
 
-/** Laser power, bits 3-5 of the packed weapon byte. */
+/**
+ * Laser power: the top five bits of the packed weapon byte, `weaponByte >> 3`.
+ *
+ * NOT `& 7`. The byte is missile count in bits 0-2 and laser power in bits 3-7,
+ * so the power field is five bits wide (0-31), not three. Masking it to three
+ * bits capped power at 7 and silently zeroed the four ships whose power needs
+ * bit 6 — the Anaconda and Asp Mk II (power 9), the Constrictor and Dragon
+ * (power 8) — turning the heaviest guns in the game into the lightest. Elite-A's
+ * own TACTICS routine reads the field as `AND #%11111000` (bits 3-7), and the
+ * released per-hit damage is the whole byte shifted once (`>> 1`), which only
+ * adds up if bit 6 is part of laser power.
+ */
 export function eliteANpcLaserPower(weaponByte: number): number {
-  return (weaponByte >> 3) & 7;
+  return weaponByte >> 3;
 }
 
 /** Missiles carried, bits 0-2. It has no bearing on the clean laser rule. */

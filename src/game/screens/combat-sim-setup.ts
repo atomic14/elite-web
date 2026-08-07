@@ -75,13 +75,14 @@ const LASERS: readonly LaserType[] = ['pulse', 'beam', 'military'];
 
 /**
  * What the pirates can be set to fly for a fight — the two CODE pilots a
- * commander can meet: the scripted attack run they fly by default, and the
- * pursuit dogfighter (the combat computer's own pilot, turned on them). This
- * is the whole of "change the brain the pirates fly"; there is no custom
- * opposition builder any more, and no career-persisting brain row — the choice
- * is the fight's, restored when you undock (combat-sim.ts's entry snapshot).
+ * commander can meet: the pursuit dogfighter they fly by default (the combat
+ * computer's own pilot, turned on them) and the scripted attack run they flew
+ * before it. This is the whole of "change the brain the pirates fly"; there is
+ * no custom opposition builder any more, and no career-persisting brain row —
+ * the choice is the fight's, restored when you undock (combat-sim.ts's entry
+ * snapshot).
  */
-export const PIRATE_CHOICES: readonly BrainId[] = ['attack-run', 'pursuit'];
+export const PIRATE_CHOICES: readonly BrainId[] = ['pursuit', 'scripted'];
 
 /**
  * The fit-out lent to the commander for the exercise.
@@ -202,7 +203,7 @@ export function freshDraft(c: CommanderData): SimDraft {
     tier: 1,
     seed: null,
     lastSeed: null,
-    brain: 'attack-run',
+    brain: 'pursuit',
     furthestWave: c.furthestWave ?? 0,
     fit: {
       laser: c.equipment.laser,
@@ -237,10 +238,9 @@ export function freshSeed(now = Date.now()): number {
  * The pirate brain is the only override the game has: which policy a pirate
  * flies is one `BrainSelection` for the whole exercise (brain-names.ts), not a
  * field on a ship, and `combat-sim.ts` applies `spec.brain` to `state.brains`
- * for the fight and restores it on undock. `attack-run` is the default — the
- * scripted run every pirate flies — so it goes in as NO override, leaving the
- * scenario table and the report to name it `scripted`; only a real change
- * (`pursuit`) is sent.
+ * for the fight and restores it on undock. `pursuit` is the default — the
+ * dogfighter every pirate flies now — so it goes in as NO override; only a real
+ * change (`scripted`, the hand-written attack run) is sent.
  */
 export function specFrom(d: SimDraft, seed: number): ExerciseSpec {
   return {
@@ -248,7 +248,7 @@ export function specFrom(d: SimDraft, seed: number): ExerciseSpec {
     scenario: SCENARIOS[d.scenario].id,
     tier: d.tier,
     seed,
-    ...(d.brain === 'attack-run' ? {} : { brain: d.brain }),
+    ...(d.brain === 'pursuit' ? {} : { brain: d.brain }),
   };
 }
 

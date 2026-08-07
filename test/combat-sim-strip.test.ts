@@ -272,11 +272,14 @@ console.log('\ncombat simulator — the strip is the record, early');
 
   {
     // A gang at the top tier, so the fight lasts long enough to have shots
-    // going both ways rather than being over in one pass.
+    // going both ways rather than being over in one pass. Captured mid-fight
+    // (540 steps, ~9s): the pursuit dogfighter clears a four-ship gang in about
+    // twelve seconds, so the old 30-second capture landed after the round was
+    // won and the roster was empty.
     const spec: ExerciseSpec = {
       mode: 'scenario', scenario: 'pirate-gang', tier: 2, seed: 4242,
     };
-    const { strip, rec } = flown(spec, 20_260_802, 1800);
+    const { strip, rec } = flown(spec, 20_260_802, 540);
 
     // The vacuity guard first: "they agree" is easy when both are zero.
     check(`the exercise was a real fight (${strip.shots} shots, ${strip.hits} hits, `

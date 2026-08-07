@@ -46,10 +46,10 @@ console.log('\nwhich brain flies, by name');
     const sel = liveBrainSelection(id);
     for (const tier of [0, 1, 2]) {
       for (const organised of [false, true]) {
-        // Pirates fly scripted, EXCEPT the pursuit selection, which turns the
-        // combat computer's own pilot on them. Both are code — no loader path —
-        // so the check is on the NAME rule, and it must agree with the picker.
-        const want = sel.pursuit ? 'pursuit' : 'scripted';
+        // Pirates fly pursuit, EXCEPT the scripted selection, which reverts them
+        // to the hand-written attack run. Both are code — no loader path — so the
+        // check is on the NAME rule, and it must agree with the picker.
+        const want = sel.scripted ? 'scripted' : 'pursuit';
         if (pirateBrainNameFor(tier, organised, sel) !== want) {
           disagreed.push(`${id}/${tier}/${organised}`);
         }
@@ -76,19 +76,19 @@ console.log('\nwhich brain flies, by name');
   check('every named brain is reachable through its own selection',
     badTrip.length === 0, badTrip.join(', '));
 
-  // WHAT SHIPS, with no overrides: the scripted attack run for every pirate,
-  // solo or ganged, and the trained defence policy for armed traders. The first
-  // two changed when Chris asked for it after a session of flying them; the
-  // third did not, because nothing has evaluated it against the run and an
-  // armed trader's job — evade, survive, assist — is not a pirate's.
-  check('a pirate flies the scripted attack run, alone or in a gang',
-    pirateBrainNameFor(1, false) === 'scripted'
-    && pirateBrainNameFor(1, true) === 'scripted');
-  check('...and an armed trader turns and fights with the attack run now',
+  // WHAT SHIPS, with no overrides: the pursuit dogfighter for every pirate,
+  // solo or ganged, and the attack-run co-pilot for armed traders. The pirates
+  // moved to pursuit when Chris asked for it; the defence did not, because
+  // nothing has evaluated pursuit there and an armed trader's job — evade,
+  // survive, assist — is not a pirate's.
+  check('a pirate flies the pursuit dogfighter, alone or in a gang',
+    pirateBrainNameFor(1, false) === 'pursuit'
+    && pirateBrainNameFor(1, true) === 'pursuit');
+  check('...and an armed trader turns and fights with the attack run',
     defenceBrainNameFor() === 'attack-run');
-  // There are no trained pirate alternatives to select any more: the weights
-  // left the bundle on 2026-08-05 (scripted is the only opposition anywhere),
-  // and the A/B control that remains is the one that turns the DEFENCE off.
+  // The one A/B control left reverts the whole game to the hand-written attack
+  // run: pirates onto it, and the DEFENCE co-pilot off (there are no trained
+  // alternatives to select — the weights left the bundle on 2026-08-05).
   check('...and the one surviving override is the scripted control',
     pirateBrainNameFor(1, false, { scripted: true }) === 'scripted'
     && defenceBrainNameFor({ scripted: true }) === 'scripted');
@@ -210,15 +210,14 @@ console.log('\nbrain selection');
   // cannot leak into the next one. It used to be four `window.__` globals with
   // a clear() after every block — which worked, and only by hand.
   {
-    // WHAT SHIPS IS THE SCRIPTED ATTACK RUN, for pirates of every tier and for
-    // organised gangs alike — and since 2026-08-05 there is nothing else a
-    // pirate COULD fly: the trained weights left the bundle, so the name rule
-    // answers 'scripted' for every tier, and brains.ts has no pirate loader
-    // for a stale path to fall back to.
-    check('an opportunist flies the scripted attack run',
-      pirateBrainNameFor(0, false) === 'scripted');
-    check('...and so does a professional', pirateBrainNameFor(1, false) === 'scripted');
-    check('...and so does an organised gang', pirateBrainNameFor(2, true) === 'scripted');
+    // WHAT SHIPS IS THE PURSUIT DOGFIGHTER, for pirates of every tier and for
+    // organised gangs alike — the shipped opposition since Chris asked for it.
+    // The `scripted` selection reverts them to the attack run; with no override
+    // the name rule answers 'pursuit' for every tier.
+    check('an opportunist flies the pursuit dogfighter',
+      pirateBrainNameFor(0, false) === 'pursuit');
+    check('...and so does a professional', pirateBrainNameFor(1, false) === 'pursuit');
+    check('...and so does an organised gang', pirateBrainNameFor(2, true) === 'pursuit');
   }
   {
     // docs/TODO/91's acceptance, kept after the pirate policies were deleted:

@@ -93,8 +93,8 @@ check('the player armour column is the hulls\' own',
   === ELITE_A_PLAYER_HULLS.map((h) => h.perHitShieldArmour).join(','));
 
 // --- the rules agree with the numbers the catalogue stores -------------------
-// The pack decodes each variant's weapon byte itself, and those columns feed
-// nothing here — which makes them a free second opinion on the decode.
+// The importer decodes each weapon byte into these columns; combat-math does it
+// again here, so a slip like the pack's three-bit mask shows up as a mismatch.
 {
   const tally = new Tally();
   for (const variant of ELITE_A_VARIANTS) {
@@ -102,7 +102,7 @@ check('the player armour column is the hulls\' own',
     const byte = variant.weaponByte;
     if (eliteANpcDefence(variant.maxEnergy) !== variant.perHitDefence
       || eliteANpcLaserPower(byte) !== variant.laserPower
-      || eliteANpcCanFireLaser(byte) !== variant.canFireLaser
+      || eliteANpcCanFireLaser(byte) !== design.canFireLaser
       || eliteANpcMissileCount(byte) !== design.missileCount
       || byte >> 1 !== variant.weaponByteShiftedHalf
       || eliteANpcLaserStrength(byte, 'clean') !== variant.npcLaserDamageCleanBeforeArmour

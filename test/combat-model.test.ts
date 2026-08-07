@@ -314,11 +314,9 @@ console.log('\none combat model (the trainer flies the game)');
 
   // 7b. THE COMMANDER'S PITCH CAP IS ARGUED FOR AGAINST FOUR PIRATE HULLS, and
   // the argument is four numbers transcribed out of the roster into a comment
-  // in another file. One of them had already gone stale — it named an Asp Mk II
-  // at 1.68, and the Asp left the pirate roster (ship-specs.ts states why), so
-  // the reasoning cited a ship the player cannot meet. Now that PLAYER_FLIGHT
-  // and TURN are in one directory the products can be re-derived, which is what
-  // this does: every figure the comment quotes comes from the row it names.
+  // in another file. Now that PLAYER_FLIGHT and TURN are in one directory the
+  // products can be re-derived, which is what this does: every figure the
+  // comment quotes comes from the row it names.
   //
   // The CLAIM, not the arithmetic: you out-turn the two heavier hulls, and the
   // two lightest still edge you. That is what "as it should be — those are far
@@ -337,8 +335,6 @@ console.log('\none combat model (the trainer flies the game)');
       Math.abs(PLAYER_FLIGHT.maxPitch - mamba) < 0.05);
     check(`...and is still edged by a Sidewinder (${sidewinder.toFixed(2)})`,
       sidewinder > PLAYER_FLIGHT.maxPitch);
-    check('...and the Asp Mk II the comment used to cite is not a pirate at all',
-      !SPECS.pirate.some((s) => s.designId === shipDesignIdOf(23)));
   }
 
   // 8. Ramming: one constant, one speed rule, billed by the episode the way

@@ -155,7 +155,7 @@ export function npcCombatProfile(id: EliteAVariantId): EliteACombatProfile {
     laserPower: variant.laserPower,
     missileCount: design.missileCount,
     weaponByte: variant.weaponByte,
-    canFireLaser: variant.canFireLaser,
+    canFireLaser: design.canFireLaser,
     npcLaserDamageCleanBeforeArmour: variant.npcLaserDamageCleanBeforeArmour,
     npcLaserDamageOriginalBeforeArmour: variant.npcLaserDamageOriginalBeforeArmour,
     bountyRawTenthsOfCredit: variant.bountyRawTenthsOfCredit,

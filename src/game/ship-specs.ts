@@ -206,7 +206,8 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
   ],
   // The pirate roster is ALSO the threat-tier table — see PIRATE_TIERS below.
   // The first six are the mix that has always flown; the next four used to be
-  // reachable only through a tier; the last seven are new.
+  // reachable only through a tier; the last seven arrived with TODO 25; and the
+  // Asp Mk II at the end is a returning threat — see the note on its row.
   pirate: [
     { ...flying('pirate', SOURCE_DESIGN.sidewinder), color: 0xff9a5c, maxSpeed: 300, turnRate: 1.1, bounty: 50 },
     { ...flying('pirate', SOURCE_DESIGN.krait), color: 0xffb36c, maxSpeed: 290, turnRate: 1.0, bounty: 80 },
@@ -216,24 +217,6 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
     { ...flying('pirate', SOURCE_DESIGN.cobraMk3), color: 0xffc46c, maxSpeed: 260, turnRate: 0.8, bounty: 100, missiles: 1, cargoDrop: 2 },
     { ...flying('pirate', SOURCE_DESIGN.worm), color: 0xffbb80, maxSpeed: 200, turnRate: 0.9, bounty: 40 },
     { ...flying('pirate', SOURCE_DESIGN.ferDeLance), color: 0xff7a4c, maxSpeed: 330, turnRate: 1.1, bounty: 180, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
-    // THE ASP MK II IS NOT HERE, and it is the one deliberate omission in the
-    // roster. All three of its released builds — I:23, N:23 and T:23 — carry
-    // the same packed byte, and under the clean rule that byte is worth four
-    // points before armour. The SMALLEST per-hit armour among the fifteen
-    // flyable hulls is four (the Adder), so an Asp does exactly ZERO to every
-    // ship the commander can fly; armour comes off each hit before the shield
-    // sees it, so a pack of them accumulates nothing either. It chased, it shot,
-    // and it could never win.
-    //
-    // No selection fixes it: `role-variants.ts` picks the hardest build the
-    // source ever filed as a pirate, and every Asp build is that same byte. The
-    // alternatives were to invent a figure the pack does not contain, or to
-    // adopt the released `>> 1` diagnostic encoding — which the fidelity
-    // contract forbids, because it lets the missile bits add to a laser hit. So
-    // the ship keeps its catalogue record, its geometry and its identity, and
-    // is simply not rostered as something whose job is to shoot you.
-    // `test/ship-roles.test.ts` asserts that no combat role flies a build which
-    // cannot hurt a Cobra Mk III, which is what keeps this decided.
     { ...flying('pirate', SOURCE_DESIGN.python), color: 0xffa878, maxSpeed: 160, turnRate: 0.35, bounty: 200, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
     // --- brought into the roster by TODO 25 ---------------------------------
     { ...flying('pirate', SOURCE_DESIGN.cobraMk1), color: 0xffb066, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 90, cargoDrop: 2 },
@@ -243,14 +226,25 @@ export const SPECS: Record<Exclude<NpcRole, 'asteroid'>, NpcSpec[]> = {
     { ...flying('pirate', SOURCE_DESIGN.iguana), color: 0xffb078, maxSpeed: cruise(SOURCE_DESIGN.iguana), turnRate: 1.0, bounty: 110 },
     { ...flying('pirate', SOURCE_DESIGN.chameleon), color: 0xff9a80, maxSpeed: cruise(SOURCE_DESIGN.chameleon), turnRate: 0.9, bounty: 190, missiles: 1, ecmChance: 0.4, cargoDrop: 2 },
     { ...flying('pirate', SOURCE_DESIGN.monitor), color: 0xff7a5c, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 220, missiles: 2, ecmChance: 0.6, cargoDrop: 4 },
+    // The Asp Mk II — a returning threat. Its byte, 73, is laser power NINE: 36
+    // before armour, 29 to a Cobra Mk III, one of the hardest guns any pirate
+    // carries. It was benched for years by a decode bug that masked the power
+    // field to three bits and made every Asp build do ZERO (see combat-math.ts
+    // `eliteANpcLaserPower`); the five-bit fix restored the threat, so it flies.
+    // The source filed it as a pirate — I:23, N:23, T:23 — so this is released
+    // permission, not an invented role, and it is fast: source speed 40 is the
+    // quickest of the fighters, above the Fer-de-Lance's 30.
+    { ...flying('pirate', SOURCE_DESIGN.asp), color: 0xff6a48, maxSpeed: cruise(SOURCE_DESIGN.asp), turnRate: 1.1, bounty: 200, missiles: 1, ecmChance: 0.5, cargoDrop: 2 },
   ],
   police: [
     { ...flying('police', SOURCE_DESIGN.viper), color: 0x9ad9ff, maxSpeed: 320, turnRate: 1.3, bounty: 0, ecmChance: 1 },
   ],
   hunter: [
     { ...flying('hunter', SOURCE_DESIGN.ferDeLance), color: 0xd8c8ff, maxSpeed: 330, turnRate: 1.1, bounty: 0, ecmChance: 0.6 },
-    // The Asp Mk II is not a bounty hunter here either — same reason, stated
-    // once in the pirate list above.
+    // The Asp Mk II is a bounty hunter now too — restored by the decode fix that
+    // gave its byte back its real laser power (see the pirate row above). The
+    // source filed it under this job as well (I:23, T:23).
+    { ...flying('hunter', SOURCE_DESIGN.asp), color: 0xccc0ff, maxSpeed: cruise(SOURCE_DESIGN.asp), turnRate: 1.1, bounty: 0, ecmChance: 0.5 },
     // --- brought into the roster by TODO 25 ---------------------------------
     { ...flying('hunter', SOURCE_DESIGN.cobraMk1), color: 0xc8c8ff, maxSpeed: cruise(SOURCE_DESIGN.cobraMk1), turnRate: 0.85, bounty: 0, ecmChance: 0.3 },
     { ...flying('hunter', SOURCE_DESIGN.monitor), color: 0xc0c8e0, maxSpeed: cruise(SOURCE_DESIGN.monitor), turnRate: 0.35, bounty: 0, ecmChance: 0.6 },

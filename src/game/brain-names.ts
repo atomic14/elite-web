@@ -124,15 +124,14 @@ export const BRAINS: Readonly<Record<BrainName, BrainProfile>> = Object.freeze({
   // ships an episode to a commander who fights back
   scripted: {
     name: 'MAKES ATTACK RUNS',
-    character: 'THE HAND-WRITTEN ATTACK RUN EVERY PIRATE FLIES: CLOSES, FIRES THROUGH THE '
-      + 'PASS AND COMES ROUND AGAIN — ABOUT 5 RUNS A MINUTE. ON A COMBAT COMPUTER ROW '
-      + 'THIS MEANS NO CO-PILOT AT ALL.',
+    character: 'THE HAND-WRITTEN ATTACK RUN PIRATES FLEW BEFORE PURSUIT: CLOSES, FIRES '
+      + 'THROUGH THE PASS AND COMES ROUND AGAIN — ABOUT 5 RUNS A MINUTE. THE A/B THAT '
+      + 'PUTS THE WHOLE GAME BACK ON IT; ON A COMBAT COMPUTER ROW IT MEANS NO CO-PILOT.',
   },
-  // The pursuit dogfighter the combat computer flies, turned on the pirates —
-  // the experiment that lets a player fly against opponents with his own
-  // pilot. It does NOT just hold station: since it switches to the attack run
-  // when the commander faces it, it is a hybrid, and the character line says
-  // so. NOT PROBED in the tournament (it post-dates it).
+  // The pursuit dogfighter the combat computer flies, now turned on the pirates
+  // as the shipped opposition. It does NOT just hold station: since it switches
+  // to the attack run when the commander faces it, it is a hybrid, and the
+  // character line says so. NOT PROBED in the tournament (it post-dates it).
   pursuit: {
     name: 'GETS ON YOUR SIX',
     character: 'THE COMBAT COMPUTER\'S OWN PILOT, FLOWN BY THE PIRATES: IT CHASES ONTO YOUR '
@@ -226,33 +225,35 @@ export interface BrainSelection {
    */
   scripted?: boolean;
   /**
-   * Fly the PURSUIT dogfighter as the pirates — the combat computer's own
-   * pilot turned on the player, so a commander can fight opponents with his own
-   * co-pilot's flying. An experiment, offered by the trainer's LIVE BRAINS row;
-   * the default sky still flies the scripted attack run (`pirateBrainNameFor`).
+   * The pursuit dogfighter is what pirates fly by DEFAULT now, so this flag no
+   * longer switches them onto it — `pirateBrainNameFor` returns `pursuit` unless
+   * `scripted` is set. It stays as the explicit name of that default for the
+   * picker (`SELECTIONS.pursuit`), so a career or an exercise can say "pursuit"
+   * out loud and read it back, rather than only reaching it through "as shipped".
    */
   pursuit?: boolean;
 }
 
 /**
- * THE OPPOSITION IS SCRIPTED — everywhere, and that is now the whole rule.
+ * THE OPPOSITION IS THE PURSUIT DOGFIGHTER — the combat computer's own pilot,
+ * turned on the pirates, and the shipped default since Chris asked for it.
  *
- * Chris flew every option in the trainer — "the scripted one is actually
- * better" — and d563e3d made the three-phase attack run what ships for solo
- * pirates and organised gangs alike. On 2026-08-05 he went the rest of the
- * way: the two trained pirate policies (`pirate-attack-g3`,
- * `pirate-pack-r4-selectonly`) came OUT of the bundle entirely, TODO 57's
- * ship-only-what-ships applied to the rows that only ever existed to compare
- * against them. The neuroevolution is neither deleted nor wasted
- * (docs/TRAINING-LOG.md keeps every figure): it produced the finding the
- * flight model is built on — that stopping is the optimal way to hold a
- * firing line, hence `MIN_CRUISE_FRACTION` — and train/evolve.ts can still
- * breed a pirate for research; the game just never loads one.
+ * It chases onto your six and holds there while it is astern, breaking into the
+ * hand-written attack run's slashing pass the moment you turn your nose onto it
+ * (`pursuit.ts`, shared with the co-pilot; npc.ts's `pursue`). The three-phase
+ * attack run it shipped before — d563e3d, after Chris flew every option and
+ * called "the scripted one actually better" at the time — is still the whole
+ * `scripted` selection: the A/B control that reverts pirates AND the defence
+ * co-pilot to it. The two trained pirate policies left the bundle on 2026-08-05
+ * (docs/TRAINING-LOG.md keeps every figure, and train/evolve.ts can still breed
+ * one for research); the game loads no trained pilot, only these two code ones.
  */
 /**
  * The pilot an armed trader turns and fights with, and the combat computer
- * you buy, with no overrides: the SAME attack run the pirates fly, pointed
- * the other way (scripted-co-pilot.ts, and npc.ts's defence path).
+ * you buy, with no overrides: the SAME attack run the pirates USED to fly,
+ * pointed the other way (scripted-co-pilot.ts, and npc.ts's defence path). It
+ * did not follow the pirates onto pursuit — an armed trader's job is evade,
+ * survive, assist, not a dogfighter's, and nothing has evaluated pursuit there.
  *
  * It was `jameson-defend-g2`, the last trained policy in the bundle, under a
  * long-standing rule that "there is no scripted equivalent for flying YOUR
@@ -277,19 +278,24 @@ const SHIPPED_DEFENCE: BrainName = 'attack-run';
 export const SHIPPED_BRAINS: BrainSelection = Object.freeze({});
 
 /**
- * Which policy a pirate of this tier flies, BY NAME: `scripted`, always.
+ * Which policy a pirate of this tier flies, BY NAME: `pursuit` by default, and
+ * `scripted` when the A/B control asks for the hand-written attack run instead.
  *
- * The function survives the answer becoming constant because it is the named
- * home of the rule CLAUDE.md points at — scripted flies the opposition — and
- * because the QUESTION still has a tier and an organisation in it: a caller
- * asking "what does an organised gang fly" should not have to know that today
- * every answer is the same. The parameters are kept so the rule can change
- * shape again without every call site moving.
+ * The shipped opposition is the pursuit dogfighter — it chases onto your six and
+ * holds there, breaking into the attack run's slashing pass the moment you turn
+ * your nose onto it (npc.ts's `pursue`/`slashesRatherThanHoldSix`). It is the
+ * combat computer's own pilot, turned on the pirates. The `scripted` selection
+ * reverts the whole game to the hand-written three-phase attack run — pirates
+ * AND the defence co-pilot — which is the A/B control the LIVE BRAINS row keeps.
+ *
+ * Both are code, no loader path; the tier and organisation stay in the signature
+ * because a caller asking "what does an organised gang fly" should not have to
+ * know that today the answer does not depend on them.
  */
 export function pirateBrainNameFor(
   _tier: number, _organised: boolean, sel: BrainSelection = SHIPPED_BRAINS,
 ): BrainName {
-  return sel.pursuit ? 'pursuit' : 'scripted';
+  return sel.scripted ? 'scripted' : 'pursuit';
 }
 
 /** Which policy an armed trader or a player-assist ship flies, BY NAME. */

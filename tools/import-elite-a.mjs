@@ -20,6 +20,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildCatalogue } from './elite-a/build.mjs';
+import { correctNpcLaserDecode } from './elite-a/npc-weapon.mjs';
 import { renderAll } from './elite-a/emit.mjs';
 import { buildFixtures } from './elite-a/fixtures.mjs';
 
@@ -100,6 +101,11 @@ function main() {
     npcDamageToPlayer: parse(source.bytes, 'elite_a_npc_damage_to_player.json'),
     hitRanges: parse(source.bytes, 'elite_a_hit_ranges.json'),
   };
+
+  // The pack's NPC-laser columns were decoded with a three-bit power field and
+  // are wrong for the four ships whose power needs bit 6. Recompute them from
+  // the raw (correct) weapon bytes before anything reads them. See build.mjs.
+  correctNpcLaserDecode(pack);
 
   const model = buildCatalogue(pack, source.sourceHash);
   model.fixtures = buildFixtures(pack, source.sourceHash, {

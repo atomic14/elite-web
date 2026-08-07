@@ -89,10 +89,11 @@ console.log('\ncombat trainer scenarios');
     spec: spec(), round: 0, spawned: 0, alive: 0, roundElapsed: 0,
     playerAlive: true, ...over,
   });
-  // `scripted` and `attack-run` are CODE PILOTS, not weights files — the
-  // pre-neuroevolution AI and the three-phase attack run. Neither has a
-  // `<id>.json`, and since 2026-08-05 they are the only pilots the game flies.
-  const CODE_PILOTS = new Set(['scripted', 'attack-run']);
+  // `scripted`, `attack-run` and `pursuit` are CODE PILOTS, not weights files —
+  // the pre-neuroevolution AI, the three-phase attack run, and the pursuit
+  // dogfighter. None has a `<id>.json`, and since 2026-08-05 they are the only
+  // pilots the game flies.
+  const CODE_PILOTS = new Set(['scripted', 'attack-run', 'pursuit']);
   const brainFileExists = (id: BrainId) => CODE_PILOTS.has(id)
     || existsSync(new URL(`../src/ai-training/brains/${id}.json`, import.meta.url));
 
@@ -390,7 +391,11 @@ console.log('\ncombat trainer scenarios');
 
       // What each step DOES, held to what the step table says it does.
       {
-        const fit = (n: number) => allShips(waveOpposition(n, 0));
+        // A representative wave draw. Seed 0 stopped showing a two-missile hull
+        // in the pre-floor gang once the Asp Mk II (one missile) joined tier 2
+        // and reshuffled the mixed draw; seed 1 is one of many that still has a
+        // two-missile hull to prove the floor does not disarm.
+        const fit = (n: number) => allShips(waveOpposition(n, 1));
         const msl = WAVE_STEPS.findIndex((s) => s.missiles !== undefined) + 1;
         const ecm = WAVE_STEPS.findIndex((s) => s.ecm !== undefined) + 1;
         const before = fit(waveOfStage(msl) - 1);

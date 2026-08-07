@@ -138,30 +138,31 @@ console.log('\nlive defence — the cases the contract names');
 // runs.
 {
   {
-    // FULL ARMOUR ABSORPTION: an Asp Mk II's single laser-power bit is 4 points
-    // before armour, and a Cobra Mk III subtracts 7. Nothing gets through.
-    //
-    // Reached by variant id rather than through the roster, because that is
-    // exactly why the roster no longer flies one: all three released Asp builds
-    // do zero to all fifteen flyable hulls, so it is not a combat hull under
-    // the clean rule (see ship-specs.ts). The BOUNDARY is still worth proving,
-    // and this is a real released build.
-    const asp = npcWeaponByte(npcCombatProfileIdOf('I:23'));
+    // FULL ARMOUR ABSORPTION. The weakest gun any released ship carries is three
+    // power bits — 12 before armour, the Worm's (`SPECS.pirate[6]`). Only the
+    // heaviest flyable hull swallows it whole: the Anaconda's 13 points of
+    // armour. Nothing is fully stopped by the Cobra Mk III's 7 any more — every
+    // real NPC laser leaves it at least 5, which is exactly what the five-bit
+    // decode restored (see combat-math.ts `eliteANpcLaserPower`).
+    const worm = npcWeaponByte(SPECS.pirate[6].profileId);
+    const anacondaIndex = ELITE_A_PLAYER_HULLS.findIndex((h) => h.name === 'Anaconda');
+    eq('the Anaconda has the heaviest flyable armour',
+      ELITE_A_PLAYER_HULLS[anacondaIndex].perHitShieldArmour, 13);
+    const anacondaHull = PLAYER_HULL_IDS[anacondaIndex];
     eq('a laser weaker than the hull\'s armour is worth nothing at all',
-      npcLaserDamageToPlayer(asp, COBRA_MK_3_HULL_ID), 0);
+      npcLaserDamageToPlayer(worm, anacondaHull), 0);
     const sys = freshSystems();
     let rolls = 0;
-    const r = applyDamage(sys, npcLaserDamageToPlayer(asp, COBRA_MK_3_HULL_ID), true,
+    const r = applyDamage(sys, npcLaserDamageToPlayer(worm, anacondaHull), true,
       () => { rolls += 1; return 0; });
     check('...and a zero hit costs no shield, breaks nothing and kills nobody',
       sys.foreShield === MAX_SHIELD && !r.reachedHull && !r.destroyed && rolls === 0);
-    // ...and the same laser DOES bite a hull with less armour: the Adder's 4.
-    eq('...where an Adder\'s 4 points of armour leave it at exactly nothing',
-      npcLaserDamageToPlayer(asp, PLAYER_HULL_IDS[0]), 0);
-    // one point of penetration: a Worm's 12 against the Cobra's 7 leaves 5
-    eq('a laser one point past the armour costs exactly that one point',
-      npcLaserDamageToPlayer(npcWeaponByte(SPECS.pirate[6].profileId),
-        COBRA_MK_3_HULL_ID), 5);
+    // ...and the same gun DOES bite a lighter hull: 12 past the Cobra's 7 is 5,
+    // and past the Adder's 4 is 8. Strength less armour, floored at zero.
+    eq('against lighter armour it is the strength less that armour',
+      npcLaserDamageToPlayer(worm, COBRA_MK_3_HULL_ID), 5);
+    eq('...and a lighter hull still takes more',
+      npcLaserDamageToPlayer(worm, PLAYER_HULL_IDS[0]), 8);
   }
   {
     // ONE-POINT PENETRATION of the SHIELD, which is the other boundary.

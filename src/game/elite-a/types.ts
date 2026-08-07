@@ -125,11 +125,17 @@ export interface EliteADesign {
   readonly normalScaleExponent: number;
   readonly normalScaleDivisor: number;
   readonly missileCount: number;
+  /**
+   * Whether this design's guns fire at all — `laserPower > 0`. Constant across
+   * a design's variants (every combat build fires, no utility build does), so
+   * it dedupes here rather than onto all 260 variants.
+   */
+  readonly canFireLaser: boolean;
 
   readonly recommendedDefault: EliteARecommendedDefault;
 }
 
-/** The ten header fields that differ between builds of the same design. */
+/** The nine header fields that differ between builds of the same design. */
 export interface EliteAVariant {
   readonly variantId: EliteAVariantId;
   readonly blueprintSet: string;
@@ -140,7 +146,6 @@ export interface EliteAVariant {
   readonly perHitDefence: number;
   readonly weaponByte: number;
   readonly laserPower: number;
-  readonly canFireLaser: boolean;
   /** The released diagnostic `weaponByte >> 1`. Never drives gameplay. */
   readonly weaponByteShiftedHalf: number;
   readonly npcLaserDamageOriginalBeforeArmour: number;

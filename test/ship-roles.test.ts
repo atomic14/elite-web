@@ -210,9 +210,9 @@ console.log('\npirate threat tiers classify from source combat fields');
   // which build that is: a combat role now takes the hardest variant the source
   // ever filed under its own job (game/role-variants.ts), so a hull with a
   // harder gun scores higher and several moved up. Recorded here rather than
-  // argued about — the Gecko went 0 -> 1 and the pirate Cobra Mk III 1 -> 2, and
-  // the Asp Mk II left the roster entirely because no released build of it can
-  // hurt a flyable hull.
+  // argued about — the Gecko went 0 -> 1 and the pirate Cobra Mk III 1 -> 2.
+  // The Asp Mk II is a tier-2 pirate: its byte is laser power nine, restored
+  // when a decode bug was fixed (combat-math.ts `eliteANpcLaserPower`).
   eq('tier 0 opens Sidewinder, Worm, Ophidian',
     [0, 1, 2].map((k) => shipDisplayName(pirateSpecForTier(0, k).designId)).join(),
     'Sidewinder,Worm,Ophidian');
@@ -401,8 +401,8 @@ console.log('\nrestore rebuilds a ship from the design its snapshot recorded');
   // WHAT THE TIER FALLBACK IS FOR NOW. It used to answer a save written before
   // ships had ids, which had no design to look up; that save is refused
   // outright since 2026-08-04, so the only way `specForDesign` misses is a
-  // design the roster no longer flies in this role — the Asp Mk II came off the
-  // pirate list on purpose, and rosters will move again.
+  // design the roster does not fly in this role — a trader-only hull like the
+  // Anaconda, say — and rosters will move again.
   const retired = SHIP_DESIGN_IDS.find(
     (id) => !SPECS.pirate.some((s) => s.designId === id)
       && id !== CONSTRICTOR_SPEC.designId && shipDesign(id).source === 'elite-a')!;

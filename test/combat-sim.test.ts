@@ -170,8 +170,8 @@ console.log('\ncombat simulator — the setup draft');
   eq('a fresh draft is a single pirate, scored', draft.mode, 'scenario');
   eq('...at the tier the balance figures are quoted at', draft.tier, 1);
   eq('...on a random seed, so two launches are two fights', draft.seed, null);
-  eq('...with the pirates flying the attack run they fly out there',
-    draft.brain, 'attack-run');
+  eq('...with the pirates flying the pursuit dogfighter they fly out there',
+    draft.brain, 'pursuit');
   eq('...and it starts from the ship you actually own',
     draft.fit.laser, newCommander().equipment.laser);
   // FIT ONLY, and the list is exact so a hull, a bay or a galactic drive cannot
@@ -245,20 +245,21 @@ console.log('\ncombat simulator — the pirate brain');
     setupCells(d).find((c) => c.label.replace(/&nbsp;/g, '') === label)!;
 
   const d = freshDraft(newCommander());
-  eq('the default is the attack run — what pirates fly out there', d.brain, 'attack-run');
+  eq('the default is pursuit — what pirates fly out there', d.brain, 'pursuit');
   eq('...so the spec carries no override', specFrom(d, 1).brain, undefined);
 
-  // arrow the PIRATES FLY row to pursuit — the one lever over the opposition
+  // arrow the PIRATES FLY row to the scripted attack run — the one lever over
+  // the opposition
   cell(d, 'PIRATES FLY').change!(1);
-  eq('arrowing it turns the pirates onto pursuit', d.brain, 'pursuit');
-  eq('...and that reaches the spec as the override', specFrom(d, 1).brain, 'pursuit');
+  eq('arrowing it turns the pirates onto the scripted attack run', d.brain, 'scripted');
+  eq('...and that reaches the spec as the override', specFrom(d, 1).brain, 'scripted');
 
   // the row cycles the two code pilots and comes back
   const seen = new Set<BrainId>();
   const d2 = freshDraft(newCommander());
   for (let n = 0; n < 4; n++) { seen.add(d2.brain); cell(d2, 'PIRATES FLY').change!(1); }
-  check('the row offers the attack run and pursuit',
-    seen.has('attack-run') && seen.has('pursuit') && seen.size === 2);
+  check('the row offers pursuit and the attack run',
+    seen.has('pursuit') && seen.has('scripted') && seen.size === 2);
 
   check('the notes always describe the mode', draftNotes(d).length >= 1);
 }

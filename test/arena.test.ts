@@ -120,14 +120,13 @@ console.log('\ncombat arena');
     check('...with the tiers it was given',
       ships.map((n) => n.state.threatTier).join() === '2,1,1,1');
     // `organised` is still the flag that says "these hunt as a gang" — it is
-    // what the attack run's pack behaviours key off. What ships for a gang is
-    // the scripted attack run, and since 2026-08-05 that is the only pirate
-    // pilot there IS: the trained alternatives left the bundle with their
-    // weights (brain-names.ts), so the assertion is the name-level rule.
+    // what the pack behaviours key off. What ships for a gang is now the pursuit
+    // dogfighter, the shipped opposition since Chris asked for it (brain-names.ts),
+    // so the assertion is the name-level rule.
     check('...marked organised, and flying what an organised gang ships with',
       ships.every((n) => n.state.organised)
       && ships.every((n) => pirateBrainNameFor(n.state.threatTier, n.state.organised)
-        === 'scripted'));
+        === 'pursuit'));
 
     // hulls come from the roster for that tier and nowhere else. The sample is
     // the whole tier, not the first four seeds: the tiers are derived from the

@@ -215,12 +215,14 @@ console.log('\nmissiles: the target answers one');
   // bank), which must not depend on any training run's luck.
   const presser = ecmPresser;
 
-  // One pirate, one warhead, on a held-out defence seed — re-searched
+  // One pirate, one warhead, on a held-out defence seed. Re-searched twice: on
   // 2026-08-05 when the trained defence line was discarded and NPC steering
-  // returned to the arc slew: the property needs a seed where the two runs
-  // stay identical outside the warhead itself, and this is one of several the
-  // current physics gives (delta === one warhead, exactly one missile fired).
-  const SEED = 1_000_037;
+  // returned to the arc slew, and again when the Asp Mk II joined the pirate
+  // roster and shifted which hull this seed draws. The property needs a seed
+  // where the two runs stay identical outside the warhead itself, and this is
+  // one of several the current roster gives (delta === one warhead, exactly one
+  // missile fired).
+  const SEED = 1_000_004;
   const run = (brain: typeof presser, ecm: boolean): EpisodeReport => {
     const { count, hull, laser, energyUnit } = defenceFight(SEED);
     const ep = new Episode({
