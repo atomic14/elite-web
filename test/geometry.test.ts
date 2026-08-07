@@ -26,7 +26,8 @@ import type { NpcRole } from '../src/game/ship-roles.ts';
 import { NpcShip } from '../src/game/npc.ts';
 import { hitCone } from '../src/game/gunnery.ts';
 import { traceShot } from '../src/game/shot.ts';
-import { buildShip } from '../src/ships/geometry.ts';
+import { buildShip, buildHermitBeacon, HERMIT_BEACON_ON, HERMIT_BEACON_PERIOD }
+  from '../src/ships/geometry.ts';
 import {
   eliteAHull, ELITE_A_HULLS, SOURCE_UNITS_PER_WORLD_UNIT, sourceGeometryToWorld,
   sourcePointToWorld,
@@ -207,6 +208,36 @@ check('the two Harmless designs report as ours',
   && registeredHull(HARMLESS_OVERLAYS.rockHermit.designId).source === 'harmless');
 check('the rock hermit is generated, so it has no tabulated hull',
   registeredHull(HARMLESS_OVERLAYS.rockHermit.designId).def === null);
+
+// The hermit's beacon: the tell that it is inhabited, not a plain rock. A bright
+// mesh perched on it that blinks as the world steps.
+{
+  const beacon = buildHermitBeacon(100);
+  check('the hermit beacon is a mesh perched on the rock',
+    beacon instanceof THREE.Mesh && beacon.position.y > 0);
+  check('...lit for part of each period, so it pulses rather than strobes',
+    HERMIT_BEACON_ON > 0 && HERMIT_BEACON_ON < HERMIT_BEACON_PERIOD);
+
+  const hermit = new NpcShip('hermit', new THREE.Vector3(), 0, SPECS.hermit[0]);
+  const onRock = hermit.object.children.find((o): o is THREE.Mesh =>
+    o instanceof THREE.Mesh
+    && (o.material as THREE.MeshBasicMaterial).color?.getHex() === 0xffb030);
+  check('a spawned hermit carries a beacon', onRock !== undefined);
+  const view = {
+    station: new THREE.Object3D(), dockZ: 160, fleet: [hermit],
+    playerLegal: 0, brains: {}, missileInbound: false,
+  };
+  const player = {
+    position: new THREE.Vector3(0, 0, 1e6), quaternion: new THREE.Quaternion(), speed: 0,
+  };
+  const seen = new Set<boolean>();
+  for (let i = 0; i < HERMIT_BEACON_PERIOD * 60 + 4; i++) {
+    hermit.update(1 / 60, player as never, view as never);
+    if (onRock) seen.add(onRock.visible);
+  }
+  check('...that blinks on and off as the world steps', seen.has(true) && seen.has(false));
+}
+
 check('the canister and the missile are released designs 4 and 15',
   OBJECT_DESIGNS.cargoCanister === shipDesignIdOf(4)
   && OBJECT_DESIGNS.missile === shipDesignIdOf(15)

@@ -106,3 +106,26 @@ export function buildAsteroid(radius: number, seed: number, color: THREE.ColorRe
   group.add(hull, edges);
   return group;
 }
+
+/**
+ * Blink timing for a rock hermit's beacon: lit for `HERMIT_BEACON_ON` seconds
+ * of each `HERMIT_BEACON_PERIOD`. Slow enough to read as a signal rather than a
+ * strobe — a docked light saying someone is home.
+ */
+export const HERMIT_BEACON_PERIOD = 1.6;
+export const HERMIT_BEACON_ON = 0.5;
+
+/**
+ * A bright nav beacon that marks a rock as an inhabited hermit — the tell that
+ * stops a commander blasting an outpost he took for a plain asteroid. A small
+ * unlit mesh perched on the rock; `npc.ts` blinks it on the world step. Amber so
+ * it reads against the grey rock and is not mistaken for a hostile's fire.
+ */
+export function buildHermitBeacon(radius: number): THREE.Mesh {
+  const beacon = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(Math.max(4, radius * 0.14), 0),
+    new THREE.MeshBasicMaterial({ color: 0xffb030 }),
+  );
+  beacon.position.set(0, radius * 0.95, 0);
+  return beacon;
+}

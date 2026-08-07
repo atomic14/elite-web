@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { buildShip, buildAsteroid } from '../ships/geometry.ts';
+import { buildShip, buildAsteroid, buildHermitBeacon,
+  HERMIT_BEACON_ON, HERMIT_BEACON_PERIOD } from '../ships/geometry.ts';
 import { registeredHull } from '../ships/registry.ts';
 import {
   ASTEROID_IDENTITY, rosterSpec, shipAccel, type NpcSpec,
@@ -425,6 +426,14 @@ export class NpcShip {
   private pursuitSlashing = false;
 
   /**
+   * A rock hermit's blinking beacon and the clock that pulses it. Cosmetic and
+   * off the save on purpose: the blink phase drives nothing in the world, so a
+   * reload restarting it mid-pulse is not a divergence anything can observe.
+   */
+  private beacon: THREE.Mesh | null = null;
+  private beaconClock = 0;
+
+  /**
    * Whether the pursuit pilot is veering off to avoid a ram this frame, for the
    * readout alone (`describeFlight`). Live off the transient break state rather
    * than mirrored into `NpcState`, so there is still one home for the bit and
@@ -574,6 +583,8 @@ export class NpcShip {
       // mesh is generated at the registry's radius for it.
       const hermitRadius = registeredHull(this.designId).targetRadius;
       this.object = buildAsteroid(hermitRadius, variantSeed * 977 + 3, 0xb9b9a5);
+      this.beacon = buildHermitBeacon(hermitRadius);
+      this.object.add(this.beacon);
       this.radius = hermitRadius;
       this.bounty = 0;
       this.cargoDrop = 0;
@@ -675,6 +686,10 @@ export class NpcShip {
 
     if (this.role === 'asteroid' || this.role === 'hermit') {
       this.object.rotateOnAxis(this.tumbleAxis, dt * (this.role === 'hermit' ? 0.06 : 0.4));
+      if (this.beacon) {
+        this.beaconClock += dt;
+        this.beacon.visible = this.beaconClock % HERMIT_BEACON_PERIOD < HERMIT_BEACON_ON;
+      }
       return null;
     }
     if (this.role === 'generation') {
