@@ -30,15 +30,26 @@
 export const TRADER_SCATTER = 1800;
 
 /**
- * ...and the police, who sit closer in.
+ * ...and the police, who patrol the lane rather than guard the slot.
  *
- * The tightest of the six, and the reason is the job: a patrol is guarding the
- * station rather than travelling, so it should read as belonging to the
- * station. It also means a commander who launches into trouble is in reach of
- * the law immediately, which is what makes a high-government system feel
- * different to fly in rather than merely safer on paper.
+ * Police no longer sit on the station (that made the slot a cordon a fugitive
+ * could never reach to pay a fine — see game/law.ts and station.ts). On an
+ * ARRIVAL they scatter off the corridor like the pirate reception, so you may
+ * pass one flying in and be scanned; this is how far off that line each sits,
+ * the same role `PIRATE_SCATTER` plays for a gang.
  */
 export const POLICE_SCATTER = 1200;
+
+/**
+ * How far a launch scatters the patrol across the system.
+ *
+ * On a LAUNCH there is no arrival corridor to string police along — the
+ * commander starts at the slot — so a patrol placed by `POLICE_SCATTER` would
+ * be right back on top of the station. Instead they spread across the system at
+ * this radius: out there to be met, not cordoning the port you just left. Wider
+ * than any `_SCATTER` because it is a whole system, not a reception.
+ */
+export const POLICE_PATROL_RANGE = 18_000;
 
 /**
  * ...and the rocks, which are scenery and therefore spread widest of the three

@@ -45,10 +45,12 @@ console.log('\nwhere a system puts its traffic');
   const ROUTE = 400_000;
 
   const band: Record<string, { lo: number; hi: number }> = {};
-  const along = { lo: Infinity, hi: -Infinity };
+  const along: Record<string, { lo: number; hi: number }> = {};
+  const off: Record<string, number> = {};
   const sys = generateGalaxy(1)[7];
   const route = new THREE.Vector3();
   const rel = new THREE.Vector3();
+  const foot = new THREE.Vector3();
   for (let s = 0; s < 40; s++) {
     seedWorld(90_600 + s);
     const world = new World();
@@ -62,10 +64,13 @@ console.log('\nwhere a system puts its traffic');
       const d = npc.object.position.distanceTo(home);
       const b = band[npc.role] ?? (band[npc.role] = { lo: Infinity, hi: -Infinity });
       b.lo = Math.min(b.lo, d); b.hi = Math.max(b.hi, d);
-      if (npc.role === 'pirate') {
-        const f = rel.copy(npc.object.position).sub(player).dot(route) / ROUTE;
-        along.lo = Math.min(along.lo, f); along.hi = Math.max(along.hi, f);
-      }
+      // where on the route the ship sits, and how far off its line
+      const f = rel.copy(npc.object.position).sub(player).dot(route) / ROUTE;
+      const a = along[npc.role] ?? (along[npc.role] = { lo: Infinity, hi: -Infinity });
+      a.lo = Math.min(a.lo, f); a.hi = Math.max(a.hi, f);
+      const perp = foot.copy(player).addScaledVector(route, f * ROUTE)
+        .distanceTo(npc.object.position);
+      off[npc.role] = Math.max(off[npc.role] ?? 0, perp);
     }
   }
 
@@ -77,22 +82,36 @@ console.log('\nwhere a system puts its traffic');
       && b.lo < nominal * (NEAR + 0.15) && b.hi > nominal * (FAR - 0.15),
       `expected the band ${nominal * NEAR}-${nominal * FAR} to be reached and not exceeded`);
   };
-  scattered('trader', TRADER_SCATTER, 'traders loiter within reach of the station');
-  scattered('police', POLICE_SCATTER, '...the police closer in, where they belong to it');
-  scattered('asteroid', ASTEROID_SCATTER, '...the rocks wider, as scenery');
+  scattered('asteroid', ASTEROID_SCATTER, 'the rocks scatter wide, as scenery');
   scattered('hunter', HUNTER_SCATTER, '...a bounty hunter works the whole system');
   scattered('hermit', HERMIT_SCATTER, '...and the hermit hides at the far edge of the rocks');
 
-  // The reception is the one placement measured as a FRACTION of the route, so
-  // that it scales when WITCHPOINT_RADII moves — which it has, twice.
-  const slack = PIRATE_SCATTER * FAR / ROUTE;
-  check(`the reception starts a tenth of the way in, not on the witchpoint `
-    + `(nearest ${along.lo.toFixed(3)} of the route)`,
-  along.lo > CORRIDOR_START - slack && along.lo < CORRIDOR_START + 0.05);
-  check(`...and leaves the approach to the station clear `
-    + `(furthest ${along.hi.toFixed(3)}, corridor ends ${CORRIDOR_START + CORRIDOR_SPAN})`,
-  along.hi < CORRIDOR_START + CORRIDOR_SPAN + slack
-    && along.hi > CORRIDOR_START + CORRIDOR_SPAN - 0.05);
+  // A corridor role sits along the lane, between CORRIDOR_START and its end, and
+  // off that line by no more than its own scatter.
+  const slackFor = (scatterRange: number) => scatterRange * FAR / ROUTE;
+  const onCorridor = (role: string, scatterRange: number, what: string) => {
+    const a = along[role];
+    const slack = slackFor(scatterRange);
+    check(`${what} (${a.lo.toFixed(3)}-${a.hi.toFixed(3)} of the route, off ${Math.round(off[role])})`,
+      a.lo > CORRIDOR_START - slack && a.lo < CORRIDOR_START + 0.05
+      && a.hi < CORRIDOR_START + CORRIDOR_SPAN + slack
+      && a.hi > CORRIDOR_START + CORRIDOR_SPAN - 0.05
+      && off[role] <= scatterRange * FAR + 1);
+  };
+  onCorridor('pirate', PIRATE_SCATTER, 'the pirate reception is strung down the corridor');
+  onCorridor('police', POLICE_SCATTER, '...and the police patrol the lane, not the slot');
+  // ...so no police ship is ever cordoning the station itself.
+  check(`the nearest police is well off the slot (${Math.round(band.police.lo)} out)`,
+    band.police.lo > POLICE_SCATTER * FAR);
+
+  // Traders are split: half already trading by the slot, half inbound down the
+  // corridor — so a pirate meets honest traffic in open space, not only at port.
+  check(`some traders are trading by the station (${Math.round(band.trader.lo)} out)`,
+    band.trader.lo >= TRADER_SCATTER * NEAR - 1 && band.trader.lo < TRADER_SCATTER * FAR + 1);
+  check(`...and some are inbound down the corridor (nearest ${along.trader.lo.toFixed(3)} in)`,
+    along.trader.lo > CORRIDOR_START - slackFor(TRADER_SCATTER)
+    && along.trader.lo < CORRIDOR_START + CORRIDOR_SPAN);
+
   check('...so no arrival pirate is ever waiting at the station itself',
     CORRIDOR_START + CORRIDOR_SPAN < 1);
 }

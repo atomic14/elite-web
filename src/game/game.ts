@@ -699,7 +699,7 @@ export class Game {
     const constrictorHere = situation === 'arrival' && constrictorLurksHere(this.state.commander);
 
     const built = spawnPopulation(
-      this.state.world, plan, sys, this.state.player.position, constrictorHere);
+      this.state.world, plan, sys, this.state.player.position, constrictorHere, situation);
 
     if (plan.threat) {
       this.state.lastThreat = plan.threat;

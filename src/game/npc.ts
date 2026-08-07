@@ -287,6 +287,12 @@ export interface WorldView {
    */
   missileInbound: boolean;
   brains: BrainSelection;
+  /**
+   * Where the system's sun is, so a departing trader can run for it to jump out.
+   * Optional: a test that does not fly a departure need not supply it, and a
+   * trader with no sun in view falls back to a random heading (updateTrader).
+   */
+  sunPos?: THREE.Vector3;
 }
 
 /**
@@ -827,9 +833,12 @@ export class NpcShip {
             this.state.traderPhase = 'docking';
           } else {
             this.state.traderPhase = 'departing';
-            this.state.waypoint
-              .copy(station.position)
-              .add(randomDirection(new THREE.Vector3()).multiplyScalar(30000));
+            // Run for the sun to jump out, if the view knows where it is;
+            // otherwise any heading out of the system will do.
+            const heading = view.sunPos
+              ? new THREE.Vector3().subVectors(view.sunPos, station.position).normalize()
+              : randomDirection(new THREE.Vector3());
+            this.state.waypoint.copy(station.position).addScaledVector(heading, 30000);
           }
         }
         break;

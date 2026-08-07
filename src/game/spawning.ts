@@ -34,7 +34,8 @@ import { ORDINARY_GOODS } from '../constants/commodities.ts';
 import {
   ASTEROID_SCATTER, CORRIDOR_SPAN, CORRIDOR_START, GENERATION_CARGO_SCATTER,
   GENERATION_SHIP_RANGE, GENERATION_SHIP_RANGE_SPAN, HERMIT_SCATTER, HUNTER_SCATTER,
-  MISSION_TARGET_RANGE, MISSION_TARGET_RANGE_SPAN, PIRATE_SCATTER, POLICE_SCATTER,
+  MISSION_TARGET_RANGE, MISSION_TARGET_RANGE_SPAN, PIRATE_SCATTER, POLICE_PATROL_RANGE,
+  POLICE_SCATTER,
   STATION_DEFENCE_JITTER, STATION_DEFENCE_MIN, STATION_DEFENCE_SPAN,
   STATION_DEFENCE_STACK, STATION_DEFENCE_STANDOFF, TRADER_SCATTER,
 } from '../constants/spawn-placement.ts';
@@ -67,26 +68,49 @@ export function spawnPopulation(
   sys: StarSystem,
   playerPos: THREE.Vector3,
   missionTargetHere: boolean,
+  situation: 'launch' | 'arrival' = 'arrival',
 ): SpawnResult {
   const home = world.station.position;
+  const arriving = situation === 'arrival';
+
+  // The lane the commander flies in on. A point `spread` off it, `CORRIDOR_START`
+  // to `CORRIDOR_START + CORRIDOR_SPAN` of the way from the witchpoint to the
+  // slot — the same reception geometry the pirates use below. Meaningful only on
+  // an arrival; on a launch the commander starts at the slot and there is no lane.
+  const toStation = home.clone().sub(playerPos);
+  const routeLen = toStation.length();
+  const route = routeLen > 1 ? toStation.clone().multiplyScalar(1 / routeLen) : new THREE.Vector3();
+  const corridorPos = (spread: number): THREE.Vector3 =>
+    playerPos.clone()
+      .addScaledVector(route, routeLen * (CORRIDOR_START + random() * CORRIDOR_SPAN))
+      .add(scatter(spread));
 
   for (let i = 0; i < plan.traders; i++) {
-    world.spawn('trader', home.clone().add(scatter(TRADER_SCATTER)), i + sys.index);
+    // Half the traders are already trading by the slot; on an arrival the rest
+    // are inbound down the corridor, so you meet honest traffic flying in (and a
+    // pirate has someone to prey on). The `arriving` phase steers them to the
+    // station on its own (npc.ts `updateTrader`).
+    if (arriving && i % 2 === 0) {
+      const trader = world.spawn('trader', corridorPos(TRADER_SCATTER), i + sys.index);
+      trader.state.traderPhase = 'arriving';
+    } else {
+      world.spawn('trader', home.clone().add(scatter(TRADER_SCATTER)), i + sys.index);
+    }
   }
   for (let i = 0; i < plan.police; i++) {
-    world.spawn('police', home.clone().add(scatter(POLICE_SCATTER)), i);
+    // On the corridor when arriving — a Viper you may pass and be scanned by —
+    // and scattered across the system on a launch, never sitting on the slot.
+    const pos = arriving ? corridorPos(POLICE_SCATTER)
+      : home.clone().add(scatter(POLICE_PATROL_RANGE));
+    world.spawn('police', pos, i);
   }
   for (let i = 0; i < plan.asteroids; i++) {
     world.spawn('asteroid', home.clone().add(scatter(ASTEROID_SCATTER)), sys.seed[0] + i * 37);
   }
 
   if (plan.threat && plan.pirates > 0) {
-    const toStation = home.clone().sub(playerPos);
-    const routeLen = toStation.length();
-    const route = toStation.normalize();
     for (let i = 0; i < plan.pirates; i++) {
-      const along = routeLen * (CORRIDOR_START + random() * CORRIDOR_SPAN);
-      const pos = playerPos.clone().addScaledVector(route, along).add(scatter(PIRATE_SCATTER));
+      const pos = corridorPos(PIRATE_SCATTER);
       // ringleaders first, then the hangers-on they brought
       const seed = i + sys.index * 3;
       const tier = memberTier(plan.threat.tier, i);

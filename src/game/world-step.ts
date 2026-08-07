@@ -358,6 +358,7 @@ export class WorldStep {
       playerLegal: s.commander.legalStatus,
       brains: s.brains,
       missileInbound: this.ordnance.missileInbound,
+      sunPos: world.sunPos,
     };
     for (const npc of [...world.npcs]) {
       const event = npc.update(dt, player, view);
